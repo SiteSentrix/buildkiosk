@@ -237,3 +237,60 @@ macro_rules! cost_doc_fields {
         }
     };
 }
+
+/// The shared commands of one record kind, under `$prefix`.
+#[macro_export]
+macro_rules! cost_doc_commands {
+    ($prefix:literal, $noun:literal, $tool:expr, $ty:ty, $create_doc:literal) => {
+        [
+            $crate::cmd::CommandSpec::mutate(
+                concat!($prefix, ".create"),
+                concat!("Create ", $noun),
+                $tool,
+                $crate::cmd::Access::Project(buildkiosk_model::Level::Standard),
+                $create_doc,
+                $crate::costdoc::create::<$ty>,
+            ),
+            $crate::cmd::CommandSpec::mutate(
+                concat!($prefix, ".update"),
+                concat!("Edit ", $noun),
+                $tool,
+                $crate::cmd::Access::Project(buildkiosk_model::Level::Standard),
+                concat!("project, id: ids; then any ", $prefix, ".create field (a lines list replaces the old one)"),
+                $crate::costdoc::update::<$ty>,
+            ),
+            $crate::cmd::CommandSpec::mutate(
+                concat!($prefix, ".delete"),
+                concat!("Delete ", $noun),
+                $tool,
+                $crate::cmd::Access::Project(buildkiosk_model::Level::Standard),
+                "project, id: ids",
+                $crate::costdoc::delete::<$ty>,
+            ),
+            $crate::cmd::CommandSpec::mutate(
+                concat!($prefix, ".restore"),
+                concat!("Restore ", $noun),
+                $tool,
+                $crate::cmd::Access::Project(buildkiosk_model::Level::Admin),
+                "project, id: ids",
+                $crate::costdoc::restore::<$ty>,
+            ),
+            $crate::cmd::CommandSpec::query(
+                concat!($prefix, ".list"),
+                concat!("List ", $noun, "s"),
+                $tool,
+                $crate::cmd::Access::Project(buildkiosk_model::Level::Read),
+                "project: project id; deleted?: bool (recycle bin, admins)",
+                $crate::costdoc::list::<$ty>,
+            ),
+            $crate::cmd::CommandSpec::query(
+                concat!($prefix, ".get"),
+                concat!("Show ", $noun),
+                $tool,
+                $crate::cmd::Access::Project(buildkiosk_model::Level::Read),
+                "project, id: ids",
+                $crate::costdoc::get::<$ty>,
+            ),
+        ]
+    };
+}

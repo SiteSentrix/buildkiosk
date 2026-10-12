@@ -18,77 +18,21 @@ use crate::costdoc::{self, CostDoc, label, load};
 use crate::ctx::in_project;
 use crate::{Ctx, EngineError, Params, Result};
 
-/// The shared commands of one record kind, under `$prefix`.
-macro_rules! shared {
-    ($prefix:literal, $noun:literal, $tool:expr, $ty:ty, $create_doc:literal) => {
-        [
-            CommandSpec::mutate(
-                concat!($prefix, ".create"),
-                concat!("Create ", $noun),
-                $tool,
-                Access::Project(Level::Standard),
-                $create_doc,
-                costdoc::create::<$ty>,
-            ),
-            CommandSpec::mutate(
-                concat!($prefix, ".update"),
-                concat!("Edit ", $noun),
-                $tool,
-                Access::Project(Level::Standard),
-                concat!("project, id: ids; then any ", $prefix, ".create field (a lines list replaces the old one)"),
-                costdoc::update::<$ty>,
-            ),
-            CommandSpec::mutate(
-                concat!($prefix, ".delete"),
-                concat!("Delete ", $noun),
-                $tool,
-                Access::Project(Level::Standard),
-                "project, id: ids",
-                costdoc::delete::<$ty>,
-            ),
-            CommandSpec::mutate(
-                concat!($prefix, ".restore"),
-                concat!("Restore ", $noun),
-                $tool,
-                Access::Project(Level::Admin),
-                "project, id: ids",
-                costdoc::restore::<$ty>,
-            ),
-            CommandSpec::query(
-                concat!($prefix, ".list"),
-                concat!("List ", $noun, "s"),
-                $tool,
-                Access::Project(Level::Read),
-                "project: project id; deleted?: bool (recycle bin, admins)",
-                costdoc::list::<$ty>,
-            ),
-            CommandSpec::query(
-                concat!($prefix, ".get"),
-                concat!("Show ", $noun),
-                $tool,
-                Access::Project(Level::Read),
-                "project, id: ids",
-                costdoc::get::<$ty>,
-            ),
-        ]
-    };
-}
-
-const CHANGE_EVENT: [CommandSpec; 6] = shared!(
+const CHANGE_EVENT: [CommandSpec; 6] = crate::cost_doc_commands!(
     "change_event",
     "change event",
     Tool::ChangeEvents,
     ChangeEvent,
     "project: project id; title: text; description?, reason?: text; lines?: [{cost_code: cost code id, description?: text, amount: estimated amount}]"
 );
-const COMMITMENT_CHANGE: [CommandSpec; 6] = shared!(
+const COMMITMENT_CHANGE: [CommandSpec; 6] = crate::cost_doc_commands!(
     "commitment_change",
     "commitment change order",
     Tool::ChangeOrders,
     CommitmentChange,
     "project: project id; commitment: commitment id (can't change later); title: text; description?: text; change_event?: change event id; lines?: [{cost_code: cost code id, description?: text, amount: amount, may be negative}]"
 );
-const BUDGET_CHANGE: [CommandSpec; 6] = shared!(
+const BUDGET_CHANGE: [CommandSpec; 6] = crate::cost_doc_commands!(
     "budget_change",
     "budget change",
     Tool::ChangeOrders,

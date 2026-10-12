@@ -3,7 +3,7 @@
 
 use buildkiosk_core::{Id, Money};
 use buildkiosk_engine::costdoc::{CostDoc, can_edit, can_see, docs_for, label};
-use buildkiosk_engine::model::finance::{BudgetChange, ChangeEvent, ChangeEventStatus, ChangeStatus, CommitmentChange};
+use buildkiosk_engine::model::finance::{BudgetChange, ChangeEvent, ChangeEventStatus, ChangeStatus, CommitmentChange, PrimeChange, PrimeContract};
 use buildkiosk_engine::model::project::Project;
 use buildkiosk_engine::model::{Choice, Level};
 use buildkiosk_engine::{JournalEntry, find_command, view};
@@ -215,6 +215,114 @@ impl LineDoc for BudgetChange {
     }
     fn extra_fields(item: Option<&Self>, req: &Req<'_>, project: Id<Project>) -> Markup {
         event_field(req, project, item.and_then(|i| i.change_event))
+    }
+}
+
+impl LineDoc for PrimeContract {
+    const PREFIX: &'static str = "prime_contract";
+    const TITLE: &'static str = "Prime contract";
+    const SUBTITLE: &'static str = "What the owner pays: the schedule of values that gets invoiced";
+    const PATH: &'static str = "prime-contracts";
+    const TABLE: &'static str = "prime_contracts";
+    const FIELDS: &'static [&'static str] = &["title", "description", "owner", "retainage"];
+
+    fn nav(project: Id<Project>) -> Nav {
+        Nav::PrimeContracts(project)
+    }
+    fn title(&self) -> &str {
+        &self.title
+    }
+    fn description(&self) -> &str {
+        &self.description
+    }
+    fn status_pill(&self) -> Markup {
+        change_pill(self.status)
+    }
+    fn extra_facts(&self, req: &Req<'_>) -> Markup {
+        let state = req.engine.state();
+        let summary = view::contract_summary(state, self).ok();
+        html! {
+            @if let Some(o) = self.owner { dt { "Owner" } dd { (view::vendor_name(state, o)) } }
+            dt { "Retainage" } dd { @if let Some(r) = self.retainage { (r) } @else { "None" } }
+            @if let Some(c) = summary {
+                dt { "Original contract" } dd { (c.original) }
+                dt { "Approved changes" } dd { (c.changes) }
+                dt { "Revised contract" } dd { strong { (c.revised) } }
+                dt { "Billed to date" } dd { (c.billed) }
+                dt { "Retainage held" } dd { (c.retainage_held) }
+                dt { "Paid (net)" } dd { (c.paid) }
+                dt { "Balance to finish" } dd { (c.balance_to_finish) }
+            }
+            dt { "Related" } dd {
+                a href=(format!("/projects/{}/prime-change-orders", self.project)) { "Prime change orders" } " · "
+                a href=(format!("/projects/{}/owner-invoices", self.project)) { "Owner invoices" }
+            }
+        }
+    }
+    fn actions(&self, req: &Req<'_>, here: &str, ids: &[(&str, String)]) -> Markup {
+        change_actions(req, self, "prime_contract", self.status, here, ids)
+    }
+    fn extra_fields(item: Option<&Self>, req: &Req<'_>, _project: Id<Project>) -> Markup {
+        let state = req.engine.state();
+        let mut vendors: Vec<_> = state.vendors.iter().filter(|v| v.deleted.is_none()).collect();
+        vendors.sort_by_key(|v| v.name.to_lowercase());
+        let owner = item.and_then(|i| i.owner);
+        html! {
+            (field("Owner", "owner", false, false, html! { select id="owner" name="owner" { option value="" { "—" } @for v in &vendors { option value=(v.id) selected[Some(v.id) == owner] { (v.name) } } } }))
+            (field("Retainage (%)", "retainage", false, false, html! { input type="text" id="retainage" name="retainage" inputmode="decimal" placeholder="10" value=(item.and_then(|i| i.retainage).map(|r| r.to_string().trim_end_matches('%').to_string()).unwrap_or_default()); }))
+        }
+    }
+}
+
+impl LineDoc for PrimeChange {
+    const PREFIX: &'static str = "prime_change";
+    const TITLE: &'static str = "Prime change orders";
+    const SUBTITLE: &'static str = "Approved changes to the owner's contract; approved lines become billable";
+    const PATH: &'static str = "prime-change-orders";
+    const TABLE: &'static str = "prime_changes";
+    const FIELDS: &'static [&'static str] = &["title", "description", "contract", "change_event"];
+
+    fn nav(project: Id<Project>) -> Nav {
+        Nav::PrimeContracts(project)
+    }
+    fn title(&self) -> &str {
+        &self.title
+    }
+    fn description(&self) -> &str {
+        &self.description
+    }
+    fn status_pill(&self) -> Markup {
+        change_pill(self.status)
+    }
+    fn extra_heads() -> Markup {
+        html! { th { "Contract" } }
+    }
+    fn extra_cells(&self, req: &Req<'_>) -> Markup {
+        html! { td { @if let Some(c) = req.engine.state().prime_contracts.get(self.contract) { (c.title) } } }
+    }
+    fn extra_facts(&self, req: &Req<'_>) -> Markup {
+        html! {
+            @if let Some(c) = req.engine.state().prime_contracts.get(self.contract) { dt { "Contract" } dd { a href=(format!("/projects/{}/prime-contracts/{}", self.project, c.id)) { (c.title) } } }
+            (event_link(req, self.project, self.change_event))
+        }
+    }
+    fn actions(&self, req: &Req<'_>, here: &str, ids: &[(&str, String)]) -> Markup {
+        change_actions(req, self, "prime_change", self.status, here, ids)
+    }
+    fn extra_fields(item: Option<&Self>, req: &Req<'_>, project: Id<Project>) -> Markup {
+        let state = req.engine.state();
+        let contracts: Vec<_> = buildkiosk_engine::costdoc::docs_for::<PrimeContract>(state, req.actor(), project)
+            .into_iter()
+            .filter(|c| c.status == ChangeStatus::Approved)
+            .collect();
+        html! {
+            @if let Some(i) = item {
+                input type="hidden" name="contract" value=(i.contract);
+            } @else {
+                (field("Prime contract", "contract", true, true, html! { select id="contract" name="contract" required { @for c in &contracts { option value=(c.id) { (c.title) } } } }))
+            }
+            (event_field(req, project, item.and_then(|i| i.change_event)))
+        }
     }
 }
 

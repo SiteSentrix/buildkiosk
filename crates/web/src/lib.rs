@@ -6,6 +6,7 @@
 //! checks and I/O.
 #![forbid(unsafe_code)]
 
+pub mod daily_logs;
 pub mod icons;
 pub mod inbox;
 pub mod layout;

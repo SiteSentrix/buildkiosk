@@ -202,3 +202,33 @@ fn attachments_follow_edit_rights() {
     w.err(sub, "rfi.attach", file);
     w.assert_replay();
 }
+
+#[test]
+fn rfi_events_notify_the_right_people() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let arch = w.member(p, "Arch", "Itect", "Owner / design team");
+    let fyi = w.member(p, "Fay", "Info", "Read only");
+    let unread = |w: &mut World, who| w.ok(who, "notification.list", json!({"unread": true})).as_array().unwrap().len();
+
+    let id = w.ok(
+        pm,
+        "rfi.create",
+        json!({"project": p, "subject": "Footing depth", "question": "Which governs?", "assignees": [arch], "distribution": [fyi], "open": true}),
+    )["id"]
+        .as_u64()
+        .unwrap();
+    assert_eq!((unread(&mut w, arch), unread(&mut w, fyi), unread(&mut w, pm)), (1, 1, 0));
+    w.ok(arch, "rfi.respond", json!({"project": p, "id": id, "body": "Drawings govern."}));
+    assert_eq!(unread(&mut w, pm), 1, "the manager hears about a response");
+    w.ok(pm, "rfi.close", json!({"project": p, "id": id}));
+    assert_eq!((unread(&mut w, arch), unread(&mut w, fyi)), (2, 2), "closing tells assignees and the distribution list");
+    w.ok(pm, "rfi.reopen", json!({"project": p, "id": id}));
+    assert_eq!(
+        (unread(&mut w, arch), unread(&mut w, fyi)),
+        (2, 3),
+        "reopening tells the distribution list; the ball is with the manager, who did it"
+    );
+    w.assert_replay();
+}

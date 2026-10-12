@@ -156,9 +156,12 @@ fn row_json(v: &View<'_>, r: &BudgetRow) -> Value {
         "description": code.map(|c| c.description.clone()).unwrap_or_default(),
         "budgeted": r.budgeted,
         "original": r.original,
+        "changes": r.changes,
+        "revised": r.revised(),
         "committed": r.committed,
         "direct": r.direct,
         "cost": r.cost(),
+        "pending": r.pending,
         "remaining": r.remaining(),
     })
 }
@@ -166,10 +169,9 @@ fn row_json(v: &View<'_>, r: &BudgetRow) -> Value {
 fn get(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
     let project: Id<Project> = p.id("project")?;
     let rows = view::budget_rows(v.state, project)?;
-    let (original, committed, direct) = view::budget_totals(&rows)?;
-    let cost = committed.checked_add(direct).unwrap_or(Money::ZERO);
+    let t = view::budget_totals(&rows)?;
     Ok(json!({
         "rows": rows.iter().map(|r| row_json(v, r)).collect::<Vec<_>>(),
-        "totals": { "original": original, "committed": committed, "direct": direct, "cost": cost, "remaining": original.checked_sub(cost).unwrap_or(Money::ZERO) },
+        "totals": { "original": t.original, "changes": t.changes, "revised": t.revised(), "committed": t.committed, "direct": t.direct, "cost": t.cost(), "pending": t.pending, "remaining": t.remaining() },
     }))
 }

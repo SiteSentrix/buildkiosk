@@ -13,6 +13,7 @@
 
 pub mod access;
 pub mod cmd;
+pub mod costdoc;
 pub mod ctx;
 pub mod guard;
 pub mod journal;

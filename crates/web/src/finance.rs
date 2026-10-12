@@ -53,16 +53,18 @@ pub fn budget(req: &Req<'_>, id: Id<Project>) -> Markup {
     let body = html! {
         div class="page-head" {
             div { h1 { "Budget" } div class="sub" { "What each cost code was budgeted, what is committed and what has been spent" } }
-            div class="actions" { a class="btn" href=(format!("{here}.csv")) { (Icon::Download.svg()) "Export CSV" } }
+            div class="actions" {
+                a class="btn" href=(format!("/projects/{id}/budget-changes")) { "Budget changes" }
+                a class="btn" href=(format!("{here}.csv")) { (Icon::Download.svg()) "Export CSV" }
+            }
         }
-        @if let Some((original, committed, direct)) = totals {
-            @let cost = committed.checked_add(direct).unwrap_or(Money::ZERO);
-            @let remaining = original.checked_sub(cost).unwrap_or(Money::ZERO);
+        @if let Some(t) = totals {
             div class="stat-row" {
-                div class="stat" { div class="label" { "Original budget" } div class="value" { (original) } }
-                div class="stat" { div class="label" { "Committed" } div class="value" { (committed) } }
-                div class="stat" { div class="label" { "Direct costs" } div class="value" { (direct) } }
-                div class=(if remaining.is_negative() { "stat alert" } else { "stat good" }) { div class="label" { "Remaining" } div class="value" { (remaining) } }
+                div class="stat" { div class="label" { "Revised budget" } div class="value" { (t.revised()) } @if !t.changes.is_zero() { div class="muted small" { "Original " (t.original) } } }
+                div class="stat" { div class="label" { "Committed" } div class="value" { (t.committed) } }
+                div class="stat" { div class="label" { "Direct costs" } div class="value" { (t.direct) } }
+                div class=(if t.remaining().is_negative() { "stat alert" } else { "stat good" }) { div class="label" { "Remaining" } div class="value" { (t.remaining()) } }
+                @if !t.pending.is_zero() { a class="stat" href=(format!("/projects/{id}/change-events")) { div class="label" { "Pending change events" } div class="value" { (t.pending) } } }
             }
         }
         @if rows.is_empty() {
@@ -70,13 +72,15 @@ pub fn budget(req: &Req<'_>, id: Id<Project>) -> Markup {
         } @else {
             div class="table-wrap" {
                 table class="data" {
-                    thead { tr { th { "Cost code" } th class="num" { "Original" } th class="num" { "Committed" } th class="num" { "Direct" } th class="num" { "Total cost" } th class="num" { "Remaining" } @if can_edit { th {} } } }
+                    thead { tr { th { "Cost code" } th class="num" { "Original" } th class="num" { "Changes" } th class="num" { "Revised" } th class="num" { "Committed" } th class="num" { "Direct" } th class="num" { "Total cost" } th class="num" { "Remaining" } @if can_edit { th {} } } }
                     tbody {
                         @for r in &rows {
                             @let code = state.cost_codes.get(r.cost_code);
                             tr {
                                 td { strong { (code.map(|c| c.code.as_str()).unwrap_or("?")) } " " (code.map(|c| c.description.as_str()).unwrap_or("")) @if !r.budgeted { " " span class="tag" { "No budget line" } } }
                                 td class="num" { (r.original) }
+                                td class="num" { (r.changes) }
+                                td class="num" { (r.revised()) }
                                 td class="num" { (r.committed) }
                                 td class="num" { (r.direct) }
                                 td class="num" { (r.cost()) }
@@ -85,9 +89,8 @@ pub fn budget(req: &Req<'_>, id: Id<Project>) -> Markup {
                             }
                         }
                     }
-                    @if let Some((original, committed, direct)) = totals {
-                        @let cost = committed.checked_add(direct).unwrap_or(Money::ZERO);
-                        tfoot { tr { td { "Total" } td class="num" { (original) } td class="num" { (committed) } td class="num" { (direct) } td class="num" { (cost) } td class="num" { (amount(original.checked_sub(cost).unwrap_or(Money::ZERO))) } @if can_edit { td {} } } }
+                    @if let Some(t) = totals {
+                        tfoot { tr { td { "Total" } td class="num" { (t.original) } td class="num" { (t.changes) } td class="num" { (t.revised()) } td class="num" { (t.committed) } td class="num" { (t.direct) } td class="num" { (t.cost()) } td class="num" { (amount(t.remaining())) } @if can_edit { td {} } } }
                     }
                 }
             }
@@ -129,16 +132,19 @@ pub fn budget_csv(req: &Req<'_>, id: Id<Project>) -> Option<String> {
         return None;
     }
     let rows = view::budget_rows(state, id).ok()?;
-    let mut out = String::from("Cost code,Description,Original,Committed,Direct,Total cost,Remaining\r\n");
+    let mut out = String::from("Cost code,Description,Original,Changes,Revised,Committed,Direct,Total cost,Pending,Remaining\r\n");
     for r in &rows {
         let code = state.cost_codes.get(r.cost_code);
         let cells = [
             code.map(|c| c.code.clone()).unwrap_or_default(),
             code.map(|c| c.description.clone()).unwrap_or_default(),
             r.original.plain(),
+            r.changes.plain(),
+            r.revised().plain(),
             r.committed.plain(),
             r.direct.plain(),
             r.cost().plain(),
+            r.pending.plain(),
             r.remaining().plain(),
         ];
         out.push_str(&cells.iter().map(|c| layout::csv_cell(c)).collect::<Vec<_>>().join(","));
@@ -279,6 +285,25 @@ pub fn commitment(req: &Req<'_>, id: Id<Project>, cid: Id<Commitment>, history: 
                 } }
             }
             @if !c.status.counts() { p class="muted small" { "Only approved and complete commitments count as committed cost in the budget." } }
+        }
+        @let changes: Vec<_> = state.commitment_changes.iter().filter(|x| x.commitment == c.id && x.deleted.is_none() && view::can_see_commitment_change(state, req.actor(), x)).collect();
+        @if !changes.is_empty() || (c.status.counts() && req.allowed("commitment_change.create", Some(id))) {
+            div class="card" {
+                div class="card-head" {
+                    h2 { "Change orders" }
+                    @if c.status.counts() && req.allowed("commitment_change.create", Some(id)) { a class="btn small" href=(format!("/projects/{id}/change-orders/new")) { "New change order" } }
+                }
+                @if changes.is_empty() { p class="muted" { "No change orders." } }
+                @else {
+                    div class="table-wrap" { table class="data" {
+                        thead { tr { th { "#" } th { "Title" } th { "Status" } th class="num" { "Amount" } } }
+                        tbody { @for x in &changes {
+                            tr { td { (x.number) } td { a class="row-link" href=(format!("/projects/{id}/change-orders/{}", x.id)) { (x.title) } } td { (x.status.label()) } td class="num" { @if let Some(t) = Money::sum(x.lines.iter().map(|l| l.amount)) { (t) } } }
+                        } }
+                        @if let Some(r) = view::commitment_revised_total(state, c) { tfoot { tr { td colspan="3" { "Revised total (approved changes included)" } td class="num" { (r) } } } }
+                    } }
+                }
+            }
         }
         div class="card" {
             h2 { "History" }

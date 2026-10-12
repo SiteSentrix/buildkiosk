@@ -642,3 +642,88 @@ async fn budget_commitments_and_direct_costs_in_the_browser_flow() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn change_events_change_orders_and_budget_changes_in_the_browser_flow() {
+    let dir = temp("changes");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=P"))).await;
+    let (_, _, budget) = send(&app, get("/projects/1/budget")).await;
+    let code = |text: &str| -> String {
+        let i = budget.find(&format!(">{text} ")).unwrap();
+        let before = &budget[..i];
+        let v = before.rfind("value=\"").unwrap() + 7;
+        before[v..].split('"').next().unwrap().to_string()
+    };
+    let (concrete, steel) = (code("03-300"), code("05-100"));
+    send(&app, post("/do/budget.set_line", &ada, format!("_csrf={csrf}&project=1&cost_code={concrete}&original=100000"))).await;
+    send(&app, post("/do/budget.set_line", &ada, format!("_csrf={csrf}&project=1&cost_code={steel}&original=50000"))).await;
+    send(
+        &app,
+        post(
+            "/projects/1/commitments/save",
+            &ada,
+            format!("_csrf={csrf}&title=Slab&kind=subcontract&vendor=&description=&lines.0.cost_code={concrete}&lines.0.amount=60000"),
+        ),
+    )
+    .await;
+    send(&app, post("/do/commitment.approve", &ada, format!("_csrf={csrf}&project=1&id=1"))).await;
+
+    // A change event shows as pending on the budget until it is closed.
+    let (st, _, form) = send(&app, get("/projects/1/change-events/new")).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(form.contains("name=\"reason\"") && form.contains("lines.0.cost_code"));
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/projects/1/change-events/save",
+            &ada,
+            format!("_csrf={csrf}&title=Thicker+slab&description=&reason=Field+condition&lines.0.cost_code={concrete}&lines.0.amount=7500"),
+        ),
+    )
+    .await;
+    assert_eq!(h.get(LOCATION).unwrap().to_str().unwrap().split('?').next().unwrap(), "/projects/1/change-events/1");
+    let (_, _, budget) = send(&app, get("/projects/1/budget")).await;
+    assert!(budget.contains("Pending change events") && budget.contains("7,500.00"));
+
+    // A commitment change order, approved, adds to the committed cost and shows on the commitment.
+    let (_, _, form) = send(&app, get("/projects/1/change-orders/new")).await;
+    assert!(form.contains("Slab"), "approved commitments can be picked");
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/projects/1/change-orders/save",
+            &ada,
+            format!("_csrf={csrf}&title=Extra+thickness&description=&commitment=1&change_event=1&lines.0.cost_code={concrete}&lines.0.amount=7500"),
+        ),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().starts_with("/projects/1/change-orders/1?ok="));
+    send(&app, post("/do/commitment_change.approve", &ada, format!("_csrf={csrf}&project=1&id=1"))).await;
+    let (_, _, commitment) = send(&app, get("/projects/1/commitments/1")).await;
+    assert!(commitment.contains("Extra thickness") && commitment.contains("67,500.00"));
+
+    // A budget change moves 10,000 from steel to concrete.
+    send(&app, post("/projects/1/budget-changes/save", &ada, format!("_csrf={csrf}&title=Move+to+slab&description=&change_event=&lines.0.cost_code={steel}&lines.0.amount=-10000&lines.1.cost_code={concrete}&lines.1.amount=10000"))).await;
+    send(&app, post("/do/budget_change.approve", &ada, format!("_csrf={csrf}&project=1&id=1"))).await;
+    let (_, _, budget) = send(&app, get("/projects/1/budget")).await;
+    for want in ["110,000.00", "40,000.00", "67,500.00", "42,500.00"] {
+        assert!(budget.contains(want), "{want} missing from the budget");
+    }
+    for path in ["change-events", "change-orders", "budget-changes"] {
+        let (st, _, list) = send(&app, get(&format!("/projects/1/{path}"))).await;
+        assert_eq!(st, StatusCode::OK);
+        assert!(list.contains("<table"), "{path} lists its record");
+    }
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

@@ -25,6 +25,7 @@ pub mod daily_log;
 
 // -- financials
 pub mod budget;
+pub mod change;
 pub mod commitment;
 pub mod direct_cost;
 
@@ -67,6 +68,7 @@ pub enum Access {
 }
 
 /// Metadata and implementation of one command.
+#[derive(Clone, Copy)]
 pub struct CommandSpec {
     pub id: &'static str,
     pub label: &'static str,
@@ -126,6 +128,7 @@ const MODULES: &[&[CommandSpec]] = &[
     daily_log::COMMANDS,
     // -- financials
     budget::COMMANDS,
+    change::COMMANDS,
     commitment::COMMANDS,
     direct_cost::COMMANDS,
     // -- documents

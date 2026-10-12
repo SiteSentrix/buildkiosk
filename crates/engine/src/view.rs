@@ -7,6 +7,7 @@
 use buildkiosk_core::Id;
 use buildkiosk_model::daily_log::{DailyLog, LogStatus};
 use buildkiosk_model::directory::{Person, Vendor};
+use buildkiosk_model::inspection::Inspection;
 use buildkiosk_model::observation::Observation;
 use buildkiosk_model::project::Project;
 use buildkiosk_model::punch::PunchItem;
@@ -153,6 +154,20 @@ pub fn can_see_observation(state: &CompanyState, actor: Actor, item: &Observatio
 pub fn observations_for(state: &CompanyState, actor: Actor, project: Id<Project>) -> Vec<&Observation> {
     let mut list: Vec<&Observation> =
         state.observations.iter().filter(|i| i.project == project && i.deleted.is_none() && can_see_observation(state, actor, i)).collect();
+    list.sort_by_key(|i| i.number);
+    list
+}
+
+/// Whether the actor may see an inspection: Read access to the tool.
+pub fn can_see_inspection(state: &CompanyState, actor: Actor, i: &Inspection) -> bool {
+    let lvl = level(state, actor, i.project, Tool::Inspections);
+    lvl == Level::Admin || (i.deleted.is_none() && lvl >= Level::Read)
+}
+
+/// The inspections of a project the actor may see, in number order.
+pub fn inspections_for(state: &CompanyState, actor: Actor, project: Id<Project>) -> Vec<&Inspection> {
+    let mut list: Vec<&Inspection> =
+        state.inspections.iter().filter(|i| i.project == project && i.deleted.is_none() && can_see_inspection(state, actor, i)).collect();
     list.sort_by_key(|i| i.number);
     list
 }

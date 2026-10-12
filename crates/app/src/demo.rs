@@ -166,6 +166,27 @@ pub fn create(dir: &str) -> Result<(), String> {
                 json!({"project": pid, "title": title, "location": location, "kind": kind, "priority": priority, "corrective_action": action, "assignees": [person(1)]}),
             )?;
         }
+        exec(&mut t, pm, "inspection_template.install_starters", json!({"project": pid}))?;
+        let templates = exec(&mut t, pm, "inspection_template.list", json!({"project": pid}))?;
+        let framing = templates
+            .as_array()
+            .and_then(|l| l.iter().find(|x| x.get("name").and_then(Value::as_str) == Some("Framing walk-through")))
+            .and_then(|x| x.get("id").and_then(Value::as_u64));
+        if let Some(template) = framing {
+            let insp = exec(
+                &mut t,
+                pm,
+                "inspection.create",
+                json!({"project": pid, "template": template, "location": "Level 2", "inspector": person(1), "scheduled": "2026-10-16"}),
+            )?;
+            let answers: Vec<Value> = (1..=4).map(|n| json!({"line": n, "answer": if n == 3 { "fail" } else { "pass" }, "note": if n == 3 { "No backing at the sink wall." } else { "" }})).collect();
+            exec(
+                &mut t,
+                Actor::Person(Id::new(person(1))),
+                "inspection.answer",
+                json!({"project": pid, "id": id_of(&insp, "id")?, "answers": answers}),
+            )?;
+        }
         let subs = [("Rooftop unit shop drawings", "23 74 00", "Shop drawing"), ("Storefront glazing product data", "08 41 13", "Product data")];
         for (title, spec, kind) in subs {
             let sub = exec(

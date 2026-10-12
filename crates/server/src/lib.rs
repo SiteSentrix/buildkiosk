@@ -112,6 +112,15 @@ pub fn router(app: Shared) -> Router {
         .route("/projects/{id}/rfis/new", get(rfi_new))
         .route("/projects/{id}/submittals", get(submittal_list))
         .route("/notifications", get(notifications))
+        .route("/projects/{id}/inspections", get(inspection_list))
+        .route("/projects/{id}/inspections.csv", get(inspection_csv))
+        .route("/projects/{id}/inspections/new", get(inspection_new))
+        .route("/projects/{id}/inspections/templates", get(inspection_templates))
+        .route("/projects/{id}/inspections/{iid}", get(inspection_detail))
+        .route("/projects/{id}/inspections/{iid}/edit", get(inspection_edit))
+        .route("/projects/{id}/inspections/{iid}/answers", post(inspection_answers))
+        .route("/projects/{id}/inspections/{iid}/files/{sha}", get(inspection_file))
+        .route("/projects/{id}/inspections/{iid}/upload", post(inspection_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
         .route("/projects/{id}/punch-list", get(punch_list))
         .route("/projects/{id}/punch-list.csv", get(punch_csv))
         .route("/projects/{id}/punch-list/new", get(punch_new))
@@ -547,6 +556,92 @@ async fn observation_upload(State(app): State<Shared>, headers: HeaderMap, Path(
     file_upload(app, headers, Kind::Observation, id, iid, multipart).await
 }
 
+async fn inspection_list(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    use buildkiosk_engine::model::Choice;
+    let filter = buildkiosk_web::inspections::Filter {
+        status: q.get("status").and_then(|s| buildkiosk_engine::model::inspection::InspectionStatus::parse(s)),
+        q: q.get("q").map(|s| s.chars().take(100).collect()).unwrap_or_default(),
+        mine: q.get("mine").is_some_and(|m| m == "1"),
+    };
+    page(&app, &headers, &q, |r, _| buildkiosk_web::inspections::list(r, Id::new(id), &filter))
+}
+
+async fn inspection_new(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::inspections::form(r, Id::new(id), None))
+}
+
+async fn inspection_templates(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::inspections::templates(r, Id::new(id)))
+}
+
+async fn inspection_detail(State(app): State<Shared>, headers: HeaderMap, Path((id, iid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, t| {
+        buildkiosk_web::inspections::detail(r, Id::new(id), Id::new(iid), &t.store.history("inspections", iid).unwrap_or_default())
+    })
+}
+
+async fn inspection_edit(State(app): State<Shared>, headers: HeaderMap, Path((id, iid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::inspections::form(r, Id::new(id), Some(Id::new(iid))))
+}
+
+async fn inspection_csv(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>) -> Response {
+    let inner = app.lock();
+    let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    let csrf = auth::csrf_token(app.secret(), &s.cookie);
+    let req = Req { engine: &t.engine, person: s.person, csrf: &csrf, now: Timestamp::from_millis(now_ms()), flash: None };
+    let Some(csv) = buildkiosk_web::inspections::csv(&req, Id::new(id)) else { return plain(StatusCode::NOT_FOUND, "Not found") };
+    let mut res = csv.into_response();
+    res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("text/csv; charset=utf-8"));
+    res.headers_mut().insert("content-disposition", HeaderValue::from_static("attachment; filename=\"inspections.csv\""));
+    res
+}
+
+async fn inspection_file(State(app): State<Shared>, headers: HeaderMap, Path((id, iid, sha)): Path<(u64, u64, String)>) -> Response {
+    file_download(app, headers, Kind::Inspection, id, iid, sha).await
+}
+
+async fn inspection_upload(State(app): State<Shared>, headers: HeaderMap, Path((id, iid)): Path<(u64, u64)>, multipart: Multipart) -> Response {
+    file_upload(app, headers, Kind::Inspection, id, iid, multipart).await
+}
+
+/// Saves the checklist form (`line.N.answer`, `line.N.note`), and completes the inspection when
+/// asked to.
+async fn inspection_answers(State(app): State<Shared>, headers: HeaderMap, Path((id, iid)): Path<(u64, u64)>, body: Bytes) -> Response {
+    let form = parse_form(&body);
+    let mut inner = app.lock();
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    if !auth::csrf_ok(app.secret(), &s.cookie, get_form(&form, "_csrf")) {
+        return plain(StatusCode::FORBIDDEN, "The form expired. Go back, reload the page and try again.");
+    }
+    let back = format!("/projects/{id}/inspections/{iid}");
+    let mut lines: std::collections::BTreeMap<usize, Map<String, Value>> = std::collections::BTreeMap::new();
+    for (k, v) in &form {
+        let Some(rest) = k.strip_prefix("line.") else { continue };
+        let Some((n, field)) = rest.split_once('.') else { continue };
+        let Ok(n) = n.parse::<usize>() else { continue };
+        if n < 300 {
+            let row = lines.entry(n).or_default();
+            row.insert("line".into(), json!(n + 1));
+            row.insert(field.to_string(), Value::String(v.clone()));
+        }
+    }
+    let answers: Vec<Value> = lines.into_values().map(Value::Object).collect();
+    let actor = Actor::Person(s.person);
+    if !answers.is_empty()
+        && let Err(e) = inner.run(actor, "inspection.answer", &json!({"project": id, "id": iid, "answers": answers}))
+    {
+        return redirect(&with_flash(&back, false, &e.to_string()));
+    }
+    if !get_form(&form, "_complete").is_empty() {
+        return match inner.run(actor, "inspection.complete", &json!({"project": id, "id": iid})) {
+            Ok(_) => redirect(&with_flash(&back, true, "Inspection completed.")),
+            Err(e) => redirect(&with_flash(&back, false, &format!("Answers saved, but not completed: {e}"))),
+        };
+    }
+    redirect(&with_flash(&back, true, "Answers saved."))
+}
+
 async fn notifications(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Response {
     page(&app, &headers, &q, |r, _| buildkiosk_web::inbox::page(r))
 }
@@ -884,6 +979,7 @@ enum Kind {
     Submittal,
     Punch,
     Observation,
+    Inspection,
 }
 
 impl Kind {
@@ -893,6 +989,7 @@ impl Kind {
             Kind::Submittal => "submittal.attach",
             Kind::Punch => "punch.attach",
             Kind::Observation => "observation.attach",
+            Kind::Inspection => "inspection.attach",
         }
     }
 
@@ -902,6 +999,7 @@ impl Kind {
             Kind::Submittal => "submittals",
             Kind::Punch => "punch-list",
             Kind::Observation => "observations",
+            Kind::Inspection => "inspections",
         }
     }
 
@@ -929,6 +1027,11 @@ impl Kind {
                 .punch_items
                 .get(Id::new(item))
                 .filter(|r| r.project == Id::new(project) && view::can_see_punch(state, actor, r))
+                .map(|r| r.attachments.clone()),
+            Kind::Inspection => state
+                .inspections
+                .get(Id::new(item))
+                .filter(|r| r.project == Id::new(project) && view::can_see_inspection(state, actor, r))
                 .map(|r| r.attachments.clone()),
             Kind::Observation => state
                 .observations

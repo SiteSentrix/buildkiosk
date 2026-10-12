@@ -203,14 +203,18 @@ fn add_comment(ctx: &Ctx<'_>, item: &mut PunchItem, body: String) -> Result<()> 
     Ok(())
 }
 
-fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
-    let project: Id<Project> = p.id("project")?;
-    let number = ctx.state.punch_items.iter().filter(|i| i.project == project).map(|i| i.number).max().unwrap_or(0).saturating_add(1);
+/// The next number for a new item of the project.
+fn next_number(ctx: &Ctx<'_>, project: Id<Project>) -> u32 {
+    ctx.state.punch_items.iter().filter(|i| i.project == project).map(|i| i.number).max().unwrap_or(0).saturating_add(1)
+}
+
+/// A new open item with nothing filled in yet, managed by the actor.
+pub(crate) fn blank(ctx: &Ctx<'_>, project: Id<Project>) -> PunchItem {
     let stamp = ctx.stamp();
-    let mut item = PunchItem {
+    PunchItem {
         id: ctx.state.punch_items.peek_next(),
         project,
-        number,
+        number: next_number(ctx, project),
         title: String::new(),
         description: String::new(),
         location: String::new(),
@@ -228,7 +232,21 @@ fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         created: stamp,
         updated: stamp,
         deleted: None,
-    };
+    }
+}
+
+/// Stores a finished new item and returns its id.
+pub(crate) fn insert(ctx: &mut Ctx<'_>, mut item: PunchItem) -> Id<PunchItem> {
+    let id = ctx.state.punch_items.alloc();
+    item.id = id;
+    ctx.state.punch_items.put(item);
+    id
+}
+
+fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let mut item = blank(ctx, project);
+    let number = item.number;
     apply_fields(ctx, p, &mut item, true)?;
     let id = ctx.state.punch_items.alloc();
     item.id = id;

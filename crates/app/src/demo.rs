@@ -116,13 +116,19 @@ pub fn create(dir: &str) -> Result<(), String> {
                 )?;
             }
         }
+        exec(
+            &mut t,
+            pm,
+            "spec.import",
+            json!({"project": pid, "text": "05 12 00, Structural steel framing\n08 41 13, Aluminum storefront\n23 74 00, Packaged rooftop units"}),
+        )?;
         let subs = [("Rooftop unit shop drawings", "23 74 00", "Shop drawing"), ("Storefront glazing product data", "08 41 13", "Product data")];
         for (title, spec, kind) in subs {
             let sub = exec(
                 &mut t,
                 pm,
                 "submittal.create",
-                json!({"project": pid, "title": title, "spec_section": spec, "kind": kind, "reviewers": [person(4), person(2)], "open": true}),
+                json!({"project": pid, "title": title, "spec_section": spec, "kind": kind, "reviewers": [person(4), person(2)], "ordered": title.starts_with("Storefront"), "open": true}),
             )?;
             if title.starts_with("Rooftop") {
                 exec(

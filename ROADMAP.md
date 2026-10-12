@@ -8,7 +8,7 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 ## Where we are
 | Area | State |
 | --- | --- |
-| Engine (commands, permissions, journal) | company setup, directory, permission templates, projects, project team, cost codes, RFIs, submittals |
+| Engine (commands, permissions, journal) | company setup, directory, permission templates, projects, project team, cost codes, RFIs, submittals, specification sections, notifications |
 | Store | journal, snapshots, blobs, credentials on disk |
 | Web UI | submittals (list, detail, form, reviews, close, resubmit, files); sign-in, first-run setup, projects, project home, team, RFIs (list, detail, new, edit, respond, open, close, reopen, delete, files, history, distribution list, CSV export) |
 | Directory | company directory page: people, companies, permission templates (view), add forms, admin sets passwords |
@@ -21,6 +21,7 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 2. Next tools in the order of `docs/gaps.md` (daily logs, punch list, inspections, …).
 
 ## Progress log
+- 2026-10-12: Submittals round 2 — ordered reviews, register import/export, specification sections, files on reviews, in-app notifications.
 - 2026-10-12: Submittals — review workflow with revisions, files, history.
 - 2026-10-12: Directory page (people, companies, templates), admins set passwords, edit/deactivate/remove people.
 - 2026-10-12: RFIs — files (25 MB, served as downloads), change history, distribution list, CSV export.

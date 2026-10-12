@@ -7,10 +7,12 @@
 pub mod company;
 pub mod directory;
 pub mod meta;
+pub mod notification;
 pub mod perm;
 pub mod project;
 pub mod rfi;
 // -- project management
+pub mod spec;
 pub mod submittal;
 
 // -- quality and safety
@@ -105,7 +107,9 @@ const MODULES: &[&[CommandSpec]] = &[
     project::COMMANDS,
     rfi::COMMANDS,
     meta::COMMANDS,
+    notification::COMMANDS,
     // -- project management
+    spec::COMMANDS,
     submittal::COMMANDS,
     // -- quality and safety
 

@@ -55,6 +55,8 @@ pub enum Nav {
     Team(Id<Project>),
     Rfis(Id<Project>),
     Submittals(Id<Project>),
+    Specs(Id<Project>),
+    Notifications,
 }
 
 fn head(title: &str) -> Markup {
@@ -96,9 +98,10 @@ pub fn app(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Option<String>
     let state = req.engine.state();
     let me = view::person_name(state, req.person);
     let company = state.company().map(|c| c.name.clone()).unwrap_or_default();
+    let unread = state.notifications.iter().filter(|n| n.person == req.person && !n.read).count();
     let project = match nav {
-        Nav::Projects | Nav::Directory => None,
-        Nav::Home(p) | Nav::Team(p) | Nav::Rfis(p) | Nav::Submittals(p) => state.projects.get(p),
+        Nav::Projects | Nav::Directory | Nav::Notifications => None,
+        Nav::Home(p) | Nav::Team(p) | Nav::Rfis(p) | Nav::Submittals(p) | Nav::Specs(p) => state.projects.get(p),
     };
     html! {
         (DOCTYPE)
@@ -113,6 +116,7 @@ pub fn app(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Option<String>
                     span class="company" { (company) }
                     span class="spacer" {}
                     div class="who" {
+                        a href="/notifications" aria-label=(format!("Notifications, {unread} unread")) { (Icon::Mail.svg()) @if unread > 0 { span class="tag" { (unread) } } }
                         span class="avatar" { (initials(&me)) }
                         span class="name" { (me) }
                         form method="post" action="/logout" {
@@ -135,6 +139,7 @@ pub fn app(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Option<String>
                                 a href=(format!("/projects/{}", p.id)) class=(if matches!(nav, Nav::Home(_)) { "active" } else { "" }) { (Icon::Home.svg()) "Project home" }
                                 a href=(format!("/projects/{}/rfis", p.id)) class=(if matches!(nav, Nav::Rfis(_)) { "active" } else { "" }) { (tool_icon(Tool::Rfis).svg()) "RFIs" }
                                 a href=(format!("/projects/{}/submittals", p.id)) class=(if matches!(nav, Nav::Submittals(_)) { "active" } else { "" }) { (tool_icon(Tool::Submittals).svg()) "Submittals" }
+                                a href=(format!("/projects/{}/specifications", p.id)) class=(if matches!(nav, Nav::Specs(_)) { "active" } else { "" }) { (tool_icon(Tool::Specifications).svg()) "Specifications" }
                                 a href=(format!("/projects/{}/team", p.id)) class=(if matches!(nav, Nav::Team(_)) { "active" } else { "" }) { (tool_icon(Tool::ProjectDirectory).svg()) "Team" }
                             }
                         }
@@ -186,6 +191,12 @@ pub fn button_form(req: &Req<'_>, command: &str, next: &str, fields: &[(&str, St
             button type="submit" class=(format!("btn {class}")) { (label) }
         },
     )
+}
+
+/// One CSV cell: spreadsheet formulas in text are defused and special characters quoted.
+pub(crate) fn csv_cell(s: &str) -> String {
+    let s = if s.starts_with(['=', '+', '-', '@', '\t', '\r']) { format!("'{s}") } else { s.to_string() };
+    if s.contains([',', '"', '\n', '\r']) { format!("\"{}\"", s.replace('"', "\"\"")) } else { s }
 }
 
 /// An empty-state panel.

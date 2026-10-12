@@ -4,11 +4,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::ModelError;
 use crate::directory::{Company, DistributionGroup, Person, Vendor};
+use crate::notification::Notification;
 use crate::perm::{PermissionTemplate, ProjectMember};
 use crate::project::{CostCode, Project};
 use crate::rfi::Rfi;
 use crate::table::{Table, TableChange, TableData};
 // -- project management
+use crate::spec::SpecSection;
 use crate::submittal::Submittal;
 
 // -- quality and safety
@@ -112,6 +114,7 @@ tables! {
     rfis: Rfi,
     // -- project management
     submittals: Submittal,
+    spec_sections: SpecSection,
 
     // -- quality and safety
 
@@ -122,6 +125,7 @@ tables! {
     // -- documents
 
     // -- collaboration
+    notifications: Notification,
 }
 
 impl CompanyState {

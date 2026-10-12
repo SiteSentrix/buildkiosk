@@ -40,6 +40,8 @@ pub struct SubmittalReview {
     pub decision: Decision,
     #[serde(default)]
     pub comment: String,
+    #[serde(default)]
+    pub attachments: Vec<FileRef>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -67,6 +69,9 @@ pub struct Submittal {
     pub submitter: Option<Id<Person>>,
     #[serde(default)]
     pub reviewers: Vec<Id<Person>>,
+    /// Reviewers answer one after another, in the order listed, instead of all at once.
+    #[serde(default)]
+    pub ordered: bool,
     #[serde(default)]
     pub distribution: Vec<Id<Person>>,
     #[serde(default)]
@@ -119,12 +124,18 @@ impl Submittal {
         self.current_reviews().any(|r| r.by == Some(person))
     }
 
+    /// The reviewers who haven't answered this revision yet; with ordered review, only the next one.
+    pub fn waiting_reviewers(&self) -> Vec<Id<Person>> {
+        let mut waiting = self.reviewers.iter().copied().filter(|r| !self.has_reviewed(*r));
+        if self.ordered { waiting.next().into_iter().collect() } else { waiting.collect() }
+    }
+
     /// Reviewers first; once all have answered, the manager.
     pub fn recompute_ball_in_court(&mut self) {
         self.ball_in_court = match self.status {
             SubmittalStatus::Draft | SubmittalStatus::Closed => Vec::new(),
             SubmittalStatus::InReview => {
-                let waiting: Vec<Id<Person>> = self.reviewers.iter().copied().filter(|r| !self.has_reviewed(*r)).collect();
+                let waiting = self.waiting_reviewers();
                 if waiting.is_empty() { self.manager.into_iter().collect() } else { waiting }
             }
         };

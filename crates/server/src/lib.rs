@@ -111,7 +111,11 @@ pub fn router(app: Shared) -> Router {
         .route("/projects/{id}/rfis", get(rfi_list))
         .route("/projects/{id}/rfis/new", get(rfi_new))
         .route("/projects/{id}/submittals", get(submittal_list))
+        .route("/notifications", get(notifications))
+        .route("/projects/{id}/specifications", get(specifications))
+        .route("/projects/{id}/submittals.csv", get(submittal_csv))
         .route("/projects/{id}/submittals/new", get(submittal_new))
+        .route("/projects/{id}/submittals/{sid}/review", post(submittal_review).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
         .route("/projects/{id}/submittals/{sid}", get(submittal_detail))
         .route("/projects/{id}/submittals/{sid}/edit", get(submittal_edit))
         .route("/projects/{id}/submittals/{sid}/files/{sha}", get(submittal_file))
@@ -351,6 +355,27 @@ async fn submittal_list(State(app): State<Shared>, headers: HeaderMap, Path(id):
         mine: q.get("mine").is_some_and(|m| m == "1"),
     };
     page(&app, &headers, &q, |r, _| buildkiosk_web::submittals::list(r, Id::new(id), &filter))
+}
+
+async fn notifications(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::inbox::page(r))
+}
+
+async fn specifications(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::specs::page(r, Id::new(id)))
+}
+
+async fn submittal_csv(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>) -> Response {
+    let inner = app.lock();
+    let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    let csrf = auth::csrf_token(app.secret(), &s.cookie);
+    let req = Req { engine: &t.engine, person: s.person, csrf: &csrf, now: Timestamp::from_millis(now_ms()), flash: None };
+    let Some(csv) = buildkiosk_web::submittals::csv(&req, Id::new(id)) else { return plain(StatusCode::NOT_FOUND, "Not found") };
+    let mut res = csv.into_response();
+    res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("text/csv; charset=utf-8"));
+    res.headers_mut().insert("content-disposition", HeaderValue::from_static("attachment; filename=\"submittals.csv\""));
+    res
 }
 
 async fn submittal_new(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
@@ -691,19 +716,19 @@ impl Kind {
         actor: Actor,
         project: u64,
         item: u64,
-    ) -> Option<&[buildkiosk_engine::model::FileRef]> {
+    ) -> Option<Vec<buildkiosk_engine::model::FileRef>> {
         use buildkiosk_engine::view;
         match self {
             Kind::Rfi => state
                 .rfis
                 .get(Id::new(item))
                 .filter(|r| r.project == Id::new(project) && view::can_see_rfi(state, actor, r))
-                .map(|r| r.attachments.as_slice()),
+                .map(|r| r.attachments.clone()),
             Kind::Submittal => state
                 .submittals
                 .get(Id::new(item))
                 .filter(|r| r.project == Id::new(project) && view::can_see_submittal(state, actor, r))
-                .map(|r| r.attachments.as_slice()),
+                .map(|r| r.attachments.iter().chain(r.reviews.iter().flat_map(|v| v.attachments.iter())).cloned().collect()),
         }
     }
 }
@@ -722,7 +747,7 @@ async fn file_download(app: Shared, headers: HeaderMap, kind: Kind, id: u64, rid
         let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
         let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
         let files = kind.files(t.engine.state(), Actor::Person(s.person), id, rid);
-        files.and_then(|f| f.iter().find(|a| a.sha256 == sha)).and_then(|a| t.store.blobs.path(&a.sha256).map(|p| (p, a.name.clone())))
+        files.and_then(|f| f.into_iter().find(|a| a.sha256 == sha)).and_then(|a| t.store.blobs.path(&a.sha256).map(|p| (p, a.name.clone())))
     };
     let Some((path, name)) = found else { return plain(StatusCode::NOT_FOUND, "Not found") };
     let bytes = match tokio::task::spawn_blocking(move || std::fs::read(path)).await {
@@ -744,6 +769,57 @@ async fn rfi_upload(State(app): State<Shared>, headers: HeaderMap, Path((id, rid
 
 async fn submittal_upload(State(app): State<Shared>, headers: HeaderMap, Path((id, sid)): Path<(u64, u64)>, multipart: Multipart) -> Response {
     file_upload(app, headers, Kind::Submittal, id, sid, multipart).await
+}
+
+async fn submittal_review(State(app): State<Shared>, headers: HeaderMap, Path((id, sid)): Path<(u64, u64)>, mut multipart: Multipart) -> Response {
+    let back = format!("/projects/{id}/submittals/{sid}");
+    let (mut token, mut decision, mut comment) = (String::new(), String::new(), String::new());
+    let mut files: Vec<(String, String, Bytes)> = Vec::new();
+    let mut total = 0usize;
+    loop {
+        let field = match multipart.next_field().await {
+            Ok(Some(f)) => f,
+            Ok(None) => break,
+            Err(_) => return redirect(&with_flash(&back, false, "The upload failed or the files are larger than 25 MB.")),
+        };
+        let name = field.name().unwrap_or("").to_string();
+        let filename = field.file_name().unwrap_or("file").to_string();
+        let mime = field.content_type().unwrap_or("application/octet-stream").to_string();
+        let Ok(bytes) = field.bytes().await else {
+            return redirect(&with_flash(&back, false, "The upload failed or the files are larger than 25 MB."));
+        };
+        match name.as_str() {
+            "_csrf" => token = String::from_utf8_lossy(&bytes).into_owned(),
+            "decision" => decision = String::from_utf8_lossy(&bytes).into_owned(),
+            "comment" => comment = String::from_utf8_lossy(&bytes).into_owned(),
+            "file" if !bytes.is_empty() => {
+                total = total.saturating_add(bytes.len());
+                if total > MAX_UPLOAD || files.len() >= 10 {
+                    return redirect(&with_flash(&back, false, "A review can carry at most 10 files and 25 MB in all."));
+                }
+                files.push((filename, mime, bytes));
+            }
+            _ => {}
+        }
+    }
+    let mut inner = app.lock();
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    if !auth::csrf_ok(app.secret(), &s.cookie, &token) {
+        return plain(StatusCode::FORBIDDEN, "The form expired. Go back, reload the page and try again.");
+    }
+    let Some(t) = inner.tenant.as_mut() else { return redirect("/setup") };
+    let mut attachments = Vec::new();
+    for (name, mime, bytes) in &files {
+        match t.store.blobs.put(bytes) {
+            Ok((sha256, size)) => attachments.push(json!({"sha256": sha256, "name": name, "size": size, "mime": mime})),
+            Err(e) => return redirect(&with_flash(&back, false, &e.to_string())),
+        }
+    }
+    let params = json!({"project": id, "id": sid, "decision": decision, "comment": comment, "attachments": attachments});
+    match inner.run(Actor::Person(s.person), "submittal.review", &params) {
+        Ok(_) => redirect(&with_flash(&back, true, "Review submitted.")),
+        Err(e) => redirect(&with_flash(&back, false, &e.to_string())),
+    }
 }
 
 async fn file_upload(app: Shared, headers: HeaderMap, kind: Kind, id: u64, rid: u64, mut multipart: Multipart) -> Response {

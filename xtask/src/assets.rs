@@ -7,8 +7,8 @@
 use std::path::Path;
 
 const ASSET_EXT: &[&str] = &[
-    "png", "jpg", "jpeg", "gif", "webp", "bmp", "tif", "tiff", "ico", "icns", "svg", "pdf", "psd", "ttf", "otf", "woff", "woff2", "mp4", "webm", "wav",
-    "mp3", "dwg", "dxf", "ifc", "rvt",
+    "png", "jpg", "jpeg", "gif", "webp", "bmp", "tif", "tiff", "ico", "icns", "svg", "pdf", "psd", "ttf", "otf", "woff", "woff2", "mp4", "webm",
+    "wav", "mp3", "dwg", "dxf", "ifc", "rvt",
 ];
 const ASSET_DIRS: &[&str] = &["assets/", "docs/images/"];
 

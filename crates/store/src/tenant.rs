@@ -128,7 +128,8 @@ impl TenantStore {
     /// Writes a snapshot of `engine`'s state, so the next load replays only later entries.
     pub fn snapshot(&mut self, engine: &Engine) -> Result<()> {
         let path = self.dir.join("snapshot.json");
-        let bytes = serde_json::to_vec(&engine.state().snapshot(engine.seq())).map_err(|e| StoreError::Invalid(format!("encoding the snapshot: {e}")))?;
+        let bytes =
+            serde_json::to_vec(&engine.state().snapshot(engine.seq())).map_err(|e| StoreError::Invalid(format!("encoding the snapshot: {e}")))?;
         fsutil::write_atomic(&path, &bytes)?;
         self.snapshot_seq = engine.seq();
         Ok(())

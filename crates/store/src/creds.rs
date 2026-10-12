@@ -58,7 +58,7 @@ pub fn check_password_rules(password: &str) -> std::result::Result<(), String> {
     if n > MAX_PASSWORD {
         return Err(format!("the password must have at most {MAX_PASSWORD} characters"));
     }
-    if password.trim().is_empty() || password.chars().all(|c| Some(c) == password.chars().next()) {
+    if password.trim().is_empty() || password.chars().all(|c| password.starts_with(c)) {
         return Err("choose a password that isn't a single repeated character".into());
     }
     Ok(())

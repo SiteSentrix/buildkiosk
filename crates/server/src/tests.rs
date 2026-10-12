@@ -500,3 +500,68 @@ async fn observation_list_in_the_browser_flow() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn inspection_checklist_in_the_browser_flow() {
+    let dir = temp("inspections");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=P"))).await;
+
+    let (st, _, templates) = send(&app, get("/projects/1/inspections/templates")).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(templates.contains("Add the starter templates"));
+    send(&app, post("/do/inspection_template.install_starters", &ada, format!("_csrf={csrf}&project=1"))).await;
+    let (_, _, templates) = send(&app, get("/projects/1/inspections/templates")).await;
+    assert!(templates.contains("Pre-pour concrete check") && templates.contains("Final walk-through"));
+
+    let (_, _, form) = send(&app, get("/projects/1/inspections/new")).await;
+    assert!(form.contains("Framing walk-through"));
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/do/inspection.create",
+            &ada,
+            format!("_csrf={csrf}&_next=/projects/1/inspections/%7Bid%7D&project=1&template=2&location=Level+2&inspector=1"),
+        ),
+    )
+    .await;
+    assert_eq!(h.get(LOCATION).unwrap().to_str().unwrap().split('?').next().unwrap(), "/projects/1/inspections/1");
+    let (_, _, detail) = send(&app, get("/projects/1/inspections/1")).await;
+    assert!(detail.contains("line.0.answer") && detail.contains("Save and complete") && detail.contains("0 of 7 answered"));
+
+    // Completing with unanswered lines is refused; answering everything works.
+    let some = "line.0.answer=pass&line.1.answer=fail&line.1.note=Wrong+size&line.2.answer=";
+    let (_, h, _) = send(&app, post("/projects/1/inspections/1/answers", &ada, format!("_csrf={csrf}&{some}&_complete=1"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("error="), "unanswered lines stop completion");
+    let all: String = (2..7).map(|n| format!("&line.{n}.answer=pass")).collect();
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/projects/1/inspections/1/answers",
+            &ada,
+            format!("_csrf={csrf}&line.0.answer=pass&line.1.answer=fail&line.1.note=Wrong+size{all}&_complete=1"),
+        ),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="));
+    let (_, _, detail) = send(&app, get("/projects/1/inspections/1")).await;
+    assert!(detail.contains("1 failed") && detail.contains("Wrong size") && detail.contains("Raise punch items"));
+    send(&app, post("/do/inspection.raise_punch", &ada, format!("_csrf={csrf}&project=1&id=1&assignees%5B%5D=1"))).await;
+    let (_, _, punch) = send(&app, get("/projects/1/punch-list")).await;
+    assert!(punch.contains("Inspection #1"));
+    let (_, _, list) = send(&app, get("/projects/1/inspections")).await;
+    assert!(list.contains("Framing walk-through") && list.contains("7 of 7"));
+    let (_, _, csv) = send(&app, get("/projects/1/inspections.csv")).await;
+    assert!(csv.contains("Framing walk-through"));
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

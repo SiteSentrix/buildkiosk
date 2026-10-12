@@ -16,6 +16,7 @@ pub mod spec;
 pub mod submittal;
 
 // -- quality and safety
+pub mod inspection;
 pub mod observation;
 pub mod punch;
 
@@ -115,6 +116,7 @@ const MODULES: &[&[CommandSpec]] = &[
     spec::COMMANDS,
     submittal::COMMANDS,
     // -- quality and safety
+    inspection::COMMANDS,
     observation::COMMANDS,
     punch::COMMANDS,
     // -- field

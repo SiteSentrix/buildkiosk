@@ -14,6 +14,7 @@ use crate::spec::SpecSection;
 use crate::submittal::Submittal;
 
 // -- quality and safety
+use crate::inspection::{Inspection, InspectionTemplate};
 use crate::observation::Observation;
 use crate::punch::PunchItem;
 
@@ -121,6 +122,8 @@ tables! {
 
     // -- quality and safety
     punch_items: PunchItem,
+    inspection_templates: InspectionTemplate,
+    inspections: Inspection,
     observations: Observation,
 
     // -- field

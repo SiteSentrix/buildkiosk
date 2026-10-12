@@ -59,6 +59,7 @@ pub enum Nav {
     DailyLogs(Id<Project>),
     Punch(Id<Project>),
     Observations(Id<Project>),
+    Inspections(Id<Project>),
     Notifications,
 }
 
@@ -109,6 +110,7 @@ pub fn app(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Option<String>
         | Nav::Rfis(p)
         | Nav::Submittals(p)
         | Nav::Specs(p)
+        | Nav::Inspections(p)
         | Nav::DailyLogs(p)
         | Nav::Punch(p)
         | Nav::Observations(p) => state.projects.get(p),
@@ -150,6 +152,7 @@ pub fn app(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Option<String>
                                 a href=(format!("/projects/{}/daily-logs", p.id)) class=(if matches!(nav, Nav::DailyLogs(_)) { "active" } else { "" }) { (tool_icon(Tool::DailyLog).svg()) "Daily log" }
                                 a href=(format!("/projects/{}/punch-list", p.id)) class=(if matches!(nav, Nav::Punch(_)) { "active" } else { "" }) { (tool_icon(Tool::PunchList).svg()) "Punch list" }
                                 a href=(format!("/projects/{}/observations", p.id)) class=(if matches!(nav, Nav::Observations(_)) { "active" } else { "" }) { (tool_icon(Tool::Observations).svg()) "Observations" }
+                                a href=(format!("/projects/{}/inspections", p.id)) class=(if matches!(nav, Nav::Inspections(_)) { "active" } else { "" }) { (tool_icon(Tool::Inspections).svg()) "Inspections" }
                                 a href=(format!("/projects/{}/rfis", p.id)) class=(if matches!(nav, Nav::Rfis(_)) { "active" } else { "" }) { (tool_icon(Tool::Rfis).svg()) "RFIs" }
                                 a href=(format!("/projects/{}/submittals", p.id)) class=(if matches!(nav, Nav::Submittals(_)) { "active" } else { "" }) { (tool_icon(Tool::Submittals).svg()) "Submittals" }
                                 a href=(format!("/projects/{}/specifications", p.id)) class=(if matches!(nav, Nav::Specs(_)) { "active" } else { "" }) { (tool_icon(Tool::Specifications).svg()) "Specifications" }

@@ -19,6 +19,7 @@ use buildkiosk_model::submittal::{Decision, Submittal, SubmittalReview, Submitta
 use buildkiosk_model::{Level, Tool};
 use serde_json::{Value, json};
 
+use super::notification::notify;
 use super::{Access, CommandSpec};
 use crate::ctx::{Read, in_project};
 use crate::view::{self, json};
@@ -31,7 +32,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         Tool::Submittals,
         Access::Project(Level::Standard),
         "project: project id; then the submittal fields: title: text; description?: text; spec_section?, kind?: text; manager?: person id (default: you); \
-         submitter?: person id; reviewers?: [person ids]; distribution?: [person ids]; due?: YYYY-MM-DD; private?: bool; open?: bool (send for review now)",
+         submitter?: person id; reviewers?: [person ids, in review order]; ordered?: bool (reviewers answer one after another, in that order); distribution?: [person ids]; due?: YYYY-MM-DD; private?: bool; open?: bool (send for review now)",
         create,
     ),
     CommandSpec::mutate(
@@ -55,7 +56,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Review submittal",
         Tool::Submittals,
         Access::Project(Level::Standard),
-        "project, id: ids; decision: approved|approved_as_noted|revise_resubmit|rejected; comment?: text",
+        "project, id: ids; decision: approved|approved_as_noted|revise_resubmit|rejected; comment?: text; attachments?: [{sha256, name, size, mime?}] (up to 10 uploaded files)",
         review,
     ),
     CommandSpec::mutate(
@@ -73,6 +74,14 @@ pub const COMMANDS: &[CommandSpec] = &[
         Access::Project(Level::Standard),
         "project, id: ids; due?: YYYY-MM-DD (starts a new revision and sends it for review again)",
         resubmit,
+    ),
+    CommandSpec::mutate(
+        "submittal.import",
+        "Import submittal register",
+        Tool::Submittals,
+        Access::Project(Level::Standard),
+        "project: project id; text: CSV with the columns title, spec_section, kind, due (an optional header line is skipped); each row becomes a draft",
+        import,
     ),
     CommandSpec::mutate(
         "submittal.attach",
@@ -166,8 +175,14 @@ fn apply_fields(ctx: &Ctx<'_>, p: &Params<'_>, s: &mut Submittal, creating: bool
     }
     for (key, field) in [("reviewers", &mut s.reviewers), ("distribution", &mut s.distribution)] {
         if p.present(key) {
-            let v = p.ids(key)?;
+            let mut v = p.ids(key)?;
             ctx.check_people(&v)?;
+            let mut seen = Vec::new();
+            v.retain(|x| {
+                let fresh = !seen.contains(x);
+                seen.push(*x);
+                fresh
+            });
             *field = v;
         }
     }
@@ -177,8 +192,33 @@ fn apply_fields(ctx: &Ctx<'_>, p: &Params<'_>, s: &mut Submittal, creating: bool
     if let Some(private) = p.flag("private")? {
         s.private = private;
     }
+    if let Some(ordered) = p.flag("ordered")? {
+        s.ordered = ordered;
+    }
     s.recompute_ball_in_court();
     Ok(())
+}
+
+fn link(s: &Submittal) -> String {
+    format!("/projects/{}/submittals/{}", s.project, s.id)
+}
+
+/// Tells the reviewers whose turn it is.
+fn ask_for_review(ctx: &mut Ctx<'_>, s: &Submittal) {
+    let text = format!("{} is waiting for your review: {}", s.label(), s.title);
+    notify(ctx, &s.waiting_reviewers(), s.project, &text, &link(s));
+}
+
+/// Reads one uploaded file's details.
+fn file_ref(p: &Params<'_>) -> Result<FileRef> {
+    let sha256 = p.req_line("sha256", 64)?.to_ascii_lowercase();
+    if sha256.len() != 64 || !sha256.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err(p.bad("sha256", "must be 64 hex digits"));
+    }
+    let name = p.req_line("name", 200)?;
+    let size = p.int("size", 0..=2_000_000_000)?.ok_or_else(|| p.bad("size", "is required"))?;
+    let mime = p.line("mime", 100)?.filter(|m| !m.is_empty()).unwrap_or_else(|| "application/octet-stream".into());
+    Ok(FileRef { sha256, name, size: u64::try_from(size).unwrap_or(0), mime })
 }
 
 fn do_open(ctx: &Ctx<'_>, p: &Params<'_>, s: &mut Submittal) -> Result<()> {
@@ -220,6 +260,7 @@ fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         manager: ctx.person(),
         submitter: None,
         reviewers: Vec::new(),
+        ordered: false,
         distribution: Vec::new(),
         ball_in_court: Vec::new(),
         due: None,
@@ -242,6 +283,9 @@ fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     }
     let id = ctx.state.submittals.alloc();
     s.id = id;
+    if s.status == SubmittalStatus::InReview {
+        ask_for_review(ctx, &s);
+    }
     ctx.state.submittals.put(s);
     Ok(json!({ "id": id, "number": number }))
 }
@@ -272,6 +316,7 @@ fn open(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     do_open(ctx, p, &mut s)?;
     s.updated = ctx.stamp();
     let id = s.id;
+    ask_for_review(ctx, &s);
     ctx.state.submittals.put(s);
     Ok(json!({ "id": id }))
 }
@@ -289,12 +334,34 @@ fn review(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     if me.is_some_and(|m| s.has_reviewed(m)) {
         return Err(EngineError::conflict("you have already reviewed this revision"));
     }
+    if s.ordered && reviewer && me.is_some_and(|m| !s.ball_in_court.contains(&m)) {
+        return Err(EngineError::conflict("reviewers answer in order: it is not your turn yet"));
+    }
     let decision = p.choice::<Decision>("decision")?.ok_or_else(|| p.bad("decision", "is required"))?;
     let id = u32::try_from(s.reviews.len()).unwrap_or(u32::MAX).saturating_add(1);
-    s.reviews.push(SubmittalReview { id, revision: s.revision, by: me, at: ctx.at, decision, comment: p.text_or_empty("comment", text::LONG)? });
+    let files = p.items("attachments")?;
+    if files.len() > 10 {
+        return Err(p.bad("attachments", "can hold at most 10 files"));
+    }
+    let attachments = files.iter().map(file_ref).collect::<Result<Vec<_>>>()?;
+    s.reviews.push(SubmittalReview {
+        id,
+        revision: s.revision,
+        by: me,
+        at: ctx.at,
+        decision,
+        comment: p.text_or_empty("comment", text::LONG)?,
+        attachments,
+    });
     s.recompute_ball_in_court();
     s.updated = ctx.stamp();
     let sid = s.id;
+    if s.waiting_reviewers().is_empty() {
+        let text = format!("All reviewers have answered {}: {}", s.label(), s.title);
+        notify(ctx, &s.manager.into_iter().collect::<Vec<_>>(), s.project, &text, &link(&s));
+    } else if s.ordered {
+        ask_for_review(ctx, &s);
+    }
     ctx.state.submittals.put(s);
     Ok(json!({ "id": sid, "review": id }))
 }
@@ -313,6 +380,10 @@ fn close(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     s.recompute_ball_in_court();
     s.updated = ctx.stamp();
     let id = s.id;
+    let decision = s.final_decision.map(buildkiosk_model::Choice::label).unwrap_or_default();
+    let mut audience: Vec<Id<Person>> = s.submitter.into_iter().chain(s.distribution.iter().copied()).chain(s.reviewers.iter().copied()).collect();
+    audience.dedup();
+    notify(ctx, &audience, s.project, &format!("{} was closed ({decision}): {}", s.label(), s.title), &link(&s));
     ctx.state.submittals.put(s);
     Ok(json!({ "id": id }))
 }
@@ -337,6 +408,7 @@ fn resubmit(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     s.updated = ctx.stamp();
     let id = s.id;
     let revision = s.revision;
+    ask_for_review(ctx, &s);
     ctx.state.submittals.put(s);
     Ok(json!({ "id": id, "revision": revision }))
 }
@@ -353,20 +425,15 @@ fn attach(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     if !can_attach(ctx, &s) {
         return Err(EngineError::forbidden(format!("you can't add files to {}", s.label())));
     }
-    let sha256 = p.req_line("sha256", 64)?.to_ascii_lowercase();
-    if sha256.len() != 64 || !sha256.bytes().all(|b| b.is_ascii_hexdigit()) {
-        return Err(p.bad("sha256", "must be 64 hex digits"));
-    }
-    let name = p.req_line("name", 200)?;
-    let size = p.int("size", 0..=2_000_000_000)?.ok_or_else(|| p.bad("size", "is required"))?;
-    let mime = p.line("mime", 100)?.filter(|m| !m.is_empty()).unwrap_or_else(|| "application/octet-stream".into());
+    let file = file_ref(p)?;
+    let sha256 = file.sha256.clone();
     if s.attachments.iter().any(|a| a.sha256 == sha256) {
         return Ok(json!({ "id": s.id }));
     }
     if s.attachments.len() >= MAX_ATTACHMENTS {
         return Err(EngineError::conflict(format!("{} already has {MAX_ATTACHMENTS} files", s.label())));
     }
-    s.attachments.push(FileRef { sha256, name, size: u64::try_from(size).unwrap_or(0), mime });
+    s.attachments.push(file);
     s.updated = ctx.stamp();
     let id = s.id;
     ctx.state.submittals.put(s);
@@ -447,4 +514,91 @@ fn get(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
         return Err(EngineError::not_found(format!("submittal {id} not found in this project")));
     }
     json(s)
+}
+
+/// Splits one CSV line into cells ("quoted, cells" and "" escapes are understood).
+fn csv_cells(line: &str) -> Vec<String> {
+    let mut cells = Vec::new();
+    let mut cur = String::new();
+    let mut quoted = false;
+    let mut chars = line.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '"' if quoted && chars.peek() == Some(&'"') => {
+                cur.push('"');
+                chars.next();
+            }
+            '"' => quoted = !quoted,
+            ',' if !quoted => cells.push(std::mem::take(&mut cur).trim().to_string()),
+            _ => cur.push(c),
+        }
+    }
+    cells.push(cur.trim().to_string());
+    cells
+}
+
+/// Most rows one import reads.
+const MAX_IMPORT_ROWS: usize = 2_000;
+
+fn import(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let body = p.req_text("text", 1_000_000)?;
+    let mut rows = Vec::new();
+    for (n, raw) in body.lines().enumerate() {
+        let line = raw.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let cells = csv_cells(line);
+        let get = |i: usize| cells.get(i).map(String::as_str).unwrap_or("");
+        if rows.is_empty() && get(0).eq_ignore_ascii_case("title") {
+            continue;
+        }
+        if rows.len() >= MAX_IMPORT_ROWS {
+            return Err(p.bad("text", format!("has more than {MAX_IMPORT_ROWS} rows")));
+        }
+        let title = text::required_line(get(0), text::SHORT).map_err(|e| p.bad("text", format!("line {}: title {e}", n + 1)))?;
+        let spec = text::line(get(1), text::SHORT).map_err(|e| p.bad("text", format!("line {}: spec_section {e}", n + 1)))?;
+        let kind = text::line(get(2), text::SHORT).map_err(|e| p.bad("text", format!("line {}: kind {e}", n + 1)))?;
+        let due = match get(3) {
+            "" => None,
+            d => Some(Date::parse(d).ok_or_else(|| p.bad("text", format!("line {}: `{d}` is not a date (YYYY-MM-DD)", n + 1)))?),
+        };
+        rows.push((title, spec, kind, due));
+    }
+    let mut number = ctx.state.submittals.iter().filter(|s| s.project == project).map(|s| s.number).max().unwrap_or(0);
+    let count = rows.len();
+    for (title, spec_section, kind, due) in rows {
+        number = number.saturating_add(1);
+        let stamp = ctx.stamp();
+        let id = ctx.state.submittals.alloc();
+        ctx.state.submittals.put(Submittal {
+            id,
+            project,
+            number,
+            revision: 0,
+            title,
+            description: String::new(),
+            spec_section,
+            kind,
+            status: SubmittalStatus::Draft,
+            manager: ctx.person(),
+            submitter: None,
+            reviewers: Vec::new(),
+            ordered: false,
+            distribution: Vec::new(),
+            ball_in_court: Vec::new(),
+            due,
+            opened: None,
+            closed: None,
+            final_decision: None,
+            private: false,
+            attachments: Vec::new(),
+            reviews: Vec::new(),
+            created: stamp,
+            updated: stamp,
+            deleted: None,
+        });
+    }
+    Ok(json!({ "created": count }))
 }

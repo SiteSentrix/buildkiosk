@@ -553,10 +553,7 @@ pub fn rfi_form(req: &Req<'_>, id: Id<Project>, existing: Option<Id<Rfi>>) -> Ma
 pub fn rfi_csv(req: &Req<'_>, id: Id<Project>) -> Option<String> {
     project_for(req, id)?;
     let state = req.engine.state();
-    let cell = |s: &str| {
-        let s = if s.starts_with(['=', '+', '-', '@', '\t', '\r']) { format!("'{s}") } else { s.to_string() };
-        if s.contains([',', '"', '\n', '\r']) { format!("\"{}\"", s.replace('"', "\"\"")) } else { s }
-    };
+    let cell = layout::csv_cell;
     let mut out = String::from(
         "Number,Subject,Status,Manager,Assignees,Ball in court,Due,Created,Opened,Closed,Spec section,Drawing,Location,Cost impact,Schedule impact\r\n",
     );

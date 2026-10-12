@@ -105,7 +105,10 @@ pub fn list(req: &Req<'_>, id: Id<Project>, filter: &Filter) -> Markup {
     let body = html! {
         div class="page-head" {
             div { h1 { "Submittals" } div class="sub" { "Documents sent for review before the work goes ahead" } }
-            div class="actions" { @if req.allowed("submittal.create", Some(id)) { a class="btn primary" href=(format!("{base}/new")) { (Icon::Plus.svg()) "New submittal" } } }
+            div class="actions" {
+                a class="btn" href=(format!("{base}.csv")) { (Icon::Download.svg()) "Export register" }
+                @if req.allowed("submittal.create", Some(id)) { a class="btn primary" href=(format!("{base}/new")) { (Icon::Plus.svg()) "New submittal" } }
+            }
         }
         div class="tabs" {
             (tab("All", None, all.len()))
@@ -122,6 +125,19 @@ pub fn list(req: &Req<'_>, id: Id<Project>, filter: &Filter) -> Markup {
         @if shown.is_empty() {
             div class="card" { (empty(tool_icon(Tool::Submittals), "No submittals here", if all.is_empty() { "Create the first submittal to get started." } else { "No submittal matches these filters." })) }
         } @else { (table(req, id, &shown)) }
+        @if req.allowed("submittal.import", Some(id)) {
+            div class="card" {
+                details class="disclosure" {
+                    summary { "Import a register from CSV" }
+                    p class="muted small" { "One submittal per line: title, spec section, type, due date (YYYY-MM-DD). A header line is skipped. Each row becomes a draft." }
+                    (command_form(req, "submittal.import", &base, &base, html! {
+                        input type="hidden" name="project" value=(id);
+                        (field("CSV text", "import_text", true, true, html! { textarea id="import_text" name="text" required placeholder="title,spec_section,kind,due" {} }))
+                        div class="form-actions" { button type="submit" class="btn primary" { "Import" } }
+                    }))
+                }
+            }
+        }
     };
     layout::app(
         req,
@@ -178,18 +194,25 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, sid: Id<Submittal>, history: &[Jou
                                 (decision_pill(r.decision))
                             }
                             @if !r.comment.is_empty() { p class="prose" { (r.comment) } }
+                            @for a in &r.attachments {
+                                div class="row" { a href=(format!("{here}/files/{}", a.sha256)) { (a.name) } span class="muted small" { (human_size(a.size)) } }
+                            }
                         }
                     }
                     @if can_review {
-                        (command_form(req, "submittal.review", &here, &here, html! {
-                            input type="hidden" name="project" value=(id);
-                            input type="hidden" name="id" value=(s.id);
-                            div class="form-grid" {
-                                (field("Decision", "decision", true, false, decision_select("decision")))
-                                (field("Comment", "comment", false, true, html! { textarea id="comment" name="comment" class="short" {} }))
+                        @if s.ordered && !s.ball_in_court.contains(&req.person) && level != Level::Admin {
+                            p class="muted" { "Reviewers answer in order. You'll be asked when it's your turn." }
+                        } @else {
+                            form method="post" action=(format!("{here}/review")) enctype="multipart/form-data" {
+                                input type="hidden" name="_csrf" value=(req.csrf);
+                                div class="form-grid" {
+                                    (field("Decision", "decision", true, false, decision_select("decision")))
+                                    (field("Comment", "comment", false, true, html! { textarea id="comment" name="comment" class="short" {} }))
+                                    (field("Files (optional)", "review_file", false, true, html! { input type="file" id="review_file" name="file" multiple; }))
+                                }
+                                div class="form-actions" { button type="submit" class="btn primary" { "Submit review" } }
                             }
-                            div class="form-actions" { button type="submit" class="btn primary" { "Submit review" } }
-                        }))
+                        }
                     }
                 }
                 @if in_review && manager_like {
@@ -209,10 +232,13 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, sid: Id<Submittal>, history: &[Jou
                     dl class="facts" {
                         dt { "Manager" } dd { @if let Some(m) = s.manager { (view::person_name(state, m)) } @else { "—" } }
                         dt { "Submitter" } dd { @if let Some(m) = s.submitter { (view::person_name(state, m)) } @else { "—" } }
-                        dt { "Reviewers" } dd { @if s.reviewers.is_empty() { "—" } @else { (view::people_names(state, &s.reviewers)) } }
+                        dt { (if s.ordered { "Reviewers (in order)" } else { "Reviewers" }) } dd { @if s.reviewers.is_empty() { "—" } @else { (view::people_names(state, &s.reviewers)) } }
                         dt { "Ball in court" } dd { @if s.ball_in_court.is_empty() { "—" } @else { (view::people_names(state, &s.ball_in_court)) } }
                         dt { "Due" } dd { @if let Some(d) = s.due { span class=(if s.is_overdue(req.today()) { "overdue" } else { "" }) { (d.pretty()) } } @else { "—" } }
-                        dt { "Spec section" } dd { (dash(&s.spec_section)) }
+                        dt { "Spec section" } dd {
+                            @let linked = state.spec_sections.iter().any(|x| x.project == id && x.deleted.is_none() && x.number == s.spec_section);
+                            @if linked { a href=(format!("/projects/{id}/specifications#s-{}", slug(&s.spec_section))) { (s.spec_section) } } @else { (dash(&s.spec_section)) }
+                        }
                         dt { "Type" } dd { (dash(&s.kind)) }
                         @if !s.distribution.is_empty() { dt { "Distribution" } dd { (view::people_names(state, &s.distribution)) } }
                         @if s.private { dt { "Visibility" } dd { "Private" } }
@@ -273,6 +299,11 @@ fn people_picker(
     }
 }
 
+/// A fragment id for a section number.
+pub(crate) fn slug(s: &str) -> String {
+    s.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '-' }).collect()
+}
+
 /// The new/edit form. `existing` is `Some` when editing.
 pub fn form(req: &Req<'_>, id: Id<Project>, existing: Option<Id<Submittal>>) -> Markup {
     let Some(p) = project_for(req, id) else { return not_found(req) };
@@ -320,12 +351,29 @@ pub fn form(req: &Req<'_>, id: Id<Project>, existing: Option<Id<Submittal>>) -> 
                 div class="form-grid" {
                     (field("Title", "title", true, true, html! { input type="text" id="title" name="title" required maxlength="200" value=(text(|s| s.title.clone())); }))
                     (field("Description", "description", false, true, html! { textarea id="description" name="description" { (text(|s| s.description.clone())) } }))
-                    (field("Spec section", "spec_section", false, false, html! { input type="text" id="spec_section" name="spec_section" value=(text(|s| s.spec_section.clone())); }))
+                    (field("Spec section", "spec_section", false, false, html! {
+                        input type="text" id="spec_section" name="spec_section" list="spec-sections" value=(text(|s| s.spec_section.clone()));
+                        datalist id="spec-sections" { @for x in state.spec_sections.iter().filter(|x| x.project == id && x.deleted.is_none()) { option value=(x.number) { (x.title) } } }
+                    }))
                     (field("Type", "kind", false, false, html! { input type="text" id="kind" name="kind" placeholder="Shop drawing, product data, sample…" value=(text(|s| s.kind.clone())); }))
                     (person_select("manager", "Manager", Some(manager), false))
                     (person_select("submitter", "Submitter", current.and_then(|s| s.submitter), true))
                     (field("Due date", "due", false, false, html! { input type="date" id="due" name="due" value=(current.and_then(|s| s.due).map(|d| d.to_string()).unwrap_or_default()); }))
-                    (people_picker("reviewers", "Reviewers", &people, current.map(|s| s.reviewers.as_slice()).unwrap_or(&[])))
+                    div class="field full" {
+                        div class="label" { "Reviewers, in review order" }
+                        input type="hidden" name="reviewers[]" value="";
+                        div class="form-grid" {
+                            @for i in 0..5usize {
+                                @let chosen = current.and_then(|s| s.reviewers.get(i).copied());
+                                select name="reviewers[]" aria-label=(format!("Reviewer {}", i + 1)) { option value="" { "—" } @for x in &people { option value=(x.id) selected[Some(x.id) == chosen] { (x.name()) } } }
+                            }
+                        }
+                        div class="hint" { "Each person once; blank rows are ignored." }
+                    }
+                    div class="field full" {
+                        input type="hidden" name="ordered" value="false";
+                        label class="check" { input type="checkbox" name="ordered" value="true" checked[current.is_some_and(|s| s.ordered)]; "Reviewers answer one after another, in this order" }
+                    }
                     (people_picker("distribution", "Distribution list", &people, current.map(|s| s.distribution.as_slice()).unwrap_or(&[])))
                     div class="field full" {
                         input type="hidden" name="private" value="false";
@@ -345,4 +393,34 @@ pub fn form(req: &Req<'_>, id: Id<Project>, existing: Option<Id<Submittal>>) -> 
         }
     };
     layout::app(req, title, Nav::Submittals(id), &crumbs(p, title, Some(base.clone())), body)
+}
+
+/// The submittal register as CSV.
+pub fn csv(req: &Req<'_>, id: Id<Project>) -> Option<String> {
+    project_for(req, id)?;
+    let state = req.engine.state();
+    let day = |t: buildkiosk_core::Timestamp| t.date_at(state.utc_offset()).to_string();
+    let mut out =
+        String::from("Number,Revision,Title,Spec section,Type,Status,Final decision,Manager,Reviewers,Ball in court,Due,Created,Opened,Closed\r\n");
+    for s in view::submittals_for(state, req.actor(), id) {
+        let row = [
+            s.number.to_string(),
+            s.revision.to_string(),
+            s.title.clone(),
+            s.spec_section.clone(),
+            s.kind.clone(),
+            s.status.label().to_string(),
+            s.final_decision.map(|d| d.label().to_string()).unwrap_or_default(),
+            s.manager.map(|m| view::person_name(state, m)).unwrap_or_default(),
+            view::people_names(state, &s.reviewers),
+            view::people_names(state, &s.ball_in_court),
+            s.due.map(|d| d.to_string()).unwrap_or_default(),
+            day(s.created.at),
+            s.opened.map(|x| day(x.at)).unwrap_or_default(),
+            s.closed.map(|x| day(x.at)).unwrap_or_default(),
+        ];
+        out.push_str(&row.iter().map(|c| layout::csv_cell(c)).collect::<Vec<_>>().join(","));
+        out.push_str("\r\n");
+    }
+    Some(out)
 }

@@ -283,3 +283,63 @@ async fn submittal_workflow_and_files_in_the_browser_flow() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn register_specs_notifications_and_review_files() {
+    let dir = temp("round2");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str, who: &str| Request::get(uri.to_string()).header("cookie", who.to_string()).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/", &ada)).await;
+    let csrf = field(&home, "_csrf");
+    let run = |cmd: &str, body: String| post(&format!("/do/{cmd}"), &ada, format!("_csrf={csrf}&{body}"));
+    send(&app, run("project.create", "name=P".into())).await;
+    send(&app, run("person.create", "first_name=Bo&last_name=Builder&email=bo%40example.com&is_user=true".into())).await;
+    send(&app, run("member.add", "project=1&person=2&template=5".into())).await;
+    send(&app, post("/people/2/password", &ada, format!("_csrf={csrf}&password=bo-secret-password"))).await;
+
+    // Specifications and the register import.
+    send(&app, run("spec.import", "project=1&text=05+12+00%2CStructural+steel%0A08+71+00%2CDoor+hardware".into())).await;
+    send(&app, run("submittal.import", "project=1&text=title%2Cspec_section%0AAnchor+bolts%2C05+12+00".into())).await;
+    let (_, _, specs) = send(&app, get("/projects/1/specifications", &ada)).await;
+    assert!(specs.contains("Structural steel") && specs.contains("/projects/1/submittals/1"), "the section lists the submittal filed under it");
+    let (_, h, csv) = send(&app, get("/projects/1/submittals.csv", &ada)).await;
+    assert!(csv.contains("Anchor bolts") && h.get("content-disposition").is_some());
+
+    // Ordered review with Bo: Bo is notified and can upload a file with the review.
+    send(&app, run("submittal.update", "project=1&id=1&reviewers%5B%5D=2&ordered=true".into())).await;
+    send(&app, run("submittal.open", "project=1&id=1".into())).await;
+    let (_, h, page) = send(&app, Request::get("/login").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let login = format!("_csrf={}&email=bo%40example.com&password=bo-secret-password", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/login", &anon, login)).await;
+    let bo = cookies(&h);
+    let (_, _, inbox) = send(&app, get("/notifications", &bo)).await;
+    assert!(inbox.contains("waiting for your review") && inbox.contains("Notifications, 1 unread"));
+    let (_, _, detail) = send(&app, get("/projects/1/submittals/1", &bo)).await;
+    let bo_csrf = field(&detail, "_csrf");
+    let upload = format!(
+        "--B\r\nContent-Disposition: form-data; name=\"_csrf\"\r\n\r\n{bo_csrf}\r\n--B\r\nContent-Disposition: form-data; name=\"decision\"\r\n\r\napproved_as_noted\r\n--B\r\nContent-Disposition: form-data; name=\"comment\"\r\n\r\nSee markup\r\n--B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"markup.pdf\"\r\n\r\nMARKUP\r\n--B--\r\n"
+    );
+    let req = Request::post("/projects/1/submittals/1/review")
+        .header("cookie", &bo)
+        .header("content-type", "multipart/form-data; boundary=B")
+        .body(Body::from(upload))
+        .unwrap();
+    let (_, h, _) = send(&app, req).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="));
+    let (_, _, detail) = send(&app, get("/projects/1/submittals/1", &ada)).await;
+    assert!(detail.contains("markup.pdf") && detail.contains("Approved as noted"));
+    let href = detail.split("href=\"").find(|s| s.contains("/files/")).unwrap().split('"').next().unwrap().to_string();
+    let (st, _, body) = send(&app, get(&href, &ada)).await;
+    assert_eq!((st, body.as_str()), (StatusCode::OK, "MARKUP"));
+    let (_, _, inbox) = send(&app, get("/notifications", &ada)).await;
+    assert!(inbox.contains("All reviewers have answered"));
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

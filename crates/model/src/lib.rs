@@ -10,9 +10,11 @@
 pub mod choice;
 pub mod common;
 pub mod directory;
+pub mod notification;
 pub mod perm;
 pub mod project;
 pub mod rfi;
+pub mod spec;
 pub mod state;
 pub mod submittal;
 pub mod table;

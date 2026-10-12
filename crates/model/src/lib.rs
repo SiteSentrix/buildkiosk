@@ -12,6 +12,7 @@ pub mod common;
 pub mod daily_log;
 pub mod directory;
 pub mod notification;
+pub mod observation;
 pub mod perm;
 pub mod project;
 pub mod punch;

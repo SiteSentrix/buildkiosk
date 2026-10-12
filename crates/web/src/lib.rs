@@ -10,6 +10,7 @@ pub mod daily_logs;
 pub mod icons;
 pub mod inbox;
 pub mod layout;
+pub mod observations;
 pub mod pages;
 pub mod punch;
 pub mod specs;

@@ -154,6 +154,18 @@ pub fn create(dir: &str) -> Result<(), String> {
                 )?;
             }
         }
+        let observations = [
+            ("Open floor edge at level 2 stair", "Level 2 stair hall", "Safety", "high", "Install guardrail and post a warning sign."),
+            ("Concrete cylinders stored in direct sun", "Laydown yard", "Quality", "medium", "Move to the shaded curing box."),
+        ];
+        for (title, location, kind, priority, action) in observations {
+            exec(
+                &mut t,
+                pm,
+                "observation.create",
+                json!({"project": pid, "title": title, "location": location, "kind": kind, "priority": priority, "corrective_action": action, "assignees": [person(1)]}),
+            )?;
+        }
         let subs = [("Rooftop unit shop drawings", "23 74 00", "Shop drawing"), ("Storefront glazing product data", "08 41 13", "Product data")];
         for (title, spec, kind) in subs {
             let sub = exec(

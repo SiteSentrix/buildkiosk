@@ -1,0 +1,21 @@
+[package]
+name = "buildkiosk-web"
+description = "The web interface: server-rendered HTML pages (no JavaScript) that read engine state and act through commands."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+buildkiosk-core = { workspace = true }
+buildkiosk-model = { workspace = true }
+buildkiosk-engine = { workspace = true }
+maud = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+buildkiosk-testkit = { workspace = true }
+
+[lints]
+workspace = true

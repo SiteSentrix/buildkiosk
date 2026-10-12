@@ -1,7 +1,7 @@
 //! The pages: sign-in, setup, projects, project home, team and RFIs.
 
 use buildkiosk_core::Id;
-use buildkiosk_engine::model::directory::Person;
+use buildkiosk_engine::model::directory::{Person, VendorKind};
 use buildkiosk_engine::model::perm::ProjectMember;
 use buildkiosk_engine::model::project::{Project, ProjectStage};
 use buildkiosk_engine::model::rfi::{Rfi, RfiStatus};
@@ -565,4 +565,107 @@ pub fn rfi_csv(req: &Req<'_>, id: Id<Project>) -> Option<String> {
         out.push_str("\r\n");
     }
     Some(out)
+}
+
+// -- company directory
+
+/// People, companies and permission templates of the whole company.
+pub fn directory(req: &Req<'_>) -> Markup {
+    if !req.allowed("person.list", None) {
+        return not_found(req);
+    }
+    let state = req.engine.state();
+    let is_admin = state.people.get(req.person).is_some_and(|p| p.company_admin);
+    let can_add = req.allowed("person.create", None);
+    let mut people: Vec<&Person> = state.people.iter().filter(|p| p.deleted.is_none()).collect();
+    people.sort_by_key(|p| p.name().to_lowercase());
+    let mut vendors: Vec<_> = state.vendors.iter().filter(|v| v.deleted.is_none()).collect();
+    vendors.sort_by_key(|v| v.name.to_lowercase());
+    let templates: Vec<_> = state.templates.iter().filter(|t| t.deleted.is_none()).collect();
+    let here = "/directory";
+    let body = html! {
+        div class="page-head" { div { h1 { "Directory" } div class="sub" { "People and companies you work with" } } }
+        div class="card-head" { h2 { "People" } }
+        div class="table-wrap" {
+            table class="data" {
+                thead { tr { th { "Name" } th { "Company" } th { "Title" } th { "Access" } @if is_admin { th { "Password" } } } }
+                tbody {
+                    @for p in &people {
+                        tr {
+                            td { span class="row-link" { (p.name()) } @if let Some(e) = &p.email { div class="muted small" { (e) } } }
+                            td { (view::employer_name(state, p)) }
+                            td { (p.title) }
+                            td {
+                                @if p.company_admin { span class="tag" { "Company admin" } }
+                                @else if p.is_user { span class="tag" { "Can sign in" } }
+                                @else { span class="muted" { "Contact only" } }
+                            }
+                            @if is_admin {
+                                td {
+                                    @if p.is_user && p.is_enabled() {
+                                        details class="disclosure" {
+                                            summary { "Set password" }
+                                            form method="post" action=(format!("/people/{}/password", p.id)) class="stack" {
+                                                input type="hidden" name="_csrf" value=(req.csrf);
+                                                input type="password" name="password" minlength="10" required placeholder="New password" aria-label=(format!("New password for {}", p.name())) autocomplete="new-password";
+                                                button type="submit" class="btn small" { "Save password" }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        @if can_add {
+            div class="card" {
+                h2 { "Add a person" }
+                (command_form(req, "person.create", here, here, html! {
+                    div class="form-grid" {
+                        (field("First name", "first_name", true, false, html! { input type="text" id="first_name" name="first_name" required; }))
+                        (field("Last name", "last_name", true, false, html! { input type="text" id="last_name" name="last_name" required; }))
+                        (field("Email", "email", false, false, html! { input type="email" id="email" name="email"; }))
+                        (field("Title", "title", false, false, html! { input type="text" id="title" name="title"; }))
+                        (field("Company", "vendor", false, false, html! { select id="vendor" name="vendor" { option value="" { "Our company" } @for v in &vendors { option value=(v.id) { (v.name) } } } }))
+                        div class="field" {
+                            input type="hidden" name="is_user" value="false";
+                            label class="check" { input type="checkbox" name="is_user" value="true"; "Can sign in (needs an email)" }
+                        }
+                    }
+                    div class="form-actions" { button type="submit" class="btn primary" { "Add person" } }
+                }))
+            }
+        }
+        div class="card-head" { h2 { "Companies" } }
+        div class="table-wrap" {
+            table class="data" {
+                thead { tr { th { "Name" } th { "Kind" } th { "Trade" } th { "Phone" } } }
+                tbody { @for v in &vendors { tr { td { (v.name) } td { (v.kind.label()) } td { (v.trade) } td { (v.phone) } } } }
+            }
+        }
+        @if req.allowed("vendor.create", None) {
+            div class="card" {
+                h2 { "Add a company" }
+                (command_form(req, "vendor.create", here, here, html! {
+                    div class="form-grid" {
+                        (field("Name", "vname", true, false, html! { input type="text" id="vname" name="name" required; }))
+                        (field("Kind", "vkind", false, false, html! { select id="vkind" name="kind" { @for k in [VendorKind::Subcontractor, VendorKind::Supplier, VendorKind::Owner, VendorKind::Design, VendorKind::Consultant, VendorKind::Inspector, VendorKind::Other] { option value=(k.key()) { (k.label()) } } } }))
+                        (field("Trade", "trade", false, false, html! { input type="text" id="trade" name="trade"; }))
+                        (field("Phone", "vphone", false, false, html! { input type="text" id="vphone" name="phone"; }))
+                    }
+                    div class="form-actions" { button type="submit" class="btn primary" { "Add company" } }
+                }))
+            }
+        }
+        div class="card-head" { h2 { "Permission templates" } }
+        div class="table-wrap" {
+            table class="data" {
+                thead { tr { th { "Template" } th { "What it is for" } } }
+                tbody { @for t in &templates { tr { td { strong { (t.name) } } td { (t.description) } } } }
+            }
+        }
+    };
+    layout::app(req, "Directory", Nav::Directory, &[("Directory", None)], body)
 }

@@ -11,12 +11,11 @@ pub mod icons;
 pub mod inbox;
 pub mod inspections;
 pub mod layout;
-pub mod observations;
 pub mod pages;
-pub mod punch;
 pub mod specs;
 pub mod style;
 pub mod submittals;
 pub mod theme;
+pub mod workitems;
 
 pub use layout::{Flash, Req};

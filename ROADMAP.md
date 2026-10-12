@@ -18,9 +18,10 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 
 ## Upcoming
 1. Finish RFIs: files on responses, PDF export, email notifications.
-2. Next tools in the order of `docs/gaps.md` (shared workflow cleanup for punch list and observations, then the financial tools).
+2. Next tools in the order of `docs/gaps.md` (the financial tools).
 
 ## Progress log
+- 2026-10-12: Cleanup — punch list and observations run one shared workflow (`WorkItem`, `WorkCore`); stored data unchanged.
 - 2026-10-12: Inspections — templates and starter set, answered checklists, punch items from failed lines.
 - 2026-10-12: Observations — category, date observed, corrective action, review loop, files, notifications.
 - 2026-10-12: Punch list — assign, work done, review, send back, close, reopen; comments, files, notifications, CSV.

@@ -23,6 +23,7 @@ pub mod state;
 pub mod submittal;
 pub mod table;
 pub mod tool;
+pub mod work;
 // Tool modules, one region per area (keeps parallel work in separate places).
 // -- project management (submittals, transmittals, specifications, correspondence)
 

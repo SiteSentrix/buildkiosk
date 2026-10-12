@@ -18,6 +18,7 @@ pub mod guard;
 pub mod journal;
 pub mod params;
 pub mod view;
+pub mod workitem;
 
 use buildkiosk_core::{Id, Timestamp};
 use buildkiosk_model::directory::Person;

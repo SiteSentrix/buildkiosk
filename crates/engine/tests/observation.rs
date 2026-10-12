@@ -26,7 +26,7 @@ fn work_done_review_send_back_close_and_reopen() {
     w.err(reader, "observation.comment", json!({"project": p, "id": id, "body": "hi"}));
     w.ok(other, "observation.comment", json!({"project": p, "id": id, "body": "Is the lift available?"}));
     w.ok(sub, "observation.complete", json!({"project": p, "id": id, "comment": "Painted two coats."}));
-    assert_eq!((get(&w).status, get(&w).ball_in_court), (ObservationStatus::ReadyForReview, vec![pm]));
+    assert_eq!((get(&w).status, get(&w).ball_in_court.clone()), (ObservationStatus::ReadyForReview, vec![pm]));
     assert_eq!(
         (unread(&mut w, pm), unread(&mut w, sub)),
         (1, 2),

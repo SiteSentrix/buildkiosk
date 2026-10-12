@@ -191,7 +191,25 @@ pub fn team(req: &Req<'_>, id: Id<Project>) -> Markup {
                                 @if m.project_admin { span class="tag" { "Project admin" } }
                                 @else if let Some(t) = m.template.and_then(|t| state.templates.get(t)) { span class="tag" { (t.name) } }
                             }
-                            @if can_edit { td class="right" { (button_form(req, "member.remove", &here, &[("project", id.to_string()), ("person", m.person.to_string())], "Remove", "small danger")) } }
+                            @if can_edit {
+                                td class="right" {
+                                    details class="disclosure" {
+                                        summary { "Edit" }
+                                        (command_form(req, "member.update", &here, &here, html! {
+                                            input type="hidden" name="project" value=(id);
+                                            input type="hidden" name="person" value=(m.person);
+                                            div class="stack" {
+                                                (field("Permissions", &format!("t{}", m.id), false, false, html! { select id=(format!("t{}", m.id)) name="template" { @for t in &templates { option value=(t.id) selected[m.template == Some(t.id)] { (t.name) } } } }))
+                                                (field("Role", &format!("r{}", m.id), false, false, html! { input type="text" id=(format!("r{}", m.id)) name="role" value=(m.role); }))
+                                                input type="hidden" name="project_admin" value="false";
+                                                label class="check" { input type="checkbox" name="project_admin" value="true" checked[m.project_admin]; "Project admin" }
+                                                button type="submit" class="btn small primary" { "Save" }
+                                            }
+                                        }))
+                                    }
+                                    (button_form(req, "member.remove", &here, &[("project", id.to_string()), ("person", m.person.to_string())], "Remove", "small danger"))
+                                }
+                            }
                         }
                     }
                 }

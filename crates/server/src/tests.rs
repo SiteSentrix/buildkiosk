@@ -200,3 +200,31 @@ async fn people_can_be_edited_and_deactivated() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn team_permissions_can_be_changed() {
+    let dir = temp("team");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let session = cookies(&h);
+    let (_, _, d) = send(&app, Request::get("/directory").header("cookie", &session).body(Body::empty()).unwrap()).await;
+    let csrf = field(&d, "_csrf");
+    send(&app, post("/do/project.create", &session, format!("_csrf={csrf}&name=P"))).await;
+    send(&app, post("/do/person.create", &session, format!("_csrf={csrf}&first_name=Bo&last_name=Builder&email=bo%40example.com&is_user=true")))
+        .await;
+    send(&app, post("/do/member.add", &session, format!("_csrf={csrf}&project=1&person=2&role=Foreman"))).await;
+    let (_, h, _) = send(
+        &app,
+        post("/do/member.update", &session, format!("_csrf={csrf}&_next=/projects/1/team&project=1&person=2&role=Superintendent&project_admin=true")),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="));
+    let (_, _, team) = send(&app, Request::get("/projects/1/team").header("cookie", &session).body(Body::empty()).unwrap()).await;
+    assert!(team.contains("Superintendent") && team.contains("Project admin"));
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

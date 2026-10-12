@@ -1,0 +1,25 @@
+[package]
+name = "buildkiosk"
+description = "The BuildKiosk program: serve the web app, create a demo company, run commands."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "buildkiosk"
+path = "src/main.rs"
+
+[dependencies]
+buildkiosk-core = { workspace = true }
+buildkiosk-engine = { workspace = true }
+buildkiosk-store = { workspace = true }
+buildkiosk-server = { workspace = true }
+tokio = { workspace = true }
+serde_json = { workspace = true }
+log = { workspace = true }
+env_logger = { workspace = true }
+
+[lints]
+workspace = true

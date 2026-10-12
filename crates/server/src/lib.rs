@@ -1,0 +1,565 @@
+//! The HTTP server (layer 6): serves the web pages, handles sign-in with signed session cookies,
+//! checks a CSRF token on every form, turns form posts into commands (`POST /do/{command}`) and
+//! exposes the same commands as JSON (`POST /api/v1/commands/{id}`, bearer token).
+#![forbid(unsafe_code)]
+
+mod auth;
+
+use std::collections::HashMap;
+use std::net::SocketAddr;
+use std::sync::{Arc, Mutex, MutexGuard};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use axum::Router;
+use axum::body::Bytes;
+use axum::extract::{DefaultBodyLimit, Path, Query, State};
+use axum::http::header::{AUTHORIZATION, CONTENT_TYPE, COOKIE, LOCATION, SET_COOKIE};
+use axum::http::{HeaderMap, HeaderName, HeaderValue, StatusCode};
+use axum::response::{IntoResponse, Response};
+use axum::routing::{get, post};
+use buildkiosk_core::{Id, Timestamp, text};
+use buildkiosk_engine::{Actor, EngineError, find_command};
+use buildkiosk_store::creds::check_password_rules;
+use buildkiosk_store::{Credentials, DataDir, Tenant, hex, random_bytes};
+use buildkiosk_web::pages::{self, RfiFilter};
+use buildkiosk_web::{Flash, Req, icons, style};
+use serde_json::{Map, Value, json};
+use tower_http::catch_panic::CatchPanicLayer;
+
+use auth::{CSRF_COOKIE, RateLimit, SESSION_COOKIE};
+
+/// Largest form or API body accepted.
+const MAX_BODY: usize = 1024 * 1024;
+
+struct Inner {
+    tenant: Option<Tenant>,
+    creds: Credentials,
+    limiter: RateLimit,
+}
+
+/// The running server's state: one company in one data directory.
+pub struct App {
+    data: DataDir,
+    inner: Mutex<Inner>,
+}
+
+type Shared = Arc<App>;
+
+fn now_ms() -> i64 {
+    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| i64::try_from(d.as_millis()).unwrap_or(0)).unwrap_or(0)
+}
+
+impl App {
+    /// Opens `company` (or the only/first one in the directory). A directory with no company
+    /// starts in first-run setup.
+    pub fn open(data: DataDir, company: Option<&str>) -> Result<App, String> {
+        let slugs = data.companies().map_err(|e| e.to_string())?;
+        let slug = match company {
+            Some(c) => Some(c.to_string()),
+            None => slugs.first().cloned(),
+        };
+        let (tenant, creds) = match slug {
+            Some(s) => {
+                let t = data.load(&s).map_err(|e| e.to_string())?;
+                let c = t.store.credentials().map_err(|e| e.to_string())?;
+                (Some(t), c)
+            }
+            None => (None, Credentials::default()),
+        };
+        Ok(App { data, inner: Mutex::new(Inner { tenant, creds, limiter: RateLimit::default() }) })
+    }
+
+    fn lock(&self) -> MutexGuard<'_, Inner> {
+        // A panic while the lock was held leaves the data intact (commands run on a copy), so
+        // carry on with it.
+        self.inner.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    fn secret(&self) -> &[u8] {
+        self.data.secret()
+    }
+}
+
+impl Inner {
+    fn run(&mut self, actor: Actor, id: &str, params: &Value) -> Result<Value, EngineError> {
+        let Some(t) = self.tenant.as_mut() else { return Err(EngineError::not_found("the company is not set up")) };
+        let out = t.engine.execute(&mut t.store, actor, Timestamp::from_millis(now_ms()), id, params)?;
+        if t.store.since_snapshot() >= 500
+            && let Err(e) = t.store.snapshot(&t.engine)
+        {
+            log::warn!("could not write a snapshot: {e}");
+        }
+        Ok(out)
+    }
+}
+
+// -- routing
+
+pub fn router(app: Shared) -> Router {
+    Router::new()
+        .route("/", get(home))
+        .route("/login", get(login_page).post(login_post))
+        .route("/logout", post(logout))
+        .route("/setup", get(setup_page).post(setup_post))
+        .route("/projects/{id}", get(project_home))
+        .route("/projects/{id}/team", get(team))
+        .route("/projects/{id}/rfis", get(rfi_list))
+        .route("/projects/{id}/rfis/new", get(rfi_new))
+        .route("/projects/{id}/rfis/{rid}", get(rfi_detail))
+        .route("/projects/{id}/rfis/{rid}/edit", get(rfi_edit))
+        .route("/do/{command}", post(do_command))
+        .route("/api/v1/commands/{id}", post(api_command))
+        .route("/static/app.css", get(css))
+        .route("/static/favicon.svg", get(favicon))
+        .fallback(not_found)
+        .layer(DefaultBodyLimit::max(MAX_BODY))
+        .layer(axum::middleware::map_response(security_headers))
+        .layer(CatchPanicLayer::new())
+        .with_state(app)
+}
+
+/// Serves until the process is stopped.
+pub async fn serve(app: Shared, bind: SocketAddr) -> Result<(), String> {
+    let listener = tokio::net::TcpListener::bind(bind).await.map_err(|e| format!("cannot listen on {bind}: {e}"))?;
+    log::info!("listening on http://{bind}");
+    axum::serve(listener, router(app)).await.map_err(|e| e.to_string())
+}
+
+async fn security_headers(mut res: Response) -> Response {
+    let h = res.headers_mut();
+    let mut put = |k: &'static str, v: &'static str| {
+        h.insert(HeaderName::from_static(k), HeaderValue::from_static(v));
+    };
+    put(
+        "content-security-policy",
+        "default-src 'none'; script-src 'none'; style-src 'self'; img-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+    );
+    put("x-content-type-options", "nosniff");
+    put("referrer-policy", "same-origin");
+    put("x-frame-options", "DENY");
+    res
+}
+
+// -- helpers
+
+fn redirect(to: &str) -> Response {
+    let mut res = StatusCode::SEE_OTHER.into_response();
+    if let Ok(v) = HeaderValue::from_str(to) {
+        res.headers_mut().insert(LOCATION, v);
+    }
+    res
+}
+
+fn with_cookie(mut res: Response, cookie: &str) -> Response {
+    if let Ok(v) = HeaderValue::from_str(cookie) {
+        res.headers_mut().append(SET_COOKIE, v);
+    }
+    res
+}
+
+fn html(status: StatusCode, markup: maud::Markup) -> Response {
+    let mut res = (status, markup.into_string()).into_response();
+    res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("text/html; charset=utf-8"));
+    res.headers_mut().insert("cache-control", HeaderValue::from_static("no-store"));
+    res
+}
+
+fn plain(status: StatusCode, msg: &str) -> Response {
+    (status, msg.to_string()).into_response()
+}
+
+fn cookie(headers: &HeaderMap, name: &str) -> Option<String> {
+    let h = headers.get(COOKIE)?.to_str().ok()?;
+    auth::cookie_value(h, name).map(str::to_string)
+}
+
+/// Percent-encodes a query value.
+fn encode(s: &str) -> String {
+    let mut out = String::new();
+    for b in s.bytes() {
+        if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) {
+            out.push(char::from(b));
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
+}
+
+/// A redirect target that stays on this site.
+fn local_path(s: &str) -> &str {
+    if s.starts_with('/') && !s.starts_with("//") && !s.contains('\\') && !s.contains('\n') && !s.contains('\r') { s } else { "/" }
+}
+
+fn with_flash(path: &str, ok: bool, msg: &str) -> String {
+    let (path, query) = path.split_once('?').unwrap_or((path, ""));
+    let msg: String = msg.chars().take(300).collect();
+    let flash = format!("{}={}", if ok { "ok" } else { "error" }, encode(&msg));
+    if query.is_empty() { format!("{path}?{flash}") } else { format!("{path}?{query}&{flash}") }
+}
+
+struct Session {
+    person: Id<buildkiosk_engine::model::directory::Person>,
+    cookie: String,
+}
+
+/// The signed-in person, if the cookie is valid and the person may still sign in.
+fn session(app: &App, inner: &Inner, headers: &HeaderMap) -> Option<Session> {
+    let raw = cookie(headers, SESSION_COOKIE)?;
+    let data = auth::read_session(app.secret(), &raw, now_ms())?;
+    let t = inner.tenant.as_ref()?;
+    let id = Id::new(data.person);
+    let p = t.engine.state().people.get(id)?;
+    (p.is_enabled() && p.is_user && inner.creds.epoch(data.person) == data.epoch && inner.creds.has_password(data.person))
+        .then_some(Session { person: id, cookie: raw })
+}
+
+/// The anonymous CSRF cookie (made if absent) and the token for it.
+fn anon_csrf(app: &App, headers: &HeaderMap) -> (String, Option<String>) {
+    match cookie(headers, CSRF_COOKIE).filter(|c| c.len() == 32 && c.bytes().all(|b| b.is_ascii_hexdigit())) {
+        Some(c) => (auth::csrf_token(app.secret(), &c), None),
+        None => {
+            let c = random_bytes::<16>().map(|b| hex(&b)).unwrap_or_else(|_| "0".repeat(32));
+            (auth::csrf_token(app.secret(), &c), Some(auth::set_cookie(CSRF_COOKIE, &c, 86_400)))
+        }
+    }
+}
+
+fn flash_from(q: &HashMap<String, String>) -> Option<Flash> {
+    if let Some(m) = q.get("error") {
+        return Some(Flash { ok: false, msg: m.chars().take(300).collect() });
+    }
+    q.get("ok").map(|m| Flash { ok: true, msg: m.chars().take(300).collect() })
+}
+
+fn get_form<'a>(form: &'a [(String, String)], key: &str) -> &'a str {
+    form.iter().rev().find(|(k, _)| k == key).map(|(_, v)| v.as_str()).unwrap_or("")
+}
+
+fn parse_form(body: &[u8]) -> Vec<(String, String)> {
+    let text = String::from_utf8_lossy(body);
+    text.split('&')
+        .filter(|p| !p.is_empty())
+        .map(|pair| {
+            let (k, v) = pair.split_once('=').unwrap_or((pair, ""));
+            (url_decode(k), url_decode(v))
+        })
+        .collect()
+}
+
+fn url_decode(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while let Some(&b) = bytes.get(i) {
+        match b {
+            b'+' => out.push(b' '),
+            b'%' => {
+                let hi = bytes.get(i + 1).and_then(|c| char::from(*c).to_digit(16));
+                let lo = bytes.get(i + 2).and_then(|c| char::from(*c).to_digit(16));
+                if let (Some(h), Some(l)) = (hi, lo)
+                    && let Ok(v) = u8::try_from(h * 16 + l)
+                {
+                    out.push(v);
+                    i += 2;
+                } else {
+                    out.push(b);
+                }
+            }
+            _ => out.push(b),
+        }
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+// -- pages
+
+/// Runs `render` for a signed-in person; redirects to sign-in or setup otherwise.
+fn page(app: &App, headers: &HeaderMap, q: &HashMap<String, String>, render: impl FnOnce(&Req<'_>) -> maud::Markup) -> Response {
+    let inner = app.lock();
+    let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+    let Some(s) = session(app, &inner, headers) else { return redirect("/login") };
+    let csrf = auth::csrf_token(app.secret(), &s.cookie);
+    let req = Req { engine: &t.engine, person: s.person, csrf: &csrf, now: Timestamp::from_millis(now_ms()), flash: flash_from(q) };
+    html(StatusCode::OK, render(&req))
+}
+
+type Q = Query<HashMap<String, String>>;
+
+async fn home(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Response {
+    page(&app, &headers, &q, pages::home)
+}
+
+async fn project_home(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r| pages::project_home(r, Id::new(id)))
+}
+
+async fn team(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r| pages::team(r, Id::new(id)))
+}
+
+async fn rfi_list(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    use buildkiosk_engine::model::Choice;
+    let filter = RfiFilter {
+        status: q.get("status").and_then(|s| buildkiosk_engine::model::rfi::RfiStatus::parse(s)),
+        q: q.get("q").map(|s| s.chars().take(100).collect()).unwrap_or_default(),
+        mine: q.get("mine").is_some_and(|m| m == "1"),
+    };
+    page(&app, &headers, &q, |r| pages::rfi_list(r, Id::new(id), &filter))
+}
+
+async fn rfi_new(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r| pages::rfi_form(r, Id::new(id), None))
+}
+
+async fn rfi_detail(State(app): State<Shared>, headers: HeaderMap, Path((id, rid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r| pages::rfi_detail(r, Id::new(id), Id::new(rid)))
+}
+
+async fn rfi_edit(State(app): State<Shared>, headers: HeaderMap, Path((id, rid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r| pages::rfi_form(r, Id::new(id), Some(Id::new(rid))))
+}
+
+async fn not_found(State(app): State<Shared>, headers: HeaderMap) -> Response {
+    let mut res = page(&app, &headers, &HashMap::new(), pages::not_found);
+    if res.status() == StatusCode::OK {
+        *res.status_mut() = StatusCode::NOT_FOUND;
+    }
+    res
+}
+
+async fn css() -> Response {
+    let mut res = style::stylesheet().to_string().into_response();
+    res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("text/css; charset=utf-8"));
+    res.headers_mut().insert("cache-control", HeaderValue::from_static("public, max-age=31536000, immutable"));
+    res
+}
+
+async fn favicon() -> Response {
+    let mut res = icons::Icon::favicon().into_response();
+    res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("image/svg+xml"));
+    res
+}
+
+// -- sign-in, sign-out, setup
+
+fn session_cookie(app: &App, inner: &Inner, person: u64) -> String {
+    let value = auth::issue_session(app.secret(), person, inner.creds.epoch(person), now_ms());
+    auth::set_cookie(SESSION_COOKIE, &value, auth::SESSION_MS / 1000)
+}
+
+async fn login_page(State(app): State<Shared>, headers: HeaderMap) -> Response {
+    let inner = app.lock();
+    let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+    if session(&app, &inner, &headers).is_some() {
+        return redirect("/");
+    }
+    let (token, set) = anon_csrf(&app, &headers);
+    let name = t.engine.state().company().map(|c| c.name.clone()).unwrap_or_default();
+    let res = html(StatusCode::OK, pages::login(&token, &name, "", None));
+    match set {
+        Some(c) => with_cookie(res, &c),
+        None => res,
+    }
+}
+
+async fn login_post(State(app): State<Shared>, headers: HeaderMap, body: Bytes) -> Response {
+    let form = parse_form(&body);
+    let mut inner = app.lock();
+    let csrf_cookie = cookie(&headers, CSRF_COOKIE).unwrap_or_default();
+    if !auth::csrf_ok(app.secret(), &csrf_cookie, get_form(&form, "_csrf")) {
+        return plain(StatusCode::FORBIDDEN, "The form expired. Go back, reload the page and try again.");
+    }
+    let email = get_form(&form, "email").trim().to_lowercase();
+    let password = get_form(&form, "password");
+    let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+    let company = t.engine.state().company().map(|c| c.name.clone()).unwrap_or_default();
+    let person = t
+        .engine
+        .state()
+        .people
+        .iter()
+        .find(|p| p.is_enabled() && p.is_user && p.email.as_deref().is_some_and(|e| e.to_lowercase() == email))
+        .map(|p| p.id.raw());
+    let fail = |status: StatusCode, msg: &str, email: &str| {
+        html(status, pages::login(&auth::csrf_token(app.secret(), &csrf_cookie), &company, email, Some(msg)))
+    };
+    if !inner.limiter.allow(&email) {
+        return fail(StatusCode::TOO_MANY_REQUESTS, "Too many attempts. Wait a few minutes and try again.", &email);
+    }
+    // Always verify something, so a wrong email takes as long as a wrong password.
+    let ok = match person {
+        Some(p) => inner.creds.check_password(p, password),
+        None => inner.creds.check_password(0, password),
+    };
+    match person {
+        Some(p) if ok => {
+            inner.limiter.clear(&email);
+            let c = session_cookie(&app, &inner, p);
+            with_cookie(redirect("/"), &c)
+        }
+        _ => fail(StatusCode::UNAUTHORIZED, "That email and password don't match.", &email),
+    }
+}
+
+async fn logout(State(app): State<Shared>, headers: HeaderMap, body: Bytes) -> Response {
+    let form = parse_form(&body);
+    let csrf_cookie = cookie(&headers, SESSION_COOKIE).unwrap_or_default();
+    if !auth::csrf_ok(app.secret(), &csrf_cookie, get_form(&form, "_csrf")) {
+        return plain(StatusCode::FORBIDDEN, "The form expired. Go back, reload the page and try again.");
+    }
+    with_cookie(redirect("/login"), &auth::set_cookie(SESSION_COOKIE, "", 0))
+}
+
+async fn setup_page(State(app): State<Shared>, headers: HeaderMap) -> Response {
+    if app.lock().tenant.is_some() {
+        return redirect("/login");
+    }
+    let (token, set) = anon_csrf(&app, &headers);
+    let res = html(StatusCode::OK, pages::setup(&token, &[], None));
+    match set {
+        Some(c) => with_cookie(res, &c),
+        None => res,
+    }
+}
+
+async fn setup_post(State(app): State<Shared>, headers: HeaderMap, body: Bytes) -> Response {
+    let form = parse_form(&body);
+    let mut inner = app.lock();
+    if inner.tenant.is_some() {
+        return redirect("/login");
+    }
+    let csrf_cookie = cookie(&headers, CSRF_COOKIE).unwrap_or_default();
+    if !auth::csrf_ok(app.secret(), &csrf_cookie, get_form(&form, "_csrf")) {
+        return plain(StatusCode::FORBIDDEN, "The form expired. Go back, reload the page and try again.");
+    }
+    let token = auth::csrf_token(app.secret(), &csrf_cookie);
+    let fail = |msg: String| html(StatusCode::BAD_REQUEST, pages::setup(&token, &form, Some(&msg)));
+    let password = get_form(&form, "password");
+    if let Err(e) = check_password_rules(password) {
+        return fail(e);
+    }
+    let name = get_form(&form, "name").trim().to_string();
+    let slug = text::slug(&name, 63);
+    if !buildkiosk_store::valid_slug(&slug) {
+        return fail("Enter a company name made of letters or digits.".into());
+    }
+    let params = json!({
+        "name": name,
+        "slug": slug,
+        "admin_first_name": get_form(&form, "first_name"),
+        "admin_last_name": get_form(&form, "last_name"),
+        "admin_email": get_form(&form, "email"),
+    });
+    let mut tenant = match app.data.create(&slug) {
+        Ok(t) => t,
+        Err(e) => return fail(e.to_string()),
+    };
+    let out = match tenant.engine.execute(&mut tenant.store, Actor::System, Timestamp::from_millis(now_ms()), "company.setup", &params) {
+        Ok(v) => v,
+        Err(e) => return fail(e.to_string()),
+    };
+    let Some(admin) = out.get("admin").and_then(Value::as_u64) else { return fail("The company was created but its administrator was not.".into()) };
+    let mut creds = Credentials::default();
+    if let Err(e) = creds.set_password(admin, password, Timestamp::from_millis(now_ms())).and_then(|()| tenant.store.save_credentials(&creds)) {
+        return fail(e.to_string());
+    }
+    inner.tenant = Some(tenant);
+    inner.creds = creds;
+    let c = session_cookie(&app, &inner, admin);
+    with_cookie(redirect("/"), &c)
+}
+
+// -- commands
+
+/// Turns the posted fields into command parameters: a field named `x[]` collects all its values
+/// into a list (blank ones dropped); any other field takes its last value. Fields starting with
+/// `_` belong to the form machinery.
+fn form_params(form: &[(String, String)]) -> Value {
+    let mut map = Map::new();
+    for (k, v) in form {
+        if k.starts_with('_') {
+            continue;
+        }
+        match k.strip_suffix("[]") {
+            Some(name) => {
+                let entry = map.entry(name.to_string()).or_insert_with(|| Value::Array(Vec::new()));
+                if let Value::Array(items) = entry
+                    && !v.trim().is_empty()
+                    && items.len() < 1000
+                {
+                    items.push(Value::String(v.clone()));
+                }
+            }
+            None => {
+                map.insert(k.clone(), Value::String(v.clone()));
+            }
+        }
+    }
+    Value::Object(map)
+}
+
+async fn do_command(State(app): State<Shared>, headers: HeaderMap, Path(command): Path<String>, body: Bytes) -> Response {
+    let form = parse_form(&body);
+    let mut inner = app.lock();
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    if !auth::csrf_ok(app.secret(), &s.cookie, get_form(&form, "_csrf")) {
+        return plain(StatusCode::FORBIDDEN, "The form expired. Go back, reload the page and try again.");
+    }
+    let next = local_path(get_form(&form, "_next")).to_string();
+    let back = local_path(match get_form(&form, "_back") {
+        "" => get_form(&form, "_next"),
+        b => b,
+    })
+    .to_string();
+    let Some(spec) = find_command(&command) else { return redirect(&with_flash(&back, false, &format!("Unknown command `{command}`."))) };
+    match inner.run(Actor::Person(s.person), &command, &form_params(&form)) {
+        Ok(result) => {
+            let id = result.get("id").and_then(Value::as_u64).map(|n| n.to_string()).unwrap_or_default();
+            redirect(&with_flash(&next.replace("{id}", &id), true, &format!("{}: done.", spec.label)))
+        }
+        Err(e) => redirect(&with_flash(&back, false, &e.to_string())),
+    }
+}
+
+fn api_error(e: &EngineError) -> Response {
+    let status = StatusCode::from_u16(e.http_status()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+    json_response(status, &json!({"ok": false, "error": {"kind": e.kind(), "message": e.to_string()}}))
+}
+
+fn json_response(status: StatusCode, v: &Value) -> Response {
+    let mut res = (status, v.to_string()).into_response();
+    res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    res
+}
+
+async fn api_command(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<String>, body: Bytes) -> Response {
+    let token = headers.get(AUTHORIZATION).and_then(|v| v.to_str().ok()).and_then(|v| v.strip_prefix("Bearer ")).unwrap_or("");
+    let mut inner = app.lock();
+    let person = inner
+        .creds
+        .token_person(token)
+        .filter(|p| inner.tenant.as_ref().and_then(|t| t.engine.state().people.get(Id::new(*p))).is_some_and(|p| p.is_enabled() && p.is_user));
+    let Some(person) = person else {
+        return json_response(
+            StatusCode::UNAUTHORIZED,
+            &json!({"ok": false, "error": {"kind": "unauthorized", "message": "send a valid API token as `Authorization: Bearer <token>`"}}),
+        );
+    };
+    let params: Value = if body.iter().all(u8::is_ascii_whitespace) {
+        json!({})
+    } else {
+        match serde_json::from_slice(&body) {
+            Ok(v) => v,
+            Err(e) => return json_response(StatusCode::BAD_REQUEST, &json!({"ok": false, "error": {"kind": "bad_json", "message": e.to_string()}})),
+        }
+    };
+    match inner.run(Actor::Person(Id::new(person)), &id, &params) {
+        Ok(result) => json_response(StatusCode::OK, &json!({"ok": true, "result": result})),
+        Err(e) => api_error(&e),
+    }
+}
+
+#[cfg(test)]
+mod tests;

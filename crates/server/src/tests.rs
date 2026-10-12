@@ -565,3 +565,80 @@ async fn inspection_checklist_in_the_browser_flow() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn budget_commitments_and_direct_costs_in_the_browser_flow() {
+    let dir = temp("finance");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=P"))).await;
+
+    // Budget: the starter cost codes are selectable; a line and an import.
+    let (st, _, budget) = send(&app, get("/projects/1/budget")).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(budget.contains("Set a budget line") && budget.contains("03-300"));
+    let code = |text: &str| -> String {
+        let i = budget.find(&format!(">{text} ")).unwrap();
+        let before = &budget[..i];
+        let v = before.rfind("value=\"").unwrap() + 7;
+        before[v..].split('"').next().unwrap().to_string()
+    };
+    let concrete = code("03-300");
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/do/budget.set_line",
+            &ada,
+            format!("_csrf={csrf}&_next=/projects/1/budget&project=1&cost_code={concrete}&original=120,000.00&notes=Slab"),
+        ),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="));
+    send(&app, post("/do/budget.import", &ada, format!("_csrf={csrf}&_next=/projects/1/budget&project=1&text=05-100%2C80000"))).await;
+
+    // A commitment from the form, approved, and a direct cost.
+    let (_, _, form) = send(&app, get("/projects/1/commitments/new")).await;
+    assert!(form.contains("lines.0.cost_code") && form.contains("Schedule of values"));
+    let (_, h, _) = send(
+        &app,
+        post("/projects/1/commitments/save", &ada, format!("_csrf={csrf}&title=Footings&kind=subcontract&vendor=&description=&lines.0.cost_code={concrete}&lines.0.description=Footings&lines.0.amount=30000.50&lines.1.cost_code=&lines.1.amount=")),
+    )
+    .await;
+    assert_eq!(h.get(LOCATION).unwrap().to_str().unwrap().split('?').next().unwrap(), "/projects/1/commitments/1");
+    let (_, _, detail) = send(&app, get("/projects/1/commitments/1")).await;
+    assert!(detail.contains("30,000.50") && detail.contains("Approve") && detail.contains("Draft"));
+    let (_, _, budget) = send(&app, get("/projects/1/budget")).await;
+    assert!(!budget.contains("30,000.50"), "a draft is not committed");
+    send(&app, post("/do/commitment.approve", &ada, format!("_csrf={csrf}&project=1&id=1"))).await;
+    send(
+        &app,
+        post(
+            "/do/direct_cost.create",
+            &ada,
+            format!(
+                "_csrf={csrf}&_next=/projects/1/direct-costs&project=1&cost_code={concrete}&amount=1250.25&description=Pump+truck&kind=equipment"
+            ),
+        ),
+    )
+    .await;
+    let (_, _, costs) = send(&app, get("/projects/1/direct-costs")).await;
+    assert!(costs.contains("Pump truck") && costs.contains("1,250.25"));
+    let (_, _, budget) = send(&app, get("/projects/1/budget")).await;
+    for want in ["30,000.50", "1,250.25", "88,749.25", "200,000.00"] {
+        assert!(budget.contains(want), "{want} missing from the budget");
+    }
+    let (_, h, csv) = send(&app, get("/projects/1/budget.csv")).await;
+    assert!(csv.starts_with("Cost code,") && csv.contains("03-300") && h.get("content-disposition").is_some());
+    let (_, _, list) = send(&app, get("/projects/1/commitments?status=approved")).await;
+    assert!(list.contains("Footings") && list.contains("30,000.50"));
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

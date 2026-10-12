@@ -22,6 +22,7 @@ use crate::punch::PunchItem;
 use crate::daily_log::DailyLog;
 
 // -- financials
+use crate::finance::{BudgetLine, Commitment, DirectCost};
 
 // -- documents
 
@@ -130,6 +131,9 @@ tables! {
     daily_logs: DailyLog,
 
     // -- financials
+    budget_lines: BudgetLine,
+    commitments: Commitment,
+    direct_costs: DirectCost,
 
     // -- documents
 

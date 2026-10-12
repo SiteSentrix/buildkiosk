@@ -117,6 +117,15 @@ pub fn router(app: Shared) -> Router {
         .route("/projects/{id}/rfis/new", get(rfi_new))
         .route("/projects/{id}/submittals", get(submittal_list))
         .route("/notifications", get(notifications))
+        .route("/projects/{id}/budget", get(budget_page))
+        .route("/projects/{id}/budget.csv", get(budget_csv))
+        .route("/projects/{id}/direct-costs", get(direct_costs_page))
+        .route("/projects/{id}/commitments", get(commitment_list))
+        .route("/projects/{id}/commitments/new", get(commitment_new))
+        .route("/projects/{id}/commitments/save", post(commitment_save_new))
+        .route("/projects/{id}/commitments/{cid}", get(commitment_detail))
+        .route("/projects/{id}/commitments/{cid}/edit", get(commitment_edit))
+        .route("/projects/{id}/commitments/{cid}/save", post(commitment_save))
         .route("/projects/{id}/inspections", get(inspection_list))
         .route("/projects/{id}/inspections.csv", get(inspection_csv))
         .route("/projects/{id}/inspections/new", get(inspection_new))
@@ -605,6 +614,90 @@ async fn inspection_answers(State(app): State<Shared>, headers: HeaderMap, Path(
         };
     }
     redirect(&with_flash(&back, true, "Answers saved."))
+}
+
+async fn budget_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::finance::budget(r, Id::new(id)))
+}
+
+async fn budget_csv(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>) -> Response {
+    let inner = app.lock();
+    let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    let csrf = auth::csrf_token(app.secret(), &s.cookie);
+    let req = Req { engine: &t.engine, person: s.person, csrf: &csrf, now: Timestamp::from_millis(now_ms()), flash: None };
+    let Some(csv) = buildkiosk_web::finance::budget_csv(&req, Id::new(id)) else { return plain(StatusCode::NOT_FOUND, "Not found") };
+    let mut res = csv.into_response();
+    res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("text/csv; charset=utf-8"));
+    res.headers_mut().insert("content-disposition", HeaderValue::from_static("attachment; filename=\"budget.csv\""));
+    res
+}
+
+async fn direct_costs_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::finance::direct_costs(r, Id::new(id)))
+}
+
+async fn commitment_list(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    use buildkiosk_engine::model::Choice;
+    let filter = buildkiosk_web::finance::CommitmentFilter {
+        status: q.get("status").and_then(|s| buildkiosk_engine::model::finance::CommitmentStatus::parse(s)),
+        q: q.get("q").map(|s| s.chars().take(100).collect()).unwrap_or_default(),
+    };
+    page(&app, &headers, &q, |r, _| buildkiosk_web::finance::commitments(r, Id::new(id), &filter))
+}
+
+async fn commitment_new(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::finance::commitment_form(r, Id::new(id), None))
+}
+
+async fn commitment_detail(State(app): State<Shared>, headers: HeaderMap, Path((id, cid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, t| {
+        buildkiosk_web::finance::commitment(r, Id::new(id), Id::new(cid), &t.store.history("commitments", cid).unwrap_or_default())
+    })
+}
+
+async fn commitment_edit(State(app): State<Shared>, headers: HeaderMap, Path((id, cid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::finance::commitment_form(r, Id::new(id), Some(Id::new(cid))))
+}
+
+async fn commitment_save_new(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, body: Bytes) -> Response {
+    commitment_save_impl(app, headers, id, None, body)
+}
+
+async fn commitment_save(State(app): State<Shared>, headers: HeaderMap, Path((id, cid)): Path<(u64, u64)>, body: Bytes) -> Response {
+    commitment_save_impl(app, headers, id, Some(cid), body)
+}
+
+/// Saves the commitment form: its fields and the `lines.N.*` rows.
+fn commitment_save_impl(app: Shared, headers: HeaderMap, project: u64, commitment: Option<u64>, body: Bytes) -> Response {
+    let form = parse_form(&body);
+    let mut inner = app.lock();
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    if !auth::csrf_ok(app.secret(), &s.cookie, get_form(&form, "_csrf")) {
+        return plain(StatusCode::FORBIDDEN, "The form expired. Go back, reload the page and try again.");
+    }
+    let base = format!("/projects/{project}/commitments");
+    let back = match commitment {
+        Some(c) => format!("{base}/{c}/edit"),
+        None => format!("{base}/new"),
+    };
+    let mut params = Map::new();
+    params.insert("project".into(), json!(project));
+    if let Some(c) = commitment {
+        params.insert("id".into(), json!(c));
+    }
+    for key in ["title", "kind", "vendor", "description"] {
+        params.insert(key.into(), Value::String(get_form(&form, key).to_string()));
+    }
+    params.insert("lines".into(), indexed_rows(&form, "lines"));
+    let command = if commitment.is_some() { "commitment.update" } else { "commitment.create" };
+    match inner.run(Actor::Person(s.person), command, &Value::Object(params)) {
+        Ok(out) => {
+            let id = commitment.or_else(|| out.get("id").and_then(Value::as_u64)).unwrap_or(0);
+            redirect(&with_flash(&format!("{base}/{id}"), true, "Commitment saved."))
+        }
+        Err(e) => redirect(&with_flash(&back, false, &e.to_string())),
+    }
 }
 
 async fn notifications(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Response {

@@ -187,6 +187,43 @@ pub fn create(dir: &str) -> Result<(), String> {
                 json!({"project": pid, "id": id_of(&insp, "id")?, "answers": answers}),
             )?;
         }
+        let codes = exec(&mut t, pm, "cost_code.list", json!({"project": pid}))?;
+        let code = |wanted: &str| {
+            codes
+                .as_array()
+                .and_then(|l| l.iter().find(|c| c.get("code").and_then(Value::as_str) == Some(wanted)))
+                .and_then(|c| c.get("id").and_then(Value::as_u64))
+                .unwrap_or(0)
+        };
+        for (c, amount) in [("03-300", "250000"), ("05-100", "420000"), ("06-100", "135000"), ("09-200", "96000")] {
+            exec(&mut t, pm, "budget.set_line", json!({"project": pid, "cost_code": code(c), "original": amount}))?;
+        }
+        let steel = exec(
+            &mut t,
+            pm,
+            "commitment.create",
+            json!({"project": pid, "title": "Structural steel supply and erection", "kind": "subcontract", "vendor": vendor(1), "lines": [
+                {"cost_code": code("05-100"), "description": "Fabricate and erect", "amount": "384500"}]}),
+        )?;
+        exec(&mut t, pm, "commitment.approve", json!({"project": pid, "id": id_of(&steel, "id")?}))?;
+        exec(
+            &mut t,
+            pm,
+            "commitment.create",
+            json!({"project": pid, "title": "Slab concrete", "kind": "purchase_order", "lines": [{"cost_code": code("03-300"), "description": "Ready-mix, 220 cy", "amount": "41250.75"}]}),
+        )?;
+        for (c, amount, what) in [
+            ("03-300", "1850.00", "Pump truck, footings"),
+            ("06-100", "12400.40", "Framing lumber package"),
+            ("09-200", "3150.00", "Drywall delivery"),
+        ] {
+            exec(
+                &mut t,
+                pm,
+                "direct_cost.create",
+                json!({"project": pid, "cost_code": code(c), "amount": amount, "description": what, "kind": "material"}),
+            )?;
+        }
         let subs = [("Rooftop unit shop drawings", "23 74 00", "Shop drawing"), ("Storefront glazing product data", "08 41 13", "Product data")];
         for (title, spec, kind) in subs {
             let sub = exec(

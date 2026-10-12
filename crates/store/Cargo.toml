@@ -1,0 +1,26 @@
+[package]
+name = "buildkiosk-store"
+description = "Storage on disk: per-company append-only journals with snapshots, content-addressed file blobs, and the credential store kept outside the journal."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+buildkiosk-core = { workspace = true }
+buildkiosk-model = { workspace = true }
+buildkiosk-engine = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+log = { workspace = true }
+sha2 = { workspace = true }
+argon2 = { workspace = true }
+getrandom = { workspace = true }
+
+[dev-dependencies]
+buildkiosk-testkit = { workspace = true }
+
+[lints]
+workspace = true

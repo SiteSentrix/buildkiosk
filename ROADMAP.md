@@ -8,9 +8,9 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 ## Where we are
 | Area | State |
 | --- | --- |
-| Engine (commands, permissions, journal) | company setup, directory, permission templates, projects, project team, cost codes, RFIs, submittals, specification sections, notifications |
+| Engine (commands, permissions, journal) | company setup, directory, permission templates, projects, project team, cost codes, RFIs, submittals, specification sections, notifications, daily logs |
 | Store | journal, snapshots, blobs, credentials on disk |
-| Web UI | submittals (list, detail, form, reviews, close, resubmit, files); sign-in, first-run setup, projects, project home, team, RFIs (list, detail, new, edit, respond, open, close, reopen, delete, files, history, distribution list, CSV export) |
+| Web UI | daily log (list by month, detail, form with crews, equipment, deliveries, visitors); submittals (list, detail, form, reviews, close, resubmit, files); sign-in, first-run setup, projects, project home, team, RFIs (list, detail, new, edit, respond, open, close, reopen, delete, files, history, distribution list, CSV export) |
 | Directory | company directory page: people, companies, permission templates (view), add forms, admin sets passwords |
 | Server | signed session cookies, CSRF on every form, `POST /do/{command}`, `POST /api/v1/commands/{id}` (bearer token) |
 | App | `serve`, `demo`, `run`, `commands`, `token` |
@@ -18,9 +18,11 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 
 ## Upcoming
 1. Finish RFIs: files on responses, PDF export, email notifications.
-2. Next tools in the order of `docs/gaps.md` (daily logs, punch list, inspections, …).
+2. Next tools in the order of `docs/gaps.md` (punch list, inspections, observations, …).
 
 ## Progress log
+- 2026-10-12: Daily log — weather, manpower, equipment, deliveries, visitors, notes; draft, submit, reopen.
+- 2026-10-12: RFI notifications.
 - 2026-10-12: Submittals round 2 — ordered reviews, register import/export, specification sections, files on reviews, in-app notifications.
 - 2026-10-12: Submittals — review workflow with revisions, files, history.
 - 2026-10-12: Directory page (people, companies, templates), admins set passwords, edit/deactivate/remove people.

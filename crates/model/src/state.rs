@@ -16,6 +16,7 @@ use crate::submittal::Submittal;
 // -- quality and safety
 
 // -- field
+use crate::daily_log::DailyLog;
 
 // -- financials
 
@@ -119,6 +120,7 @@ tables! {
     // -- quality and safety
 
     // -- field
+    daily_logs: DailyLog,
 
     // -- financials
 

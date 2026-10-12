@@ -5,6 +5,7 @@
 //! behind the API answer the same.
 
 use buildkiosk_core::Id;
+use buildkiosk_model::daily_log::{DailyLog, LogStatus};
 use buildkiosk_model::directory::{Person, Vendor};
 use buildkiosk_model::project::Project;
 use buildkiosk_model::rfi::{Rfi, RfiStatus};
@@ -103,5 +104,25 @@ pub fn can_see_submittal(state: &CompanyState, actor: Actor, s: &Submittal) -> b
 pub fn submittals_for(state: &CompanyState, actor: Actor, project: Id<Project>) -> Vec<&Submittal> {
     let mut list: Vec<&Submittal> = state.submittals.iter().filter(|s| s.project == project && can_see_submittal(state, actor, s)).collect();
     list.sort_by_key(|s| s.number);
+    list
+}
+
+/// Whether the actor may see a daily log: Read access, and for drafts, being the author (or a
+/// daily log admin).
+pub fn can_see_daily_log(state: &CompanyState, actor: Actor, log: &DailyLog) -> bool {
+    let lvl = level(state, actor, log.project, Tool::DailyLog);
+    if lvl == Level::Admin {
+        return true;
+    }
+    if lvl < Level::Read || log.deleted.is_some() {
+        return false;
+    }
+    log.status == LogStatus::Submitted || (actor.person().is_some() && log.created.by == actor.person())
+}
+
+/// The daily logs of a project the actor may see, newest day first.
+pub fn daily_logs_for(state: &CompanyState, actor: Actor, project: Id<Project>) -> Vec<&DailyLog> {
+    let mut list: Vec<&DailyLog> = state.daily_logs.iter().filter(|l| l.project == project && can_see_daily_log(state, actor, l)).collect();
+    list.sort_by_key(|l| std::cmp::Reverse(l.date));
     list
 }

@@ -112,6 +112,12 @@ pub fn router(app: Shared) -> Router {
         .route("/projects/{id}/rfis/new", get(rfi_new))
         .route("/projects/{id}/submittals", get(submittal_list))
         .route("/notifications", get(notifications))
+        .route("/projects/{id}/daily-logs", get(daily_log_list))
+        .route("/projects/{id}/daily-logs/new", get(daily_log_new))
+        .route("/projects/{id}/daily-logs/save", post(daily_log_save_new))
+        .route("/projects/{id}/daily-logs/{lid}", get(daily_log_detail))
+        .route("/projects/{id}/daily-logs/{lid}/edit", get(daily_log_edit))
+        .route("/projects/{id}/daily-logs/{lid}/save", post(daily_log_save))
         .route("/projects/{id}/specifications", get(specifications))
         .route("/projects/{id}/submittals.csv", get(submittal_csv))
         .route("/projects/{id}/submittals/new", get(submittal_new))
@@ -355,6 +361,86 @@ async fn submittal_list(State(app): State<Shared>, headers: HeaderMap, Path(id):
         mine: q.get("mine").is_some_and(|m| m == "1"),
     };
     page(&app, &headers, &q, |r, _| buildkiosk_web::submittals::list(r, Id::new(id), &filter))
+}
+
+async fn daily_log_list(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    let month: String = q.get("month").filter(|m| m.len() == 7 && m.bytes().all(|b| b.is_ascii_digit() || b == b'-')).cloned().unwrap_or_default();
+    page(&app, &headers, &q, |r, _| buildkiosk_web::daily_logs::list(r, Id::new(id), &month))
+}
+
+async fn daily_log_new(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::daily_logs::form(r, Id::new(id), None))
+}
+
+async fn daily_log_detail(State(app): State<Shared>, headers: HeaderMap, Path((id, lid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::daily_logs::detail(r, Id::new(id), Id::new(lid)))
+}
+
+async fn daily_log_edit(State(app): State<Shared>, headers: HeaderMap, Path((id, lid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::daily_logs::form(r, Id::new(id), Some(Id::new(lid))))
+}
+
+async fn daily_log_save_new(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, body: Bytes) -> Response {
+    daily_log_save_impl(app, headers, id, None, body)
+}
+
+async fn daily_log_save(State(app): State<Shared>, headers: HeaderMap, Path((id, lid)): Path<(u64, u64)>, body: Bytes) -> Response {
+    daily_log_save_impl(app, headers, id, Some(lid), body)
+}
+
+/// The list-valued fields of the daily log form: `manpower.0.company`, `manpower.0.workers`…
+/// become `manpower: [{company, workers}]`, in row order.
+fn indexed_rows(form: &[(String, String)], list: &str) -> Value {
+    let mut rows: std::collections::BTreeMap<usize, Map<String, Value>> = std::collections::BTreeMap::new();
+    for (k, v) in form {
+        let Some(rest) = k.strip_prefix(list).and_then(|r| r.strip_prefix('.')) else { continue };
+        let Some((index, field)) = rest.split_once('.') else { continue };
+        let Ok(index) = index.parse::<usize>() else { continue };
+        if index < 1000 && rows.len() < 1000 {
+            rows.entry(index).or_default().insert(field.to_string(), Value::String(v.clone()));
+        }
+    }
+    Value::Array(rows.into_values().map(Value::Object).collect())
+}
+
+fn daily_log_save_impl(app: Shared, headers: HeaderMap, project: u64, log: Option<u64>, body: Bytes) -> Response {
+    let form = parse_form(&body);
+    let mut inner = app.lock();
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    if !auth::csrf_ok(app.secret(), &s.cookie, get_form(&form, "_csrf")) {
+        return plain(StatusCode::FORBIDDEN, "The form expired. Go back, reload the page and try again.");
+    }
+    let base = format!("/projects/{project}/daily-logs");
+    let back = match log {
+        Some(l) => format!("{base}/{l}/edit"),
+        None => format!("{base}/new"),
+    };
+    let mut params = Map::new();
+    params.insert("project".into(), json!(project));
+    if let Some(l) = log {
+        params.insert("id".into(), json!(l));
+    }
+    for key in ["date", "sky", "high", "low", "weather_notes", "work_performed", "delays", "safety", "notes"] {
+        params.insert(key.into(), Value::String(get_form(&form, key).to_string()));
+    }
+    for list in ["manpower", "equipment", "deliveries", "visitors"] {
+        params.insert(list.into(), indexed_rows(&form, list));
+    }
+    let actor = Actor::Person(s.person);
+    let command = if log.is_some() { "daily_log.update" } else { "daily_log.create" };
+    let id = match inner.run(actor, command, &Value::Object(params)) {
+        Ok(out) => log.or_else(|| out.get("id").and_then(Value::as_u64)).unwrap_or(0),
+        Err(e) => return redirect(&with_flash(&back, false, &e.to_string())),
+    };
+    let detail = format!("{base}/{id}");
+    if !get_form(&form, "_submit").is_empty() {
+        let params = json!({"project": project, "id": id});
+        return match inner.run(actor, "daily_log.submit", &params) {
+            Ok(_) => redirect(&with_flash(&detail, true, "Daily log submitted.")),
+            Err(e) => redirect(&with_flash(&detail, false, &format!("Saved, but not submitted: {e}"))),
+        };
+    }
+    redirect(&with_flash(&detail, true, "Daily log saved."))
 }
 
 async fn notifications(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Response {

@@ -343,3 +343,52 @@ async fn register_specs_notifications_and_review_files() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn daily_log_form_saves_lists_and_submits() {
+    let dir = temp("dailylog");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=P"))).await;
+
+    let (st, _, form) = send(&app, get("/projects/1/daily-logs/new")).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(form.contains("manpower.0.company") && form.contains("Save and submit"));
+    let fields = "date=2026-10-12&sky=rain&high=54&low=41&work_performed=Poured+footings\
+        &manpower.0.company=Northline&manpower.0.trade=Electrical&manpower.0.workers=4&manpower.0.hours=7.5\
+        &manpower.1.company=&manpower.1.workers=&manpower.1.hours=\
+        &manpower.2.company=Keystone&manpower.2.workers=6&manpower.2.hours=8\
+        &equipment.0.name=Excavator&equipment.0.hours=5.5&deliveries.0.description=Rebar&visitors.0.name=Inspector";
+    let (_, h, _) = send(&app, post("/projects/1/daily-logs/save", &ada, format!("_csrf={csrf}&{fields}&_submit=1"))).await;
+    let loc = h.get(LOCATION).unwrap().to_str().unwrap().to_string();
+    assert!(loc.starts_with("/projects/1/daily-logs/1?ok="), "{loc}");
+    let (_, _, detail) = send(&app, get("/projects/1/daily-logs/1")).await;
+    for want in ["Northline", "Keystone", "Excavator", "Rebar", "Inspector", "Submitted", "10", "78"] {
+        assert!(detail.contains(want), "{want} missing");
+    }
+    // A second log for the same day is refused with a message, and a bad hours value too.
+    let (_, h, _) = send(&app, post("/projects/1/daily-logs/save", &ada, format!("_csrf={csrf}&date=2026-10-12"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().starts_with("/projects/1/daily-logs/new?error="));
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/projects/1/daily-logs/save",
+            &ada,
+            format!("_csrf={csrf}&date=2026-10-13&manpower.0.company=A&manpower.0.workers=2&manpower.0.hours=99"),
+        ),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("error="));
+    let (_, _, list) = send(&app, get("/projects/1/daily-logs?month=2026-10")).await;
+    assert!(list.contains("Rain, 54/41"));
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

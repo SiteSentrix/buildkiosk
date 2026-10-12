@@ -18,6 +18,7 @@ pub mod submittal;
 // -- quality and safety
 
 // -- field
+pub mod daily_log;
 
 // -- financials
 
@@ -114,7 +115,7 @@ const MODULES: &[&[CommandSpec]] = &[
     // -- quality and safety
 
     // -- field
-
+    daily_log::COMMANDS,
     // -- financials
 
     // -- documents

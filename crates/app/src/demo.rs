@@ -122,6 +122,17 @@ pub fn create(dir: &str) -> Result<(), String> {
             "spec.import",
             json!({"project": pid, "text": "05 12 00, Structural steel framing\n08 41 13, Aluminum storefront\n23 74 00, Packaged rooftop units"}),
         )?;
+        let eng = Actor::Person(Id::new(person(2)));
+        let log = exec(
+            &mut t,
+            eng,
+            "daily_log.create",
+            json!({"project": pid, "sky": "partly_cloudy", "high": 61, "low": 44, "work_performed": "Framed second-floor walls; started rough electrical in corridor 2.",
+                   "manpower": [{"company": "Northline Electric", "trade": "Electrical", "workers": 4, "hours": "8"}, {"company": "Summit Ridge Builders", "trade": "Carpentry", "workers": 6, "hours": "7.5"}],
+                   "equipment": [{"name": "Telehandler", "hours": "4"}], "deliveries": [{"description": "Lumber package", "company": "Cedar Supply"}],
+                   "visitors": [{"name": "County inspector", "purpose": "Framing inspection"}]}),
+        )?;
+        exec(&mut t, eng, "daily_log.submit", json!({"project": pid, "id": id_of(&log, "id")?}))?;
         let subs = [("Rooftop unit shop drawings", "23 74 00", "Shop drawing"), ("Storefront glazing product data", "08 41 13", "Product data")];
         for (title, spec, kind) in subs {
             let sub = exec(

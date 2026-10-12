@@ -9,6 +9,7 @@
 
 pub mod choice;
 pub mod common;
+pub mod daily_log;
 pub mod directory;
 pub mod notification;
 pub mod perm;

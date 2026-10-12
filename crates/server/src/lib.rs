@@ -104,6 +104,7 @@ pub fn router(app: Shared) -> Router {
         .route("/logout", post(logout))
         .route("/setup", get(setup_page).post(setup_post))
         .route("/directory", get(directory))
+        .route("/directory/people/{id}", get(person_edit))
         .route("/people/{id}/password", post(set_password))
         .route("/projects/{id}", get(project_home))
         .route("/projects/{id}/team", get(team))
@@ -300,6 +301,10 @@ async fn home(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Res
 
 async fn directory(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Response {
     page(&app, &headers, &q, |r, _| pages::directory(r))
+}
+
+async fn person_edit(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| pages::person_edit(r, Id::new(id)))
 }
 
 async fn project_home(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {

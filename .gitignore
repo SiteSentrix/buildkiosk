@@ -7,3 +7,5 @@ plan/
 /data
 /demo-data
 .DS_Store
+# Agent worktrees (parallel work in progress)
+/.claude/worktrees/

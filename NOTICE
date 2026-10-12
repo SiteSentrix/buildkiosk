@@ -1,0 +1,22 @@
+BuildKiosk
+Copyright (c) 2026 The BuildKiosk contributors
+
+Licensed under either of
+  * Apache License, Version 2.0 (LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0)
+  * MIT license (LICENSE-MIT or http://opensource.org/licenses/MIT)
+at your option.
+
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the
+work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any
+additional terms or conditions.
+
+Assets: see ASSETS.md (currently none; icons and styles are generated in code).
+
+Third-party code: BuildKiosk's Rust dependencies are listed in Cargo.lock; `cargo xtask licenses`
+checks that each one is available under a permissive licence. Their licence texts ship with their
+sources on crates.io.
+
+Trademarks: BuildKiosk is not affiliated with, endorsed by or sponsored by Procore or
+any other vendor. Product names that appear in the documentation are the trademarks of their owners
+and are used only to describe compatibility and feature comparisons. The licences above do not grant
+rights to the BuildKiosk name or logo.

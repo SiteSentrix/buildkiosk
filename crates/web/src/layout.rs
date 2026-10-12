@@ -57,6 +57,7 @@ pub enum Nav {
     Submittals(Id<Project>),
     Specs(Id<Project>),
     DailyLogs(Id<Project>),
+    Punch(Id<Project>),
     Notifications,
 }
 
@@ -102,7 +103,7 @@ pub fn app(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Option<String>
     let unread = state.notifications.iter().filter(|n| n.person == req.person && !n.read).count();
     let project = match nav {
         Nav::Projects | Nav::Directory | Nav::Notifications => None,
-        Nav::Home(p) | Nav::Team(p) | Nav::Rfis(p) | Nav::Submittals(p) | Nav::Specs(p) | Nav::DailyLogs(p) => state.projects.get(p),
+        Nav::Home(p) | Nav::Team(p) | Nav::Rfis(p) | Nav::Submittals(p) | Nav::Specs(p) | Nav::DailyLogs(p) | Nav::Punch(p) => state.projects.get(p),
     };
     html! {
         (DOCTYPE)
@@ -139,6 +140,7 @@ pub fn app(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Option<String>
                             div class="nav" {
                                 a href=(format!("/projects/{}", p.id)) class=(if matches!(nav, Nav::Home(_)) { "active" } else { "" }) { (Icon::Home.svg()) "Project home" }
                                 a href=(format!("/projects/{}/daily-logs", p.id)) class=(if matches!(nav, Nav::DailyLogs(_)) { "active" } else { "" }) { (tool_icon(Tool::DailyLog).svg()) "Daily log" }
+                                a href=(format!("/projects/{}/punch-list", p.id)) class=(if matches!(nav, Nav::Punch(_)) { "active" } else { "" }) { (tool_icon(Tool::PunchList).svg()) "Punch list" }
                                 a href=(format!("/projects/{}/rfis", p.id)) class=(if matches!(nav, Nav::Rfis(_)) { "active" } else { "" }) { (tool_icon(Tool::Rfis).svg()) "RFIs" }
                                 a href=(format!("/projects/{}/submittals", p.id)) class=(if matches!(nav, Nav::Submittals(_)) { "active" } else { "" }) { (tool_icon(Tool::Submittals).svg()) "Submittals" }
                                 a href=(format!("/projects/{}/specifications", p.id)) class=(if matches!(nav, Nav::Specs(_)) { "active" } else { "" }) { (tool_icon(Tool::Specifications).svg()) "Specifications" }

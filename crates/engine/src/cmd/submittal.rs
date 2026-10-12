@@ -210,7 +210,7 @@ fn ask_for_review(ctx: &mut Ctx<'_>, s: &Submittal) {
 }
 
 /// Reads one uploaded file's details.
-fn file_ref(p: &Params<'_>) -> Result<FileRef> {
+pub(crate) fn file_ref(p: &Params<'_>) -> Result<FileRef> {
     let sha256 = p.req_line("sha256", 64)?.to_ascii_lowercase();
     if sha256.len() != 64 || !sha256.bytes().all(|b| b.is_ascii_hexdigit()) {
         return Err(p.bad("sha256", "must be 64 hex digits"));

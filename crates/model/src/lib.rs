@@ -14,6 +14,7 @@ pub mod directory;
 pub mod notification;
 pub mod perm;
 pub mod project;
+pub mod punch;
 pub mod rfi;
 pub mod spec;
 pub mod state;

@@ -11,6 +11,7 @@ pub mod icons;
 pub mod inbox;
 pub mod layout;
 pub mod pages;
+pub mod punch;
 pub mod specs;
 pub mod style;
 pub mod submittals;

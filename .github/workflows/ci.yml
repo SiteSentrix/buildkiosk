@@ -1,0 +1,44 @@
+# The gate contributors run before committing: `cargo xtask ci` (fmt, clippy -D warnings including the
+# no-panic lints, tests, assets, brands, cleanroom, licenses, layers, wasm). Runs on every push to main
+# and every pull request.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  CARGO_PROFILE_DEV_DEBUG: 0
+  CARGO_PROFILE_TEST_DEBUG: 0
+  RUST_BACKTRACE: 1
+
+jobs:
+  ci:
+    name: cargo xtask ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      # The toolchain the code is checked with locally. Each Rust release adds clippy lints, so bump
+      # it on purpose and fix what the new lints flag in the same commit.
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.0
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ci
+      - name: cargo xtask ci
+        run: cargo xtask ci

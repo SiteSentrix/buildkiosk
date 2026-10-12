@@ -103,6 +103,8 @@ pub fn router(app: Shared) -> Router {
         .route("/login", get(login_page).post(login_post))
         .route("/logout", post(logout))
         .route("/setup", get(setup_page).post(setup_post))
+        .route("/directory", get(directory))
+        .route("/people/{id}/password", post(set_password))
         .route("/projects/{id}", get(project_home))
         .route("/projects/{id}/team", get(team))
         .route("/projects/{id}/rfis", get(rfi_list))
@@ -296,6 +298,10 @@ async fn home(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Res
     page(&app, &headers, &q, |r, _| pages::home(r))
 }
 
+async fn directory(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| pages::directory(r))
+}
+
 async fn project_home(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
     page(&app, &headers, &q, |r, _| pages::project_home(r, Id::new(id)))
 }
@@ -474,6 +480,42 @@ async fn setup_post(State(app): State<Shared>, headers: HeaderMap, body: Bytes) 
     inner.creds = creds;
     let c = session_cookie(&app, &inner, admin);
     with_cookie(redirect("/"), &c)
+}
+
+/// A company admin sets someone's password (which signs them out everywhere).
+async fn set_password(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, body: Bytes) -> Response {
+    let form = parse_form(&body);
+    let mut inner = app.lock();
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    if !auth::csrf_ok(app.secret(), &s.cookie, get_form(&form, "_csrf")) {
+        return plain(StatusCode::FORBIDDEN, "The form expired. Go back, reload the page and try again.");
+    }
+    let back = "/directory";
+    let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+    let state = t.engine.state();
+    if !state.people.get(s.person).is_some_and(|p| p.company_admin) {
+        return redirect(&with_flash(back, false, "Only company admins can set passwords."));
+    }
+    if !state.people.get(Id::new(id)).is_some_and(|p| p.is_enabled() && p.is_user) {
+        return redirect(&with_flash(back, false, "That person can't sign in."));
+    }
+    let password = get_form(&form, "password");
+    if let Err(e) = check_password_rules(password) {
+        return redirect(&with_flash(back, false, &e));
+    }
+    let mut creds = inner.creds.clone();
+    let saved = creds
+        .set_password(id, password, Timestamp::from_millis(now_ms()))
+        .and_then(|()| inner.tenant.as_ref().map_or(Ok(()), |t| t.store.save_credentials(&creds)));
+    match saved {
+        Ok(()) => {
+            inner.creds = creds;
+            // Keep the admin signed in if they changed their own password.
+            let res = redirect(&with_flash(back, true, "Password set."));
+            if id == s.person.raw() { with_cookie(res, &session_cookie(&app, &inner, id)) } else { res }
+        }
+        Err(e) => redirect(&with_flash(back, false, &e.to_string())),
+    }
 }
 
 // -- commands

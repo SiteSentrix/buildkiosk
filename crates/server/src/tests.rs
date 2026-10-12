@@ -132,3 +132,47 @@ async fn rfi_files_history_and_csv() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn admin_adds_a_person_and_sets_their_password() {
+    let dir = temp("people");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let session = cookies(&h);
+    let (st, _, dirpage) = send(&app, Request::get("/directory").header("cookie", &session).body(Body::empty()).unwrap()).await;
+    assert_eq!(st, StatusCode::OK);
+    let csrf = field(&dirpage, "_csrf");
+    send(
+        &app,
+        post(
+            "/do/person.create",
+            &session,
+            format!("_csrf={csrf}&_next=/directory&first_name=Bo&last_name=Builder&email=bo%40example.com&is_user=true"),
+        ),
+    )
+    .await;
+    let (_, _, dirpage) = send(&app, Request::get("/directory").header("cookie", &session).body(Body::empty()).unwrap()).await;
+    assert!(dirpage.contains("bo@example.com") && dirpage.contains("/people/2/password"));
+    let (_, h, _) = send(&app, post("/people/2/password", &session, format!("_csrf={csrf}&password=short"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("error="), "weak passwords are refused");
+    let (_, h, _) = send(&app, post("/people/2/password", &session, format!("_csrf={csrf}&password=bo-secret-password"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="));
+
+    // Bo can sign in, but is no admin and no directory user.
+    let (_, h, page) = send(&app, Request::get("/login").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let login = format!("_csrf={}&email=bo%40example.com&password=bo-secret-password", field(&page, "_csrf"));
+    let (st, h, _) = send(&app, post("/login", &anon, login)).await;
+    assert_eq!(st, StatusCode::SEE_OTHER);
+    let bo = cookies(&h);
+    let (_, _, home) = send(&app, Request::get("/").header("cookie", &bo).body(Body::empty()).unwrap()).await;
+    let bo_csrf = field(&home, "_csrf");
+    let (_, h, _) = send(&app, post("/people/1/password", &bo, format!("_csrf={bo_csrf}&password=hijack-password-1"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("error="), "non-admins can't set passwords");
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

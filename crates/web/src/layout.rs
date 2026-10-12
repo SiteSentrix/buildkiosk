@@ -50,6 +50,7 @@ impl Req<'_> {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Nav {
     Projects,
+    Directory,
     Home(Id<Project>),
     Team(Id<Project>),
     Rfis(Id<Project>),
@@ -95,7 +96,7 @@ pub fn app(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Option<String>
     let me = view::person_name(state, req.person);
     let company = state.company().map(|c| c.name.clone()).unwrap_or_default();
     let project = match nav {
-        Nav::Projects => None,
+        Nav::Projects | Nav::Directory => None,
         Nav::Home(p) | Nav::Team(p) | Nav::Rfis(p) => state.projects.get(p),
     };
     html! {
@@ -123,6 +124,9 @@ pub fn app(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Option<String>
                     nav class="sidebar" aria-label="Main" {
                         div class="nav" {
                             a href="/" class=(if nav == Nav::Projects { "active" } else { "" }) { (Icon::Building.svg()) "Projects" }
+                            @if req.allowed("person.list", None) {
+                                a href="/directory" class=(if nav == Nav::Directory { "active" } else { "" }) { (Icon::People.svg()) "Directory" }
+                            }
                         }
                         @if let Some(p) = project {
                             div class="context" { (p.name) small { (p.number) } }

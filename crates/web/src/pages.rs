@@ -592,7 +592,7 @@ pub fn directory(req: &Req<'_>) -> Markup {
                 tbody {
                     @for p in &people {
                         tr {
-                            td { span class="row-link" { (p.name()) } @if let Some(e) = &p.email { div class="muted small" { (e) } } }
+                            td { a class="row-link" href=(format!("/directory/people/{}", p.id)) { (p.name()) } @if p.is_enabled() {} @else { " " span class="tag" { "Inactive" } } @if let Some(e) = &p.email { div class="muted small" { (e) } } }
                             td { (view::employer_name(state, p)) }
                             td { (p.title) }
                             td {
@@ -668,4 +668,51 @@ pub fn directory(req: &Req<'_>) -> Markup {
         }
     };
     layout::app(req, "Directory", Nav::Directory, &[("Directory", None)], body)
+}
+
+/// Edit one person of the directory.
+pub fn person_edit(req: &Req<'_>, id: Id<Person>) -> Markup {
+    let state = req.engine.state();
+    let Some(p) = state.people.get(id).filter(|p| p.deleted.is_none()) else { return not_found(req) };
+    if !req.allowed("person.update", None) {
+        return not_found(req);
+    }
+    let is_admin = state.people.get(req.person).is_some_and(|x| x.company_admin);
+    let mut vendors: Vec<_> = state.vendors.iter().filter(|v| v.deleted.is_none()).collect();
+    vendors.sort_by_key(|v| v.name.to_lowercase());
+    let here = format!("/directory/people/{id}");
+    let flag = |name: &str, label: &str, on: bool| {
+        html! { div class="field" { input type="hidden" name=(name) value="false"; label class="check" { input type="checkbox" name=(name) value="true" checked[on]; (label) } } }
+    };
+    let body = html! {
+        div class="page-head" { div { h1 { (p.name()) } div class="sub" { (view::employer_name(state, p)) } } }
+        div class="card" {
+            (command_form(req, "person.update", &here, &here, html! {
+                input type="hidden" name="id" value=(id);
+                div class="form-grid" {
+                    (field("First name", "first_name", true, false, html! { input type="text" id="first_name" name="first_name" required value=(p.first_name); }))
+                    (field("Last name", "last_name", true, false, html! { input type="text" id="last_name" name="last_name" required value=(p.last_name); }))
+                    (field("Email", "email", false, false, html! { input type="email" id="email" name="email" value=(p.email.clone().unwrap_or_default()); }))
+                    (field("Phone", "phone", false, false, html! { input type="text" id="phone" name="phone" value=(p.phone); }))
+                    (field("Title", "title", false, false, html! { input type="text" id="title" name="title" value=(p.title); }))
+                    (field("Company", "vendor", false, false, html! { select id="vendor" name="vendor" { option value="" { "Our company" } @for v in &vendors { option value=(v.id) selected[p.vendor == Some(v.id)] { (v.name) } } } }))
+                    (flag("is_user", "Can sign in (needs an email)", p.is_user))
+                    (flag("active", "Active", p.active))
+                    @if is_admin { (flag("company_admin", "Company admin", p.company_admin)) }
+                }
+                div class="form-actions" {
+                    a class="btn" href="/directory" { "Back" }
+                    button type="submit" class="btn primary" { "Save changes" }
+                }
+            }))
+        }
+        @if req.allowed("person.delete", None) && id != req.person {
+            div class="card" {
+                h2 { "Remove from directory" }
+                p class="muted" { "Removing a person keeps what they did in the history; they can no longer sign in." }
+                (button_form(req, "person.delete", "/directory", &[("id", id.to_string())], "Remove person", "danger"))
+            }
+        }
+    };
+    layout::app(req, &p.name(), Nav::Directory, &[("Directory", Some("/directory".into())), (&p.name(), None)], body)
 }

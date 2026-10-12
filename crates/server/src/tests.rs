@@ -176,3 +176,27 @@ async fn admin_adds_a_person_and_sets_their_password() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn people_can_be_edited_and_deactivated() {
+    let dir = temp("edit");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let session = cookies(&h);
+    let (_, _, d) = send(&app, Request::get("/directory").header("cookie", &session).body(Body::empty()).unwrap()).await;
+    let csrf = field(&d, "_csrf");
+    send(&app, post("/do/person.create", &session, format!("_csrf={csrf}&first_name=Bo&last_name=Builder"))).await;
+    let (st, _, edit) = send(&app, Request::get("/directory/people/2").header("cookie", &session).body(Body::empty()).unwrap()).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(edit.contains("Bo"));
+    let (_, h, _) = send(&app, post("/do/person.update", &session, format!("_csrf={csrf}&_next=/directory&id=2&title=Foreman&active=false"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="));
+    let (_, _, d) = send(&app, Request::get("/directory").header("cookie", &session).body(Body::empty()).unwrap()).await;
+    assert!(d.contains("Inactive") && d.contains("Foreman"));
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

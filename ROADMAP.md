@@ -21,6 +21,6 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 2. Next tools in the order of `docs/gaps.md` (submittals, daily logs, punch list, …).
 
 ## Progress log
-- 2026-10-12: Directory page (people, companies, templates), admins set passwords.
+- 2026-10-12: Directory page (people, companies, templates), admins set passwords, edit/deactivate/remove people.
 - 2026-10-12: RFIs — files (25 MB, served as downloads), change history, distribution list, CSV export.
 - 2026-10-12: M1 — sign-in, projects, team and RFIs work end to end in the browser.

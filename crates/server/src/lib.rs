@@ -119,6 +119,13 @@ pub fn router(app: Shared) -> Router {
         .route("/projects/{id}/punch-list/{iid}/edit", get(punch_edit))
         .route("/projects/{id}/punch-list/{iid}/files/{sha}", get(punch_file))
         .route("/projects/{id}/punch-list/{iid}/upload", post(punch_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
+        .route("/projects/{id}/observations", get(observation_list))
+        .route("/projects/{id}/observations.csv", get(observation_csv))
+        .route("/projects/{id}/observations/new", get(observation_new))
+        .route("/projects/{id}/observations/{iid}", get(observation_detail))
+        .route("/projects/{id}/observations/{iid}/edit", get(observation_edit))
+        .route("/projects/{id}/observations/{iid}/files/{sha}", get(observation_file))
+        .route("/projects/{id}/observations/{iid}/upload", post(observation_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
         .route("/projects/{id}/daily-logs", get(daily_log_list))
         .route("/projects/{id}/daily-logs/new", get(daily_log_new))
         .route("/projects/{id}/daily-logs/save", post(daily_log_save_new))
@@ -495,6 +502,51 @@ async fn punch_upload(State(app): State<Shared>, headers: HeaderMap, Path((id, i
     file_upload(app, headers, Kind::Punch, id, iid, multipart).await
 }
 
+async fn observation_list(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    use buildkiosk_engine::model::Choice;
+    let filter = buildkiosk_web::observations::Filter {
+        status: q.get("status").and_then(|s| buildkiosk_engine::model::observation::ObservationStatus::parse(s)),
+        q: q.get("q").map(|s| s.chars().take(100).collect()).unwrap_or_default(),
+        mine: q.get("mine").is_some_and(|m| m == "1"),
+    };
+    page(&app, &headers, &q, |r, _| buildkiosk_web::observations::list(r, Id::new(id), &filter))
+}
+
+async fn observation_new(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::observations::form(r, Id::new(id), None))
+}
+
+async fn observation_detail(State(app): State<Shared>, headers: HeaderMap, Path((id, iid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, t| {
+        buildkiosk_web::observations::detail(r, Id::new(id), Id::new(iid), &t.store.history("observations", iid).unwrap_or_default())
+    })
+}
+
+async fn observation_edit(State(app): State<Shared>, headers: HeaderMap, Path((id, iid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::observations::form(r, Id::new(id), Some(Id::new(iid))))
+}
+
+async fn observation_csv(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>) -> Response {
+    let inner = app.lock();
+    let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    let csrf = auth::csrf_token(app.secret(), &s.cookie);
+    let req = Req { engine: &t.engine, person: s.person, csrf: &csrf, now: Timestamp::from_millis(now_ms()), flash: None };
+    let Some(csv) = buildkiosk_web::observations::csv(&req, Id::new(id)) else { return plain(StatusCode::NOT_FOUND, "Not found") };
+    let mut res = csv.into_response();
+    res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("text/csv; charset=utf-8"));
+    res.headers_mut().insert("content-disposition", HeaderValue::from_static("attachment; filename=\"observations.csv\""));
+    res
+}
+
+async fn observation_file(State(app): State<Shared>, headers: HeaderMap, Path((id, iid, sha)): Path<(u64, u64, String)>) -> Response {
+    file_download(app, headers, Kind::Observation, id, iid, sha).await
+}
+
+async fn observation_upload(State(app): State<Shared>, headers: HeaderMap, Path((id, iid)): Path<(u64, u64)>, multipart: Multipart) -> Response {
+    file_upload(app, headers, Kind::Observation, id, iid, multipart).await
+}
+
 async fn notifications(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Response {
     page(&app, &headers, &q, |r, _| buildkiosk_web::inbox::page(r))
 }
@@ -831,6 +883,7 @@ enum Kind {
     Rfi,
     Submittal,
     Punch,
+    Observation,
 }
 
 impl Kind {
@@ -839,6 +892,7 @@ impl Kind {
             Kind::Rfi => "rfi.attach",
             Kind::Submittal => "submittal.attach",
             Kind::Punch => "punch.attach",
+            Kind::Observation => "observation.attach",
         }
     }
 
@@ -847,6 +901,7 @@ impl Kind {
             Kind::Rfi => "rfis",
             Kind::Submittal => "submittals",
             Kind::Punch => "punch-list",
+            Kind::Observation => "observations",
         }
     }
 
@@ -874,6 +929,11 @@ impl Kind {
                 .punch_items
                 .get(Id::new(item))
                 .filter(|r| r.project == Id::new(project) && view::can_see_punch(state, actor, r))
+                .map(|r| r.attachments.clone()),
+            Kind::Observation => state
+                .observations
+                .get(Id::new(item))
+                .filter(|r| r.project == Id::new(project) && view::can_see_observation(state, actor, r))
                 .map(|r| r.attachments.clone()),
         }
     }

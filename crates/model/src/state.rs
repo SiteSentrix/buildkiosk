@@ -14,6 +14,7 @@ use crate::spec::SpecSection;
 use crate::submittal::Submittal;
 
 // -- quality and safety
+use crate::observation::Observation;
 use crate::punch::PunchItem;
 
 // -- field
@@ -120,6 +121,7 @@ tables! {
 
     // -- quality and safety
     punch_items: PunchItem,
+    observations: Observation,
 
     // -- field
     daily_logs: DailyLog,

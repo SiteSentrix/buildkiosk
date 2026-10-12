@@ -14,6 +14,7 @@ pub mod perm;
 pub mod project;
 pub mod rfi;
 pub mod state;
+pub mod submittal;
 pub mod table;
 pub mod tool;
 // Tool modules, one region per area (keeps parallel work in separate places).

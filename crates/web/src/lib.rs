@@ -10,6 +10,7 @@ pub mod icons;
 pub mod layout;
 pub mod pages;
 pub mod style;
+pub mod submittals;
 pub mod theme;
 
 pub use layout::{Flash, Req};

@@ -9,6 +9,7 @@ use crate::project::{CostCode, Project};
 use crate::rfi::Rfi;
 use crate::table::{Table, TableChange, TableData};
 // -- project management
+use crate::submittal::Submittal;
 
 // -- quality and safety
 
@@ -110,6 +111,7 @@ tables! {
     cost_codes: CostCode,
     rfis: Rfi,
     // -- project management
+    submittals: Submittal,
 
     // -- quality and safety
 

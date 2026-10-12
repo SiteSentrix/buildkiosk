@@ -5,7 +5,7 @@ Procore's tools only for now; BuildKiosk-only extras stay parked (AGENTS.md).
 
 1. **RFIs, remaining parts**: files on individual responses, PDF export, email notifications. (Done 2026-10-12: files on the RFI, change history, distribution list, CSV export.)
 2. **Web UI for directory and permissions, remaining parts**: edit companies, permission template editor, per-tool permission overrides, project settings. (Done 2026-10-12: team page edits template, role and project admin; person edit, deactivate and remove; directory page with people, companies, templates list, add forms, admin sets passwords.)
-3. **Submittals**: workflow with reviewers, spec sections and revisions.
+3. **Submittals, remaining parts**: sequential (ordered) review steps, submittal register import/export, linking to the specifications tool (needs Specifications), files on individual reviews, notifications. (Done 2026-10-12: draft → in review → close, reviewers' decisions per revision, resubmittals, ball in court, files, history, list/detail/form pages.)
 4. **Daily logs**, **punch list**, **inspections**, **observations**.
 5. **Documents and drawings** (blob store exists; no tool yet).
 6. **Schedule**.

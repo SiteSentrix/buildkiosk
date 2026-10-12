@@ -8,9 +8,9 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 ## Where we are
 | Area | State |
 | --- | --- |
-| Engine (commands, permissions, journal) | company setup, directory, permission templates, projects, project team, cost codes, RFIs |
+| Engine (commands, permissions, journal) | company setup, directory, permission templates, projects, project team, cost codes, RFIs, submittals |
 | Store | journal, snapshots, blobs, credentials on disk |
-| Web UI | sign-in, first-run setup, projects, project home, team, RFIs (list, detail, new, edit, respond, open, close, reopen, delete, files, history, distribution list, CSV export) |
+| Web UI | submittals (list, detail, form, reviews, close, resubmit, files); sign-in, first-run setup, projects, project home, team, RFIs (list, detail, new, edit, respond, open, close, reopen, delete, files, history, distribution list, CSV export) |
 | Directory | company directory page: people, companies, permission templates (view), add forms, admin sets passwords |
 | Server | signed session cookies, CSRF on every form, `POST /do/{command}`, `POST /api/v1/commands/{id}` (bearer token) |
 | App | `serve`, `demo`, `run`, `commands`, `token` |
@@ -18,9 +18,10 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 
 ## Upcoming
 1. Finish RFIs: files on responses, PDF export, email notifications.
-2. Next tools in the order of `docs/gaps.md` (submittals, daily logs, punch list, …).
+2. Next tools in the order of `docs/gaps.md` (daily logs, punch list, inspections, …).
 
 ## Progress log
+- 2026-10-12: Submittals — review workflow with revisions, files, history.
 - 2026-10-12: Directory page (people, companies, templates), admins set passwords, edit/deactivate/remove people.
 - 2026-10-12: RFIs — files (25 MB, served as downloads), change history, distribution list, CSV export.
 - 2026-10-12: M1 — sign-in, projects, team and RFIs work end to end in the browser.

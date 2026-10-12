@@ -11,6 +11,7 @@ pub mod perm;
 pub mod project;
 pub mod rfi;
 // -- project management
+pub mod submittal;
 
 // -- quality and safety
 
@@ -105,7 +106,7 @@ const MODULES: &[&[CommandSpec]] = &[
     rfi::COMMANDS,
     meta::COMMANDS,
     // -- project management
-
+    submittal::COMMANDS,
     // -- quality and safety
 
     // -- field

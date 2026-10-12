@@ -81,3 +81,54 @@ fn form_fields_become_parameters() {
     assert_eq!(local_path("//evil.example"), "/");
     assert_eq!(local_path("/projects/1"), "/projects/1");
 }
+
+#[tokio::test]
+async fn rfi_files_history_and_csv() {
+    let dir = temp("files");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let session = cookies(&h);
+    let (_, _, home) = send(&app, Request::get("/").header("cookie", &session).body(Body::empty()).unwrap()).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &session, format!("_csrf={csrf}&name=P"))).await;
+    send(&app, post("/do/rfi.create", &session, format!("_csrf={csrf}&project=1&subject=%3Dcmd+Door&question=Which&assignees%5B%5D=1&open=true")))
+        .await;
+
+    let upload = |token: &str, content: &str| {
+        let body = format!(
+            "--B\r\nContent-Disposition: form-data; name=\"_csrf\"\r\n\r\n{token}\r\n--B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"a b.txt\"\r\nContent-Type: text/html\r\n\r\n{content}\r\n--B--\r\n"
+        );
+        Request::post("/projects/1/rfis/1/upload")
+            .header("cookie", &session)
+            .header("content-type", "multipart/form-data; boundary=B")
+            .body(Body::from(body))
+            .unwrap()
+    };
+    let (st, h, _) = send(&app, upload("bad", "x")).await;
+    assert_eq!(st, StatusCode::FORBIDDEN, "{h:?}");
+    let (_, h, _) = send(&app, upload(&csrf, "<b>hello</b>")).await;
+    let loc = h.get(LOCATION).unwrap().to_str().unwrap().to_string();
+    assert!(loc.contains("ok="), "{loc}");
+
+    let (_, _, detail) = send(&app, Request::get("/projects/1/rfis/1").header("cookie", &session).body(Body::empty()).unwrap()).await;
+    assert!(detail.contains("a b.txt") && detail.contains("Attach file to RFI by Ada Admin"));
+    let href = detail.split("href=\"").find(|s| s.contains("/files/")).unwrap().split('"').next().unwrap().to_string();
+    let (st, h, body) = send(&app, Request::get(&href).header("cookie", &session).body(Body::empty()).unwrap()).await;
+    assert_eq!(st, StatusCode::OK);
+    assert_eq!(body, "<b>hello</b>");
+    assert_eq!(h.get("content-type").unwrap(), "application/octet-stream");
+    assert!(h.get("content-disposition").unwrap().to_str().unwrap().starts_with("attachment; filename=\"a_b.txt\""));
+    let (st, ..) = send(&app, Request::get(&href).body(Body::empty()).unwrap()).await;
+    assert_eq!(st, StatusCode::SEE_OTHER, "signed-out people can't download");
+
+    let (st, h, csv) = send(&app, Request::get("/projects/1/rfis.csv").header("cookie", &session).body(Body::empty()).unwrap()).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(h.get("content-disposition").is_some());
+    assert!(csv.contains("'=cmd Door"), "formulas are defused: {csv}");
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

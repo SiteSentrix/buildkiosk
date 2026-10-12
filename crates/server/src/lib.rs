@@ -12,7 +12,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use axum::Router;
 use axum::body::Bytes;
-use axum::extract::{DefaultBodyLimit, Path, Query, State};
+use axum::extract::{DefaultBodyLimit, Multipart, Path, Query, State};
 use axum::http::header::{AUTHORIZATION, CONTENT_TYPE, COOKIE, LOCATION, SET_COOKIE};
 use axum::http::{HeaderMap, HeaderName, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -30,6 +30,8 @@ use auth::{CSRF_COOKIE, RateLimit, SESSION_COOKIE};
 
 /// Largest form or API body accepted.
 const MAX_BODY: usize = 1024 * 1024;
+/// Largest file upload.
+const MAX_UPLOAD: usize = 25 * 1024 * 1024;
 
 struct Inner {
     tenant: Option<Tenant>,
@@ -105,7 +107,10 @@ pub fn router(app: Shared) -> Router {
         .route("/projects/{id}/team", get(team))
         .route("/projects/{id}/rfis", get(rfi_list))
         .route("/projects/{id}/rfis/new", get(rfi_new))
+        .route("/projects/{id}/rfis.csv", get(rfi_csv))
         .route("/projects/{id}/rfis/{rid}", get(rfi_detail))
+        .route("/projects/{id}/rfis/{rid}/files/{sha}", get(rfi_file))
+        .route("/projects/{id}/rfis/{rid}/upload", post(rfi_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
         .route("/projects/{id}/rfis/{rid}/edit", get(rfi_edit))
         .route("/do/{command}", post(do_command))
         .route("/api/v1/commands/{id}", post(api_command))
@@ -276,27 +281,27 @@ fn url_decode(s: &str) -> String {
 // -- pages
 
 /// Runs `render` for a signed-in person; redirects to sign-in or setup otherwise.
-fn page(app: &App, headers: &HeaderMap, q: &HashMap<String, String>, render: impl FnOnce(&Req<'_>) -> maud::Markup) -> Response {
+fn page(app: &App, headers: &HeaderMap, q: &HashMap<String, String>, render: impl FnOnce(&Req<'_>, &Tenant) -> maud::Markup) -> Response {
     let inner = app.lock();
     let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
     let Some(s) = session(app, &inner, headers) else { return redirect("/login") };
     let csrf = auth::csrf_token(app.secret(), &s.cookie);
     let req = Req { engine: &t.engine, person: s.person, csrf: &csrf, now: Timestamp::from_millis(now_ms()), flash: flash_from(q) };
-    html(StatusCode::OK, render(&req))
+    html(StatusCode::OK, render(&req, t))
 }
 
 type Q = Query<HashMap<String, String>>;
 
 async fn home(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Response {
-    page(&app, &headers, &q, pages::home)
+    page(&app, &headers, &q, |r, _| pages::home(r))
 }
 
 async fn project_home(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
-    page(&app, &headers, &q, |r| pages::project_home(r, Id::new(id)))
+    page(&app, &headers, &q, |r, _| pages::project_home(r, Id::new(id)))
 }
 
 async fn team(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
-    page(&app, &headers, &q, |r| pages::team(r, Id::new(id)))
+    page(&app, &headers, &q, |r, _| pages::team(r, Id::new(id)))
 }
 
 async fn rfi_list(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
@@ -306,23 +311,23 @@ async fn rfi_list(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<
         q: q.get("q").map(|s| s.chars().take(100).collect()).unwrap_or_default(),
         mine: q.get("mine").is_some_and(|m| m == "1"),
     };
-    page(&app, &headers, &q, |r| pages::rfi_list(r, Id::new(id), &filter))
+    page(&app, &headers, &q, |r, _| pages::rfi_list(r, Id::new(id), &filter))
 }
 
 async fn rfi_new(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
-    page(&app, &headers, &q, |r| pages::rfi_form(r, Id::new(id), None))
+    page(&app, &headers, &q, |r, _| pages::rfi_form(r, Id::new(id), None))
 }
 
 async fn rfi_detail(State(app): State<Shared>, headers: HeaderMap, Path((id, rid)): Path<(u64, u64)>, Query(q): Q) -> Response {
-    page(&app, &headers, &q, |r| pages::rfi_detail(r, Id::new(id), Id::new(rid)))
+    page(&app, &headers, &q, |r, t| pages::rfi_detail(r, Id::new(id), Id::new(rid), &t.store.history("rfis", rid).unwrap_or_default()))
 }
 
 async fn rfi_edit(State(app): State<Shared>, headers: HeaderMap, Path((id, rid)): Path<(u64, u64)>, Query(q): Q) -> Response {
-    page(&app, &headers, &q, |r| pages::rfi_form(r, Id::new(id), Some(Id::new(rid))))
+    page(&app, &headers, &q, |r, _| pages::rfi_form(r, Id::new(id), Some(Id::new(rid))))
 }
 
 async fn not_found(State(app): State<Shared>, headers: HeaderMap) -> Response {
-    let mut res = page(&app, &headers, &HashMap::new(), pages::not_found);
+    let mut res = page(&app, &headers, &HashMap::new(), |r, _| pages::not_found(r));
     if res.status() == StatusCode::OK {
         *res.status_mut() = StatusCode::NOT_FOUND;
     }
@@ -558,6 +563,96 @@ async fn api_command(State(app): State<Shared>, headers: HeaderMap, Path(id): Pa
     match inner.run(Actor::Person(Id::new(person)), &id, &params) {
         Ok(result) => json_response(StatusCode::OK, &json!({"ok": true, "result": result})),
         Err(e) => api_error(&e),
+    }
+}
+
+async fn rfi_csv(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>) -> Response {
+    let inner = app.lock();
+    let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    let csrf = auth::csrf_token(app.secret(), &s.cookie);
+    let req = Req { engine: &t.engine, person: s.person, csrf: &csrf, now: Timestamp::from_millis(now_ms()), flash: None };
+    let Some(csv) = pages::rfi_csv(&req, Id::new(id)) else { return plain(StatusCode::NOT_FOUND, "Not found") };
+    let mut res = csv.into_response();
+    res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("text/csv; charset=utf-8"));
+    res.headers_mut().insert("content-disposition", HeaderValue::from_static("attachment; filename=\"rfis.csv\""));
+    res
+}
+
+/// A file name that is safe inside a `Content-Disposition` header.
+fn safe_filename(name: &str) -> String {
+    let s: String = name.chars().map(|c| if c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_' { c } else { '_' }).take(100).collect();
+    if s.is_empty() { "file".into() } else { s }
+}
+
+async fn rfi_file(State(app): State<Shared>, headers: HeaderMap, Path((id, rid, sha)): Path<(u64, u64, String)>) -> Response {
+    let found = {
+        let inner = app.lock();
+        let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+        let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+        let state = t.engine.state();
+        let rfi = state
+            .rfis
+            .get(Id::new(rid))
+            .filter(|r| r.project == Id::new(id) && buildkiosk_engine::view::can_see_rfi(state, Actor::Person(s.person), r));
+        rfi.and_then(|r| r.attachments.iter().find(|a| a.sha256 == sha)).and_then(|a| t.store.blobs.path(&a.sha256).map(|p| (p, a.name.clone())))
+    };
+    let Some((path, name)) = found else { return plain(StatusCode::NOT_FOUND, "Not found") };
+    let bytes = match tokio::task::spawn_blocking(move || std::fs::read(path)).await {
+        Ok(Ok(b)) => b,
+        _ => return plain(StatusCode::NOT_FOUND, "That file is missing from storage."),
+    };
+    let mut res = bytes.into_response();
+    // Uploaded files are never rendered by the browser: always a download, never sniffed.
+    res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("application/octet-stream"));
+    if let Ok(v) = HeaderValue::from_str(&format!("attachment; filename=\"{}\"", safe_filename(&name))) {
+        res.headers_mut().insert("content-disposition", v);
+    }
+    res
+}
+
+async fn rfi_upload(State(app): State<Shared>, headers: HeaderMap, Path((id, rid)): Path<(u64, u64)>, mut multipart: Multipart) -> Response {
+    let back = format!("/projects/{id}/rfis/{rid}");
+    let mut token = String::new();
+    let mut file: Option<(String, String, Bytes)> = None;
+    loop {
+        let field = match multipart.next_field().await {
+            Ok(Some(f)) => f,
+            Ok(None) => break,
+            Err(_) => return redirect(&with_flash(&back, false, "The upload failed or the file is larger than 25 MB.")),
+        };
+        let name = field.name().unwrap_or("").to_string();
+        let filename = field.file_name().unwrap_or("file").to_string();
+        let mime = field.content_type().unwrap_or("application/octet-stream").to_string();
+        let Ok(bytes) = field.bytes().await else {
+            return redirect(&with_flash(&back, false, "The upload failed or the file is larger than 25 MB."));
+        };
+        match name.as_str() {
+            "_csrf" => token = String::from_utf8_lossy(&bytes).into_owned(),
+            "file" if file.is_none() => file = Some((filename, mime, bytes)),
+            _ => {}
+        }
+    }
+    let mut inner = app.lock();
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    if !auth::csrf_ok(app.secret(), &s.cookie, &token) {
+        return plain(StatusCode::FORBIDDEN, "The form expired. Go back, reload the page and try again.");
+    }
+    let Some((name, mime, bytes)) = file.filter(|(_, _, b)| !b.is_empty()) else {
+        return redirect(&with_flash(&back, false, "Choose a file to attach."));
+    };
+    if bytes.len() > MAX_UPLOAD {
+        return redirect(&with_flash(&back, false, "Files can be at most 25 MB."));
+    }
+    let Some(t) = inner.tenant.as_mut() else { return redirect("/setup") };
+    let (sha256, size) = match t.store.blobs.put(&bytes) {
+        Ok(x) => x,
+        Err(e) => return redirect(&with_flash(&back, false, &e.to_string())),
+    };
+    let params = json!({"project": id, "id": rid, "sha256": sha256, "name": name, "size": size, "mime": mime});
+    match inner.run(Actor::Person(s.person), "rfi.attach", &params) {
+        Ok(_) => redirect(&with_flash(&back, true, "File attached.")),
+        Err(e) => redirect(&with_flash(&back, false, &e.to_string())),
     }
 }
 

@@ -10,6 +10,13 @@ It replaces the TypeScript BuildKiosk (`bwattendorf/ConstructionManager`, React 
 owner's own code: port its behaviour freely, but never port anything in it that was copied from Procore (wording,
 templates, layouts) — re-derive that from public documentation instead (see Clean-room).
 
+**Scope (owner decision, 2026-10-12): Procore's tools only, for now.** Build the tools Procore offers, in the order of
+[`docs/gaps.md`](docs/gaps.md), with our own look and wording. Every BuildKiosk-only feature is parked (badge
+printing and scan kiosk, field clock, equipment rentals, receipts, AI assistants, blockchain, AR/VR, drones, IoT,
+digital twin, carbon/ESG, third-party integrations…): don't build or plan them until the owner un-parks them. The
+predecessor app stays a reference only for how it did the tools both products share. Keep it simple: one tool at a
+time, finished end to end (engine, tests, pages) before the next.
+
 ## Start every session here
 1. Read [`ROADMAP.md`](ROADMAP.md) (stage, numbers by dimension, what's next) and the ranked work list in
    [`docs/gaps.md`](docs/gaps.md). Unless the user gives you a task, pick work from that list.

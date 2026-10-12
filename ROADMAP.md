@@ -10,14 +10,15 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 | --- | --- |
 | Engine (commands, permissions, journal) | company setup, directory, permission templates, projects, project team, cost codes, RFIs |
 | Store | journal, snapshots, blobs, credentials on disk |
-| Web UI | sign-in, first-run setup, projects, project home, team, RFIs (list, detail, new, edit, respond, open, close, reopen, delete) |
+| Web UI | sign-in, first-run setup, projects, project home, team, RFIs (list, detail, new, edit, respond, open, close, reopen, delete, files, history, distribution list, CSV export) |
 | Server | signed session cookies, CSRF on every form, `POST /do/{command}`, `POST /api/v1/commands/{id}` (bearer token) |
 | App | `serve`, `demo`, `run`, `commands`, `token` |
 | Not yet | MCP server, file attachments, submittals and every other tool, email notifications |
 
 ## Upcoming
-1. Finish RFIs: attachments, change history, export.
+1. Finish RFIs: files on responses, PDF export, email notifications.
 2. Next tools in the order of `docs/gaps.md` (submittals, daily logs, punch list, …).
 
 ## Progress log
+- 2026-10-12: RFIs — files (25 MB, served as downloads), change history, distribution list, CSV export.
 - 2026-10-12: M1 — sign-in, projects, team and RFIs work end to end in the browser.

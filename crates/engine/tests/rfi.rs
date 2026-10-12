@@ -176,3 +176,29 @@ fn list_filters() {
     assert_eq!(all(&mut w, json!({"project": p, "mine": true})), 1);
     assert_eq!(all(&mut w, json!({"project": p, "overdue": true})), 1);
 }
+
+#[test]
+fn attachments_follow_edit_rights() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let sub = w.member(p, "Sam", "Sub", "Subcontractor");
+    let out = w.ok(pm, "rfi.create", json!({"project": p, "subject": "Door 114", "question": "Which hardware?", "assignees": [sub]}));
+    let id = out["id"].as_u64().unwrap();
+    let sha = "a".repeat(64);
+    let file = json!({"project": p, "id": id, "sha256": sha, "name": "photo.jpg", "size": 1234, "mime": "image/jpeg"});
+    // A draft is the manager's; the assignee can't see it, let alone attach.
+    w.err(sub, "rfi.attach", file.clone());
+    w.ok(pm, "rfi.attach", file.clone());
+    w.ok(pm, "rfi.attach", file.clone());
+    assert_eq!(w.engine.state().rfis.iter().next().unwrap().attachments.len(), 1, "same file twice is one attachment");
+    w.err(pm, "rfi.attach", json!({"project": p, "id": id, "sha256": "xyz", "name": "a", "size": 1}));
+    w.ok(pm, "rfi.open", json!({"project": p, "id": id}));
+    let other = json!({"project": p, "id": id, "sha256": "b".repeat(64), "name": "sketch.pdf", "size": 10});
+    w.ok(sub, "rfi.attach", other);
+    w.ok(sub, "rfi.detach", json!({"project": p, "id": id, "sha256": "b".repeat(64)}));
+    w.err(sub, "rfi.detach", json!({"project": p, "id": id, "sha256": "b".repeat(64)}));
+    w.ok(pm, "rfi.close", json!({"project": p, "id": id}));
+    w.err(sub, "rfi.attach", file);
+    w.assert_replay();
+}

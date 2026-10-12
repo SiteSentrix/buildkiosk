@@ -3,7 +3,7 @@
 _Status: 2026-10-12. This is the work list: take the top item, finish it end to end (engine, tests, pages), then the next._
 Procore's tools only for now; BuildKiosk-only extras stay parked (AGENTS.md).
 
-1. **RFIs, remaining parts**: attachments on RFIs and responses, change history on the detail page, distribution list on the form, CSV/PDF export, email notifications.
+1. **RFIs, remaining parts**: files on individual responses, PDF export, email notifications. (Done 2026-10-12: files on the RFI, change history, distribution list, CSV export.)
 2. **Web UI for directory and permissions**: company directory pages, permission template editor, project settings (engine commands exist; no pages yet).
 3. **Submittals**: workflow with reviewers, spec sections and revisions.
 4. **Daily logs**, **punch list**, **inspections**, **observations**.

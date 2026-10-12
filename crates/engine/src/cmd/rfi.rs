@@ -12,6 +12,7 @@
 //! - delete: RFI admins, or the author of a draft; restore: RFI admins.
 
 use buildkiosk_core::{Date, Id, text};
+use buildkiosk_model::common::FileRef;
 use buildkiosk_model::directory::{Person, Vendor};
 use buildkiosk_model::project::Project;
 use buildkiosk_model::rfi::{Rfi, RfiResponse, RfiStatus};
@@ -63,6 +64,22 @@ pub const COMMANDS: &[CommandSpec] = &[
         Access::Project(Level::Standard),
         "project, id: ids; response: response number within the RFI; official?: bool (default true)",
         mark_official,
+    ),
+    CommandSpec::mutate(
+        "rfi.attach",
+        "Attach file to RFI",
+        Tool::Rfis,
+        Access::Project(Level::Standard),
+        "project, id: ids; sha256: text (of an uploaded file); name: text; size: integer (bytes); mime?: text",
+        attach,
+    ),
+    CommandSpec::mutate(
+        "rfi.detach",
+        "Remove attachment from RFI",
+        Tool::Rfis,
+        Access::Project(Level::Standard),
+        "project, id: ids; sha256: text",
+        detach,
     ),
     CommandSpec::mutate("rfi.close", "Close RFI", Tool::Rfis, Access::Project(Level::Standard), "project, id: ids", close),
     CommandSpec::mutate("rfi.reopen", "Reopen RFI", Tool::Rfis, Access::Project(Level::Standard), "project, id: ids", reopen),
@@ -334,6 +351,56 @@ fn mark_official(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     }
     for r in &mut rfi.responses {
         r.official = official && i64::from(r.id) == rid;
+    }
+    rfi.updated = ctx.stamp();
+    let id = rfi.id;
+    ctx.state.rfis.put(rfi);
+    Ok(json!({ "id": id }))
+}
+
+/// Most files one RFI can carry.
+const MAX_ATTACHMENTS: usize = 50;
+
+/// Who may add or remove files: whoever may edit the RFI, and assignees while it is open.
+fn can_attach(ctx: &Ctx<'_>, rfi: &Rfi) -> bool {
+    can_edit(ctx.state, ctx.actor, rfi) || (rfi.status == RfiStatus::Open && ctx.person().is_some_and(|m| rfi.assignees.contains(&m)))
+}
+
+fn attach(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let (_, mut rfi) = load(ctx, p)?;
+    if !can_attach(ctx, &rfi) {
+        return Err(EngineError::forbidden(format!("you can't add files to {}", rfi.label())));
+    }
+    let sha256 = p.req_line("sha256", 64)?.to_ascii_lowercase();
+    if sha256.len() != 64 || !sha256.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err(p.bad("sha256", "must be 64 hex digits"));
+    }
+    let name = p.req_line("name", 200)?;
+    let size = p.int("size", 0..=2_000_000_000)?.ok_or_else(|| p.bad("size", "is required"))?;
+    let mime = p.line("mime", 100)?.filter(|m| !m.is_empty()).unwrap_or_else(|| "application/octet-stream".into());
+    if rfi.attachments.iter().any(|a| a.sha256 == sha256) {
+        return Ok(json!({ "id": rfi.id }));
+    }
+    if rfi.attachments.len() >= MAX_ATTACHMENTS {
+        return Err(EngineError::conflict(format!("{} already has {MAX_ATTACHMENTS} files", rfi.label())));
+    }
+    rfi.attachments.push(FileRef { sha256, name, size: u64::try_from(size).unwrap_or(0), mime });
+    rfi.updated = ctx.stamp();
+    let id = rfi.id;
+    ctx.state.rfis.put(rfi);
+    Ok(json!({ "id": id }))
+}
+
+fn detach(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let (_, mut rfi) = load(ctx, p)?;
+    if !can_attach(ctx, &rfi) {
+        return Err(EngineError::forbidden(format!("you can't remove files from {}", rfi.label())));
+    }
+    let sha256 = p.req_line("sha256", 64)?.to_ascii_lowercase();
+    let before = rfi.attachments.len();
+    rfi.attachments.retain(|a| a.sha256 != sha256);
+    if rfi.attachments.len() == before {
+        return Err(EngineError::not_found("that file is not attached to this RFI"));
     }
     rfi.updated = ctx.stamp();
     let id = rfi.id;

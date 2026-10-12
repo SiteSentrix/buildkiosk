@@ -6,7 +6,7 @@ use buildkiosk_engine::model::perm::ProjectMember;
 use buildkiosk_engine::model::project::{Project, ProjectStage};
 use buildkiosk_engine::model::rfi::{Rfi, RfiStatus};
 use buildkiosk_engine::model::{Choice, Impact, Level, Tool, perm};
-use buildkiosk_engine::{cmd::rfi::can_edit, view};
+use buildkiosk_engine::{JournalEntry, cmd::rfi::can_edit, find_command, view};
 use maud::{Markup, html};
 
 use crate::icons::Icon;
@@ -278,7 +278,9 @@ pub fn rfi_list(req: &Req<'_>, id: Id<Project>, filter: &RfiFilter) -> Markup {
     let body = html! {
         div class="page-head" {
             div { h1 { "RFIs" } div class="sub" { "Questions that need a documented answer" } }
-            div class="actions" { @if req.allowed("rfi.create", Some(id)) { a class="btn primary" href=(format!("{base}/new")) { (Icon::Plus.svg()) "New RFI" } } }
+            div class="actions" {
+                a class="btn" href=(format!("{base}.csv")) { (Icon::Download.svg()) "Export CSV" }
+                @if req.allowed("rfi.create", Some(id)) { a class="btn primary" href=(format!("{base}/new")) { (Icon::Plus.svg()) "New RFI" } } }
         }
         div class="tabs" {
             (tab("All", None, all.len()))
@@ -299,7 +301,7 @@ pub fn rfi_list(req: &Req<'_>, id: Id<Project>, filter: &RfiFilter) -> Markup {
     layout::app(req, "RFIs", Nav::Rfis(id), &[("Projects", Some("/".into())), (&p.name, Some(format!("/projects/{id}"))), ("RFIs", None)], body)
 }
 
-pub fn rfi_detail(req: &Req<'_>, id: Id<Project>, rfi_id: Id<Rfi>) -> Markup {
+pub fn rfi_detail(req: &Req<'_>, id: Id<Project>, rfi_id: Id<Rfi>, history: &[JournalEntry]) -> Markup {
     let Some(p) = project_for(req, id) else { return not_found(req) };
     let state = req.engine.state();
     let Some(r) = state.rfis.get(rfi_id).filter(|r| r.project == id && view::can_see_rfi(state, req.actor(), r)) else { return not_found(req) };
@@ -309,6 +311,7 @@ pub fn rfi_detail(req: &Req<'_>, id: Id<Project>, rfi_id: Id<Rfi>) -> Markup {
     let editable = can_edit(state, req.actor(), r);
     let level = view::level(state, req.actor(), id, Tool::Rfis);
     let manager_like = level == Level::Admin || r.manager == Some(req.person);
+    let can_attach = r.status != RfiStatus::Closed && (editable || (r.status == RfiStatus::Open && r.assignees.contains(&req.person)));
     let body = html! {
         div class="page-head" {
             div {
@@ -356,6 +359,7 @@ pub fn rfi_detail(req: &Req<'_>, id: Id<Project>, rfi_id: Id<Rfi>) -> Markup {
                     }
                 }
             }
+            div class="stack" {
             div class="card" {
                 h2 { "Details" }
                 dl class="facts" {
@@ -371,7 +375,40 @@ pub fn rfi_detail(req: &Req<'_>, id: Id<Project>, rfi_id: Id<Rfi>) -> Markup {
                     dt { "Cost impact" } dd { (r.cost_impact.label()) @if let Some(a) = r.cost_amount { " (" (a) ")" } }
                     dt { "Schedule impact" } dd { (r.schedule_impact.label()) @if let Some(d) = r.schedule_days { " (" (d) " days)" } }
                     @if r.private { dt { "Visibility" } dd { "Private" } }
+                    @if !r.distribution.is_empty() { dt { "Distribution" } dd { (view::people_names(state, &r.distribution)) } }
                 }
+            }
+            div class="card" {
+                h2 { "Files" }
+                @if r.attachments.is_empty() { p class="muted" { "No files attached." } }
+                @for a in &r.attachments {
+                    div class="row" {
+                        a href=(format!("{here}/files/{}", a.sha256)) { (a.name) }
+                        span class="muted small" { (human_size(a.size)) }
+                        @if can_attach {
+                            (button_form(req, "rfi.detach", &here, &[("project", id.to_string()), ("id", r.id.to_string()), ("sha256", a.sha256.clone())], "Remove", "small danger"))
+                        }
+                    }
+                }
+                @if can_attach {
+                    form method="post" action=(format!("{here}/upload")) enctype="multipart/form-data" class="stack" {
+                        input type="hidden" name="_csrf" value=(req.csrf);
+                        input type="file" name="file" required aria-label="File to attach";
+                        button type="submit" class="btn small" { "Attach file" }
+                    }
+                }
+            }
+            div class="card" {
+                h2 { "History" }
+                ul class="timeline" {
+                    @for e in history.iter().rev() {
+                        li {
+                            div { (find_command(&e.cmd).map(|c| c.label).unwrap_or(e.cmd.as_str())) " by " @if let Some(a) = e.actor { (view::person_name(state, a)) } @else { "the system" } }
+                            div class="when" { (req.when(e.at)) }
+                        }
+                    }
+                }
+            }
             }
         }
     };
@@ -382,6 +419,14 @@ pub fn rfi_detail(req: &Req<'_>, id: Id<Project>, rfi_id: Id<Rfi>) -> Markup {
         &[("Projects", Some("/".into())), (&p.name, Some(format!("/projects/{id}"))), ("RFIs", Some(base.clone())), (&r.label(), None)],
         body,
     )
+}
+
+fn human_size(n: u64) -> String {
+    match n {
+        0..1024 => format!("{n} B"),
+        1024..1_048_576 => format!("{} KB", n / 1024),
+        _ => format!("{:.1} MB", n as f64 / 1_048_576.0),
+    }
 }
 
 fn dash(s: &str) -> &str {
@@ -445,6 +490,16 @@ pub fn rfi_form(req: &Req<'_>, id: Id<Project>, existing: Option<Id<Rfi>>) -> Ma
                             } }
                         }
                     }
+                    div class="field full" {
+                        div class="label" { "Distribution list" }
+                        input type="hidden" name="distribution[]" value="";
+                        details class="multi" {
+                            summary { "Choose people to keep informed" }
+                            div class="options" { @for x in &people {
+                                label { input type="checkbox" name="distribution[]" value=(x.id) checked[current.is_some_and(|r| r.distribution.contains(&x.id))]; (x.name()) }
+                            } }
+                        }
+                    }
                     (field("Spec section", "spec_section", false, false, html! { input type="text" id="spec_section" name="spec_section" value=(text(|r| r.spec_section.clone())); }))
                     (field("Drawing number", "drawing_number", false, false, html! { input type="text" id="drawing_number" name="drawing_number" value=(text(|r| r.drawing_number.clone())); }))
                     (field("Location", "location", false, true, html! { input type="text" id="location" name="location" value=(text(|r| r.location.clone())); }))
@@ -474,4 +529,40 @@ pub fn rfi_form(req: &Req<'_>, id: Id<Project>, existing: Option<Id<Rfi>>) -> Ma
         &[("Projects", Some("/".into())), (&p.name, Some(format!("/projects/{id}"))), ("RFIs", Some(base.clone())), (title, None)],
         body,
     )
+}
+
+/// The RFIs the person may see, as CSV (spreadsheet formulas in text are defused).
+pub fn rfi_csv(req: &Req<'_>, id: Id<Project>) -> Option<String> {
+    project_for(req, id)?;
+    let state = req.engine.state();
+    let cell = |s: &str| {
+        let s = if s.starts_with(['=', '+', '-', '@', '\t', '\r']) { format!("'{s}") } else { s.to_string() };
+        if s.contains([',', '"', '\n', '\r']) { format!("\"{}\"", s.replace('"', "\"\"")) } else { s }
+    };
+    let mut out = String::from(
+        "Number,Subject,Status,Manager,Assignees,Ball in court,Due,Created,Opened,Closed,Spec section,Drawing,Location,Cost impact,Schedule impact\r\n",
+    );
+    for r in view::rfis_for(state, req.actor(), id) {
+        let day = |t: buildkiosk_core::Timestamp| t.date_at(state.utc_offset()).to_string();
+        let row = [
+            r.number.to_string(),
+            r.subject.clone(),
+            r.status.label().to_string(),
+            r.manager.map(|m| view::person_name(state, m)).unwrap_or_default(),
+            view::people_names(state, &r.assignees),
+            view::people_names(state, &r.ball_in_court),
+            r.due.map(|d| d.to_string()).unwrap_or_default(),
+            day(r.created.at),
+            r.opened.map(|s| day(s.at)).unwrap_or_default(),
+            r.closed.map(|s| day(s.at)).unwrap_or_default(),
+            r.spec_section.clone(),
+            r.drawing_number.clone(),
+            r.location.clone(),
+            r.cost_impact.label().to_string(),
+            r.schedule_impact.label().to_string(),
+        ];
+        out.push_str(&row.iter().map(|c| cell(c)).collect::<Vec<_>>().join(","));
+        out.push_str("\r\n");
+    }
+    Some(out)
 }

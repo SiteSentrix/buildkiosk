@@ -116,6 +116,23 @@ pub fn create(dir: &str) -> Result<(), String> {
                 )?;
             }
         }
+        let subs = [("Rooftop unit shop drawings", "23 74 00", "Shop drawing"), ("Storefront glazing product data", "08 41 13", "Product data")];
+        for (title, spec, kind) in subs {
+            let sub = exec(
+                &mut t,
+                pm,
+                "submittal.create",
+                json!({"project": pid, "title": title, "spec_section": spec, "kind": kind, "reviewers": [person(4), person(2)], "open": true}),
+            )?;
+            if title.starts_with("Rooftop") {
+                exec(
+                    &mut t,
+                    Actor::Person(Id::new(person(4))),
+                    "submittal.review",
+                    json!({"project": pid, "id": id_of(&sub, "id")?, "decision": "approved_as_noted", "comment": "Provide curb detail at the east unit."}),
+                )?;
+            }
+        }
     }
     t.store.save_credentials(&creds).map_err(|e| e.to_string())?;
     println!("Demo company created in {dir}.");

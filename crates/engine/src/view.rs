@@ -8,6 +8,7 @@ use buildkiosk_core::Id;
 use buildkiosk_model::directory::{Person, Vendor};
 use buildkiosk_model::project::Project;
 use buildkiosk_model::rfi::{Rfi, RfiStatus};
+use buildkiosk_model::submittal::{Submittal, SubmittalStatus};
 use buildkiosk_model::{CompanyState, Level, Tool, perm};
 use serde::Serialize;
 use serde_json::Value;
@@ -78,5 +79,29 @@ pub fn can_see_rfi(state: &CompanyState, actor: Actor, rfi: &Rfi) -> bool {
 pub fn rfis_for(state: &CompanyState, actor: Actor, project: Id<Project>) -> Vec<&Rfi> {
     let mut list: Vec<&Rfi> = state.rfis.iter().filter(|r| r.project == project && can_see_rfi(state, actor, r)).collect();
     list.sort_by_key(|r| r.number);
+    list
+}
+
+/// Whether the actor may see a submittal: Read access, and for drafts and private submittals,
+/// being part of it (or a submittals admin).
+pub fn can_see_submittal(state: &CompanyState, actor: Actor, s: &Submittal) -> bool {
+    let lvl = level(state, actor, s.project, Tool::Submittals);
+    if lvl == Level::Admin {
+        return true;
+    }
+    if lvl < Level::Read || s.deleted.is_some() {
+        return false;
+    }
+    let Some(person) = actor.person() else { return false };
+    match s.status {
+        SubmittalStatus::Draft => s.created.by == Some(person) || s.manager == Some(person),
+        _ => !s.private || s.involves(person),
+    }
+}
+
+/// The submittals of a project the actor may see, in number order.
+pub fn submittals_for(state: &CompanyState, actor: Actor, project: Id<Project>) -> Vec<&Submittal> {
+    let mut list: Vec<&Submittal> = state.submittals.iter().filter(|s| s.project == project && can_see_submittal(state, actor, s)).collect();
+    list.sort_by_key(|s| s.number);
     list
 }

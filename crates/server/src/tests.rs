@@ -228,3 +228,58 @@ async fn team_permissions_can_be_changed() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn submittal_workflow_and_files_in_the_browser_flow() {
+    let dir = temp("submittals");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let session = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &session).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &session, format!("_csrf={csrf}&name=P"))).await;
+    let (st, _, new) = send(&app, get("/projects/1/submittals/new")).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(new.contains("Save and send for review"));
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/do/submittal.create",
+            &session,
+            format!("_csrf={csrf}&_next=/projects/1/submittals/%7Bid%7D&project=1&title=Roof+drawings&reviewers%5B%5D=1&open=true"),
+        ),
+    )
+    .await;
+    assert_eq!(h.get(LOCATION).unwrap().to_str().unwrap().split('?').next().unwrap(), "/projects/1/submittals/1");
+    let (_, _, detail) = send(&app, get("/projects/1/submittals/1")).await;
+    assert!(detail.contains("Roof drawings") && detail.contains("In review") && detail.contains("Submit review"));
+    send(&app, post("/do/submittal.review", &session, format!("_csrf={csrf}&project=1&id=1&decision=approved_as_noted&comment=See+markup"))).await;
+    send(&app, post("/do/submittal.close", &session, format!("_csrf={csrf}&project=1&id=1&decision=approved_as_noted"))).await;
+    let (_, _, list) = send(&app, get("/projects/1/submittals?status=closed")).await;
+    assert!(list.contains("Roof drawings") && list.contains("Approved as noted"));
+
+    let upload = format!(
+        "--B\r\nContent-Disposition: form-data; name=\"_csrf\"\r\n\r\n{csrf}\r\n--B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"r.pdf\"\r\n\r\nPDF\r\n--B--\r\n"
+    );
+    // Closed submittals take no new files, but an admin may still resubmit and then attach.
+    send(&app, post("/do/submittal.resubmit", &session, format!("_csrf={csrf}&project=1&id=1"))).await;
+    let req = Request::post("/projects/1/submittals/1/upload")
+        .header("cookie", &session)
+        .header("content-type", "multipart/form-data; boundary=B")
+        .body(Body::from(upload))
+        .unwrap();
+    let (_, h, _) = send(&app, req).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="));
+    let (_, _, detail) = send(&app, get("/projects/1/submittals/1")).await;
+    assert!(detail.contains("r.pdf") && detail.contains("revision 1"));
+    let href = detail.split("href=\"").find(|s| s.contains("/files/")).unwrap().split('"').next().unwrap().to_string();
+    let (st, _, body) = send(&app, get(&href)).await;
+    assert_eq!((st, body.as_str()), (StatusCode::OK, "PDF"));
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

@@ -102,7 +102,7 @@ pub fn home(req: &Req<'_>) -> Markup {
 }
 
 /// The project, if the person may open it.
-fn project_for<'a>(req: &'a Req<'_>, id: Id<Project>) -> Option<&'a Project> {
+pub(crate) fn project_for<'a>(req: &'a Req<'_>, id: Id<Project>) -> Option<&'a Project> {
     let p = req.engine.state().projects.get(id)?;
     (p.deleted.is_none() && view::level(req.engine.state(), req.actor(), id, Tool::ProjectHome) >= Level::Read).then_some(p)
 }
@@ -152,7 +152,7 @@ pub fn project_home(req: &Req<'_>, id: Id<Project>) -> Markup {
 
 // -- team
 
-fn user_options<'a>(req: &'a Req<'_>, project: Id<Project>, members_only: bool) -> Vec<&'a Person> {
+pub(crate) fn user_options<'a>(req: &'a Req<'_>, project: Id<Project>, members_only: bool) -> Vec<&'a Person> {
     let state = req.engine.state();
     let mut out: Vec<&Person> = state
         .people
@@ -439,7 +439,7 @@ pub fn rfi_detail(req: &Req<'_>, id: Id<Project>, rfi_id: Id<Rfi>, history: &[Jo
     )
 }
 
-fn human_size(n: u64) -> String {
+pub(crate) fn human_size(n: u64) -> String {
     match n {
         0..1024 => format!("{n} B"),
         1024..1_048_576 => format!("{} KB", n / 1024),
@@ -447,7 +447,7 @@ fn human_size(n: u64) -> String {
     }
 }
 
-fn dash(s: &str) -> &str {
+pub(crate) fn dash(s: &str) -> &str {
     if s.is_empty() { "—" } else { s }
 }
 

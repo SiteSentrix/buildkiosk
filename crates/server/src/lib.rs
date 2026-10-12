@@ -110,6 +110,12 @@ pub fn router(app: Shared) -> Router {
         .route("/projects/{id}/team", get(team))
         .route("/projects/{id}/rfis", get(rfi_list))
         .route("/projects/{id}/rfis/new", get(rfi_new))
+        .route("/projects/{id}/submittals", get(submittal_list))
+        .route("/projects/{id}/submittals/new", get(submittal_new))
+        .route("/projects/{id}/submittals/{sid}", get(submittal_detail))
+        .route("/projects/{id}/submittals/{sid}/edit", get(submittal_edit))
+        .route("/projects/{id}/submittals/{sid}/files/{sha}", get(submittal_file))
+        .route("/projects/{id}/submittals/{sid}/upload", post(submittal_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
         .route("/projects/{id}/rfis.csv", get(rfi_csv))
         .route("/projects/{id}/rfis/{rid}", get(rfi_detail))
         .route("/projects/{id}/rfis/{rid}/files/{sha}", get(rfi_file))
@@ -335,6 +341,30 @@ async fn rfi_detail(State(app): State<Shared>, headers: HeaderMap, Path((id, rid
 
 async fn rfi_edit(State(app): State<Shared>, headers: HeaderMap, Path((id, rid)): Path<(u64, u64)>, Query(q): Q) -> Response {
     page(&app, &headers, &q, |r, _| pages::rfi_form(r, Id::new(id), Some(Id::new(rid))))
+}
+
+async fn submittal_list(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    use buildkiosk_engine::model::Choice;
+    let filter = buildkiosk_web::submittals::Filter {
+        status: q.get("status").and_then(|s| buildkiosk_engine::model::submittal::SubmittalStatus::parse(s)),
+        q: q.get("q").map(|s| s.chars().take(100).collect()).unwrap_or_default(),
+        mine: q.get("mine").is_some_and(|m| m == "1"),
+    };
+    page(&app, &headers, &q, |r, _| buildkiosk_web::submittals::list(r, Id::new(id), &filter))
+}
+
+async fn submittal_new(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::submittals::form(r, Id::new(id), None))
+}
+
+async fn submittal_detail(State(app): State<Shared>, headers: HeaderMap, Path((id, sid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, t| {
+        buildkiosk_web::submittals::detail(r, Id::new(id), Id::new(sid), &t.store.history("submittals", sid).unwrap_or_default())
+    })
+}
+
+async fn submittal_edit(State(app): State<Shared>, headers: HeaderMap, Path((id, sid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::submittals::form(r, Id::new(id), Some(Id::new(sid))))
 }
 
 async fn not_found(State(app): State<Shared>, headers: HeaderMap) -> Response {
@@ -632,17 +662,67 @@ fn safe_filename(name: &str) -> String {
     if s.is_empty() { "file".into() } else { s }
 }
 
+/// The tools whose items carry files.
+#[derive(Clone, Copy)]
+enum Kind {
+    Rfi,
+    Submittal,
+}
+
+impl Kind {
+    fn attach_command(self) -> &'static str {
+        match self {
+            Kind::Rfi => "rfi.attach",
+            Kind::Submittal => "submittal.attach",
+        }
+    }
+
+    fn path(self) -> &'static str {
+        match self {
+            Kind::Rfi => "rfis",
+            Kind::Submittal => "submittals",
+        }
+    }
+
+    /// The files of an item the person may see.
+    fn files(
+        self,
+        state: &buildkiosk_engine::model::CompanyState,
+        actor: Actor,
+        project: u64,
+        item: u64,
+    ) -> Option<&[buildkiosk_engine::model::FileRef]> {
+        use buildkiosk_engine::view;
+        match self {
+            Kind::Rfi => state
+                .rfis
+                .get(Id::new(item))
+                .filter(|r| r.project == Id::new(project) && view::can_see_rfi(state, actor, r))
+                .map(|r| r.attachments.as_slice()),
+            Kind::Submittal => state
+                .submittals
+                .get(Id::new(item))
+                .filter(|r| r.project == Id::new(project) && view::can_see_submittal(state, actor, r))
+                .map(|r| r.attachments.as_slice()),
+        }
+    }
+}
+
 async fn rfi_file(State(app): State<Shared>, headers: HeaderMap, Path((id, rid, sha)): Path<(u64, u64, String)>) -> Response {
+    file_download(app, headers, Kind::Rfi, id, rid, sha).await
+}
+
+async fn submittal_file(State(app): State<Shared>, headers: HeaderMap, Path((id, sid, sha)): Path<(u64, u64, String)>) -> Response {
+    file_download(app, headers, Kind::Submittal, id, sid, sha).await
+}
+
+async fn file_download(app: Shared, headers: HeaderMap, kind: Kind, id: u64, rid: u64, sha: String) -> Response {
     let found = {
         let inner = app.lock();
         let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
         let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
-        let state = t.engine.state();
-        let rfi = state
-            .rfis
-            .get(Id::new(rid))
-            .filter(|r| r.project == Id::new(id) && buildkiosk_engine::view::can_see_rfi(state, Actor::Person(s.person), r));
-        rfi.and_then(|r| r.attachments.iter().find(|a| a.sha256 == sha)).and_then(|a| t.store.blobs.path(&a.sha256).map(|p| (p, a.name.clone())))
+        let files = kind.files(t.engine.state(), Actor::Person(s.person), id, rid);
+        files.and_then(|f| f.iter().find(|a| a.sha256 == sha)).and_then(|a| t.store.blobs.path(&a.sha256).map(|p| (p, a.name.clone())))
     };
     let Some((path, name)) = found else { return plain(StatusCode::NOT_FOUND, "Not found") };
     let bytes = match tokio::task::spawn_blocking(move || std::fs::read(path)).await {
@@ -658,8 +738,16 @@ async fn rfi_file(State(app): State<Shared>, headers: HeaderMap, Path((id, rid, 
     res
 }
 
-async fn rfi_upload(State(app): State<Shared>, headers: HeaderMap, Path((id, rid)): Path<(u64, u64)>, mut multipart: Multipart) -> Response {
-    let back = format!("/projects/{id}/rfis/{rid}");
+async fn rfi_upload(State(app): State<Shared>, headers: HeaderMap, Path((id, rid)): Path<(u64, u64)>, multipart: Multipart) -> Response {
+    file_upload(app, headers, Kind::Rfi, id, rid, multipart).await
+}
+
+async fn submittal_upload(State(app): State<Shared>, headers: HeaderMap, Path((id, sid)): Path<(u64, u64)>, multipart: Multipart) -> Response {
+    file_upload(app, headers, Kind::Submittal, id, sid, multipart).await
+}
+
+async fn file_upload(app: Shared, headers: HeaderMap, kind: Kind, id: u64, rid: u64, mut multipart: Multipart) -> Response {
+    let back = format!("/projects/{id}/{}/{rid}", kind.path());
     let mut token = String::new();
     let mut file: Option<(String, String, Bytes)> = None;
     loop {
@@ -697,7 +785,7 @@ async fn rfi_upload(State(app): State<Shared>, headers: HeaderMap, Path((id, rid
         Err(e) => return redirect(&with_flash(&back, false, &e.to_string())),
     };
     let params = json!({"project": id, "id": rid, "sha256": sha256, "name": name, "size": size, "mime": mime});
-    match inner.run(Actor::Person(s.person), "rfi.attach", &params) {
+    match inner.run(Actor::Person(s.person), kind.attach_command(), &params) {
         Ok(_) => redirect(&with_flash(&back, true, "File attached.")),
         Err(e) => redirect(&with_flash(&back, false, &e.to_string())),
     }

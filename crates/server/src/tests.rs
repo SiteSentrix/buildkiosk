@@ -392,3 +392,57 @@ async fn daily_log_form_saves_lists_and_submits() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn punch_list_in_the_browser_flow() {
+    let dir = temp("punch");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=P"))).await;
+    let (st, _, form) = send(&app, get("/projects/1/punch-list/new")).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(form.contains("Add punch item"));
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/do/punch.create",
+            &ada,
+            format!(
+                "_csrf={csrf}&_next=/projects/1/punch-list/%7Bid%7D&project=1&title=Touch+up+paint&location=Corridor&priority=high&assignees%5B%5D=1"
+            ),
+        ),
+    )
+    .await;
+    assert_eq!(h.get(LOCATION).unwrap().to_str().unwrap().split('?').next().unwrap(), "/projects/1/punch-list/1");
+    send(&app, post("/do/punch.complete", &ada, format!("_csrf={csrf}&project=1&id=1&comment=Done"))).await;
+    let (_, _, detail) = send(&app, get("/projects/1/punch-list/1")).await;
+    assert!(detail.contains("Ready for review") && detail.contains("Not right yet?") && detail.contains("Done"));
+    send(&app, post("/do/punch.close", &ada, format!("_csrf={csrf}&project=1&id=1"))).await;
+    let upload = format!(
+        "--B\r\nContent-Disposition: form-data; name=\"_csrf\"\r\n\r\n{csrf}\r\n--B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"p.jpg\"\r\n\r\nJPG\r\n--B--\r\n"
+    );
+    // Reopen, then attach and download.
+    send(&app, post("/do/punch.reopen", &ada, format!("_csrf={csrf}&project=1&id=1"))).await;
+    let req = Request::post("/projects/1/punch-list/1/upload")
+        .header("cookie", &ada)
+        .header("content-type", "multipart/form-data; boundary=B")
+        .body(Body::from(upload))
+        .unwrap();
+    send(&app, req).await;
+    let (_, _, detail) = send(&app, get("/projects/1/punch-list/1")).await;
+    let href = detail.split("href=\"").find(|s| s.contains("/files/")).unwrap().split('"').next().unwrap().to_string();
+    let (st, _, body) = send(&app, get(&href)).await;
+    assert_eq!((st, body.as_str()), (StatusCode::OK, "JPG"));
+    let (_, _, csv) = send(&app, get("/projects/1/punch-list.csv")).await;
+    assert!(csv.contains("Touch up paint"));
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

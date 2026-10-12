@@ -133,6 +133,27 @@ pub fn create(dir: &str) -> Result<(), String> {
                    "visitors": [{"name": "County inspector", "purpose": "Framing inspection"}]}),
         )?;
         exec(&mut t, eng, "daily_log.submit", json!({"project": pid, "id": id_of(&log, "id")?}))?;
+        let items = [
+            ("Touch up paint at door 114", "Level 1 corridor", "Paint", "high"),
+            ("Replace cracked ceiling tile", "Room 208", "Ceilings", "medium"),
+            ("Adjust door closer, east entry", "Main lobby", "Doors", "low"),
+        ];
+        for (n, (title, location, kind, priority)) in items.iter().enumerate() {
+            let item = exec(
+                &mut t,
+                pm,
+                "punch.create",
+                json!({"project": pid, "title": title, "location": location, "kind": kind, "priority": priority, "assignees": [person(3)], "due": "2026-10-30"}),
+            )?;
+            if n == 0 {
+                exec(
+                    &mut t,
+                    Actor::Person(Id::new(person(3))),
+                    "punch.complete",
+                    json!({"project": pid, "id": id_of(&item, "id")?, "comment": "Two coats applied."}),
+                )?;
+            }
+        }
         let subs = [("Rooftop unit shop drawings", "23 74 00", "Shop drawing"), ("Storefront glazing product data", "08 41 13", "Product data")];
         for (title, spec, kind) in subs {
             let sub = exec(

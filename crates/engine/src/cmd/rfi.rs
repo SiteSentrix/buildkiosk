@@ -19,6 +19,7 @@ use buildkiosk_model::rfi::{Rfi, RfiResponse, RfiStatus};
 use buildkiosk_model::{Impact, Level, Tool};
 use serde_json::{Value, json};
 
+use super::notification::notify;
 use super::{Access, CommandSpec};
 use crate::ctx::{Read, in_project};
 use crate::view::{self, json};
@@ -205,6 +206,16 @@ fn apply_fields(ctx: &Ctx<'_>, p: &Params<'_>, rfi: &mut Rfi, creating: bool) ->
     Ok(())
 }
 
+fn link(r: &Rfi) -> String {
+    format!("/projects/{}/rfis/{}", r.project, r.id)
+}
+
+/// Tells whoever the RFI is waiting on, and the distribution list that it is open.
+fn announce_open(ctx: &mut Ctx<'_>, r: &Rfi, what: &str) {
+    notify(ctx, &r.ball_in_court, r.project, &format!("{} is waiting for your answer: {}", r.label(), r.subject), &link(r));
+    notify(ctx, &r.distribution, r.project, &format!("{} was {what}: {}", r.label(), r.subject), &link(r));
+}
+
 /// Moves a draft to open: checks it's complete, sets the opened stamp, due date and ball in court.
 fn do_open(ctx: &Ctx<'_>, p: &Params<'_>, rfi: &mut Rfi) -> Result<()> {
     if rfi.status != RfiStatus::Draft {
@@ -274,6 +285,9 @@ fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     }
     let id = ctx.state.rfis.alloc();
     rfi.id = id;
+    if rfi.status == RfiStatus::Open {
+        announce_open(ctx, &rfi, "opened");
+    }
     ctx.state.rfis.put(rfi);
     Ok(json!({ "id": id, "number": number }))
 }
@@ -304,6 +318,7 @@ fn open(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     do_open(ctx, p, &mut rfi)?;
     rfi.updated = ctx.stamp();
     let id = rfi.id;
+    announce_open(ctx, &rfi, "opened");
     ctx.state.rfis.put(rfi);
     Ok(json!({ "id": id }))
 }
@@ -335,6 +350,7 @@ fn respond(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     rfi.recompute_ball_in_court();
     rfi.updated = ctx.stamp();
     let id = rfi.id;
+    notify(ctx, &rfi.manager.into_iter().collect::<Vec<_>>(), rfi.project, &format!("New response on {}: {}", rfi.label(), rfi.subject), &link(&rfi));
     ctx.state.rfis.put(rfi);
     Ok(json!({ "id": id, "response": rid }))
 }
@@ -421,6 +437,9 @@ fn close(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     rfi.recompute_ball_in_court();
     rfi.updated = ctx.stamp();
     let id = rfi.id;
+    let mut audience: Vec<Id<Person>> = rfi.assignees.iter().chain(rfi.distribution.iter()).copied().chain(rfi.received_from).collect();
+    audience.dedup();
+    notify(ctx, &audience, rfi.project, &format!("{} was closed: {}", rfi.label(), rfi.subject), &link(&rfi));
     ctx.state.rfis.put(rfi);
     Ok(json!({ "id": id }))
 }
@@ -438,6 +457,7 @@ fn reopen(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     rfi.recompute_ball_in_court();
     rfi.updated = ctx.stamp();
     let id = rfi.id;
+    announce_open(ctx, &rfi, "reopened");
     ctx.state.rfis.put(rfi);
     Ok(json!({ "id": id }))
 }

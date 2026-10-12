@@ -53,7 +53,7 @@ impl CommitmentStatus {
     }
 }
 
-/// One line of a commitment's schedule of values.
+/// One line of a schedule of values or a change: an amount against a cost code.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CommitmentLine {
     pub cost_code: Id<CostCode>,
@@ -128,3 +128,98 @@ pub struct DirectCost {
     pub deleted: Option<Stamp>,
 }
 record!(DirectCost, "direct_cost", trash, project);
+
+/// The same line shape, under the name the change records use.
+pub type CostLine = CommitmentLine;
+
+choice! {
+    #[derive(Default)]
+    pub enum ChangeEventStatus {
+        #[default]
+        Open = ("open", "Open"),
+        /// Settled: its changes were made, or it needs none.
+        Closed = ("closed", "Closed"),
+        Void = ("void", "Void"),
+    }
+}
+
+/// A possible change to the project's cost, tracked before it is priced or approved. While open,
+/// its estimated amounts show as pending exposure on the budget.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ChangeEvent {
+    pub id: Id<ChangeEvent>,
+    pub project: Id<Project>,
+    pub number: u32,
+    pub title: String,
+    #[serde(default)]
+    pub description: String,
+    /// Why it came up: owner request, field condition, design change… (free text).
+    #[serde(default)]
+    pub reason: String,
+    #[serde(default)]
+    pub status: ChangeEventStatus,
+    /// The estimated cost, by cost code.
+    pub lines: Vec<CostLine>,
+    pub created: Stamp,
+    pub updated: Stamp,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deleted: Option<Stamp>,
+}
+record!(ChangeEvent, "change_event", trash, project);
+
+choice! {
+    #[derive(Default)]
+    pub enum ChangeStatus {
+        #[default]
+        Draft = ("draft", "Draft"),
+        Approved = ("approved", "Approved"),
+        Void = ("void", "Void"),
+    }
+}
+
+/// An approved change to what a commitment costs, by cost code (amounts may be negative).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CommitmentChange {
+    pub id: Id<CommitmentChange>,
+    pub project: Id<Project>,
+    pub number: u32,
+    pub commitment: Id<Commitment>,
+    pub title: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub change_event: Option<Id<ChangeEvent>>,
+    #[serde(default)]
+    pub status: ChangeStatus,
+    pub lines: Vec<CostLine>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approved: Option<Stamp>,
+    pub created: Stamp,
+    pub updated: Stamp,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deleted: Option<Stamp>,
+}
+record!(CommitmentChange, "commitment_change", trash, project);
+
+/// An approved change to the budget, by cost code: add money, take it away, or move it between codes.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct BudgetChange {
+    pub id: Id<BudgetChange>,
+    pub project: Id<Project>,
+    pub number: u32,
+    pub title: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub change_event: Option<Id<ChangeEvent>>,
+    #[serde(default)]
+    pub status: ChangeStatus,
+    pub lines: Vec<CostLine>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approved: Option<Stamp>,
+    pub created: Stamp,
+    pub updated: Stamp,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deleted: Option<Stamp>,
+}
+record!(BudgetChange, "budget_change", trash, project);

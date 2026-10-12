@@ -18,6 +18,7 @@ use axum::http::{HeaderMap, HeaderName, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use buildkiosk_core::{Id, Timestamp, text};
+use buildkiosk_engine::model::finance::{BudgetChange, ChangeEvent, CommitmentChange};
 use buildkiosk_engine::model::observation::Observation;
 use buildkiosk_engine::model::punch::PunchItem;
 use buildkiosk_engine::model::{CompanyState, FileRef};
@@ -25,6 +26,7 @@ use buildkiosk_engine::workitem::{self, WorkItem};
 use buildkiosk_engine::{Actor, EngineError, find_command, view};
 use buildkiosk_store::creds::check_password_rules;
 use buildkiosk_store::{Credentials, DataDir, Tenant, hex, random_bytes};
+use buildkiosk_web::linedocs::{self, LineDoc};
 use buildkiosk_web::pages::{self, RfiFilter};
 use buildkiosk_web::workitems::{self, WorkPage};
 use buildkiosk_web::{Flash, Req, icons, style};
@@ -158,12 +160,14 @@ pub fn router(app: Shared) -> Router {
         .route("/api/v1/commands/{id}", post(api_command))
         .route("/static/app.css", get(css))
         .route("/static/favicon.svg", get(favicon));
-    work_routes::<PunchItem>(work_routes::<Observation>(router))
-        .fallback(not_found)
-        .layer(DefaultBodyLimit::max(MAX_BODY))
-        .layer(axum::middleware::map_response(security_headers))
-        .layer(CatchPanicLayer::new())
-        .with_state(app)
+    doc_routes::<ChangeEvent>(doc_routes::<CommitmentChange>(doc_routes::<BudgetChange>(work_routes::<PunchItem>(work_routes::<Observation>(
+        router,
+    )))))
+    .fallback(not_found)
+    .layer(DefaultBodyLimit::max(MAX_BODY))
+    .layer(axum::middleware::map_response(security_headers))
+    .layer(CatchPanicLayer::new())
+    .with_state(app)
 }
 
 /// Serves until the process is stopped.
@@ -515,6 +519,74 @@ async fn work_upload<T: WorkPage>(
     multipart: Multipart,
 ) -> Response {
     file_upload(app, headers, Kind::work::<T>(), id, iid, multipart).await
+}
+
+async fn doc_list<T: LineDoc>(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| linedocs::list::<T>(r, Id::new(id)))
+}
+
+async fn doc_new<T: LineDoc>(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| linedocs::form::<T>(r, Id::new(id), None))
+}
+
+async fn doc_detail<T: LineDoc>(State(app): State<Shared>, headers: HeaderMap, Path((id, did)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, t| linedocs::detail::<T>(r, Id::new(id), Id::new(did), &t.store.history(T::TABLE, did).unwrap_or_default()))
+}
+
+async fn doc_edit<T: LineDoc>(State(app): State<Shared>, headers: HeaderMap, Path((id, did)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| linedocs::form::<T>(r, Id::new(id), Some(Id::new(did))))
+}
+
+async fn doc_save_new<T: LineDoc>(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, body: Bytes) -> Response {
+    doc_save_impl::<T>(app, headers, id, None, body)
+}
+
+async fn doc_save<T: LineDoc>(State(app): State<Shared>, headers: HeaderMap, Path((id, did)): Path<(u64, u64)>, body: Bytes) -> Response {
+    doc_save_impl::<T>(app, headers, id, Some(did), body)
+}
+
+/// Saves a cost document form: its plain fields and the `lines.N.*` rows.
+fn doc_save_impl<T: LineDoc>(app: Shared, headers: HeaderMap, project: u64, doc: Option<u64>, body: Bytes) -> Response {
+    let form = parse_form(&body);
+    let mut inner = app.lock();
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    if !auth::csrf_ok(app.secret(), &s.cookie, get_form(&form, "_csrf")) {
+        return plain(StatusCode::FORBIDDEN, "The form expired. Go back, reload the page and try again.");
+    }
+    let base = format!("/projects/{project}/{}", T::PATH);
+    let back = match doc {
+        Some(d) => format!("{base}/{d}/edit"),
+        None => format!("{base}/new"),
+    };
+    let mut params = Map::new();
+    params.insert("project".into(), json!(project));
+    if let Some(d) = doc {
+        params.insert("id".into(), json!(d));
+    }
+    for key in T::FIELDS {
+        params.insert((*key).into(), Value::String(get_form(&form, key).to_string()));
+    }
+    params.insert("lines".into(), indexed_rows(&form, "lines"));
+    let command = format!("{}.{}", T::PREFIX, if doc.is_some() { "update" } else { "create" });
+    match inner.run(Actor::Person(s.person), &command, &Value::Object(params)) {
+        Ok(out) => {
+            let id = doc.or_else(|| out.get("id").and_then(Value::as_u64)).unwrap_or(0);
+            redirect(&with_flash(&format!("{base}/{id}"), true, "Saved."))
+        }
+        Err(e) => redirect(&with_flash(&back, false, &e.to_string())),
+    }
+}
+
+/// Registers the pages of a cost document under `/projects/{id}/<path>`.
+fn doc_routes<T: LineDoc>(router: Router<Shared>) -> Router<Shared> {
+    let base = format!("/projects/{{id}}/{}", T::PATH);
+    router
+        .route(&base, get(doc_list::<T>))
+        .route(&format!("{base}/new"), get(doc_new::<T>))
+        .route(&format!("{base}/save"), post(doc_save_new::<T>))
+        .route(&format!("{base}/{{did}}"), get(doc_detail::<T>))
+        .route(&format!("{base}/{{did}}/edit"), get(doc_edit::<T>))
+        .route(&format!("{base}/{{did}}/save"), post(doc_save::<T>))
 }
 
 /// Registers the pages of a work item tool under `/projects/{id}/<path>`.

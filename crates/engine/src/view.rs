@@ -7,7 +7,7 @@
 use buildkiosk_core::{Id, Money};
 use buildkiosk_model::daily_log::{DailyLog, LogStatus};
 use buildkiosk_model::directory::{Person, Vendor};
-use buildkiosk_model::finance::{Commitment, CommitmentStatus};
+use buildkiosk_model::finance::{ChangeEventStatus, ChangeStatus, Commitment, CommitmentStatus};
 use buildkiosk_model::inspection::Inspection;
 use buildkiosk_model::project::{CostCode, Project};
 use buildkiosk_model::rfi::{Rfi, RfiStatus};
@@ -150,9 +150,13 @@ pub struct BudgetRow {
     /// Whether the code has a budget line (costs can land on codes that have none).
     pub budgeted: bool,
     pub original: Money,
-    /// Approved and complete commitments.
+    /// Approved budget changes.
+    pub changes: Money,
+    /// Approved and complete commitments, with their approved change orders.
     pub committed: Money,
     pub direct: Money,
+    /// The estimates of open change events: possible cost not yet committed.
+    pub pending: Money,
 }
 
 impl BudgetRow {
@@ -161,9 +165,14 @@ impl BudgetRow {
         self.committed.checked_add(self.direct).unwrap_or(Money::ZERO)
     }
 
-    /// What is left of the original budget.
+    /// The original budget with its approved changes.
+    pub fn revised(&self) -> Money {
+        self.original.checked_add(self.changes).unwrap_or(Money::ZERO)
+    }
+
+    /// What is left of the revised budget.
     pub fn remaining(&self) -> Money {
-        self.original.checked_sub(self.cost()).unwrap_or(Money::ZERO)
+        self.revised().checked_sub(self.cost()).unwrap_or(Money::ZERO)
     }
 }
 
@@ -180,7 +189,15 @@ fn too_big() -> EngineError {
 }
 
 fn budget_row(rows: &mut std::collections::BTreeMap<Id<CostCode>, BudgetRow>, code: Id<CostCode>) -> &mut BudgetRow {
-    rows.entry(code).or_insert(BudgetRow { cost_code: code, budgeted: false, original: Money::ZERO, committed: Money::ZERO, direct: Money::ZERO })
+    rows.entry(code).or_insert(BudgetRow {
+        cost_code: code,
+        budgeted: false,
+        original: Money::ZERO,
+        changes: Money::ZERO,
+        committed: Money::ZERO,
+        direct: Money::ZERO,
+        pending: Money::ZERO,
+    })
 }
 
 /// The budget of a project by cost code: original budget, committed cost and direct cost, for every
@@ -198,6 +215,28 @@ pub fn budget_rows(state: &CompanyState, project: Id<Project>) -> Result<Vec<Bud
             r.committed = r.committed.checked_add(l.amount).ok_or_else(too_big)?;
         }
     }
+    // Approved change orders count with their commitment, as long as the commitment counts.
+    for c in state.commitment_changes.iter().filter(|c| c.project == project && c.deleted.is_none() && c.status == ChangeStatus::Approved) {
+        if !state.commitments.get(c.commitment).is_some_and(|m| m.deleted.is_none() && m.status.counts()) {
+            continue;
+        }
+        for l in &c.lines {
+            let r = budget_row(&mut rows, l.cost_code);
+            r.committed = r.committed.checked_add(l.amount).ok_or_else(too_big)?;
+        }
+    }
+    for c in state.budget_changes.iter().filter(|c| c.project == project && c.deleted.is_none() && c.status == ChangeStatus::Approved) {
+        for l in &c.lines {
+            let r = budget_row(&mut rows, l.cost_code);
+            r.changes = r.changes.checked_add(l.amount).ok_or_else(too_big)?;
+        }
+    }
+    for e in state.change_events.iter().filter(|e| e.project == project && e.deleted.is_none() && e.status == ChangeEventStatus::Open) {
+        for l in &e.lines {
+            let r = budget_row(&mut rows, l.cost_code);
+            r.pending = r.pending.checked_add(l.amount).ok_or_else(too_big)?;
+        }
+    }
     for d in state.direct_costs.iter().filter(|d| d.project == project && d.deleted.is_none()) {
         let r = budget_row(&mut rows, d.cost_code);
         r.direct = r.direct.checked_add(d.amount).ok_or_else(too_big)?;
@@ -210,10 +249,45 @@ pub fn budget_rows(state: &CompanyState, project: Id<Project>) -> Result<Vec<Bud
     Ok(list)
 }
 
-/// Totals of the budget rows (original, committed, direct).
-pub fn budget_totals(rows: &[BudgetRow]) -> Result<(Money, Money, Money), EngineError> {
+/// Totals of the budget rows.
+#[derive(Clone, Copy, Debug)]
+pub struct BudgetTotals {
+    pub original: Money,
+    pub changes: Money,
+    pub committed: Money,
+    pub direct: Money,
+    pub pending: Money,
+}
+
+impl BudgetTotals {
+    pub fn revised(&self) -> Money {
+        self.original.checked_add(self.changes).unwrap_or(Money::ZERO)
+    }
+
+    pub fn cost(&self) -> Money {
+        self.committed.checked_add(self.direct).unwrap_or(Money::ZERO)
+    }
+
+    pub fn remaining(&self) -> Money {
+        self.revised().checked_sub(self.cost()).unwrap_or(Money::ZERO)
+    }
+}
+
+pub fn budget_totals(rows: &[BudgetRow]) -> Result<BudgetTotals, EngineError> {
     let sum = |f: fn(&BudgetRow) -> Money| Money::sum(rows.iter().map(f)).ok_or_else(too_big);
-    Ok((sum(|r| r.original)?, sum(|r| r.committed)?, sum(|r| r.direct)?))
+    Ok(BudgetTotals {
+        original: sum(|r| r.original)?,
+        changes: sum(|r| r.changes)?,
+        committed: sum(|r| r.committed)?,
+        direct: sum(|r| r.direct)?,
+        pending: sum(|r| r.pending)?,
+    })
+}
+
+/// A commitment's total with its approved change orders (None if the sum doesn't fit).
+pub fn commitment_revised_total(state: &CompanyState, c: &Commitment) -> Option<Money> {
+    let changes = state.commitment_changes.iter().filter(|x| x.commitment == c.id && x.deleted.is_none() && x.status == ChangeStatus::Approved);
+    Money::sum(c.total().into_iter().chain(changes.map(|x| Money::sum(x.lines.iter().map(|l| l.amount))).collect::<Option<Vec<_>>>()?))
 }
 
 /// Whether the actor may see a commitment: Read access, and drafts only for their author and admins.
@@ -234,4 +308,9 @@ pub fn commitments_for(state: &CompanyState, actor: Actor, project: Id<Project>)
         state.commitments.iter().filter(|c| c.project == project && c.deleted.is_none() && can_see_commitment(state, actor, c)).collect();
     list.sort_by_key(|c| c.number);
     list
+}
+
+/// Whether the actor may see a commitment change order (drafts: its author and admins).
+pub fn can_see_commitment_change(state: &CompanyState, actor: Actor, c: &buildkiosk_model::finance::CommitmentChange) -> bool {
+    crate::costdoc::can_see(state, actor, c)
 }

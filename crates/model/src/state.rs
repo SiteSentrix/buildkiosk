@@ -22,7 +22,7 @@ use crate::punch::PunchItem;
 use crate::daily_log::DailyLog;
 
 // -- financials
-use crate::finance::{BudgetLine, Commitment, DirectCost};
+use crate::finance::{BudgetChange, BudgetLine, ChangeEvent, Commitment, CommitmentChange, DirectCost};
 
 // -- documents
 
@@ -134,6 +134,9 @@ tables! {
     budget_lines: BudgetLine,
     commitments: Commitment,
     direct_costs: DirectCost,
+    change_events: ChangeEvent,
+    commitment_changes: CommitmentChange,
+    budget_changes: BudgetChange,
 
     // -- documents
 

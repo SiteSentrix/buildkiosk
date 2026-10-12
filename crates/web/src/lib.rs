@@ -12,6 +12,7 @@ pub mod icons;
 pub mod inbox;
 pub mod inspections;
 pub mod layout;
+pub mod linedocs;
 pub mod pages;
 pub mod specs;
 pub mod style;

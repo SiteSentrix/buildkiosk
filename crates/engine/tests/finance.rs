@@ -75,7 +75,8 @@ fn budget_rolls_up_commitments_and_direct_costs() {
     w.err(eng, "direct_cost.create", json!({"project": p, "cost_code": 9999, "amount": "5", "description": "Bad code"}));
 
     let rows = budget_rows(w.engine.state(), p).unwrap();
-    let (original, committed, direct) = budget_totals(&rows).unwrap();
+    let t = budget_totals(&rows).unwrap();
+    let (original, committed, direct) = (t.original, t.committed, t.direct);
     assert_eq!((original, committed, direct), (money(200_000), Money::parse("50000.50").unwrap(), Money::parse("4750.25").unwrap()));
     let concrete_row = &rows[0];
     assert_eq!(

@@ -8,9 +8,7 @@ use buildkiosk_core::Id;
 use buildkiosk_model::daily_log::{DailyLog, LogStatus};
 use buildkiosk_model::directory::{Person, Vendor};
 use buildkiosk_model::inspection::Inspection;
-use buildkiosk_model::observation::Observation;
 use buildkiosk_model::project::Project;
-use buildkiosk_model::punch::PunchItem;
 use buildkiosk_model::rfi::{Rfi, RfiStatus};
 use buildkiosk_model::submittal::{Submittal, SubmittalStatus};
 use buildkiosk_model::{CompanyState, Level, Tool, perm};
@@ -127,34 +125,6 @@ pub fn can_see_daily_log(state: &CompanyState, actor: Actor, log: &DailyLog) -> 
 pub fn daily_logs_for(state: &CompanyState, actor: Actor, project: Id<Project>) -> Vec<&DailyLog> {
     let mut list: Vec<&DailyLog> = state.daily_logs.iter().filter(|l| l.project == project && can_see_daily_log(state, actor, l)).collect();
     list.sort_by_key(|l| std::cmp::Reverse(l.date));
-    list
-}
-
-/// Whether the actor may see a punch item: Read access to the tool.
-pub fn can_see_punch(state: &CompanyState, actor: Actor, item: &PunchItem) -> bool {
-    item.deleted.is_none() && level(state, actor, item.project, Tool::PunchList) >= Level::Read
-        || level(state, actor, item.project, Tool::PunchList) == Level::Admin
-}
-
-/// The punch items of a project the actor may see, in number order.
-pub fn punch_for(state: &CompanyState, actor: Actor, project: Id<Project>) -> Vec<&PunchItem> {
-    let mut list: Vec<&PunchItem> =
-        state.punch_items.iter().filter(|i| i.project == project && i.deleted.is_none() && can_see_punch(state, actor, i)).collect();
-    list.sort_by_key(|i| i.number);
-    list
-}
-
-/// Whether the actor may see a observation: Read access to the tool.
-pub fn can_see_observation(state: &CompanyState, actor: Actor, item: &Observation) -> bool {
-    item.deleted.is_none() && level(state, actor, item.project, Tool::Observations) >= Level::Read
-        || level(state, actor, item.project, Tool::Observations) == Level::Admin
-}
-
-/// The observations of a project the actor may see, in number order.
-pub fn observations_for(state: &CompanyState, actor: Actor, project: Id<Project>) -> Vec<&Observation> {
-    let mut list: Vec<&Observation> =
-        state.observations.iter().filter(|i| i.project == project && i.deleted.is_none() && can_see_observation(state, actor, i)).collect();
-    list.sort_by_key(|i| i.number);
     list
 }
 

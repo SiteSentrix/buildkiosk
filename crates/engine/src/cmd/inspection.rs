@@ -16,15 +16,16 @@ use buildkiosk_model::Choice;
 use buildkiosk_model::directory::Person;
 use buildkiosk_model::inspection::{Answer, ChecklistItem, Inspection, InspectionStatus, InspectionTemplate, TemplateItem};
 use buildkiosk_model::project::Project;
+use buildkiosk_model::punch::PunchItem;
 use buildkiosk_model::{Level, Tool};
 use serde_json::{Value, json};
 
 use super::notification::notify;
-use super::punch;
 use super::submittal::file_ref;
 use super::{Access, CommandSpec};
 use crate::ctx::{Read, in_project};
 use crate::view::{self, json};
+use crate::workitem::{self, WorkItem};
 use crate::{Ctx, EngineError, Params, Result, View};
 
 pub const COMMANDS: &[CommandSpec] = &[
@@ -502,7 +503,7 @@ fn raise_punch(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         if item.answer != Some(Answer::Fail) || item.punch.is_some() {
             continue;
         }
-        let mut punch_item = punch::blank(ctx, i.project);
+        let mut punch_item = PunchItem::blank(ctx, i.project);
         punch_item.title = format!("{}: {}", i.label(), item.text);
         punch_item.description = if item.note.is_empty() {
             format!("Failed on {} ({}).", i.label(), i.title)
@@ -513,7 +514,7 @@ fn raise_punch(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         punch_item.kind = i.kind.clone();
         punch_item.assignees = assignees.clone();
         punch_item.recompute_ball_in_court();
-        let id = punch::insert(ctx, punch_item);
+        let id = workitem::insert(ctx, punch_item);
         if let Some(item) = i.items.get_mut(at) {
             item.punch = Some(id);
         }

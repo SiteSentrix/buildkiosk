@@ -18,10 +18,15 @@ use axum::http::{HeaderMap, HeaderName, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use buildkiosk_core::{Id, Timestamp, text};
-use buildkiosk_engine::{Actor, EngineError, find_command};
+use buildkiosk_engine::model::observation::Observation;
+use buildkiosk_engine::model::punch::PunchItem;
+use buildkiosk_engine::model::{CompanyState, FileRef};
+use buildkiosk_engine::workitem::{self, WorkItem};
+use buildkiosk_engine::{Actor, EngineError, find_command, view};
 use buildkiosk_store::creds::check_password_rules;
 use buildkiosk_store::{Credentials, DataDir, Tenant, hex, random_bytes};
 use buildkiosk_web::pages::{self, RfiFilter};
+use buildkiosk_web::workitems::{self, WorkPage};
 use buildkiosk_web::{Flash, Req, icons, style};
 use serde_json::{Map, Value, json};
 use tower_http::catch_panic::CatchPanicLayer;
@@ -98,7 +103,7 @@ impl Inner {
 // -- routing
 
 pub fn router(app: Shared) -> Router {
-    Router::new()
+    let router = Router::new()
         .route("/", get(home))
         .route("/login", get(login_page).post(login_post))
         .route("/logout", post(logout))
@@ -121,20 +126,6 @@ pub fn router(app: Shared) -> Router {
         .route("/projects/{id}/inspections/{iid}/answers", post(inspection_answers))
         .route("/projects/{id}/inspections/{iid}/files/{sha}", get(inspection_file))
         .route("/projects/{id}/inspections/{iid}/upload", post(inspection_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
-        .route("/projects/{id}/punch-list", get(punch_list))
-        .route("/projects/{id}/punch-list.csv", get(punch_csv))
-        .route("/projects/{id}/punch-list/new", get(punch_new))
-        .route("/projects/{id}/punch-list/{iid}", get(punch_detail))
-        .route("/projects/{id}/punch-list/{iid}/edit", get(punch_edit))
-        .route("/projects/{id}/punch-list/{iid}/files/{sha}", get(punch_file))
-        .route("/projects/{id}/punch-list/{iid}/upload", post(punch_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
-        .route("/projects/{id}/observations", get(observation_list))
-        .route("/projects/{id}/observations.csv", get(observation_csv))
-        .route("/projects/{id}/observations/new", get(observation_new))
-        .route("/projects/{id}/observations/{iid}", get(observation_detail))
-        .route("/projects/{id}/observations/{iid}/edit", get(observation_edit))
-        .route("/projects/{id}/observations/{iid}/files/{sha}", get(observation_file))
-        .route("/projects/{id}/observations/{iid}/upload", post(observation_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
         .route("/projects/{id}/daily-logs", get(daily_log_list))
         .route("/projects/{id}/daily-logs/new", get(daily_log_new))
         .route("/projects/{id}/daily-logs/save", post(daily_log_save_new))
@@ -157,7 +148,8 @@ pub fn router(app: Shared) -> Router {
         .route("/do/{command}", post(do_command))
         .route("/api/v1/commands/{id}", post(api_command))
         .route("/static/app.css", get(css))
-        .route("/static/favicon.svg", get(favicon))
+        .route("/static/favicon.svg", get(favicon));
+    work_routes::<PunchItem>(work_routes::<Observation>(router))
         .fallback(not_found)
         .layer(DefaultBodyLimit::max(MAX_BODY))
         .layer(axum::middleware::map_response(security_headers))
@@ -466,94 +458,67 @@ fn daily_log_save_impl(app: Shared, headers: HeaderMap, project: u64, log: Optio
     redirect(&with_flash(&detail, true, "Daily log saved."))
 }
 
-async fn punch_list(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+async fn work_list<T: WorkPage>(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
     use buildkiosk_engine::model::Choice;
-    let filter = buildkiosk_web::punch::Filter {
-        status: q.get("status").and_then(|s| buildkiosk_engine::model::punch::PunchStatus::parse(s)),
+    let filter = workitems::Filter {
+        status: q.get("status").and_then(|s| buildkiosk_engine::model::work::WorkStatus::parse(s)),
         q: q.get("q").map(|s| s.chars().take(100).collect()).unwrap_or_default(),
         mine: q.get("mine").is_some_and(|m| m == "1"),
     };
-    page(&app, &headers, &q, |r, _| buildkiosk_web::punch::list(r, Id::new(id), &filter))
+    page(&app, &headers, &q, |r, _| workitems::list::<T>(r, Id::new(id), &filter))
 }
 
-async fn punch_new(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
-    page(&app, &headers, &q, |r, _| buildkiosk_web::punch::form(r, Id::new(id), None))
+async fn work_new<T: WorkPage>(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| workitems::form::<T>(r, Id::new(id), None))
 }
 
-async fn punch_detail(State(app): State<Shared>, headers: HeaderMap, Path((id, iid)): Path<(u64, u64)>, Query(q): Q) -> Response {
-    page(&app, &headers, &q, |r, t| {
-        buildkiosk_web::punch::detail(r, Id::new(id), Id::new(iid), &t.store.history("punch_items", iid).unwrap_or_default())
-    })
+async fn work_detail<T: WorkPage>(State(app): State<Shared>, headers: HeaderMap, Path((id, iid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, t| workitems::detail::<T>(r, Id::new(id), Id::new(iid), &t.store.history(T::TABLE, iid).unwrap_or_default()))
 }
 
-async fn punch_edit(State(app): State<Shared>, headers: HeaderMap, Path((id, iid)): Path<(u64, u64)>, Query(q): Q) -> Response {
-    page(&app, &headers, &q, |r, _| buildkiosk_web::punch::form(r, Id::new(id), Some(Id::new(iid))))
+async fn work_edit<T: WorkPage>(State(app): State<Shared>, headers: HeaderMap, Path((id, iid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| workitems::form::<T>(r, Id::new(id), Some(Id::new(iid))))
 }
 
-async fn punch_csv(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>) -> Response {
+async fn work_csv<T: WorkPage>(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>) -> Response {
     let inner = app.lock();
     let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
     let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
     let csrf = auth::csrf_token(app.secret(), &s.cookie);
     let req = Req { engine: &t.engine, person: s.person, csrf: &csrf, now: Timestamp::from_millis(now_ms()), flash: None };
-    let Some(csv) = buildkiosk_web::punch::csv(&req, Id::new(id)) else { return plain(StatusCode::NOT_FOUND, "Not found") };
+    let Some(csv) = workitems::csv::<T>(&req, Id::new(id)) else { return plain(StatusCode::NOT_FOUND, "Not found") };
     let mut res = csv.into_response();
     res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("text/csv; charset=utf-8"));
-    res.headers_mut().insert("content-disposition", HeaderValue::from_static("attachment; filename=\"punch-list.csv\""));
+    if let Ok(v) = HeaderValue::from_str(&format!("attachment; filename=\"{}.csv\"", T::PATH)) {
+        res.headers_mut().insert("content-disposition", v);
+    }
     res
 }
 
-async fn punch_file(State(app): State<Shared>, headers: HeaderMap, Path((id, iid, sha)): Path<(u64, u64, String)>) -> Response {
-    file_download(app, headers, Kind::Punch, id, iid, sha).await
+async fn work_file<T: WorkPage>(State(app): State<Shared>, headers: HeaderMap, Path((id, iid, sha)): Path<(u64, u64, String)>) -> Response {
+    file_download(app, headers, Kind::work::<T>(), id, iid, sha).await
 }
 
-async fn punch_upload(State(app): State<Shared>, headers: HeaderMap, Path((id, iid)): Path<(u64, u64)>, multipart: Multipart) -> Response {
-    file_upload(app, headers, Kind::Punch, id, iid, multipart).await
+async fn work_upload<T: WorkPage>(
+    State(app): State<Shared>,
+    headers: HeaderMap,
+    Path((id, iid)): Path<(u64, u64)>,
+    multipart: Multipart,
+) -> Response {
+    file_upload(app, headers, Kind::work::<T>(), id, iid, multipart).await
 }
 
-async fn observation_list(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
-    use buildkiosk_engine::model::Choice;
-    let filter = buildkiosk_web::observations::Filter {
-        status: q.get("status").and_then(|s| buildkiosk_engine::model::observation::ObservationStatus::parse(s)),
-        q: q.get("q").map(|s| s.chars().take(100).collect()).unwrap_or_default(),
-        mine: q.get("mine").is_some_and(|m| m == "1"),
-    };
-    page(&app, &headers, &q, |r, _| buildkiosk_web::observations::list(r, Id::new(id), &filter))
-}
-
-async fn observation_new(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
-    page(&app, &headers, &q, |r, _| buildkiosk_web::observations::form(r, Id::new(id), None))
-}
-
-async fn observation_detail(State(app): State<Shared>, headers: HeaderMap, Path((id, iid)): Path<(u64, u64)>, Query(q): Q) -> Response {
-    page(&app, &headers, &q, |r, t| {
-        buildkiosk_web::observations::detail(r, Id::new(id), Id::new(iid), &t.store.history("observations", iid).unwrap_or_default())
-    })
-}
-
-async fn observation_edit(State(app): State<Shared>, headers: HeaderMap, Path((id, iid)): Path<(u64, u64)>, Query(q): Q) -> Response {
-    page(&app, &headers, &q, |r, _| buildkiosk_web::observations::form(r, Id::new(id), Some(Id::new(iid))))
-}
-
-async fn observation_csv(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>) -> Response {
-    let inner = app.lock();
-    let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
-    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
-    let csrf = auth::csrf_token(app.secret(), &s.cookie);
-    let req = Req { engine: &t.engine, person: s.person, csrf: &csrf, now: Timestamp::from_millis(now_ms()), flash: None };
-    let Some(csv) = buildkiosk_web::observations::csv(&req, Id::new(id)) else { return plain(StatusCode::NOT_FOUND, "Not found") };
-    let mut res = csv.into_response();
-    res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("text/csv; charset=utf-8"));
-    res.headers_mut().insert("content-disposition", HeaderValue::from_static("attachment; filename=\"observations.csv\""));
-    res
-}
-
-async fn observation_file(State(app): State<Shared>, headers: HeaderMap, Path((id, iid, sha)): Path<(u64, u64, String)>) -> Response {
-    file_download(app, headers, Kind::Observation, id, iid, sha).await
-}
-
-async fn observation_upload(State(app): State<Shared>, headers: HeaderMap, Path((id, iid)): Path<(u64, u64)>, multipart: Multipart) -> Response {
-    file_upload(app, headers, Kind::Observation, id, iid, multipart).await
+/// Registers the pages of a work item tool under `/projects/{id}/<path>`.
+fn work_routes<T: WorkPage>(router: Router<Shared>) -> Router<Shared> {
+    let base = format!("/projects/{{id}}/{}", T::PATH);
+    router
+        .route(&base, get(work_list::<T>))
+        .route(&format!("{base}.csv"), get(work_csv::<T>))
+        .route(&format!("{base}/new"), get(work_new::<T>))
+        .route(&format!("{base}/{{iid}}"), get(work_detail::<T>))
+        .route(&format!("{base}/{{iid}}/edit"), get(work_edit::<T>))
+        .route(&format!("{base}/{{iid}}/files/{{sha}}"), get(work_file::<T>))
+        .route(&format!("{base}/{{iid}}/upload"), post(work_upload::<T>).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
 }
 
 async fn inspection_list(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
@@ -598,11 +563,11 @@ async fn inspection_csv(State(app): State<Shared>, headers: HeaderMap, Path(id):
 }
 
 async fn inspection_file(State(app): State<Shared>, headers: HeaderMap, Path((id, iid, sha)): Path<(u64, u64, String)>) -> Response {
-    file_download(app, headers, Kind::Inspection, id, iid, sha).await
+    file_download(app, headers, Kind::INSPECTION, id, iid, sha).await
 }
 
 async fn inspection_upload(State(app): State<Shared>, headers: HeaderMap, Path((id, iid)): Path<(u64, u64)>, multipart: Multipart) -> Response {
-    file_upload(app, headers, Kind::Inspection, id, iid, multipart).await
+    file_upload(app, headers, Kind::INSPECTION, id, iid, multipart).await
 }
 
 /// Saves the checklist form (`line.N.answer`, `line.N.note`), and completes the inspection when
@@ -972,82 +937,72 @@ fn safe_filename(name: &str) -> String {
     if s.is_empty() { "file".into() } else { s }
 }
 
-/// The tools whose items carry files.
+/// A tool whose items carry files: its attach command, its page path and how to find an item's
+/// files.
 #[derive(Clone, Copy)]
-enum Kind {
-    Rfi,
-    Submittal,
-    Punch,
-    Observation,
-    Inspection,
+struct Kind {
+    attach: &'static str,
+    path: &'static str,
+    files: fn(&CompanyState, Actor, u64, u64) -> Option<Vec<FileRef>>,
 }
 
 impl Kind {
+    const RFI: Kind = Kind { attach: "rfi.attach", path: "rfis", files: rfi_files };
+    const SUBMITTAL: Kind = Kind { attach: "submittal.attach", path: "submittals", files: submittal_files };
+    const INSPECTION: Kind = Kind { attach: "inspection.attach", path: "inspections", files: inspection_files };
+
+    fn work<T: WorkItem>() -> Kind {
+        Kind { attach: T::ATTACH_CMD, path: T::PATH, files: work_files::<T> }
+    }
+
     fn attach_command(self) -> &'static str {
-        match self {
-            Kind::Rfi => "rfi.attach",
-            Kind::Submittal => "submittal.attach",
-            Kind::Punch => "punch.attach",
-            Kind::Observation => "observation.attach",
-            Kind::Inspection => "inspection.attach",
-        }
+        self.attach
     }
 
     fn path(self) -> &'static str {
-        match self {
-            Kind::Rfi => "rfis",
-            Kind::Submittal => "submittals",
-            Kind::Punch => "punch-list",
-            Kind::Observation => "observations",
-            Kind::Inspection => "inspections",
-        }
+        self.path
     }
 
     /// The files of an item the person may see.
-    fn files(
-        self,
-        state: &buildkiosk_engine::model::CompanyState,
-        actor: Actor,
-        project: u64,
-        item: u64,
-    ) -> Option<Vec<buildkiosk_engine::model::FileRef>> {
-        use buildkiosk_engine::view;
-        match self {
-            Kind::Rfi => state
-                .rfis
-                .get(Id::new(item))
-                .filter(|r| r.project == Id::new(project) && view::can_see_rfi(state, actor, r))
-                .map(|r| r.attachments.clone()),
-            Kind::Submittal => state
-                .submittals
-                .get(Id::new(item))
-                .filter(|r| r.project == Id::new(project) && view::can_see_submittal(state, actor, r))
-                .map(|r| r.attachments.iter().chain(r.reviews.iter().flat_map(|v| v.attachments.iter())).cloned().collect()),
-            Kind::Punch => state
-                .punch_items
-                .get(Id::new(item))
-                .filter(|r| r.project == Id::new(project) && view::can_see_punch(state, actor, r))
-                .map(|r| r.attachments.clone()),
-            Kind::Inspection => state
-                .inspections
-                .get(Id::new(item))
-                .filter(|r| r.project == Id::new(project) && view::can_see_inspection(state, actor, r))
-                .map(|r| r.attachments.clone()),
-            Kind::Observation => state
-                .observations
-                .get(Id::new(item))
-                .filter(|r| r.project == Id::new(project) && view::can_see_observation(state, actor, r))
-                .map(|r| r.attachments.clone()),
-        }
+    fn files(self, state: &CompanyState, actor: Actor, project: u64, item: u64) -> Option<Vec<FileRef>> {
+        (self.files)(state, actor, project, item)
     }
 }
 
+fn rfi_files(state: &CompanyState, actor: Actor, project: u64, item: u64) -> Option<Vec<FileRef>> {
+    state.rfis.get(Id::new(item)).filter(|r| r.project == Id::new(project) && view::can_see_rfi(state, actor, r)).map(|r| r.attachments.clone())
+}
+
+/// A submittal's files include those on its reviews.
+fn submittal_files(state: &CompanyState, actor: Actor, project: u64, item: u64) -> Option<Vec<FileRef>> {
+    state
+        .submittals
+        .get(Id::new(item))
+        .filter(|r| r.project == Id::new(project) && view::can_see_submittal(state, actor, r))
+        .map(|r| r.attachments.iter().chain(r.reviews.iter().flat_map(|v| v.attachments.iter())).cloned().collect())
+}
+
+fn inspection_files(state: &CompanyState, actor: Actor, project: u64, item: u64) -> Option<Vec<FileRef>> {
+    state
+        .inspections
+        .get(Id::new(item))
+        .filter(|r| r.project == Id::new(project) && view::can_see_inspection(state, actor, r))
+        .map(|r| r.attachments.clone())
+}
+
+fn work_files<T: WorkItem>(state: &CompanyState, actor: Actor, project: u64, item: u64) -> Option<Vec<FileRef>> {
+    T::table(state)
+        .get(Id::new(item))
+        .filter(|r| r.project() == Id::new(project) && workitem::can_see(state, actor, *r))
+        .map(|r| r.attachments.clone())
+}
+
 async fn rfi_file(State(app): State<Shared>, headers: HeaderMap, Path((id, rid, sha)): Path<(u64, u64, String)>) -> Response {
-    file_download(app, headers, Kind::Rfi, id, rid, sha).await
+    file_download(app, headers, Kind::RFI, id, rid, sha).await
 }
 
 async fn submittal_file(State(app): State<Shared>, headers: HeaderMap, Path((id, sid, sha)): Path<(u64, u64, String)>) -> Response {
-    file_download(app, headers, Kind::Submittal, id, sid, sha).await
+    file_download(app, headers, Kind::SUBMITTAL, id, sid, sha).await
 }
 
 async fn file_download(app: Shared, headers: HeaderMap, kind: Kind, id: u64, rid: u64, sha: String) -> Response {
@@ -1073,11 +1028,11 @@ async fn file_download(app: Shared, headers: HeaderMap, kind: Kind, id: u64, rid
 }
 
 async fn rfi_upload(State(app): State<Shared>, headers: HeaderMap, Path((id, rid)): Path<(u64, u64)>, multipart: Multipart) -> Response {
-    file_upload(app, headers, Kind::Rfi, id, rid, multipart).await
+    file_upload(app, headers, Kind::RFI, id, rid, multipart).await
 }
 
 async fn submittal_upload(State(app): State<Shared>, headers: HeaderMap, Path((id, sid)): Path<(u64, u64)>, multipart: Multipart) -> Response {
-    file_upload(app, headers, Kind::Submittal, id, sid, multipart).await
+    file_upload(app, headers, Kind::SUBMITTAL, id, sid, multipart).await
 }
 
 async fn submittal_review(State(app): State<Shared>, headers: HeaderMap, Path((id, sid)): Path<(u64, u64)>, mut multipart: Multipart) -> Response {

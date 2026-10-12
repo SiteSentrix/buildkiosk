@@ -1,93 +1,50 @@
 //! Punch list: small items of work to fix or finish before a project closes out.
 
-use buildkiosk_core::{Date, Id, Timestamp};
+use buildkiosk_core::Id;
 use serde::{Deserialize, Serialize};
 
-use crate::common::{FileRef, Priority, Stamp};
-use crate::directory::Person;
 use crate::project::Project;
-use crate::{choice, record};
+use crate::work::WorkCore;
+use crate::{record, work_deref};
 
-choice! {
-    #[derive(Default)]
-    pub enum PunchStatus {
-        #[default]
-        Open = ("open", "Open"),
-        /// The responsible person says the work is done; the manager still has to accept it.
-        ReadyForReview = ("ready_for_review", "Ready for review"),
-        Closed = ("closed", "Closed"),
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct PunchComment {
-    pub id: u32,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub by: Option<Id<Person>>,
-    pub at: Timestamp,
-    pub body: String,
-}
+pub use crate::work::WorkComment as PunchComment;
+pub use crate::work::WorkStatus as PunchStatus;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PunchItem {
     pub id: Id<PunchItem>,
     pub project: Id<Project>,
-    /// Numbered within the project.
-    pub number: u32,
-    pub title: String,
-    #[serde(default)]
-    pub description: String,
-    #[serde(default)]
-    pub location: String,
-    /// Free text: the trade or kind of work (paint, electrical…).
-    #[serde(default)]
-    pub kind: String,
-    #[serde(default)]
-    pub priority: Priority,
-    #[serde(default)]
-    pub status: PunchStatus,
-    /// Accepts the work and closes the item.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub manager: Option<Id<Person>>,
-    /// The people who have to do the work.
-    #[serde(default)]
-    pub assignees: Vec<Id<Person>>,
-    #[serde(default)]
-    pub ball_in_court: Vec<Id<Person>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub due: Option<Date>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub work_done: Option<Stamp>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub closed: Option<Stamp>,
-    #[serde(default)]
-    pub attachments: Vec<FileRef>,
-    #[serde(default)]
-    pub comments: Vec<PunchComment>,
-    pub created: Stamp,
-    pub updated: Stamp,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub deleted: Option<Stamp>,
+    #[serde(flatten)]
+    pub core: WorkCore,
 }
 record!(PunchItem, "punch_item", trash, project);
+work_deref!(PunchItem);
 
 impl PunchItem {
     pub fn label(&self) -> String {
         format!("Punch item #{}", self.number)
     }
+}
 
-    pub fn is_overdue(&self, today: Date) -> bool {
-        self.status != PunchStatus::Closed && self.due.is_some_and(|d| d < today)
-    }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
 
-    /// The assignees while work is open (the manager if nobody is assigned); the manager once
-    /// the work is ready for review.
-    pub fn recompute_ball_in_court(&mut self) {
-        self.ball_in_court = match self.status {
-            PunchStatus::Closed => Vec::new(),
-            PunchStatus::ReadyForReview => self.manager.into_iter().collect(),
-            PunchStatus::Open if self.assignees.is_empty() => self.manager.into_iter().collect(),
-            PunchStatus::Open => self.assignees.clone(),
-        };
+    /// A row as the journal stored it before the shared `WorkCore` existed: every field flat.
+    #[test]
+    fn rows_written_before_the_shared_core_still_load_and_round_trip() {
+        let old = json!({
+            "id": 7, "project": 2, "number": 3, "title": "Touch up paint", "description": "", "location": "Corridor",
+            "kind": "Paint", "priority": "high", "status": "ready_for_review", "manager": 1, "assignees": [4],
+            "ball_in_court": [1], "due": "2026-10-30",
+            "work_done": {"by": 4, "at": "2026-10-12T16:19:00Z"}, "attachments": [],
+            "comments": [{"id": 1, "by": 4, "at": "2026-10-12T16:19:00Z", "body": "Done"}],
+            "created": {"by": 1, "at": "2026-10-12T16:00:00Z"}, "updated": {"by": 4, "at": "2026-10-12T16:19:00Z"}
+        });
+        let item: PunchItem = serde_json::from_value(old.clone()).unwrap();
+        assert_eq!((item.number, item.title.as_str(), item.status), (3, "Touch up paint", PunchStatus::ReadyForReview));
+        assert_eq!(item.comments.len(), 1);
+        assert_eq!(serde_json::to_value(&item).unwrap(), old, "the stored shape is unchanged");
     }
 }

@@ -1,0 +1,71 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "xtask"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+# `std::fs::File::lock` (the data directory lock) is stable from 1.89.
+rust-version = "1.89"
+repository = "https://github.com/bwattendorf/buildkiosk"
+
+[workspace.dependencies]
+# internal
+buildkiosk-core = { path = "crates/core" }
+buildkiosk-model = { path = "crates/model" }
+buildkiosk-finance = { path = "crates/finance" }
+buildkiosk-schedule = { path = "crates/schedule" }
+buildkiosk-engine = { path = "crates/engine" }
+buildkiosk-store = { path = "crates/store" }
+buildkiosk-web = { path = "crates/web" }
+buildkiosk-server = { path = "crates/server" }
+buildkiosk-mcp = { path = "crates/mcp" }
+buildkiosk-testkit = { path = "crates/testkit" }
+
+# foundation
+serde = { version = "1", features = ["derive", "rc"] }
+serde_json = "1"
+thiserror = "2"
+log = "0.4"
+env_logger = { version = "0.11", default-features = false, features = ["auto-color", "humantime"] }
+proptest = "1"
+
+# server side (L6 and up only: `cargo xtask layers` rejects them lower down)
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "form", "query", "json", "multipart", "matched-path", "original-uri"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal", "sync", "time"] }
+tower = { version = "0.5", default-features = false, features = ["util"] }
+tower-http = { version = "0.6", default-features = false, features = ["catch-panic", "limit"] }
+maud = "0.27"
+argon2 = { version = "0.5", default-features = false, features = ["alloc", "password-hash", "std"] }
+sha2 = "0.10"
+hmac = "0.12"
+getrandom = "0.3"
+base64 = "0.22"
+http-body-util = "0.1"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+dbg_macro = "warn"
+# BuildKiosk never crashes: shipped code returns `Result`/`Option` instead of panicking (AGENTS.md ›
+# Never crash). Tests may unwrap, expect, panic and index (clippy.toml).
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+unreachable = "deny"
+# `v[i]` and `&s[a..b]` panic out of range: use `.get(…)` on anything that comes from data.
+indexing_slicing = "deny"
+
+[profile.dev.package."*"]
+# Password hashing (argon2) and JSON are slow unoptimized; dependencies build once.
+opt-level = 2
+
+[profile.dev]
+opt-level = 1
+
+[profile.release]
+lto = "thin"

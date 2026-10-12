@@ -1,0 +1,23 @@
+[package]
+name = "buildkiosk-engine"
+description = "The command engine: every action is a command with an id, a permission and JSON parameters; runs it on the company state and journals the change."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+buildkiosk-core = { workspace = true }
+buildkiosk-model = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+log = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+buildkiosk-testkit = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,18 @@
+[package]
+name = "buildkiosk-testkit"
+description = "Test helpers: a company with people and projects in a few lines, a fake clock, journal replay checks."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+buildkiosk-core = { workspace = true }
+buildkiosk-model = { workspace = true }
+buildkiosk-engine = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

@@ -727,3 +727,86 @@ async fn change_events_change_orders_and_budget_changes_in_the_browser_flow() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn prime_contract_and_owner_invoicing_in_the_browser_flow() {
+    let dir = temp("invoicing");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=P"))).await;
+    let (_, _, budget) = send(&app, get("/projects/1/budget")).await;
+    let code = |text: &str| -> String {
+        let i = budget.find(&format!(">{text} ")).unwrap();
+        let before = &budget[..i];
+        let v = before.rfind("value=\"").unwrap() + 7;
+        before[v..].split('"').next().unwrap().to_string()
+    };
+    let (concrete, steel) = (code("03-300"), code("05-100"));
+
+    // The contract through the generic form, then approved.
+    let (st, _, form) = send(&app, get("/projects/1/prime-contracts/new")).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(form.contains("name=\"retainage\"") && form.contains("name=\"owner\""));
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/projects/1/prime-contracts/save",
+            &ada,
+            format!("_csrf={csrf}&title=Clinic+contract&description=&owner=&retainage=10&lines.0.cost_code={concrete}&lines.0.description=Concrete&lines.0.amount=100000&lines.1.cost_code={steel}&lines.1.description=Steel&lines.1.amount=50000"),
+        ),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().starts_with("/projects/1/prime-contracts/1?ok="));
+    send(&app, post("/do/prime_contract.approve", &ada, format!("_csrf={csrf}&project=1&id=1"))).await;
+
+    // An invoice: start it, type amounts, submit, approve, pay.
+    let (_, _, list) = send(&app, get("/projects/1/owner-invoices")).await;
+    assert!(list.contains("Start an invoice") && list.contains("Clinic contract"));
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/do/owner_invoice.create",
+            &ada,
+            format!("_csrf={csrf}&_next=/projects/1/owner-invoices/%7Bid%7D&project=1&contract=1&period_end=2026-10-31"),
+        ),
+    )
+    .await;
+    assert_eq!(h.get(LOCATION).unwrap().to_str().unwrap().split('?').next().unwrap(), "/projects/1/owner-invoices/1");
+    let (_, _, detail) = send(&app, get("/projects/1/owner-invoices/1")).await;
+    assert!(detail.contains("amount.c.0") && detail.contains("Save amounts"));
+    let (_, h, _) = send(
+        &app,
+        post("/projects/1/owner-invoices/1/save", &ada, format!("_csrf={csrf}&period_end=2026-10-31&notes=October&amount.c.0=40000&amount.c.1=")),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="));
+    let (_, h, _) =
+        send(&app, post("/projects/1/owner-invoices/1/save", &ada, format!("_csrf={csrf}&period_end=2026-10-31&notes=&amount.c.0=100000.01"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("error="), "billing beyond the scheduled value is refused");
+    let (_, _, detail) = send(&app, get("/projects/1/owner-invoices/1")).await;
+    for want in ["40,000.00", "4,000.00", "36,000.00", "Submit to owner"] {
+        assert!(detail.contains(want), "{want} missing from the invoice");
+    }
+    for step in ["submit", "approve", "pay"] {
+        send(&app, post(&format!("/do/owner_invoice.{step}"), &ada, format!("_csrf={csrf}&project=1&id=1"))).await;
+    }
+    let (_, _, contract) = send(&app, get("/projects/1/prime-contracts/1")).await;
+    for want in ["150,000.00", "Billed to date", "40,000.00", "Retainage held", "Paid (net)", "36,000.00", "110,000.00"] {
+        assert!(contract.contains(want), "{want} missing from the contract");
+    }
+    let (_, _, detail) = send(&app, get("/projects/1/owner-invoices/1")).await;
+    assert!(detail.contains("Paid"));
+    let (st, _, cos) = send(&app, get("/projects/1/prime-change-orders")).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(cos.contains("Prime change orders"));
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

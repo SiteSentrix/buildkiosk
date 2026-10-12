@@ -11,6 +11,7 @@ pub mod finance;
 pub mod icons;
 pub mod inbox;
 pub mod inspections;
+pub mod invoicing;
 pub mod layout;
 pub mod linedocs;
 pub mod pages;

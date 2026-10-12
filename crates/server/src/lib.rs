@@ -18,7 +18,7 @@ use axum::http::{HeaderMap, HeaderName, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use buildkiosk_core::{Id, Timestamp, text};
-use buildkiosk_engine::model::finance::{BudgetChange, ChangeEvent, CommitmentChange};
+use buildkiosk_engine::model::finance::{BudgetChange, ChangeEvent, CommitmentChange, PrimeChange, PrimeContract};
 use buildkiosk_engine::model::observation::Observation;
 use buildkiosk_engine::model::punch::PunchItem;
 use buildkiosk_engine::model::{CompanyState, FileRef};
@@ -119,6 +119,9 @@ pub fn router(app: Shared) -> Router {
         .route("/projects/{id}/rfis/new", get(rfi_new))
         .route("/projects/{id}/submittals", get(submittal_list))
         .route("/notifications", get(notifications))
+        .route("/projects/{id}/owner-invoices", get(invoice_list))
+        .route("/projects/{id}/owner-invoices/{iid}", get(invoice_detail))
+        .route("/projects/{id}/owner-invoices/{iid}/save", post(invoice_save))
         .route("/projects/{id}/budget", get(budget_page))
         .route("/projects/{id}/budget.csv", get(budget_csv))
         .route("/projects/{id}/direct-costs", get(direct_costs_page))
@@ -160,14 +163,19 @@ pub fn router(app: Shared) -> Router {
         .route("/api/v1/commands/{id}", post(api_command))
         .route("/static/app.css", get(css))
         .route("/static/favicon.svg", get(favicon));
-    doc_routes::<ChangeEvent>(doc_routes::<CommitmentChange>(doc_routes::<BudgetChange>(work_routes::<PunchItem>(work_routes::<Observation>(
-        router,
-    )))))
-    .fallback(not_found)
-    .layer(DefaultBodyLimit::max(MAX_BODY))
-    .layer(axum::middleware::map_response(security_headers))
-    .layer(CatchPanicLayer::new())
-    .with_state(app)
+    let router = work_routes::<PunchItem>(router);
+    let router = work_routes::<Observation>(router);
+    let router = doc_routes::<ChangeEvent>(router);
+    let router = doc_routes::<CommitmentChange>(router);
+    let router = doc_routes::<BudgetChange>(router);
+    let router = doc_routes::<PrimeContract>(router);
+    let router = doc_routes::<PrimeChange>(router);
+    router
+        .fallback(not_found)
+        .layer(DefaultBodyLimit::max(MAX_BODY))
+        .layer(axum::middleware::map_response(security_headers))
+        .layer(CatchPanicLayer::new())
+        .with_state(app)
 }
 
 /// Serves until the process is stopped.
@@ -768,6 +776,34 @@ fn commitment_save_impl(app: Shared, headers: HeaderMap, project: u64, commitmen
             let id = commitment.or_else(|| out.get("id").and_then(Value::as_u64)).unwrap_or(0);
             redirect(&with_flash(&format!("{base}/{id}"), true, "Commitment saved."))
         }
+        Err(e) => redirect(&with_flash(&back, false, &e.to_string())),
+    }
+}
+
+async fn invoice_list(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::invoicing::list(r, Id::new(id)))
+}
+
+async fn invoice_detail(State(app): State<Shared>, headers: HeaderMap, Path((id, iid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, t| {
+        buildkiosk_web::invoicing::detail(r, Id::new(id), Id::new(iid), &t.store.history("owner_invoices", iid).unwrap_or_default())
+    })
+}
+
+/// Saves the amounts typed on a draft invoice (`amount.<row key>`), its period and its notes.
+async fn invoice_save(State(app): State<Shared>, headers: HeaderMap, Path((id, iid)): Path<(u64, u64)>, body: Bytes) -> Response {
+    let form = parse_form(&body);
+    let mut inner = app.lock();
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    if !auth::csrf_ok(app.secret(), &s.cookie, get_form(&form, "_csrf")) {
+        return plain(StatusCode::FORBIDDEN, "The form expired. Go back, reload the page and try again.");
+    }
+    let back = format!("/projects/{id}/owner-invoices/{iid}");
+    let lines: Vec<Value> =
+        form.iter().filter_map(|(k, v)| k.strip_prefix("amount.").map(|row| json!({"row": row, "amount": v}))).take(1000).collect();
+    let params = json!({"project": id, "id": iid, "period_end": get_form(&form, "period_end"), "notes": get_form(&form, "notes"), "lines": lines});
+    match inner.run(Actor::Person(s.person), "owner_invoice.update", &params) {
+        Ok(_) => redirect(&with_flash(&back, true, "Amounts saved.")),
         Err(e) => redirect(&with_flash(&back, false, &e.to_string())),
     }
 }

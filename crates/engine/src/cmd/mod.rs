@@ -24,6 +24,9 @@ pub mod punch;
 pub mod daily_log;
 
 // -- financials
+pub mod budget;
+pub mod commitment;
+pub mod direct_cost;
 
 // -- documents
 
@@ -122,7 +125,9 @@ const MODULES: &[&[CommandSpec]] = &[
     // -- field
     daily_log::COMMANDS,
     // -- financials
-
+    budget::COMMANDS,
+    commitment::COMMANDS,
+    direct_cost::COMMANDS,
     // -- documents
 
     // -- collaboration

@@ -4,11 +4,12 @@
 //! these helpers keep the rules for what a person may see in one place, so a page and the query
 //! behind the API answer the same.
 
-use buildkiosk_core::Id;
+use buildkiosk_core::{Id, Money};
 use buildkiosk_model::daily_log::{DailyLog, LogStatus};
 use buildkiosk_model::directory::{Person, Vendor};
+use buildkiosk_model::finance::{Commitment, CommitmentStatus};
 use buildkiosk_model::inspection::Inspection;
-use buildkiosk_model::project::Project;
+use buildkiosk_model::project::{CostCode, Project};
 use buildkiosk_model::rfi::{Rfi, RfiStatus};
 use buildkiosk_model::submittal::{Submittal, SubmittalStatus};
 use buildkiosk_model::{CompanyState, Level, Tool, perm};
@@ -139,5 +140,98 @@ pub fn inspections_for(state: &CompanyState, actor: Actor, project: Id<Project>)
     let mut list: Vec<&Inspection> =
         state.inspections.iter().filter(|i| i.project == project && i.deleted.is_none() && can_see_inspection(state, actor, i)).collect();
     list.sort_by_key(|i| i.number);
+    list
+}
+
+/// One cost code's line of the budget view.
+#[derive(Clone, Debug)]
+pub struct BudgetRow {
+    pub cost_code: Id<CostCode>,
+    /// Whether the code has a budget line (costs can land on codes that have none).
+    pub budgeted: bool,
+    pub original: Money,
+    /// Approved and complete commitments.
+    pub committed: Money,
+    pub direct: Money,
+}
+
+impl BudgetRow {
+    /// Committed plus direct costs.
+    pub fn cost(&self) -> Money {
+        self.committed.checked_add(self.direct).unwrap_or(Money::ZERO)
+    }
+
+    /// What is left of the original budget.
+    pub fn remaining(&self) -> Money {
+        self.original.checked_sub(self.cost()).unwrap_or(Money::ZERO)
+    }
+}
+
+/// A cost code usable in a project: a company-wide code or one of the project's own.
+pub fn project_cost_codes(state: &CompanyState, project: Id<Project>) -> Vec<&CostCode> {
+    let mut list: Vec<&CostCode> =
+        state.cost_codes.iter().filter(|c| c.deleted.is_none() && (c.project.is_none() || c.project == Some(project))).collect();
+    list.sort_by(|a, b| a.code.cmp(&b.code));
+    list
+}
+
+fn too_big() -> EngineError {
+    EngineError::conflict("the amounts are too large to add up")
+}
+
+fn budget_row(rows: &mut std::collections::BTreeMap<Id<CostCode>, BudgetRow>, code: Id<CostCode>) -> &mut BudgetRow {
+    rows.entry(code).or_insert(BudgetRow { cost_code: code, budgeted: false, original: Money::ZERO, committed: Money::ZERO, direct: Money::ZERO })
+}
+
+/// The budget of a project by cost code: original budget, committed cost and direct cost, for every
+/// code that has any of them, in code order.
+pub fn budget_rows(state: &CompanyState, project: Id<Project>) -> Result<Vec<BudgetRow>, EngineError> {
+    let mut rows: std::collections::BTreeMap<Id<CostCode>, BudgetRow> = std::collections::BTreeMap::new();
+    for b in state.budget_lines.iter().filter(|b| b.project == project && b.deleted.is_none()) {
+        let r = budget_row(&mut rows, b.cost_code);
+        r.budgeted = true;
+        r.original = r.original.checked_add(b.original).ok_or_else(too_big)?;
+    }
+    for c in state.commitments.iter().filter(|c| c.project == project && c.deleted.is_none() && c.status.counts()) {
+        for l in &c.lines {
+            let r = budget_row(&mut rows, l.cost_code);
+            r.committed = r.committed.checked_add(l.amount).ok_or_else(too_big)?;
+        }
+    }
+    for d in state.direct_costs.iter().filter(|d| d.project == project && d.deleted.is_none()) {
+        let r = budget_row(&mut rows, d.cost_code);
+        r.direct = r.direct.checked_add(d.amount).ok_or_else(too_big)?;
+    }
+    let mut list: Vec<BudgetRow> = rows.into_values().collect();
+    list.sort_by(|a, b| {
+        let code = |id: Id<CostCode>| state.cost_codes.get(id).map(|c| c.code.clone()).unwrap_or_default();
+        code(a.cost_code).cmp(&code(b.cost_code))
+    });
+    Ok(list)
+}
+
+/// Totals of the budget rows (original, committed, direct).
+pub fn budget_totals(rows: &[BudgetRow]) -> Result<(Money, Money, Money), EngineError> {
+    let sum = |f: fn(&BudgetRow) -> Money| Money::sum(rows.iter().map(f)).ok_or_else(too_big);
+    Ok((sum(|r| r.original)?, sum(|r| r.committed)?, sum(|r| r.direct)?))
+}
+
+/// Whether the actor may see a commitment: Read access, and drafts only for their author and admins.
+pub fn can_see_commitment(state: &CompanyState, actor: Actor, c: &Commitment) -> bool {
+    let lvl = level(state, actor, c.project, Tool::Commitments);
+    if lvl == Level::Admin {
+        return true;
+    }
+    if lvl < Level::Read || c.deleted.is_some() {
+        return false;
+    }
+    c.status != CommitmentStatus::Draft || (actor.person().is_some() && c.created.by == actor.person())
+}
+
+/// The commitments of a project the actor may see, in number order.
+pub fn commitments_for(state: &CompanyState, actor: Actor, project: Id<Project>) -> Vec<&Commitment> {
+    let mut list: Vec<&Commitment> =
+        state.commitments.iter().filter(|c| c.project == project && c.deleted.is_none() && can_see_commitment(state, actor, c)).collect();
+    list.sort_by_key(|c| c.number);
     list
 }

@@ -1708,6 +1708,51 @@ async fn tasks_use_the_shared_work_pages() {
     let (st, h, csv) = send(&app, get("/projects/1/tasks.csv")).await;
     assert_eq!(st, StatusCode::OK);
     assert!(h.get("content-disposition").is_some() && csv.contains("Order hardware"));
+
+    // The form carries the task-only fields; blank ones mean "none". A repeating task, a subtask, an RFI link.
+    assert!(form_has_task_fields(&send(&app, get("/projects/1/tasks/new")).await.2));
+    send(
+        &app,
+        post("/do/rfi.create", &ada, format!("_csrf={csrf}&_next=/projects/1/rfis&project=1&subject=Footing+depth&question=Which+governs%3F")),
+    )
+    .await;
+    let (_, h, _) = send(
+        &app,
+        post("/do/task.create", &ada, format!("_csrf={csrf}&_next=/projects/1/tasks&project=1&title=Weekly+safety+walk&due=2026-10-14&repeat=weekly&repeat_until=&parent=&rfi=1&meeting=&assignees[]=1")),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, detail) = send(&app, get("/projects/1/tasks/2")).await;
+    assert!(
+        detail.contains("Weekly") && detail.contains("From RFI") && detail.contains("Footing depth") && detail.contains("Add subtask"),
+        "{detail}"
+    );
+    let (_, h, _) = send(
+        &app,
+        post("/do/task.create", &ada, format!("_csrf={csrf}&_next=/projects/1/tasks/2&project=1&parent=2&assignees[]=1&title=Check+harnesses")),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, detail) = send(&app, get("/projects/1/tasks/2")).await;
+    assert!(detail.contains("Check harnesses") && detail.contains("Subtasks"), "{detail}");
+    let (_, _, kid) = send(&app, get("/projects/1/tasks/3")).await;
+    assert!(kid.contains("Subtask of") && kid.contains("Weekly safety walk"), "{kid}");
+    // The parent waits for its subtask; closing both makes the next week's task.
+    let (_, h, _) = send(&app, post("/do/task.close", &ada, format!("_csrf={csrf}&_next=/projects/1/tasks/2&project=1&id=2"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("error="), "{h:?}");
+    send(&app, post("/do/task.close", &ada, format!("_csrf={csrf}&_next=/projects/1/tasks/3&project=1&id=3"))).await;
+    send(&app, post("/do/task.close", &ada, format!("_csrf={csrf}&_next=/projects/1/tasks/2&project=1&id=2"))).await;
+    let (_, _, detail) = send(&app, get("/projects/1/tasks/2")).await;
+    assert!(detail.contains("Next occurrence"), "{detail}");
+
+    // My tasks: the open ones assigned to Ada, across projects; closed ones on request.
+    let (st, _, mine) = send(&app, get("/my-tasks")).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(mine.contains("Weekly safety walk") && mine.contains("My tasks") && !mine.contains("Check harnesses"), "{mine}");
+    let (_, _, everything) = send(&app, get("/my-tasks?all=1")).await;
+    assert!(everything.contains("Order hardware"), "{everything}");
+    let (_, _, closed) = send(&app, get("/my-tasks?closed=1")).await;
+    assert!(closed.contains("Check harnesses") && closed.contains("Subtask"), "{closed}");
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -2704,4 +2749,8 @@ async fn scheduled_backups_run_while_the_server_is_up_and_keep_the_newest() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
     let _ = std::fs::remove_dir_all(&backups);
+}
+
+fn form_has_task_fields(form: &str) -> bool {
+    ["name=\"repeat\"", "name=\"repeat_until\"", "name=\"rfi\"", "name=\"meeting\""].iter().all(|f| form.contains(f))
 }

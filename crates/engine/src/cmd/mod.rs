@@ -144,6 +144,7 @@ const MODULES: &[&[CommandSpec]] = &[
     meeting::COMMANDS,
     submittal::COMMANDS,
     task::COMMANDS,
+    task::MINE,
     transmittal::COMMANDS,
     // -- quality and safety
     form::COMMANDS,

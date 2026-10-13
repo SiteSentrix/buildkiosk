@@ -223,6 +223,7 @@ pub fn router(app: Shared) -> Router {
             .route("/setup", get(setup_page).post(setup_post))
             .route("/directory", get(directory))
             .route("/prequalification", get(prequalification_page))
+            .route("/my-tasks", get(my_tasks_page))
             .route("/directory/people/{id}", get(person_edit))
             .route("/directory/templates/{id}", get(template_edit))
             .route("/directory/companies/{id}", get(vendor_edit))
@@ -756,6 +757,11 @@ type Q = Query<HashMap<String, String>>;
 
 async fn home(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Response {
     page(&app, &headers, &q, |r, _| pages::home(r))
+}
+
+async fn my_tasks_page(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Response {
+    let (closed, all) = (q.contains_key("closed"), q.contains_key("all"));
+    page(&app, &headers, &q, |r, _| workitems::my_tasks(r, closed, all))
 }
 
 async fn prequalification_page(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Response {

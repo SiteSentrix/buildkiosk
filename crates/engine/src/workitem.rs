@@ -54,6 +54,18 @@ pub trait WorkItem: Record + InProject + Trash + Clone + PartialEq + Serialize +
     fn apply_extra(&mut self, _p: &Params<'_>) -> Result<()> {
         Ok(())
     }
+    /// Checks the finished item against the rest of the company (links to other records, and so on).
+    fn validate(&self, _ctx: &Ctx<'_>) -> Result<()> {
+        Ok(())
+    }
+    /// Whether the item may be closed now.
+    fn before_close(&self, _ctx: &Ctx<'_>) -> Result<()> {
+        Ok(())
+    }
+    /// Runs once the item is closed, before it is saved (it may add other records).
+    fn after_close(&mut self, _ctx: &mut Ctx<'_>) -> Result<()> {
+        Ok(())
+    }
 }
 
 /// "Punch item #4".
@@ -152,6 +164,7 @@ fn apply_fields<T: WorkItem>(ctx: &Ctx<'_>, p: &Params<'_>, item: &mut T, creati
         item.due = p.date("due")?;
     }
     item.apply_extra(p)?;
+    item.validate(ctx)?;
     item.recompute_ball_in_court();
     Ok(())
 }
@@ -313,11 +326,13 @@ pub fn close<T: WorkItem>(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     if item.status == WorkStatus::Closed {
         return Err(EngineError::conflict(format!("{} is already closed", label(&item))));
     }
+    item.before_close(ctx)?;
     add_comment(ctx, &mut item, p.text_or_empty("comment", text::LONG)?)?;
     item.status = WorkStatus::Closed;
     item.closed = Some(ctx.stamp());
     item.recompute_ball_in_court();
     item.updated = ctx.stamp();
+    item.after_close(ctx)?;
     let id = item.id();
     let audience: Vec<Id<Person>> = item.assignees.iter().copied().chain(item.created.by).collect();
     notify(ctx, &audience, item.project(), &format!("{} was closed: {}", label(&item), item.title), &link(&item));

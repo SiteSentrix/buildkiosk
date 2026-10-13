@@ -22,6 +22,9 @@ choice! {
         Weekly = ("weekly", "Weekly"),
         Biweekly = ("biweekly", "Every two weeks"),
         Monthly = ("monthly", "Monthly"),
+        MonthEnd = ("month_end", "Last day of each month"),
+        Quarterly = ("quarterly", "Every three months"),
+        Yearly = ("yearly", "Yearly"),
     }
 }
 
@@ -34,6 +37,9 @@ impl Repeat {
             Repeat::Weekly => due.add_days(7),
             Repeat::Biweekly => due.add_days(14),
             Repeat::Monthly => due.add_months(1),
+            Repeat::MonthEnd => due.month_start().add_months(2)?.add_days(-1),
+            Repeat::Quarterly => due.add_months(3),
+            Repeat::Yearly => due.add_months(12),
         }
     }
 }

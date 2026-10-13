@@ -46,6 +46,104 @@ impl Req<'_> {
     }
 }
 
+/// The project tools in the sidebar, by group: tool, path, label and the level needed to see it.
+type NavEntry = (Tool, &'static str, &'static str, buildkiosk_engine::model::Level);
+
+const NAV_GROUPS: &[(&str, &[NavEntry])] = {
+    use buildkiosk_engine::model::Level::{Read, Standard};
+    &[
+        (
+            "Project management",
+            &[
+                (Tool::Rfis, "rfis", "RFIs", Read),
+                (Tool::Submittals, "submittals", "Submittals", Read),
+                (Tool::Transmittals, "transmittals", "Transmittals", Read),
+                (Tool::Correspondence, "correspondence", "Correspondence", Read),
+                (Tool::Meetings, "meetings", "Meetings", Read),
+                (Tool::Forms, "forms", "Forms", Read),
+                (Tool::DailyLog, "daily-logs", "Daily log", Read),
+                (Tool::Tasks, "tasks", "Tasks", Read),
+                (Tool::ActionPlans, "action-plans", "Action plans", Read),
+            ],
+        ),
+        (
+            "Quality and safety",
+            &[
+                (Tool::PunchList, "punch-list", "Punch list", Read),
+                (Tool::Observations, "observations", "Observations", Read),
+                (Tool::Inspections, "inspections", "Inspections", Read),
+                (Tool::Incidents, "incidents", "Incidents", Read),
+            ],
+        ),
+        (
+            "Plans and files",
+            &[
+                (Tool::Schedule, "schedule", "Schedule", Read),
+                (Tool::Drawings, "drawings", "Drawings", Read),
+                (Tool::Specifications, "specifications", "Specifications", Read),
+                (Tool::Documents, "documents", "Documents", Read),
+                (Tool::Photos, "photos", "Photos", Read),
+            ],
+        ),
+        (
+            "Financials",
+            &[
+                (Tool::Budget, "budget", "Budget", Read),
+                (Tool::Commitments, "commitments", "Commitments", Read),
+                (Tool::DirectCosts, "direct-costs", "Direct costs", Read),
+                (Tool::PrimeContracts, "prime-contracts", "Prime contract", Read),
+                (Tool::Invoicing, "owner-invoices", "Owner invoices", Read),
+                (Tool::Invoicing, "commitment-invoices", "Commitment invoices", Read),
+                (Tool::ChangeEvents, "change-events", "Change events", Read),
+                (Tool::ChangeOrders, "change-orders", "Change orders", Read),
+                (Tool::ChangeOrders, "budget-changes", "Budget changes", Read),
+            ],
+        ),
+        ("Preconstruction", &[(Tool::Estimating, "estimating", "Estimating", Read), (Tool::Bidding, "bidding", "Bidding", Read)]),
+        ("Resources", &[(Tool::Timesheets, "timesheets", "Timesheets", Standard)]),
+        ("Project", &[(Tool::Reports, "reports", "Report", Read), (Tool::ProjectDirectory, "team", "Team", Read)]),
+    ]
+};
+
+/// The path segment of the current page's sidebar entry ("" when it has none).
+fn nav_key(nav: Nav) -> &'static str {
+    match nav {
+        Nav::Projects | Nav::Directory | Nav::Notifications | Nav::Prequalification | Nav::Home(_) => "",
+        Nav::Team(_) => "team",
+        Nav::Rfis(_) => "rfis",
+        Nav::Submittals(_) => "submittals",
+        Nav::Specs(_) => "specifications",
+        Nav::Documents(_) => "documents",
+        Nav::Transmittals(_) => "transmittals",
+        Nav::Meetings(_) => "meetings",
+        Nav::Tasks(_) => "tasks",
+        Nav::Incidents(_) => "incidents",
+        Nav::Photos(_) => "photos",
+        Nav::Correspondence(_) => "correspondence",
+        Nav::Forms(_) => "forms",
+        Nav::Timesheets(_) => "timesheets",
+        Nav::Reports(_) => "reports",
+        Nav::ActionPlans(_) => "action-plans",
+        Nav::Bidding(_) => "bidding",
+        Nav::Estimating(_) => "estimating",
+        Nav::Drawings(_) => "drawings",
+        Nav::Schedule(_) => "schedule",
+        Nav::DailyLogs(_) => "daily-logs",
+        Nav::Punch(_) => "punch-list",
+        Nav::Observations(_) => "observations",
+        Nav::Inspections(_) => "inspections",
+        Nav::Budget(_) => "budget",
+        Nav::Commitments(_) => "commitments",
+        Nav::DirectCosts(_) => "direct-costs",
+        Nav::ChangeEvents(_) => "change-events",
+        Nav::ChangeOrders(_) => "change-orders",
+        Nav::BudgetChanges(_) => "budget-changes",
+        Nav::PrimeContracts(_) => "prime-contracts",
+        Nav::OwnerInvoices(_) => "owner-invoices",
+        Nav::CommitmentInvoices(_) => "commitment-invoices",
+    }
+}
+
 /// Which navigation entry is current.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Nav {
@@ -217,74 +315,17 @@ pub fn app(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Option<String>
                             div class="context" { (p.name) small { (p.number) } }
                             div class="nav" {
                                 a href=(format!("/projects/{}", p.id)) class=(if matches!(nav, Nav::Home(_)) { "active" } else { "" }) { (Icon::Home.svg()) "Project home" }
-                                a href=(format!("/projects/{}/daily-logs", p.id)) class=(if matches!(nav, Nav::DailyLogs(_)) { "active" } else { "" }) { (tool_icon(Tool::DailyLog).svg()) "Daily log" }
-                                a href=(format!("/projects/{}/punch-list", p.id)) class=(if matches!(nav, Nav::Punch(_)) { "active" } else { "" }) { (tool_icon(Tool::PunchList).svg()) "Punch list" }
-                                @if view::level(state, req.actor(), p.id, Tool::Tasks) >= buildkiosk_engine::model::Level::Read {
-                                    a href=(format!("/projects/{}/tasks", p.id)) class=(if matches!(nav, Nav::Tasks(_)) { "active" } else { "" }) { (tool_icon(Tool::Tasks).svg()) "Tasks" }
-                                }
-                                a href=(format!("/projects/{}/observations", p.id)) class=(if matches!(nav, Nav::Observations(_)) { "active" } else { "" }) { (tool_icon(Tool::Observations).svg()) "Observations" }
-                                @if view::level(state, req.actor(), p.id, Tool::ActionPlans) >= buildkiosk_engine::model::Level::Read {
-                                    a href=(format!("/projects/{}/action-plans", p.id)) class=(if matches!(nav, Nav::ActionPlans(_)) { "active" } else { "" }) { (tool_icon(Tool::ActionPlans).svg()) "Action plans" }
-                                }
-                                @if view::level(state, req.actor(), p.id, Tool::Incidents) >= buildkiosk_engine::model::Level::Read {
-                                    a href=(format!("/projects/{}/incidents", p.id)) class=(if matches!(nav, Nav::Incidents(_)) { "active" } else { "" }) { (tool_icon(Tool::Incidents).svg()) "Incidents" }
-                                }
-                                a href=(format!("/projects/{}/inspections", p.id)) class=(if matches!(nav, Nav::Inspections(_)) { "active" } else { "" }) { (tool_icon(Tool::Inspections).svg()) "Inspections" }
-                                @for (tool, path, label, current) in [
-                                    (Tool::Budget, "budget", "Budget", matches!(nav, Nav::Budget(_))),
-                                    (Tool::Commitments, "commitments", "Commitments", matches!(nav, Nav::Commitments(_))),
-                                    (Tool::DirectCosts, "direct-costs", "Direct costs", matches!(nav, Nav::DirectCosts(_))),
-                                    (Tool::PrimeContracts, "prime-contracts", "Prime contract", matches!(nav, Nav::PrimeContracts(_))),
-                                    (Tool::Invoicing, "owner-invoices", "Owner invoices", matches!(nav, Nav::OwnerInvoices(_))),
-                                    (Tool::Invoicing, "commitment-invoices", "Commitment invoices", matches!(nav, Nav::CommitmentInvoices(_))),
-                                    (Tool::ChangeEvents, "change-events", "Change events", matches!(nav, Nav::ChangeEvents(_))),
-                                    (Tool::ChangeOrders, "change-orders", "Change orders", matches!(nav, Nav::ChangeOrders(_))),
-                                    (Tool::ChangeOrders, "budget-changes", "Budget changes", matches!(nav, Nav::BudgetChanges(_))),
-                                ] {
-                                    @if view::level(state, req.actor(), p.id, tool) >= buildkiosk_engine::model::Level::Read {
-                                        a href=(format!("/projects/{}/{path}", p.id)) class=(if current { "active" } else { "" }) { (tool_icon(tool).svg()) (label) }
+                                @for (gi, (group, entries)) in NAV_GROUPS.iter().enumerate() {
+                                    @let visible: Vec<&NavEntry> = entries.iter().filter(|(tool, _, _, min)| view::level(state, req.actor(), p.id, *tool) >= *min).collect();
+                                    @if !visible.is_empty() {
+                                        details class="nav-section" open[visible.iter().any(|(_, path, _, _)| *path == nav_key(nav)) || (gi == 0 && matches!(nav, Nav::Home(_)))] {
+                                            summary { (group) }
+                                            @for (tool, path, label, _) in visible {
+                                                a href=(format!("/projects/{}/{path}", p.id)) class=(if *path == nav_key(nav) { "active" } else { "" }) { (tool_icon(*tool).svg()) (label) }
+                                            }
+                                        }
                                     }
                                 }
-                                @if view::level(state, req.actor(), p.id, Tool::Estimating) >= buildkiosk_engine::model::Level::Read {
-                                    a href=(format!("/projects/{}/estimating", p.id)) class=(if matches!(nav, Nav::Estimating(_)) { "active" } else { "" }) { (tool_icon(Tool::Estimating).svg()) "Estimating" }
-                                }
-                                @if view::level(state, req.actor(), p.id, Tool::Bidding) >= buildkiosk_engine::model::Level::Read {
-                                    a href=(format!("/projects/{}/bidding", p.id)) class=(if matches!(nav, Nav::Bidding(_)) { "active" } else { "" }) { (tool_icon(Tool::Bidding).svg()) "Bidding" }
-                                }
-                                a href=(format!("/projects/{}/rfis", p.id)) class=(if matches!(nav, Nav::Rfis(_)) { "active" } else { "" }) { (tool_icon(Tool::Rfis).svg()) "RFIs" }
-                                a href=(format!("/projects/{}/submittals", p.id)) class=(if matches!(nav, Nav::Submittals(_)) { "active" } else { "" }) { (tool_icon(Tool::Submittals).svg()) "Submittals" }
-                                a href=(format!("/projects/{}/specifications", p.id)) class=(if matches!(nav, Nav::Specs(_)) { "active" } else { "" }) { (tool_icon(Tool::Specifications).svg()) "Specifications" }
-                                @if view::level(state, req.actor(), p.id, Tool::Transmittals) >= buildkiosk_engine::model::Level::Read {
-                                    a href=(format!("/projects/{}/transmittals", p.id)) class=(if matches!(nav, Nav::Transmittals(_)) { "active" } else { "" }) { (tool_icon(Tool::Transmittals).svg()) "Transmittals" }
-                                }
-                                @if view::level(state, req.actor(), p.id, Tool::Correspondence) >= buildkiosk_engine::model::Level::Read {
-                                    a href=(format!("/projects/{}/correspondence", p.id)) class=(if matches!(nav, Nav::Correspondence(_)) { "active" } else { "" }) { (tool_icon(Tool::Correspondence).svg()) "Correspondence" }
-                                }
-                                @if view::level(state, req.actor(), p.id, Tool::Forms) >= buildkiosk_engine::model::Level::Read {
-                                    a href=(format!("/projects/{}/forms", p.id)) class=(if matches!(nav, Nav::Forms(_)) { "active" } else { "" }) { (tool_icon(Tool::Forms).svg()) "Forms" }
-                                }
-                                @if view::level(state, req.actor(), p.id, Tool::Timesheets) >= buildkiosk_engine::model::Level::Standard {
-                                    a href=(format!("/projects/{}/timesheets", p.id)) class=(if matches!(nav, Nav::Timesheets(_)) { "active" } else { "" }) { (tool_icon(Tool::Timesheets).svg()) "Timesheets" }
-                                }
-                                @if view::level(state, req.actor(), p.id, Tool::Meetings) >= buildkiosk_engine::model::Level::Read {
-                                    a href=(format!("/projects/{}/meetings", p.id)) class=(if matches!(nav, Nav::Meetings(_)) { "active" } else { "" }) { (tool_icon(Tool::Meetings).svg()) "Meetings" }
-                                }
-                                @if view::level(state, req.actor(), p.id, Tool::Schedule) >= buildkiosk_engine::model::Level::Read {
-                                    a href=(format!("/projects/{}/schedule", p.id)) class=(if matches!(nav, Nav::Schedule(_)) { "active" } else { "" }) { (tool_icon(Tool::Schedule).svg()) "Schedule" }
-                                }
-                                @if view::level(state, req.actor(), p.id, Tool::Photos) >= buildkiosk_engine::model::Level::Read {
-                                    a href=(format!("/projects/{}/photos", p.id)) class=(if matches!(nav, Nav::Photos(_)) { "active" } else { "" }) { (tool_icon(Tool::Photos).svg()) "Photos" }
-                                }
-                                @if view::level(state, req.actor(), p.id, Tool::Drawings) >= buildkiosk_engine::model::Level::Read {
-                                    a href=(format!("/projects/{}/drawings", p.id)) class=(if matches!(nav, Nav::Drawings(_)) { "active" } else { "" }) { (tool_icon(Tool::Drawings).svg()) "Drawings" }
-                                }
-                                @if view::level(state, req.actor(), p.id, Tool::Documents) >= buildkiosk_engine::model::Level::Read {
-                                    a href=(format!("/projects/{}/documents", p.id)) class=(if matches!(nav, Nav::Documents(_)) { "active" } else { "" }) { (tool_icon(Tool::Documents).svg()) "Documents" }
-                                }
-                                @if view::level(state, req.actor(), p.id, Tool::Reports) >= buildkiosk_engine::model::Level::Read {
-                                    a href=(format!("/projects/{}/reports", p.id)) class=(if matches!(nav, Nav::Reports(_)) { "active" } else { "" }) { (tool_icon(Tool::Reports).svg()) "Report" }
-                                }
-                                a href=(format!("/projects/{}/team", p.id)) class=(if matches!(nav, Nav::Team(_)) { "active" } else { "" }) { (tool_icon(Tool::ProjectDirectory).svg()) "Team" }
                             }
                         }
                     }

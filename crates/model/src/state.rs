@@ -14,6 +14,7 @@ use crate::document::{Document, Folder};
 use crate::drawing::Drawing;
 use crate::incident::Incident;
 use crate::meeting::Meeting;
+use crate::photo::Photo;
 use crate::schedule::ScheduleTask;
 use crate::spec::SpecSection;
 use crate::submittal::Submittal;
@@ -162,6 +163,7 @@ tables! {
     folders: Folder,
     documents: Document,
     drawings: Drawing,
+    photos: Photo,
 
     // -- collaboration
     notifications: Notification,

@@ -171,6 +171,11 @@ pub fn router(app: Shared) -> Router {
         .route("/projects/{id}/meetings/{mid}/edit", get(meeting_edit))
         .route("/projects/{id}/meetings/{mid}/upload", post(meeting_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
         .route("/projects/{id}/meetings/{mid}/files/{sha}", get(meeting_download))
+        .route("/projects/{id}/photos", get(photos_page))
+        .route("/projects/{id}/photos/upload", post(photo_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
+        .route("/projects/{id}/photos/{pid}", get(photo_page))
+        .route("/projects/{id}/photos/{pid}/image", get(photo_image))
+        .route("/projects/{id}/photos/{pid}/download", get(photo_download))
         .route("/projects/{id}/schedule", get(schedule_page))
         .route("/projects/{id}/schedule.csv", get(schedule_csv))
         .route("/projects/{id}/schedule/{tid}", get(schedule_task_page))
@@ -1051,6 +1056,151 @@ async fn meeting_download(State(app): State<Shared>, headers: HeaderMap, Path((i
 
 async fn meeting_upload(State(app): State<Shared>, headers: HeaderMap, Path((id, mid)): Path<(u64, u64)>, multipart: Multipart) -> Response {
     file_upload(app, headers, Kind::MEETING, id, mid, multipart).await
+}
+
+async fn photos_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    let album = q.get("album").map(|s| s.chars().take(100).collect::<String>()).unwrap_or_default();
+    let text = q.get("q").map(|s| s.chars().take(100).collect::<String>()).unwrap_or_default();
+    page(&app, &headers, &q, |r, _| buildkiosk_web::photos::gallery(r, Id::new(id), &album, &text))
+}
+
+async fn photo_page(State(app): State<Shared>, headers: HeaderMap, Path((id, pid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::photos::detail(r, Id::new(id), Id::new(pid)))
+}
+
+/// The picture's type from its first bytes: only JPEG, PNG, GIF and WebP count.
+fn sniff_image(bytes: &[u8]) -> Option<&'static str> {
+    if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
+        Some("image/jpeg")
+    } else if bytes.starts_with(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]) {
+        Some("image/png")
+    } else if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {
+        Some("image/gif")
+    } else if bytes.starts_with(b"RIFF") && bytes.get(8..12) == Some(b"WEBP".as_slice()) {
+        Some("image/webp")
+    } else {
+        None
+    }
+}
+
+/// The photo's file when the person may see it.
+fn photo_file(app: &Shared, headers: &HeaderMap, id: u64, pid: u64) -> Result<(std::path::PathBuf, FileRef), Box<Response>> {
+    let inner = app.lock();
+    let Some(s) = session(app, &inner, headers) else { return Err(Box::new(redirect("/login"))) };
+    let Some(t) = inner.tenant.as_ref() else { return Err(Box::new(redirect("/setup"))) };
+    let state = t.engine.state();
+    let found = state
+        .photos
+        .get(Id::new(pid))
+        .filter(|x| {
+            x.project == Id::new(id) && x.deleted.is_none() && view::level(state, Actor::Person(s.person), x.project, Tool::Photos) >= Level::Read
+        })
+        .and_then(|x| t.store.blobs.path(&x.file.sha256).map(|p| (p, x.file.clone())));
+    found.ok_or_else(|| Box::new(plain(StatusCode::NOT_FOUND, "Not found")))
+}
+
+async fn photo_bytes(path: std::path::PathBuf) -> Result<Bytes, Box<Response>> {
+    match tokio::task::spawn_blocking(move || std::fs::read(path)).await {
+        Ok(Ok(b)) => Ok(Bytes::from(b)),
+        _ => Err(Box::new(plain(StatusCode::NOT_FOUND, "That file is missing from storage."))),
+    }
+}
+
+/// A photo shown in the page. Only a picture whose bytes still match one of the four allowed
+/// types is sent with an image type; anything else is refused.
+async fn photo_image(State(app): State<Shared>, headers: HeaderMap, Path((id, pid)): Path<(u64, u64)>) -> Response {
+    let (path, file) = match photo_file(&app, &headers, id, pid) {
+        Ok(x) => x,
+        Err(r) => return *r,
+    };
+    let bytes = match photo_bytes(path).await {
+        Ok(b) => b,
+        Err(r) => return *r,
+    };
+    let Some(kind) = sniff_image(&bytes).filter(|k| *k == file.mime) else { return plain(StatusCode::NOT_FOUND, "Not a picture") };
+    let mut res = bytes.into_response();
+    res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static(kind));
+    res.headers_mut().insert("cache-control", HeaderValue::from_static("private, max-age=3600"));
+    res
+}
+
+async fn photo_download(State(app): State<Shared>, headers: HeaderMap, Path((id, pid)): Path<(u64, u64)>) -> Response {
+    let (path, file) = match photo_file(&app, &headers, id, pid) {
+        Ok(x) => x,
+        Err(r) => return *r,
+    };
+    let bytes = match photo_bytes(path).await {
+        Ok(b) => b,
+        Err(r) => return *r,
+    };
+    let mut res = bytes.into_response();
+    res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("application/octet-stream"));
+    if let Ok(v) = HeaderValue::from_str(&format!("attachment; filename=\"{}\"", safe_filename(&file.name))) {
+        res.headers_mut().insert("content-disposition", v);
+    }
+    res
+}
+
+/// Every picture in the form (several `file` fields), each stored and added; the fields are the
+/// shared album, place, date and caption.
+async fn photo_upload(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, mut multipart: Multipart) -> Response {
+    let back = format!("/projects/{id}/photos");
+    let mut fields: HashMap<String, String> = HashMap::new();
+    let mut files: Vec<UploadFile> = Vec::new();
+    loop {
+        let field = match multipart.next_field().await {
+            Ok(Some(f)) => f,
+            Ok(None) => break,
+            Err(_) => return redirect(&with_flash(&back, false, UPLOAD_FAILED)),
+        };
+        let name = field.name().unwrap_or("").to_string();
+        let filename = field.file_name().unwrap_or("photo").to_string();
+        let Ok(bytes) = field.bytes().await else { return redirect(&with_flash(&back, false, UPLOAD_FAILED)) };
+        if name == "file" {
+            if !bytes.is_empty() && files.len() < 100 {
+                files.push((filename, String::new(), bytes));
+            }
+        } else if bytes.len() <= 20_000 {
+            fields.entry(name).or_insert_with(|| String::from_utf8_lossy(&bytes).into_owned());
+        }
+    }
+    let mut inner = app.lock();
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    if !auth::csrf_ok(app.secret(), &s.cookie, fields.get("_csrf").map(String::as_str).unwrap_or_default()) {
+        return plain(StatusCode::FORBIDDEN, "The form expired. Go back, reload the page and try again.");
+    }
+    if files.is_empty() {
+        return redirect(&with_flash(&back, false, "Choose at least one picture."));
+    }
+    let get = |k: &str| fields.get(k).cloned().unwrap_or_default();
+    let (mut added, mut skipped) = (0usize, 0usize);
+    let mut last_error = String::new();
+    for (name, _, bytes) in files {
+        let Some(kind) = sniff_image(&bytes) else {
+            skipped += 1;
+            continue;
+        };
+        let (sha256, size) = match store_blob(&mut inner, &bytes) {
+            Ok(x) => x,
+            Err(msg) => return redirect(&with_flash(&back, false, &msg)),
+        };
+        let params = json!({"project": id, "sha256": sha256, "name": name, "size": size, "mime": kind,
+            "caption": get("caption"), "album": get("album"), "location": get("location"), "taken": get("taken")});
+        match inner.run(Actor::Person(s.person), "photo.add", &params) {
+            Ok(_) => added += 1,
+            Err(e) => last_error = e.to_string(),
+        }
+    }
+    if added == 0 {
+        let msg = if last_error.is_empty() { "Photos must be JPEG, PNG, GIF or WebP pictures.".to_string() } else { last_error };
+        return redirect(&with_flash(&back, false, &msg));
+    }
+    let note = if skipped > 0 {
+        format!("{added} added; {skipped} skipped because they are not JPEG, PNG, GIF or WebP pictures.")
+    } else {
+        format!("{added} added.")
+    };
+    redirect(&with_flash(&back, true, &note))
 }
 
 async fn schedule_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {

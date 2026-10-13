@@ -39,6 +39,7 @@ pub mod prime;
 // -- documents
 pub mod document;
 pub mod drawing;
+pub mod photo;
 
 // -- collaboration
 
@@ -142,6 +143,7 @@ const MODULES: &[&[CommandSpec]] = &[
     schedule::COMMANDS,
     // -- documents
     document::COMMANDS,
+    photo::COMMANDS,
     drawing::COMMANDS,
     // -- financials
     budget::COMMANDS,

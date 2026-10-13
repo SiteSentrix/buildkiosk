@@ -71,6 +71,9 @@ pub struct Project {
     /// timesheet hours for the incident rates.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub incident_hours: Vec<YearHours>,
+    /// When timesheet hours count as overtime.
+    #[serde(default)]
+    pub overtime: crate::timesheet::OvertimeRules,
     /// The days work is done on, for the schedule.
     #[serde(default)]
     pub calendar: crate::schedule::WorkCalendar,

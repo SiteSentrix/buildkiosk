@@ -2053,6 +2053,30 @@ async fn timesheets_week_submit_and_approve() {
     let (st, h, csv) = send(&app, get("/projects/1/timesheets.csv?week=2026-10-12")).await;
     assert_eq!(st, StatusCode::OK);
     assert!(h.get("content-disposition").is_some() && csv.contains("2026-10-13,Ada Admin,7.5") && csv.contains("Approved"), "{csv}");
+    // Labour cost: rules, a rate, the report, then posting to direct costs.
+    send(&app, post("/do/timesheet.set_rules", &ada, format!("_csrf={csrf}&project=1&daily_hours=6&weekly_hours=0&multiplier=150"))).await;
+    send(&app, post("/do/timesheet.set_rate", &ada, format!("_csrf={csrf}&project=1&person=1&hourly=40&from=2026-10-01"))).await;
+    let (st, _, cost) = send(&app, get("/projects/1/timesheets/cost?from=2026-10-12&to=2026-10-18")).await;
+    assert_eq!(st, StatusCode::OK);
+    // 7.5 hours with overtime after 6: 6 regular, 1.5 overtime = 240.00 + 90.00
+    assert!(
+        cost.contains("Ada Admin") && cost.contains("330.00") && cost.contains("Post to direct costs") && cost.contains("Overtime rules"),
+        "{cost}"
+    );
+    let (_, _, csv) = send(&app, get("/projects/1/timesheets/cost.csv?from=2026-10-12&to=2026-10-18")).await;
+    assert!(csv.contains("2026-10-13,Ada Admin") && csv.contains("6,1.5,40.00,330.00,Approved,no"), "{csv}");
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/do/timesheet.post_costs",
+            &ada,
+            format!("_csrf={csrf}&project=1&from=2026-10-12&to=2026-10-18&default_cost_code=1&_next=/projects/1/timesheets/cost"),
+        ),
+    )
+    .await;
+    assert!(h.get(LOCATION).is_some(), "{h:?}");
+    let (_, _, csv) = send(&app, get("/projects/1/timesheets/cost.csv?from=2026-10-12&to=2026-10-18")).await;
+    assert!(csv.ends_with("Approved,yes\r\n"), "{csv}");
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }

@@ -125,6 +125,28 @@ async fn rfi_files_history_and_csv() {
     let (st, ..) = send(&app, Request::get(&href).body(Body::empty()).unwrap()).await;
     assert_eq!(st, StatusCode::SEE_OTHER, "signed-out people can't download");
 
+    // A response carries files of its own, which download like the RFI's.
+    let respond = |token: &str, text: &str| {
+        let body = format!(
+            "--B\r\nContent-Disposition: form-data; name=\"_csrf\"\r\n\r\n{token}\r\n--B\r\nContent-Disposition: form-data; name=\"body\"\r\n\r\n{text}\r\n--B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"sketch.txt\"\r\nContent-Type: text/plain\r\n\r\nsketch-bytes\r\n--B--\r\n"
+        );
+        Request::post("/projects/1/rfis/1/respond")
+            .header("cookie", &session)
+            .header("content-type", "multipart/form-data; boundary=B")
+            .body(Body::from(body))
+            .unwrap()
+    };
+    let (st, ..) = send(&app, respond("bad", "x")).await;
+    assert_eq!(st, StatusCode::FORBIDDEN);
+    let (_, h, _) = send(&app, respond(&csrf, "Use+the+detail")).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, detail) = send(&app, Request::get("/projects/1/rfis/1").header("cookie", &session).body(Body::empty()).unwrap()).await;
+    assert!(detail.contains("sketch.txt"));
+    let href =
+        detail.split("href=\"").filter(|s| s.contains("/files/")).find(|s| s.contains("sketch.txt")).unwrap().split('"').next().unwrap().to_string();
+    let (st, _, body) = send(&app, Request::get(&href).header("cookie", &session).body(Body::empty()).unwrap()).await;
+    assert_eq!((st, body.as_str()), (StatusCode::OK, "sketch-bytes"));
+
     let (st, h, csv) = send(&app, Request::get("/projects/1/rfis.csv").header("cookie", &session).body(Body::empty()).unwrap()).await;
     assert_eq!(st, StatusCode::OK);
     assert!(h.get("content-disposition").is_some());

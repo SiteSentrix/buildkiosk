@@ -368,6 +368,7 @@ pub fn router(app: Shared) -> Router {
             .route("/projects/{id}/rfis/{rid}", get(rfi_detail))
             .route("/projects/{id}/rfis/{rid}/files/{sha}", get(rfi_file))
             .route("/projects/{id}/rfis/{rid}/upload", post(rfi_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
+            .route("/projects/{id}/rfis/{rid}/respond", post(rfi_respond).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
             .route("/projects/{id}/rfis/{rid}/edit", get(rfi_edit))
             .route("/do/{command}", post(do_command))
             .route("/mcp", post(mcp_http))
@@ -2531,7 +2532,11 @@ fn document_files(state: &CompanyState, actor: Actor, project: u64, item: u64) -
 }
 
 fn rfi_files(state: &CompanyState, actor: Actor, project: u64, item: u64) -> Option<Vec<FileRef>> {
-    state.rfis.get(Id::new(item)).filter(|r| r.project == Id::new(project) && view::can_see_rfi(state, actor, r)).map(|r| r.attachments.clone())
+    state
+        .rfis
+        .get(Id::new(item))
+        .filter(|r| r.project == Id::new(project) && view::can_see_rfi(state, actor, r))
+        .map(|r| r.attachments.iter().chain(r.responses.iter().flat_map(|v| v.attachments.iter())).cloned().collect())
 }
 
 /// A submittal's files include those on its reviews.
@@ -2644,6 +2649,61 @@ async fn submittal_review(State(app): State<Shared>, headers: HeaderMap, Path((i
     match inner.run(Actor::Person(s.person), "submittal.review", &params) {
         Ok(_) => redirect(&with_flash(&back, true, "Review submitted.")),
         Err(e) => redirect(&with_flash(&back, false, &e.to_string())),
+    }
+}
+
+/// Posts an RFI response with up to 10 files (a multipart form).
+async fn rfi_respond(State(app): State<Shared>, headers: HeaderMap, Path((id, rid)): Path<(u64, u64)>, mut multipart: Multipart) -> Response {
+    let back = format!("/projects/{id}/rfis/{rid}");
+    let too_big = "The upload failed or the files are larger than 25 MB.";
+    let (mut token, mut body) = (String::new(), String::new());
+    let mut files: Vec<(String, String, Bytes)> = Vec::new();
+    let mut total = 0usize;
+    loop {
+        let field = match multipart.next_field().await {
+            Ok(Some(f)) => f,
+            Ok(None) => break,
+            Err(_) => return redirect(&with_flash(&back, false, too_big)),
+        };
+        let name = field.name().unwrap_or("").to_string();
+        let filename = field.file_name().unwrap_or("file").to_string();
+        let mime = field.content_type().unwrap_or("application/octet-stream").to_string();
+        let Ok(bytes) = field.bytes().await else { return redirect(&with_flash(&back, false, too_big)) };
+        match name.as_str() {
+            "_csrf" => token = String::from_utf8_lossy(&bytes).into_owned(),
+            "body" => body = String::from_utf8_lossy(&bytes).into_owned(),
+            "file" if !bytes.is_empty() => {
+                total = total.saturating_add(bytes.len());
+                if total > MAX_UPLOAD || files.len() >= 10 {
+                    return redirect(&with_flash(&back, false, "A response can carry at most 10 files and 25 MB in all."));
+                }
+                files.push((filename, mime, bytes));
+            }
+            _ => {}
+        }
+    }
+    let mut inner = app.lock();
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    if !auth::csrf_ok(app.secret(), &s.cookie, &token) {
+        return plain(StatusCode::FORBIDDEN, "The form expired. Go back, reload the page and try again.");
+    }
+    let Some(t) = inner.tenant.as_mut() else { return redirect("/setup") };
+    let mut attachments = Vec::new();
+    for (name, mime, bytes) in &files {
+        match t.store.blobs.put(bytes) {
+            Ok((sha256, size)) => attachments.push(json!({"sha256": sha256, "name": name, "size": size, "mime": mime})),
+            Err(e) => return redirect(&with_flash(&back, false, &e.to_string())),
+        }
+    }
+    let params = json!({"project": id, "id": rid, "body": body, "attachments": attachments});
+    match inner.run(Actor::Person(s.person), "rfi.respond", &params) {
+        Ok(_) => redirect(&with_flash(&back, true, "Response posted.")),
+        Err(e) => {
+            // Keep what was typed (files can't be kept; the page says so).
+            let form = [("body".to_string(), body)];
+            let to = inner.draft_path(s.person.raw(), &format!("{back}/respond"), &form, &back);
+            redirect(&with_flash(&to, false, &e.to_string()))
+        }
     }
 }
 

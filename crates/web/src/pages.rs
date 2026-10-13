@@ -393,6 +393,9 @@ pub fn rfi_detail(req: &Req<'_>, id: Id<Project>, rfi_id: Id<Rfi>, history: &[Jo
                                 @if resp.official { span class="pill green" { "Official response" } }
                             }
                             p class="prose" { (resp.body) }
+                            @for a in &resp.attachments {
+                                div class="row" { a href=(format!("{here}/files/{}", a.sha256)) { (a.name) } span class="muted small" { (human_size(a.size)) } }
+                            }
                             @if manager_like && r.status != RfiStatus::Closed {
                                 @let f = [("project", id.to_string()), ("id", r.id.to_string()), ("response", resp.id.to_string()), ("official", (!resp.official).to_string())];
                                 (button_form(req, "rfi.mark_official", &here, &f, if resp.official { "Remove official mark" } else { "Mark as official" }, "small"))
@@ -400,12 +403,12 @@ pub fn rfi_detail(req: &Req<'_>, id: Id<Project>, rfi_id: Id<Rfi>, history: &[Jo
                         }
                     }
                     @if r.status == RfiStatus::Open && level >= Level::Standard {
-                        (command_form(req, "rfi.respond", &here, &here, html! {
-                            input type="hidden" name="project" value=(id);
-                            input type="hidden" name="id" value=(r.id);
+                        form method="post" action=(format!("{here}/respond")) enctype="multipart/form-data" class="stack" {
+                            input type="hidden" name="_csrf" value=(req.csrf);
                             (field("Your response", "body", true, true, html! { textarea id="body" name="body" required {} }))
+                            (field("Files (optional)", "file", false, false, html! { input type="file" id="file" name="file" multiple; }))
                             div class="form-actions" { button type="submit" class="btn primary" { "Post response" } }
-                        }))
+                        }
                     }
                 }
             }

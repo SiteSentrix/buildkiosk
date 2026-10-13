@@ -10,6 +10,10 @@ everything is a command, additive schema changes).
 - `cargo xtask ci`: the gate before every commit: fmt, clippy (`-D warnings`, including the no-panic lints),
   tests, assets, brands, cleanroom, licenses, layers and the wasm build. It takes a few minutes; run it in the
   background and read the log.
+- `cargo xtask viewer`: builds the browser sheet viewer (WebAssembly) into `crates/server/assets/viewer`, which the
+  server embeds when it is compiled (rebuild the server after it). Needs `wasm-bindgen-cli` at the version in
+  `Cargo.lock` (the command tells you). Optional for development: without it the server-drawn viewer is used.
+  `cargo xtask ci` only type-checks the viewer for wasm; the CI workflow builds it in a separate job.
 - `cargo run -p buildkiosk -- demo --data ./demo-data` then `serve --data ./demo-data --bind 127.0.0.1:8080`
   to look at the app. Take screenshots with headless Chromium when changing pages, at desktop and phone widths.
 - `buildkiosk commands` lists every command and its parameters; `buildkiosk run --data DIR --company SLUG --as

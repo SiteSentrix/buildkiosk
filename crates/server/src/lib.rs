@@ -9,6 +9,11 @@ mod mail;
 mod render;
 mod zip;
 
+/// The browser sheet viewer, when `cargo xtask viewer` built it before this crate was compiled.
+mod viewer_assets {
+    include!(concat!(env!("OUT_DIR"), "/viewer_assets.rs"));
+}
+
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -442,7 +447,10 @@ pub fn router(app: Shared) -> Router {
             .route("/mcp", post(mcp_http))
             .route("/api/v1/commands/{id}", post(api_command))
             .route("/static/app.css", get(css))
-            .route("/static/favicon.svg", get(favicon));
+            .route("/static/favicon.svg", get(favicon))
+            .route("/static/viewer/start.js", get(|| async { embedded(viewer_assets::START_JS, "text/javascript; charset=utf-8") }))
+            .route("/static/viewer/viewer.js", get(|| async { embedded(viewer_assets::VIEWER_JS, "text/javascript; charset=utf-8") }))
+            .route("/static/viewer/viewer_bg.wasm", get(|| async { embedded(viewer_assets::VIEWER_WASM, "application/wasm") }));
     let router = work_routes::<PunchItem>(router);
     let router = work_routes::<Observation>(router).route(
         "/projects/{id}/observations/trends",
@@ -477,13 +485,18 @@ pub async fn serve(app: Shared, bind: SocketAddr) -> Result<(), String> {
 
 async fn security_headers(State(app): State<Shared>, mut res: Response) -> Response {
     let h = res.headers_mut();
+    // A page that needs more (the sheet viewer) sets its own policy first.
+    if !h.contains_key("content-security-policy") {
+        h.insert(
+            HeaderName::from_static("content-security-policy"),
+            HeaderValue::from_static(
+                "default-src 'none'; script-src 'none'; style-src 'self'; img-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+            ),
+        );
+    }
     let mut put = |k: &'static str, v: &'static str| {
         h.insert(HeaderName::from_static(k), HeaderValue::from_static(v));
     };
-    put(
-        "content-security-policy",
-        "default-src 'none'; script-src 'none'; style-src 'self'; img-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
-    );
     put("x-content-type-options", "nosniff");
     put("referrer-policy", "same-origin");
     put("x-frame-options", "DENY");
@@ -2171,7 +2184,8 @@ async fn drawing_view(State(app): State<Shared>, headers: HeaderMap, Path((id, d
         Ok((path, f)) => sheet_info(&app, path, &f.sha256).await.and_then(|info| {
             let page = usize::try_from(v.page).unwrap_or(1).clamp(1, info.pages());
             let (w, h) = info.dims.get(page - 1).copied()?;
-            Some(buildkiosk_web::drawings::PageShape { pages: info.pages(), width: w, height: h })
+            let interactive = viewer_assets::START_JS.is_some() && !info.image && v.compare.is_empty();
+            Some(buildkiosk_web::drawings::PageShape { pages: info.pages(), width: w, height: h, interactive })
         }),
         Err(r) if r.status() != StatusCode::NOT_FOUND => return *r,
         Err(_) => None,
@@ -2192,7 +2206,12 @@ async fn drawing_view(State(app): State<Shared>, headers: HeaderMap, Path((id, d
             }
         }
     }
-    page(&app, &headers, &q, |r, _| buildkiosk_web::drawings::viewer(r, Id::new(id), Id::new(did), &v, shape))
+    let interactive = shape.is_some_and(|s| s.interactive);
+    let mut res = page(&app, &headers, &q, |r, _| buildkiosk_web::drawings::viewer(r, Id::new(id), Id::new(did), &v, shape));
+    if interactive {
+        res.headers_mut().insert("content-security-policy", HeaderValue::from_static(VIEWER_CSP));
+    }
+    res
 }
 
 /// A sheet page as a picture: a PDF page drawn at the width asked for, or the picture itself.
@@ -2400,6 +2419,20 @@ async fn not_found(State(app): State<Shared>, headers: HeaderMap) -> Response {
     if res.status() == StatusCode::OK {
         *res.status_mut() = StatusCode::NOT_FOUND;
     }
+    res
+}
+
+/// What the sheet viewer page is allowed: its own script and WebAssembly module (nothing inline, nothing
+/// from elsewhere), and fetching the sheet file from this server.
+const VIEWER_CSP: &str = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; style-src 'self'; img-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
+
+/// A file built into the server (or "not found" when this build has none).
+fn embedded(bytes: Option<&'static [u8]>, kind: &'static str) -> Response {
+    let Some(bytes) = bytes else { return plain(StatusCode::NOT_FOUND, "Not found") };
+    let mut res = Bytes::from_static(bytes).into_response();
+    res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static(kind));
+    // Not fingerprinted, so it is checked again within the hour.
+    res.headers_mut().insert("cache-control", HeaderValue::from_static("public, max-age=3600"));
     res
 }
 

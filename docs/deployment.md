@@ -109,6 +109,12 @@ then start the server. All sessions stay valid because `instance.json` is restor
 `buildkiosk check --data DIR` replays every company from its snapshot and journal and prints the rows per table.
 Run it after a restore, before an upgrade, or after a crash if you want reassurance.
 
+## Building a release
+
+`cargo xtask viewer` then `cargo build -p buildkiosk --release`. The first builds the browser sheet viewer
+(WebAssembly) and the second embeds it in the binary; without the first step the binary still works and sheets are
+shown by the pages the server draws. Behind a proxy, allow `application/wasm` and serve `/static/viewer/*` as is.
+
 ## Upgrades
 
 1. `buildkiosk backup` the data.

@@ -2401,6 +2401,27 @@ async fn sheet_viewer_markup_and_compare() {
     let (_, _, other_rev) = send(&app, get("/projects/1/drawings/1/view?rev=A")).await;
     assert!(!other_rev.contains("Check this door"), "markups belong to their revision");
 
+    // The browser viewer (WebAssembly) is offered only by a build that carries it, and only its own
+    // page may run scripts.
+    let csp = |h: &HeaderMap| h.get("content-security-policy").and_then(|v| v.to_str().ok()).unwrap_or_default().to_string();
+    let (_, vh, vpage) = send(&app, get("/projects/1/drawings/1/view")).await;
+    let (st, ..) = send(&app, get("/static/viewer/viewer_bg.wasm")).await;
+    let (_, ph, _) = send(&app, get("/projects/1/drawings")).await;
+    assert!(csp(&ph).contains("script-src 'none'"), "{}", csp(&ph));
+    if viewer_assets::START_JS.is_some() {
+        assert_eq!(st, StatusCode::OK);
+        assert!(vpage.contains("id=\"wasm-viewer\"") && vpage.contains("data-file=\"/projects/1/drawings/1/files/"), "{vpage}");
+        assert!(vpage.contains("&quot;kind&quot;:&quot;pin&quot;") && vpage.contains("data-can-mark=\"1\""), "{vpage}");
+        assert!(vpage.contains("src=\"/static/viewer/start.js\"") && vpage.contains("id=\"mk-x\""), "{vpage}");
+        assert!(csp(&vh).contains("script-src 'self' 'wasm-unsafe-eval'") && !csp(&vh).contains("unsafe-inline"), "{}", csp(&vh));
+        // A comparison is a picture the server draws, so it keeps the strict policy.
+        let (_, ch, cpage) = send(&app, get("/projects/1/drawings/1/view?compare=A")).await;
+        assert!(csp(&ch).contains("script-src 'none'") && !cpage.contains("wasm-viewer"));
+    } else {
+        assert_eq!(st, StatusCode::NOT_FOUND);
+        assert!(!vpage.contains("wasm-viewer") && csp(&vh).contains("script-src 'none'"), "{vpage}");
+    }
+
     // Compare: the old position is blue, the new one red.
     let res = router(app.clone()).oneshot(get("/projects/1/drawings/1/compare.png?a=A&b=B&page=1&w=800")).await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);

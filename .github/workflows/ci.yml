@@ -42,3 +42,27 @@ jobs:
           key: ci
       - name: cargo xtask ci
         run: cargo xtask ci
+
+  # The browser sheet viewer (WebAssembly): built with the generated loader, embedded in the server, and the
+  # server's viewer test run against that build.
+  viewer:
+    name: cargo xtask viewer
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.0
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: viewer
+      - name: wasm-bindgen-cli at the version in Cargo.lock
+        run: |
+          V=$(grep -A1 '^name = "wasm-bindgen"$' Cargo.lock | sed -n 's/^version = "\(.*\)"/\1/p')
+          cargo install wasm-bindgen-cli --version "$V" --locked
+      - name: cargo xtask viewer
+        run: cargo xtask viewer
+      - name: Server test with the viewer embedded
+        run: cargo test -p buildkiosk-server sheet_viewer

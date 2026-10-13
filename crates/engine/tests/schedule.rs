@@ -3,6 +3,7 @@
 
 use buildkiosk_core::Date;
 use buildkiosk_engine::sched;
+use buildkiosk_model::Choice;
 use buildkiosk_testkit::World;
 use serde_json::{Value, json};
 
@@ -113,5 +114,154 @@ fn summary_tasks_roll_up_and_import() {
     w.err(pm, "schedule.import", json!({"project": p, "text": "A, One, not-a-date"}));
     w.err(pm, "schedule.import", json!({"project": p, "text": "A, One, 2026-11-02, , , Z"}));
     assert_eq!(w.ok(pm, "schedule.list", json!({"project": p})).as_array().unwrap().len(), 6);
+    w.assert_replay();
+}
+
+#[test]
+fn link_text_is_read_and_written() {
+    use buildkiosk_model::schedule::LinkKind::{FinishToFinish as FF, FinishToStart as FS, StartToFinish as SF, StartToStart as SS};
+    for (text, want) in
+        [("3", (3, FS, 0)), ("5+2", (5, FS, 2)), ("7SS", (7, SS, 0)), ("4ff-1", (4, FF, -1)), ("#6 SF + 3", (6, SF, 3)), (" 8 fs ", (8, FS, 0))]
+    {
+        assert_eq!(sched::parse_link(text), Ok(want), "{text}");
+    }
+    for bad in ["", "x", "3XX", "3+", "3++1", "3 5", "3+5000", "SS", "-2"] {
+        assert!(sched::parse_link(bad).is_err(), "{bad:?}");
+    }
+    for (n, k, lag, text) in [(5, FS, 0, "5"), (5, FS, 2, "5+2"), (7, SS, 0, "7SS"), (4, FF, -1, "4FF-1"), (6, SF, 3, "6SF+3")] {
+        assert_eq!(sched::format_link(n, k, lag), text);
+        assert_eq!(sched::parse_link(text), Ok((n, k, lag)));
+    }
+}
+
+#[test]
+fn calendars_change_what_a_working_day_is() {
+    use buildkiosk_model::schedule::{Holiday, WorkCalendar};
+    let six = WorkCalendar { days: [true, true, true, true, true, true, false], holidays: vec![] };
+    assert_eq!(sched::shift_in(&six, d("2026-10-16"), 1), Some(d("2026-10-17")), "Saturday is worked");
+    assert_eq!(sched::shift_in(&six, d("2026-10-12"), 6), Some(d("2026-10-19")), "a week of six days");
+    assert_eq!(sched::days_inclusive_in(&six, d("2026-10-12"), d("2026-10-18")), 6);
+
+    let off = |date: &str, name: &str| Holiday { date: d(date), name: name.into() };
+    let hol = WorkCalendar { holidays: vec![off("2026-10-12", "Columbus Day"), off("2026-10-14", "")], ..WorkCalendar::default() };
+    assert_eq!(sched::shift_in(&hol, d("2026-10-09"), 1), Some(d("2026-10-13")), "Monday is off");
+    assert_eq!(sched::shift_in(&hol, d("2026-10-12"), 0), Some(d("2026-10-13")), "a start on a day off moves on");
+    assert_eq!(sched::shift_in(&hol, d("2026-10-13"), -1), Some(d("2026-10-09")));
+    assert_eq!(sched::shift_in(&hol, d("2026-10-13"), 2), Some(d("2026-10-16")), "Wednesday is off too");
+    assert_eq!(sched::days_inclusive_in(&hol, d("2026-10-09"), d("2026-10-16")), 4, "Fri, Tue, Thu, Fri");
+    // A holiday on a weekend takes nothing away.
+    let wk = WorkCalendar { holidays: vec![off("2026-10-17", "")], ..WorkCalendar::default() };
+    assert_eq!(sched::days_inclusive_in(&wk, d("2026-10-12"), d("2026-10-18")), 5);
+    // No working days at all is no calendar.
+    let none = WorkCalendar { days: [false; 7], holidays: vec![] };
+    assert_eq!((sched::shift_in(&none, d("2026-10-12"), 1), none.is_valid()), (None, false));
+    // The same answer whether weeks are skipped or counted day by day.
+    for n in [0, 1, 4, 5, 6, 11, 40] {
+        let by_hand = (0..n).fold(d("2026-10-12"), |day, _| sched::shift(day, 1).unwrap());
+        assert_eq!(sched::shift(d("2026-10-12"), n), Some(by_hand), "{n}");
+    }
+}
+
+#[test]
+fn start_to_start_finish_to_finish_and_start_to_finish_links() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    // 1: Mon 12 to Fri 16 Oct.
+    w.ok(pm, "schedule.add", json!({"project": p, "name": "Pour slab", "start": "2026-10-12", "days": 5}));
+    // Starts two working days after 1 starts (Wed 14).
+    w.ok(pm, "schedule.add", json!({"project": p, "name": "Rebar", "start": "2026-10-12", "days": 3, "predecessors": "1SS+2"}));
+    // Finishes when 1 finishes (Fri 16), so starts Thu 15.
+    w.ok(pm, "schedule.add", json!({"project": p, "name": "Inspect", "start": "2026-10-12", "days": 2, "predecessors": "1FF"}));
+    // Can't finish before 1 starts: three days ending Mon 12 start Thu 8, so no conflict at the start of the 12th.
+    w.ok(pm, "schedule.add", json!({"project": p, "name": "Prep", "start": "2026-10-12", "days": 3, "predecessors": "1SF"}));
+    // The usual kind with a lag: Tue 20.
+    w.ok(pm, "schedule.add", json!({"project": p, "name": "Frame", "start": "2026-10-20", "days": 1, "predecessors": "1+1"}));
+    w.err(pm, "schedule.add", json!({"project": p, "name": "Bad", "start": "2026-10-12", "predecessors": "1XX"}));
+
+    let list = w.ok(pm, "schedule.list", json!({"project": p}));
+    assert_eq!(
+        [2, 3, 4, 5].map(|n| row(&list, n)["conflict"].as_bool().unwrap()),
+        [true, true, false, false],
+        "Rebar starts before 1 has begun two days; Inspect finishes before 1 does"
+    );
+    let out = w.ok(pm, "schedule.recalculate", json!({"project": p}));
+    assert_eq!(out["moved"], 2);
+    let list = w.ok(pm, "schedule.list", json!({"project": p}));
+    let span = |n| (row(&list, n)["start"].as_str().unwrap().to_string(), row(&list, n)["finish"].as_str().unwrap().to_string());
+    assert_eq!(span(2), ("2026-10-14".into(), "2026-10-16".into()));
+    assert_eq!(span(3), ("2026-10-15".into(), "2026-10-16".into()));
+    assert_eq!(span(4), ("2026-10-12".into(), "2026-10-14".into()), "already allowed, so not moved");
+    // 1 leads to Frame by a finish-to-start link, so it is critical; Rebar can slip until the project ends.
+    assert_eq!((row(&list, 1)["critical"].as_bool(), row(&list, 1)["float"].as_i64()), (Some(true), Some(0)));
+    assert_eq!(row(&list, 2)["float"], 2);
+    assert_eq!(w.ok(pm, "schedule.get", json!({"project": p, "id": 3}))["predecessors"][0]["kind"], "ff");
+    w.assert_replay();
+}
+
+#[test]
+fn working_calendar_and_look_ahead() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let reader = w.member(p, "Rae", "Reader", "Read only");
+    assert_eq!(w.ok(reader, "schedule.calendar", json!({"project": p}))["days"], json!([true, true, true, true, true, false, false]));
+
+    w.err(reader, "schedule.calendar_set", json!({"project": p, "holidays": "2026-10-14"}));
+    for bad in [
+        json!({"days": "none"}),
+        json!({"days": "fri-mon"}),
+        json!({"days": ""}),
+        json!({"holidays": "next tuesday"}),
+        json!({"holidays": "2026-10-14\n2026-10-14 again"}),
+    ] {
+        let mut params = bad.clone();
+        params["project"] = json!(p);
+        w.err(pm, "schedule.calendar_set", params);
+    }
+    w.ok(pm, "schedule.calendar_set", json!({"project": p, "days": "mon-fri", "holidays": "2026-10-19 Plant shutdown\n2026-10-14 Founders Day"}));
+    let cal = w.ok(pm, "schedule.calendar", json!({"project": p}));
+    assert_eq!(
+        (cal["holidays"][0]["date"].as_str(), cal["holidays"][1]["name"].as_str()),
+        (Some("2026-10-14"), Some("Plant shutdown")),
+        "kept in date order"
+    );
+
+    // Three working days from Monday skip the Wednesday off.
+    w.ok(pm, "schedule.add", json!({"project": p, "name": "Dig", "start": "2026-10-12", "days": 3, "company": null}));
+    w.ok(pm, "schedule.add", json!({"project": p, "name": "Pour", "start": "2026-10-20", "days": 2, "percent": 50}));
+    w.ok(pm, "schedule.add", json!({"project": p, "name": "Done", "start": "2026-10-12", "days": 1, "percent": 100}));
+    let list = w.ok(pm, "schedule.list", json!({"project": p}));
+    assert_eq!((row(&list, 1)["finish"].as_str(), row(&list, 1)["duration"].as_i64()), (Some("2026-10-15"), Some(3)));
+
+    // The look ahead: week one is the 12th to the 18th, week two the 19th to the 25th; finished work is left out.
+    let la = w.ok(reader, "schedule.lookahead", json!({"project": p, "from": "2026-10-12", "weeks": 2}));
+    let names = |i: usize| la["weeks"][i]["tasks"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap().to_string()).collect::<Vec<_>>();
+    assert_eq!((names(0), names(1)), (vec!["Dig".to_string()], vec!["Pour".to_string()]));
+    assert_eq!(la["weeks"][1]["start"], "2026-10-19");
+    w.err(reader, "schedule.lookahead", json!({"project": p, "weeks": 13}));
+
+    // Changing the calendar later leaves dates alone; a task that no longer fits is flagged.
+    w.ok(pm, "schedule.calendar_set", json!({"project": p, "holidays": ""}));
+    assert_eq!(w.ok(pm, "schedule.calendar", json!({"project": p}))["holidays"], json!([]));
+    w.assert_replay();
+}
+
+#[test]
+fn imported_links_carry_kinds() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    w.ok(
+        pm,
+        "schedule.import",
+        json!({"project": p, "text": "a, Dig, 2026-10-12, 2026-10-14, 0, ,\nb, Form, 2026-10-14, 2026-10-16, 0, aSS+1,\nc, Pour, 2026-10-15, 2026-10-16, 0, bff-1;a,"}),
+    );
+    let kinds = |n: u64| {
+        let id = w.engine.state().schedule_tasks.iter().find(|t| t.number == n as u32).unwrap().predecessors.clone();
+        id.iter().map(|l| (l.kind.key(), l.lag)).collect::<Vec<_>>()
+    };
+    assert_eq!(kinds(2), vec![("ss", 1)]);
+    assert_eq!(kinds(3), vec![("ff", -1), ("fs", 0)]);
     w.assert_replay();
 }

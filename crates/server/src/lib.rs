@@ -314,6 +314,20 @@ pub fn router(app: Shared) -> Router {
             .route("/projects/{id}/estimating/{eid}/csv", get(estimate_csv))
             .route("/projects/{id}/schedule", get(schedule_page))
             .route("/projects/{id}/schedule.csv", get(schedule_csv))
+            .route(
+                "/projects/{id}/schedule/calendar",
+                get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, Query(q): Q| async move {
+                    page(&s.0, &h, &q, |r, _| buildkiosk_web::schedule::calendar(r, Id::new(id)))
+                }),
+            )
+            .route(
+                "/projects/{id}/schedule/lookahead",
+                get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, Query(q): Q| async move {
+                    let weeks = q.get("weeks").and_then(|w| w.trim().parse::<i64>().ok()).unwrap_or(3);
+                    let from = q.get("from").and_then(|f| buildkiosk_core::Date::parse(f.trim()));
+                    page(&s.0, &h, &q, |r, _| buildkiosk_web::schedule::lookahead(r, Id::new(id), weeks, from))
+                }),
+            )
             .route("/projects/{id}/schedule/{tid}", get(schedule_task_page))
             .route("/projects/{id}/drawings", get(drawings_page))
             .route("/projects/{id}/drawings.csv", get(drawings_csv))

@@ -4,6 +4,7 @@
 use std::collections::HashMap;
 
 use buildkiosk_core::{Date, Id};
+use buildkiosk_engine::model::Choice;
 use buildkiosk_engine::model::project::Project;
 use buildkiosk_engine::model::schedule::ScheduleTask;
 use buildkiosk_engine::model::{Level, Tool};
@@ -98,8 +99,8 @@ pub fn page(req: &Req<'_>, id: Id<Project>, filter: &str) -> Markup {
     vendors.sort_by_key(|v| v.name.to_lowercase());
     let body = html! {
         div class="page-head" {
-            div { h1 { "Schedule" } div class="sub" { "Tasks in working days (Monday to Friday), linked finish to start; the critical path is the chain with no float" } }
-            div class="actions" { a class="btn" href=(format!("{base}.pdf")) { "PDF" } a class="btn" href=(format!("{base}.csv")) { "Export CSV" } }
+            div { h1 { "Schedule" } div class="sub" { "Tasks in working days (" (days_text(&sched::calendar(state, id).days)) "), linked finish to start (or start to start, finish to finish, start to finish); the critical path is the chain with no float" } }
+            div class="actions" { a class="btn" href=(format!("{base}/lookahead")) { "Look ahead" } a class="btn" href=(format!("{base}/calendar")) { "Calendar" } a class="btn" href=(format!("{base}.pdf")) { "PDF" } a class="btn" href=(format!("{base}.csv")) { "Export CSV" } }
         }
         @if !all.is_empty() {
             div class="stat-row" {
@@ -204,12 +205,7 @@ pub fn page(req: &Req<'_>, id: Id<Project>, filter: &str) -> Markup {
 fn links_text(t: &ScheduleTask, state: &buildkiosk_engine::model::CompanyState) -> String {
     t.predecessors
         .iter()
-        .filter_map(|l| state.schedule_tasks.get(l.task).filter(|x| x.deleted.is_none()).map(|x| (x.number, l.lag)))
-        .map(|(n, lag)| match lag {
-            0 => n.to_string(),
-            l if l > 0 => format!("{n}+{l}"),
-            l => format!("{n}{l}"),
-        })
+        .filter_map(|l| state.schedule_tasks.get(l.task).filter(|x| x.deleted.is_none()).map(|x| sched::format_link(x.number, l.kind, l.lag)))
         .collect::<Vec<_>>()
         .join(", ")
 }
@@ -229,7 +225,7 @@ fn task_fields(
             (field("Name", "t_name", true, true, html! { input type="text" id="t_name" name="name" value=(current.map(|t| t.name.as_str()).unwrap_or_default()) required; }))
             (field("Start", "t_start", true, false, html! { input type="date" id="t_start" name="start" value=(current.map(|t| t.start.to_string()).unwrap_or_default()) required; }))
             (field("Working days", "t_days", false, false, html! { input type="number" id="t_days" name="days" min="1" max="5000" value=(days); }))
-            (field("Predecessors (task numbers, e.g. 3, 5+2)", "t_preds", false, false, html! { input type="text" id="t_preds" name="predecessors" value=(current.map(|t| links_text(t, state)).unwrap_or_default()); }))
+            (field("Predecessors (task numbers with an optional kind and lag, e.g. 3, 5+2, 7SS, 4FF-1)", "t_preds", false, false, html! { input type="text" id="t_preds" name="predecessors" value=(current.map(|t| links_text(t, state)).unwrap_or_default()); }))
             (field("Part of (summary task)", "t_parent", false, false, html! { select id="t_parent" name="parent" {
                 option value="" { "Top level" }
                 @for x in parents.iter().filter(|x| Some(x.id) != current.map(|c| c.id)) { option value=(x.id) selected[current.is_some_and(|c| c.parent == Some(x.id))] { (x.number) " " (x.name) } }
@@ -272,7 +268,7 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, tid: Id<ScheduleTask>) -> Markup {
         }
         div class="card" {
             h2 { "Links" }
-            p { "Follows: " @if t.predecessors.is_empty() { span class="muted" { "nothing" } } @for l in &t.predecessors { @if let Some(x) = by_id.get(&l.task) { a href=(format!("{base}/{}", x.id)) { (x.number) " " (x.name) } @if l.lag != 0 { " (" (format!("{:+}", l.lag)) " days)" } " " } } }
+            p { "Follows: " @if t.predecessors.is_empty() { span class="muted" { "nothing" } } @for l in &t.predecessors { @if let Some(x) = by_id.get(&l.task) { a href=(format!("{base}/{}", x.id)) { (x.number) " " (x.name) } (match (l.kind, l.lag) { (buildkiosk_engine::model::schedule::LinkKind::FinishToStart, 0) => String::new(), (k, lag) => format!(" ({}{})", k.label().to_lowercase(), if lag != 0 { format!(", {lag:+} days") } else { String::new() }) }) " " } } }
             p { "Followed by: " @if successors.is_empty() { span class="muted" { "nothing" } } @for x in &successors { a href=(format!("{base}/{}", x.id)) { (x.number) " " (x.name) } " " } }
         }
         @if req.allowed("schedule.delete", Some(id)) {
@@ -315,4 +311,120 @@ pub fn csv(req: &Req<'_>, id: Id<Project>) -> Option<String> {
         out.push_str("\r\n");
     }
     Some(out)
+}
+
+/// `mon-fri`, `mon-sat`, `mon, wed, fri`: the weekdays worked.
+pub fn days_text(days: &[bool; 7]) -> String {
+    const NAMES: [&str; 7] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+    let on: Vec<usize> = (0..7).filter(|i| days.get(*i).copied().unwrap_or(false)).collect();
+    match (on.first(), on.last()) {
+        (Some(a), Some(b)) if on.len() >= 3 && b - a + 1 == on.len() => {
+            format!("{}-{}", NAMES.get(*a).copied().unwrap_or(""), NAMES.get(*b).copied().unwrap_or(""))
+        }
+        _ => on.iter().filter_map(|i| NAMES.get(*i).copied()).collect::<Vec<_>>().join(", "),
+    }
+}
+
+/// The days work is done on: the weekdays and the holidays.
+pub fn calendar(req: &Req<'_>, id: Id<Project>) -> Markup {
+    let Some(p) = project_for(req, id) else { return not_found(req) };
+    let state = req.engine.state();
+    let lvl = view::level(state, req.actor(), id, Tool::Schedule);
+    if lvl < Level::Read {
+        return not_found(req);
+    }
+    let cal = sched::calendar(state, id);
+    let base = format!("/projects/{id}/schedule");
+    let here = format!("{base}/calendar");
+    let holidays: String =
+        cal.holidays.iter().map(|h| if h.name.is_empty() { format!("{}\n", h.date) } else { format!("{} {}\n", h.date, h.name) }).collect();
+    let body = html! {
+        div class="page-head" {
+            div { h1 { "Working calendar" } div class="sub" { "The days work is done on. Task dates and durations are counted in these days." } }
+            div class="actions" { a class="btn" href=(base.clone()) { "Back to the schedule" } }
+        }
+        div class="card" {
+            @if lvl == Level::Admin {
+                (command_form(req, "schedule.calendar_set", &here, &here, html! {
+                    input type="hidden" name="project" value=(id);
+                    (field("Weekdays worked", "cal_days", true, false, html! { input type="text" id="cal_days" name="days" value=(days_text(&cal.days)) required; }))
+                    p class="muted small" { "Such as mon-fri, mon-sat, or mon, tue, thu." }
+                    (field("Days off", "cal_holidays", false, true, html! { textarea id="cal_holidays" name="holidays" rows="10" { (holidays) } }))
+                    p class="muted small" { "One per line: a date as YYYY-MM-DD, then what it is (optional). Task dates don't move when this changes; use Recalculate on the schedule to push tasks that now start too early." }
+                    div class="form-actions" { button type="submit" class="btn primary" { "Save calendar" } }
+                }))
+            } @else {
+                p { strong { "Weekdays worked: " } (days_text(&cal.days)) }
+                @if cal.holidays.is_empty() { p class="muted" { "No days off are listed." } }
+                @for h in &cal.holidays { p { (h.date.pretty()) @if !h.name.is_empty() { " · " (h.name) } } }
+                p class="muted" { "Only a Schedule admin can change the calendar." }
+            }
+        }
+    };
+    layout::app(
+        req,
+        "Working calendar",
+        Nav::Schedule(id),
+        &[("Projects", Some("/".into())), (&p.name, Some(format!("/projects/{id}"))), ("Schedule", Some(base)), ("Calendar", None)],
+        body,
+    )
+}
+
+/// The work under way or starting in each of the next weeks.
+pub fn lookahead(req: &Req<'_>, id: Id<Project>, weeks: i64, from: Option<Date>) -> Markup {
+    let Some(p) = project_for(req, id) else { return not_found(req) };
+    let state = req.engine.state();
+    if view::level(state, req.actor(), id, Tool::Schedule) < Level::Read {
+        return not_found(req);
+    }
+    let today = req.today();
+    let from = from.unwrap_or(today);
+    let weeks = weeks.clamp(1, 12);
+    let rows = sched::rows(state, id, today);
+    let base = format!("/projects/{id}/schedule");
+    let body = html! {
+        div class="page-head" {
+            div { h1 { "Look ahead" } div class="sub" { "Work that is under way or starts in each week, and isn't finished" } }
+            div class="actions" { a class="btn" href=(base.clone()) { "Back to the schedule" } }
+        }
+        div class="viewer-bar" {
+            span class="muted" { "Weeks" }
+            @for n in [2i64, 3, 4, 6, 12] {
+                a class=(if weeks == n { "chip active" } else { "chip" }) href=(format!("{base}/lookahead?weeks={n}&from={from}")) { (n) }
+            }
+            span class="muted" { "from " (from.pretty()) }
+        }
+        @for i in 0..weeks {
+            @if let (Some(start), Some(end)) = (from.add_days(i * 7), from.add_days(i * 7 + 6)) {
+                @let tasks: Vec<&Row> = rows.iter().filter(|r| !r.summary && r.start <= end && r.finish >= start && (r.percent < 100 || r.milestone)).collect();
+                div class="card" {
+                    h2 { "Week " (i + 1) " · " (short(start)) " to " (short(end)) }
+                    @if tasks.is_empty() { p class="muted" { "Nothing scheduled." } } @else {
+                        div class="table-wrap" { table class="data" {
+                            thead { tr { th { "Task" } th { "Dates" } th { "Done" } th { "Company" } th { "" } } }
+                            tbody {
+                                @for r in tasks {
+                                    @let company = state.schedule_tasks.get(r.id).and_then(|t| t.company).and_then(|c| state.vendors.get(c)).map(|c| c.name.clone()).unwrap_or_default();
+                                    tr {
+                                        td { a href=(format!("{base}/{}", r.id)) { (r.number) " " (r.name) } }
+                                        td { (short(r.start)) @if r.finish != r.start { " to " (short(r.finish)) } }
+                                        td { (r.percent) "%" }
+                                        td { (company) }
+                                        td { @if r.critical { span class="pill red" { "Critical" } } " " @if r.late { span class="pill amber" { "Late" } } }
+                                    }
+                                }
+                            }
+                        } }
+                    }
+                }
+            }
+        }
+    };
+    layout::app(
+        req,
+        "Look ahead",
+        Nav::Schedule(id),
+        &[("Projects", Some("/".into())), (&p.name, Some(format!("/projects/{id}"))), ("Schedule", Some(base)), ("Look ahead", None)],
+        body,
+    )
 }

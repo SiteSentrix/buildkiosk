@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use buildkiosk_core::{Date, Id, text};
 use buildkiosk_model::directory::Vendor;
 use buildkiosk_model::project::Project;
-use buildkiosk_model::schedule::{Link, ScheduleTask};
+use buildkiosk_model::schedule::{Holiday, Link, LinkKind, MAX_HOLIDAYS, ScheduleTask, WorkCalendar};
 use buildkiosk_model::{Level, Tool};
 use serde_json::{Value, json};
 
@@ -26,7 +26,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         Access::Project(Level::Standard),
         concat!(
             "project: project id; ",
-            "name: text; parent?: parent task id (empty for top level); start: YYYY-MM-DD; finish?: YYYY-MM-DD; days?: working days (when finish is blank; default 1); milestone?: bool; percent?: 0-100; predecessors?: text such as `3, 5+2, 7-1` (task numbers, with lag in working days); company?: company id; notes?: text"
+            "name: text; parent?: parent task id (empty for top level); start: YYYY-MM-DD; finish?: YYYY-MM-DD; days?: working days (when finish is blank; default 1); milestone?: bool; percent?: 0-100; predecessors?: text such as `3, 5+2, 7SS, 4FF-1` (task numbers, each with an optional kind FS, SS, FF or SF (default FS) and an optional lag in working days); company?: company id; notes?: text"
         ),
         add,
     ),
@@ -86,6 +86,31 @@ pub const COMMANDS: &[CommandSpec] = &[
         "project: project id; text: lines of `id, name, start, finish, percent, predecessors, parent` (comma or tab separated; predecessors separated by ; and may carry a lag such as 4+2; ids are the file's own and are renumbered)",
         import,
     ),
+    CommandSpec::mutate(
+        "schedule.calendar_set",
+        "Set the project's working days and holidays",
+        Tool::Schedule,
+        Access::Project(Level::Admin),
+        "project: project id; days?: the weekdays worked, such as `mon-fri` or `mon, tue, wed, thu, fri, sat` (at least one); \
+         holidays?: days off, one per line as `YYYY-MM-DD name` (replaces the list; up to 400). Task dates stay as they are: run schedule.recalculate to move tasks that now start too early.",
+        calendar_set,
+    ),
+    CommandSpec::query(
+        "schedule.calendar",
+        "Get the project's working days and holidays",
+        Tool::Schedule,
+        Access::Project(Level::Read),
+        "project: project id",
+        calendar_get,
+    ),
+    CommandSpec::query(
+        "schedule.lookahead",
+        "Look ahead",
+        Tool::Schedule,
+        Access::Project(Level::Read),
+        "project: project id; weeks?: 1-12 (default 3); from?: YYYY-MM-DD (default today) (the work that is under way or starts in each week, not yet finished)",
+        lookahead,
+    ),
     CommandSpec::query(
         "schedule.list",
         "List schedule",
@@ -109,21 +134,11 @@ fn next_number(ctx: &Ctx<'_>, project: Id<Project>) -> u32 {
     ctx.state.schedule_tasks.iter().filter(|t| t.project == project).map(|t| t.number).max().unwrap_or(0).saturating_add(1)
 }
 
-/// `3, 5+2, 7-1` → links by task number.
+/// `3, 5+2, 7SS, 4FF-1` → links by task number.
 fn parse_links(ctx: &Ctx<'_>, project: Id<Project>, key: &str, raw: &str, me: Option<Id<ScheduleTask>>, p: &Params<'_>) -> Result<Vec<Link>> {
     let mut out: Vec<Link> = Vec::new();
     for part in raw.split([',', ';']).map(str::trim).filter(|s| !s.is_empty()) {
-        let (num, lag) = match part.find(['+', '-']) {
-            Some(i) => {
-                let (n, l) = part.split_at(i);
-                (n.trim(), l.trim().parse::<i32>().map_err(|_| p.bad(key, format!("`{part}`: the lag must be a whole number of days")))?)
-            }
-            None => (part, 0),
-        };
-        let num: u32 = num.trim_start_matches('#').parse().map_err(|_| p.bad(key, format!("`{part}` is not a task number")))?;
-        if !(-1_000..=1_000).contains(&lag) {
-            return Err(p.bad(key, format!("`{part}`: the lag is out of range")));
-        }
+        let (num, kind, lag) = sched::parse_link(part).map_err(|e| p.bad(key, e))?;
         let task = ctx
             .state
             .schedule_tasks
@@ -139,7 +154,7 @@ fn parse_links(ctx: &Ctx<'_>, project: Id<Project>, key: &str, raw: &str, me: Op
         if me.is_some_and(|me| sched::reaches(ctx.state, task.id, me)) {
             return Err(p.bad(key, format!("task {num} already depends on this task; that would make a loop")));
         }
-        out.push(Link { task: task.id, lag });
+        out.push(Link { task: task.id, lag, kind });
         if out.len() > 50 {
             return Err(p.bad(key, "lists more than 50 predecessors"));
         }
@@ -181,7 +196,7 @@ fn set_parent(ctx: &Ctx<'_>, project: Id<Project>, me: Option<Id<ScheduleTask>>,
     Ok(Some(parent))
 }
 
-fn dates(p: &Params<'_>, current: Option<&ScheduleTask>) -> Result<(Date, Date, bool)> {
+fn dates(cal: &WorkCalendar, p: &Params<'_>, current: Option<&ScheduleTask>) -> Result<(Date, Date, bool)> {
     let milestone = p.flag("milestone")?.unwrap_or_else(|| current.is_some_and(|t| t.milestone));
     let start = match p.date("start")? {
         Some(d) => d,
@@ -192,12 +207,12 @@ fn dates(p: &Params<'_>, current: Option<&ScheduleTask>) -> Result<(Date, Date, 
     } else if let Some(f) = p.date("finish")? {
         f
     } else if let Some(days) = p.int("days", 1..=5_000)? {
-        sched::shift(start, days - 1).ok_or_else(|| p.bad("days", "runs past the supported dates"))?
+        sched::shift_in(cal, start, days - 1).ok_or_else(|| p.bad("days", "runs past the supported dates"))?
     } else if let Some(t) = current {
         // Keep the task's length when only the start moved.
         if p.present("start") {
-            let len = sched::days_inclusive(t.start, t.finish).max(1);
-            sched::shift(start, len - 1).ok_or_else(|| p.bad("start", "runs past the supported dates"))?
+            let len = sched::days_inclusive_in(cal, t.start, t.finish).max(1);
+            sched::shift_in(cal, start, len - 1).ok_or_else(|| p.bad("start", "runs past the supported dates"))?
         } else {
             t.finish
         }
@@ -235,7 +250,7 @@ fn add(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     }
     let name = p.req_line("name", text::SHORT)?;
     let parent = set_parent(ctx, project, None, p)?;
-    let (start, finish, milestone) = dates(p, None)?;
+    let (start, finish, milestone) = dates(&sched::calendar(ctx.state, project), p, None)?;
     let predecessors = if p.present("predecessors") {
         parse_links(ctx, project, "predecessors", &p.text_or_empty("predecessors", 500)?, None, p)?
     } else {
@@ -277,7 +292,7 @@ fn update(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         t.parent = set_parent(ctx, project, Some(id), p)?;
     }
     if p.present("start") || p.present("finish") || p.present("days") || p.present("milestone") {
-        let (s, f, m) = dates(p, Some(&t))?;
+        let (s, f, m) = dates(&sched::calendar(ctx.state, project), p, Some(&t))?;
         (t.start, t.finish, t.milestone) = (s, f, m);
     }
     if p.present("predecessors") {
@@ -332,6 +347,7 @@ fn restore(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
 
 fn recalculate(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     let project: Id<Project> = p.id("project")?;
+    let cal = sched::calendar(ctx.state, project);
     // Repeat until nothing moves; every pass settles at least one more level of the chain.
     let mut moved: HashMap<Id<ScheduleTask>, ()> = HashMap::new();
     for _ in 0..=MAX_TASKS.min(200) {
@@ -339,10 +355,10 @@ fn recalculate(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         let by_id: HashMap<Id<ScheduleTask>, &ScheduleTask> = tasks.iter().map(|t| (t.id, t)).collect();
         let mut changed = false;
         for t in &tasks {
-            let need = t.predecessors.iter().filter_map(|l| by_id.get(&l.task).and_then(|p| sched::earliest_start(p.finish, l.lag))).max();
+            let need = sched::earliest_by_links(&cal, t, &by_id);
             let Some(need) = need.filter(|n| *n > t.start) else { continue };
-            let len = if t.milestone { 1 } else { sched::days_inclusive(t.start, t.finish).max(1) };
-            let Some(finish) = sched::shift(need, len - 1) else { continue };
+            let len = if t.milestone { 1 } else { sched::days_inclusive_in(&cal, t.start, t.finish).max(1) };
+            let Some(finish) = sched::shift_in(&cal, need, len - 1) else { continue };
             let finish = if t.milestone { need } else { finish };
             ctx.state.schedule_tasks.update(t.id, |x| {
                 x.start = need;
@@ -461,19 +477,36 @@ fn import(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     for (r, id) in rows.iter().zip(&made) {
         let mut links = Vec::new();
         for part in r.preds.split(';').map(str::trim).filter(|s| !s.is_empty()) {
-            let (num, lag) = match part.find(['+', '-']) {
+            // The file's own ids may be any text, so a kind (`SS`, `FF`, `SF`, `FS`) is only read when the id before it is known.
+            let (token, lag) = match part.find(['+', '-']) {
                 Some(i) => {
                     let (n, l) = part.split_at(i);
-                    (n.trim(), l.trim().parse::<i32>().map_err(|_| p.bad("text", format!("task {}: `{part}` has a bad lag", r.file_id)))?)
+                    (
+                        n.trim(),
+                        l.trim().replace(' ', "").parse::<i32>().map_err(|_| p.bad("text", format!("task {}: `{part}` has a bad lag", r.file_id)))?,
+                    )
                 }
                 None => (part, 0),
+            };
+            if !(-1_000..=1_000).contains(&lag) {
+                return Err(p.bad("text", format!("task {}: `{part}`: the lag is out of range", r.file_id)));
+            }
+            let (num, kind) = match map.get(token) {
+                Some(_) => (token, LinkKind::FinishToStart),
+                None => {
+                    let cut = token.len().saturating_sub(2);
+                    match (token.get(..cut), token.get(cut..).and_then(buildkiosk_model::Choice::parse)) {
+                        (Some(id), Some(kind)) if map.contains_key(id) => (id, kind),
+                        _ => (token, LinkKind::FinishToStart),
+                    }
+                }
             };
             let pred = *map.get(num).ok_or_else(|| p.bad("text", format!("task {}: predecessor {num} is not in the file", r.file_id)))?;
             if pred == *id || sched::reaches(ctx.state, pred, *id) {
                 return Err(p.bad("text", format!("task {}: predecessor {num} would make a loop", r.file_id)));
             }
             if !links.iter().any(|l: &Link| l.task == pred) {
-                links.push(Link { task: pred, lag });
+                links.push(Link { task: pred, lag, kind });
             }
         }
         let parent = if r.parent.is_empty() {
@@ -493,6 +526,105 @@ fn import(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         }
     }
     Ok(json!({ "added": made.len() }))
+}
+
+/// `mon-fri`, `mon, wed, fri`, `monday`: the weekdays named, Monday first.
+fn parse_days(p: &Params<'_>, raw: &str) -> Result<[bool; 7]> {
+    const NAMES: [&str; 7] = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+    // Three letters or more of a weekday's name: `mon`, `tues`, `Wednesday`.
+    let day = |name: &str| -> Result<usize> {
+        let n = name.trim().to_ascii_lowercase();
+        NAMES.iter().position(|full| n.len() >= 3 && full.starts_with(&n)).ok_or_else(|| p.bad("days", format!("`{name}` is not a weekday")))
+    };
+    let mut days = [false; 7];
+    for part in raw.split([',', ';', ' ']).map(str::trim).filter(|s| !s.is_empty()) {
+        match part.split_once('-') {
+            Some((a, b)) => {
+                let (a, b) = (day(a)?, day(b)?);
+                if a > b {
+                    return Err(p.bad("days", format!("`{part}`: a range runs from an earlier weekday to a later one (Monday first)")));
+                }
+                for flag in days.iter_mut().take(b + 1).skip(a) {
+                    *flag = true;
+                }
+            }
+            None => {
+                if let Some(flag) = days.get_mut(day(part)?) {
+                    *flag = true;
+                }
+            }
+        }
+    }
+    if !days.iter().any(|d| *d) {
+        return Err(p.bad("days", "needs at least one working day"));
+    }
+    Ok(days)
+}
+
+fn calendar_set(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let mut cal = sched::calendar(ctx.state, project);
+    if p.present("days") {
+        cal.days = parse_days(p, &p.text_or_empty("days", 200)?)?;
+    }
+    if p.present("holidays") {
+        let raw = p.text_or_empty("holidays", 20_000)?;
+        let mut list: Vec<Holiday> = Vec::new();
+        for line in raw.lines().map(str::trim).filter(|l| !l.is_empty()) {
+            let (date, name) = line.split_once(char::is_whitespace).unwrap_or((line, ""));
+            let date = Date::parse(date).ok_or_else(|| p.bad("holidays", format!("`{line}`: start each line with a date as YYYY-MM-DD")))?;
+            let name: String = name.trim().chars().take(100).collect();
+            if list.iter().any(|h| h.date == date) {
+                return Err(p.bad("holidays", format!("{date} is listed twice")));
+            }
+            list.push(Holiday { date, name });
+            if list.len() > MAX_HOLIDAYS {
+                return Err(p.bad("holidays", format!("lists more than {MAX_HOLIDAYS} days off")));
+            }
+        }
+        list.sort_by_key(|h| h.date);
+        cal.holidays = list;
+    }
+    if !cal.is_valid() {
+        return Err(p.bad("days", "needs at least one working day"));
+    }
+    ctx.state.projects.update(project, |x| x.calendar = cal);
+    Ok(json!({ "id": project }))
+}
+
+fn calendar_get(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    in_project_exists(v, project)?;
+    json(&sched::calendar(v.state, project))
+}
+
+fn in_project_exists(v: &View<'_>, project: Id<Project>) -> Result<()> {
+    v.state.projects.get(project).map(|_| ()).ok_or_else(|| EngineError::not_found("project not found"))
+}
+
+fn lookahead(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    in_project_exists(v, project)?;
+    let weeks = p.int("weeks", 1..=12)?.unwrap_or(3);
+    let from = p.date("from")?.unwrap_or_else(|| v.today());
+    let rows = sched::rows(v.state, project, v.today());
+    let mut out = Vec::new();
+    for i in 0..weeks {
+        let (Some(start), Some(end)) = (from.add_days(i * 7), from.add_days(i * 7 + 6)) else { break };
+        let tasks: Vec<Value> = rows
+            .iter()
+            .filter(|r| !r.summary && r.start <= end && r.finish >= start && (r.percent < 100 || r.milestone))
+            .map(|r| {
+                let company = v.state.schedule_tasks.get(r.id).and_then(|t| t.company).and_then(|c| v.state.vendors.get(c)).map(|c| c.name.clone());
+                json!({
+                    "number": r.number, "name": r.name, "start": r.start, "finish": r.finish, "percent": r.percent, "milestone": r.milestone,
+                    "critical": r.critical, "late": r.late, "company": company,
+                })
+            })
+            .collect();
+        out.push(json!({ "start": start, "end": end, "tasks": tasks }));
+    }
+    Ok(json!({ "from": from, "weeks": out }))
 }
 
 fn list(v: &View<'_>, p: &Params<'_>) -> Result<Value> {

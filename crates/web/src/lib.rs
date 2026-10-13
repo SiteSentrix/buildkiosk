@@ -10,6 +10,7 @@ pub mod account;
 pub mod action_plans;
 pub mod bidding;
 pub mod catalog;
+pub mod company_reports;
 pub mod correspondence;
 pub mod daily_logs;
 pub mod documents;

@@ -556,7 +556,16 @@ pub(super) fn import_body(ctx: &mut Ctx<'_>, project: Id<Project>, body: &str, p
             continue;
         }
         let sep = if line.contains('\t') { '\t' } else { ',' };
-        let cells: Vec<&str> = line.split(sep).map(|c| c.trim().trim_matches('"')).collect();
+        // Quotes around a whole cell are CSV quoting; in tab-separated text (what an XML import makes) a quote is part of the name.
+        let unquote = |c: &str| -> String {
+            let c = c.trim();
+            match (sep, c.strip_prefix('"').and_then(|x| x.strip_suffix('"'))) {
+                (',', Some(inner)) => inner.to_string(),
+                _ => c.to_string(),
+            }
+        };
+        let owned: Vec<String> = line.split(sep).map(unquote).collect();
+        let cells: Vec<&str> = owned.iter().map(String::as_str).collect();
         let cell = |i: usize| cells.get(i).copied().unwrap_or("");
         let at = |what: &str, e: String| p.bad("text", format!("line {}: {what} {e}", n + 1));
         if cell(0).eq_ignore_ascii_case("id") {

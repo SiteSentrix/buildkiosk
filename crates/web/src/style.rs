@@ -123,6 +123,14 @@ button.chip{font:inherit;font-size:13px;cursor:pointer}
 .swatch.red{background:#dc1e1e}.swatch.blue{background:#1e5adc}.swatch.gray{background:#bebebe}
 .notice:empty{display:none}
 .notice{padding:8px 12px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border)}
+fieldset{border:0;padding:0;margin:12px 0}
+fieldset legend{font-weight:600;margin-bottom:6px}
+fieldset>.options{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px 16px}
+.chart svg{width:100%;height:auto;max-width:760px}
+.chart .bar{fill:var(--primary)}
+.chart .bar.bad{fill:var(--danger)}
+.chart .chart-label,.chart .chart-value{font-size:12px;fill:var(--text)}
+.chart .axis{stroke:var(--border);stroke-width:1}
 table.data tr.subtotal td{font-weight:600;border-top:1px solid var(--border)}
 table.data tr.group-row th{text-transform:none;font-size:14px;letter-spacing:0;color:var(--text);background:var(--surface-2);border-top:1px solid var(--border)}
 table.data td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:top}

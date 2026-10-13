@@ -1,4 +1,5 @@
-//! Importing a schedule saved as a project-planning XML file (the public Microsoft Project XML format).
+//! Importing a schedule saved as a project-planning XML file (the public Microsoft Project XML format),
+//! and writing one.
 //!
 //! The file is turned into the lines the text import reads, so the same checks apply (loops, depth, limits).
 //! What is read: each task's name, dates, percent complete, milestone flag, outline level (which makes
@@ -123,6 +124,66 @@ fn import_xml(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     let out = super::schedule::import_body(ctx, project, &lines, p)?;
     let added = out.get("added").and_then(Value::as_u64).unwrap_or(0);
     Ok(json!({ "added": added, "created": added, "skipped": skipped }))
+}
+
+/// The XML escape of text for an element or attribute.
+fn esc(s: &str) -> String {
+    s.chars()
+        .filter(|c| !c.is_control() || matches!(c, '\t' | '\n' | '\r'))
+        .flat_map(|c| match c {
+            '&' => "&amp;".chars().collect::<Vec<_>>(),
+            '<' => "&lt;".chars().collect(),
+            '>' => "&gt;".chars().collect(),
+            '"' => "&quot;".chars().collect(),
+            '\'' => "&apos;".chars().collect(),
+            c => vec![c],
+        })
+        .collect()
+}
+
+/// The schedule as a Microsoft Project XML file: the tasks in outline order with dates, percent complete,
+/// milestones, links with kind and lag, and constraints. What `import_xml` reads is what this writes.
+pub fn export_xml(state: &buildkiosk_model::CompanyState, project: buildkiosk_core::Id<Project>, today: buildkiosk_core::Date) -> String {
+    use buildkiosk_model::schedule::{Constraint, LinkKind};
+    let rows = crate::sched::rows(state, project, today);
+    let name = state.projects.get(project).map(|p| p.name.clone()).unwrap_or_default();
+    let mut out = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Project xmlns=\"http://schemas.microsoft.com/project\">\n");
+    out.push_str(&format!("  <Name>{}</Name>\n  <Tasks>\n", esc(&name)));
+    for (i, r) in rows.iter().enumerate() {
+        let Some(task) = state.schedule_tasks.get(r.id) else { continue };
+        out.push_str("    <Task>\n");
+        out.push_str(&format!("      <UID>{}</UID>\n      <ID>{}</ID>\n      <Name>{}</Name>\n", task.number, i + 1, esc(&r.name)));
+        out.push_str(&format!("      <OutlineLevel>{}</OutlineLevel>\n", r.depth + 1));
+        out.push_str(&format!("      <Start>{}T08:00:00</Start>\n      <Finish>{}T17:00:00</Finish>\n", r.start, r.finish));
+        out.push_str(&format!("      <PercentComplete>{}</PercentComplete>\n", r.percent));
+        out.push_str(&format!("      <Milestone>{}</Milestone>\n      <Summary>{}</Summary>\n", u8::from(r.milestone), u8::from(r.summary)));
+        for l in &task.predecessors {
+            let Some(pred) = state.schedule_tasks.get(l.task).filter(|p| p.deleted.is_none()) else { continue };
+            let kind = match l.kind {
+                LinkKind::FinishToFinish => 0,
+                LinkKind::FinishToStart => 1,
+                LinkKind::StartToFinish => 2,
+                LinkKind::StartToStart => 3,
+            };
+            out.push_str(&format!(
+                "      <PredecessorLink>\n        <PredecessorUID>{}</PredecessorUID>\n        <Type>{kind}</Type>\n        <LinkLag>{}</LinkLag>\n      </PredecessorLink>\n",
+                pred.number,
+                i64::from(l.lag) * LAG_PER_DAY
+            ));
+        }
+        let constraint = match (task.constraint, task.constraint_date) {
+            (Constraint::MustStartOn, Some(d)) => Some((2, d)),
+            (Constraint::StartNoEarlierThan, Some(d)) => Some((4, d)),
+            (Constraint::FinishNoLaterThan, Some(d)) => Some((7, d)),
+            _ => None,
+        };
+        if let Some((kind, d)) = constraint {
+            out.push_str(&format!("      <ConstraintType>{kind}</ConstraintType>\n      <ConstraintDate>{d}T08:00:00</ConstraintDate>\n"));
+        }
+        out.push_str("    </Task>\n");
+    }
+    out.push_str("  </Tasks>\n</Project>\n");
+    out
 }
 
 #[cfg(test)]

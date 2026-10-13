@@ -126,7 +126,7 @@ pub fn page(req: &Req<'_>, id: Id<Project>, filter: &str, drag: bool) -> Markup 
     let body = html! {
         div class="page-head" {
             div { h1 { "Schedule" } div class="sub" { "Tasks in working days (" (days_text(&sched::calendar(state, id).days)) "), linked finish to start (or start to start, finish to finish, start to finish); the critical path is the chain with no float" } }
-            div class="actions" { a class="btn" href=(format!("{base}/lookahead")) { "Look ahead" } a class="btn" href=(format!("{base}/resources")) { "Resources" } a class="btn" href=(format!("{base}/calendar")) { "Calendar" } a class="btn" href=(format!("{base}.pdf")) { "PDF" } a class="btn" href=(format!("{base}.csv")) { "Export CSV" } }
+            div class="actions" { a class="btn" href=(format!("{base}/lookahead")) { "Look ahead" } a class="btn" href=(format!("{base}/resources")) { "Resources" } a class="btn" href=(format!("{base}/calendar")) { "Calendar" } a class="btn" href=(format!("{base}.pdf")) { "PDF" } a class="btn" href=(format!("{base}.csv")) { "Export CSV" } a class="btn" href=(format!("{base}.xml")) { "Export project file (XML)" } }
         }
         @if !all.is_empty() {
             div class="stat-row" {

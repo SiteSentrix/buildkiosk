@@ -108,7 +108,14 @@ const NAV_GROUPS: &[(&str, &[NavEntry])] = {
 /// The path segment of the current page's sidebar entry ("" when it has none).
 fn nav_key(nav: Nav) -> &'static str {
     match nav {
-        Nav::Projects | Nav::MyTasks | Nav::Directory | Nav::Notifications | Nav::Prequalification | Nav::Account | Nav::Home(_) => "",
+        Nav::Projects
+        | Nav::MyTasks
+        | Nav::CompanyReports
+        | Nav::Directory
+        | Nav::Notifications
+        | Nav::Prequalification
+        | Nav::Account
+        | Nav::Home(_) => "",
         Nav::Team(_) => "team",
         Nav::Rfis(_) => "rfis",
         Nav::Submittals(_) => "submittals",
@@ -149,6 +156,7 @@ fn nav_key(nav: Nav) -> &'static str {
 pub enum Nav {
     Projects,
     MyTasks,
+    CompanyReports,
     Directory,
     Home(Id<Project>),
     Team(Id<Project>),
@@ -245,7 +253,7 @@ pub fn app(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Option<String>
     let company = state.company().map(|c| c.name.clone()).unwrap_or_default();
     let unread = state.notifications.iter().filter(|n| n.person == req.person && !n.read).count();
     let project = match nav {
-        Nav::Projects | Nav::MyTasks | Nav::Directory | Nav::Notifications | Nav::Prequalification | Nav::Account => None,
+        Nav::Projects | Nav::MyTasks | Nav::CompanyReports | Nav::Directory | Nav::Notifications | Nav::Prequalification | Nav::Account => None,
         Nav::Home(p)
         | Nav::Team(p)
         | Nav::Rfis(p)
@@ -306,6 +314,7 @@ pub fn app(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Option<String>
                     nav class="sidebar" aria-label="Main" {
                         div class="nav" {
                             a href="/" class=(if nav == Nav::Projects { "active" } else { "" }) { (Icon::Building.svg()) "Projects" }
+                            a href="/reports" class=(if nav == Nav::CompanyReports { "active" } else { "" }) { (tool_icon(Tool::CompanyReports).svg()) "Reports" }
                             a href="/my-tasks" class=(if nav == Nav::MyTasks { "active" } else { "" }) { (tool_icon(Tool::Tasks).svg()) "My tasks" }
                             @if req.allowed("person.list", None) {
                                 a href="/directory" class=(if nav == Nav::Directory { "active" } else { "" }) { (Icon::People.svg()) "Directory" }

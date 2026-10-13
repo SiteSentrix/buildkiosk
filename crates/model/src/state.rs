@@ -22,7 +22,9 @@ use crate::punch::PunchItem;
 use crate::daily_log::DailyLog;
 
 // -- financials
-use crate::finance::{BudgetChange, BudgetLine, ChangeEvent, Commitment, CommitmentChange, DirectCost, OwnerInvoice, PrimeChange, PrimeContract};
+use crate::finance::{
+    BudgetChange, BudgetLine, ChangeEvent, Commitment, CommitmentChange, CommitmentInvoice, DirectCost, OwnerInvoice, PrimeChange, PrimeContract,
+};
 
 // -- documents
 
@@ -140,6 +142,7 @@ tables! {
     prime_contracts: PrimeContract,
     prime_changes: PrimeChange,
     owner_invoices: OwnerInvoice,
+    commitment_invoices: CommitmentInvoice,
 
     // -- documents
 

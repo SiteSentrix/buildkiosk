@@ -294,6 +294,14 @@ fn void_commitment_change(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     if c.status == ChangeStatus::Void {
         return Err(EngineError::conflict(format!("{} is already void", label(&c))));
     }
+    let billed = ctx.state.commitment_invoices.iter().any(|o| {
+        o.deleted.is_none()
+            && o.status != buildkiosk_model::finance::InvoiceStatus::Void
+            && o.lines.iter().any(|l| l.change == Some(c.id.raw()) && !l.this_period.is_zero())
+    });
+    if billed {
+        return Err(EngineError::conflict("an invoice bills this change order's lines; void or edit that invoice first"));
+    }
     let stamp = ctx.stamp();
     ctx.state.commitment_changes.update(c.id, |x| {
         x.status = ChangeStatus::Void;

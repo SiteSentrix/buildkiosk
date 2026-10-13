@@ -8,7 +8,8 @@ use buildkiosk_core::{Id, Money, Percent};
 use buildkiosk_model::daily_log::{DailyLog, LogStatus};
 use buildkiosk_model::directory::{Person, Vendor};
 use buildkiosk_model::finance::{
-    ChangeEventStatus, ChangeStatus, Commitment, CommitmentStatus, InvoiceStatus, OwnerInvoice, PrimeChange, PrimeContract,
+    ChangeEventStatus, ChangeStatus, Commitment, CommitmentInvoice, CommitmentStatus, InvoiceLine, InvoiceStatus, OwnerInvoice, PrimeChange,
+    PrimeContract,
 };
 use buildkiosk_model::inspection::Inspection;
 use buildkiosk_model::project::{CostCode, Project};
@@ -317,13 +318,14 @@ pub fn can_see_commitment_change(state: &CompanyState, actor: Actor, c: &buildki
     crate::costdoc::can_see(state, actor, c)
 }
 
-// -- owner billing
+// -- billing (owner invoices and commitment invoices)
 
-/// One billable row: a line of the prime contract's schedule of values, or of an approved prime
-/// change order.
+/// One billable row: a line of a contract's or commitment's schedule of values, or of one of its
+/// approved change orders.
 #[derive(Clone, Debug)]
 pub struct BillRow {
-    pub change: Option<Id<PrimeChange>>,
+    /// The raw id of the change order the line belongs to, if any.
+    pub change: Option<u64>,
     pub line: u32,
     pub description: String,
     pub cost_code: Id<CostCode>,
@@ -335,16 +337,13 @@ impl BillRow {
     pub fn key(&self) -> String {
         match self.change {
             None => format!("c.{}", self.line),
-            Some(c) => format!("p.{}.{}", c.raw(), self.line),
+            Some(c) => format!("p.{c}.{}", self.line),
         }
     }
 }
 
-/// The rows of a contract that can be billed: its schedule of values, then the lines of its
-/// approved change orders in number order.
-pub fn billable_rows(state: &CompanyState, contract: &PrimeContract) -> Vec<BillRow> {
-    let mut rows: Vec<BillRow> = contract
-        .lines
+fn base_rows(lines: &[buildkiosk_model::finance::CostLine]) -> Vec<BillRow> {
+    lines
         .iter()
         .enumerate()
         .map(|(i, l)| BillRow {
@@ -354,22 +353,41 @@ pub fn billable_rows(state: &CompanyState, contract: &PrimeContract) -> Vec<Bill
             cost_code: l.cost_code,
             scheduled: l.amount,
         })
-        .collect();
+        .collect()
+}
+
+fn change_rows(rows: &mut Vec<BillRow>, number: u32, id: u64, lines: &[buildkiosk_model::finance::CostLine]) {
+    for (i, l) in lines.iter().enumerate() {
+        let description = if l.description.is_empty() { format!("Change order #{number}") } else { format!("CO #{number}: {}", l.description) };
+        rows.push(BillRow { change: Some(id), line: u32::try_from(i).unwrap_or(u32::MAX), description, cost_code: l.cost_code, scheduled: l.amount });
+    }
+}
+
+/// The rows of a prime contract that can be billed: its schedule of values, then the lines of its
+/// approved change orders in number order.
+pub fn billable_rows(state: &CompanyState, contract: &PrimeContract) -> Vec<BillRow> {
+    let mut rows = base_rows(&contract.lines);
     let mut changes: Vec<&PrimeChange> =
         state.prime_changes.iter().filter(|c| c.contract == contract.id && c.deleted.is_none() && c.status == ChangeStatus::Approved).collect();
     changes.sort_by_key(|c| c.number);
     for c in changes {
-        for (i, l) in c.lines.iter().enumerate() {
-            let description =
-                if l.description.is_empty() { format!("Change order #{}", c.number) } else { format!("CO #{}: {}", c.number, l.description) };
-            rows.push(BillRow {
-                change: Some(c.id),
-                line: u32::try_from(i).unwrap_or(u32::MAX),
-                description,
-                cost_code: l.cost_code,
-                scheduled: l.amount,
-            });
-        }
+        change_rows(&mut rows, c.number, c.id.raw(), &c.lines);
+    }
+    rows
+}
+
+/// The rows of a commitment that can be billed: its lines, then the lines of its approved change
+/// orders in number order.
+pub fn commitment_billable_rows(state: &CompanyState, commitment: &Commitment) -> Vec<BillRow> {
+    let mut rows = base_rows(&commitment.lines);
+    let mut changes: Vec<&buildkiosk_model::finance::CommitmentChange> = state
+        .commitment_changes
+        .iter()
+        .filter(|c| c.commitment == commitment.id && c.deleted.is_none() && c.status == ChangeStatus::Approved)
+        .collect();
+    changes.sort_by_key(|c| c.number);
+    for c in changes {
+        change_rows(&mut rows, c.number, c.id.raw(), &c.lines);
     }
     rows
 }
@@ -406,45 +424,61 @@ pub struct InvoiceSummary {
     pub retainage_to_date: Money,
     /// Withheld on this invoice's work (the change in retainage held).
     pub retainage_this: Money,
-    /// What the owner owes for this invoice: this period's work less the retainage withheld on it.
+    /// What is owed for this invoice: this period's work less the retainage withheld on it.
     pub net_due: Money,
-}
-
-/// Invoices of the same contract billed before `inv` (submitted, approved or paid).
-fn earlier_invoices<'a>(state: &'a CompanyState, inv: &OwnerInvoice) -> impl Iterator<Item = &'a OwnerInvoice> {
-    let (contract, number, id) = (inv.contract, inv.number, inv.id);
-    state.owner_invoices.iter().filter(move |o| o.contract == contract && o.deleted.is_none() && o.status.billed() && o.number < number && o.id != id)
 }
 
 fn overflow() -> EngineError {
     EngineError::conflict("the amounts are too large to add up")
 }
 
-/// Works out an invoice. Fails only when amounts are too large to add.
-pub fn invoice_summary(state: &CompanyState, inv: &OwnerInvoice) -> Result<InvoiceSummary, EngineError> {
-    let contract = state.prime_contracts.get(inv.contract).ok_or_else(|| EngineError::not_found("the invoice's prime contract is missing"))?;
-    let earlier: Vec<&OwnerInvoice> = earlier_invoices(state, inv).collect();
-    let mut rows = Vec::new();
-    for row in billable_rows(state, contract) {
-        let amount_on =
-            |o: &OwnerInvoice| o.lines.iter().filter(|l| l.change == row.change && l.line == row.line).map(|l| l.this_period).collect::<Vec<_>>();
-        let previous = Money::sum(earlier.iter().flat_map(|o| amount_on(o))).ok_or_else(overflow)?;
-        let this_period = Money::sum(amount_on(inv)).ok_or_else(overflow)?;
-        rows.push(InvoiceRow { row, previous, this_period });
+/// Works out an invoice from the billable rows, the lines of earlier billed invoices and its own.
+fn summarize(rows: Vec<BillRow>, earlier: &[&[InvoiceLine]], this: &[InvoiceLine], rate: Percent) -> Result<InvoiceSummary, EngineError> {
+    let mut out = Vec::new();
+    for row in rows {
+        let amounts = |lines: &[InvoiceLine]| -> Vec<Money> {
+            lines.iter().filter(|l| l.change == row.change && l.line == row.line).map(|l| l.this_period).collect()
+        };
+        let previous = Money::sum(earlier.iter().flat_map(|l| amounts(l))).ok_or_else(overflow)?;
+        let this_period = Money::sum(amounts(this)).ok_or_else(overflow)?;
+        out.push(InvoiceRow { row, previous, this_period });
     }
-    let sum = |f: fn(&InvoiceRow) -> Money| Money::sum(rows.iter().map(f)).ok_or_else(overflow);
-    let scheduled = Money::sum(rows.iter().map(|r| r.row.scheduled)).ok_or_else(overflow)?;
+    let sum = |f: fn(&InvoiceRow) -> Money| Money::sum(out.iter().map(f)).ok_or_else(overflow);
+    let scheduled = Money::sum(out.iter().map(|r| r.row.scheduled)).ok_or_else(overflow)?;
     let (previous, this_period) = (sum(|r| r.previous)?, sum(|r| r.this_period)?);
     let to_date = previous.checked_add(this_period).ok_or_else(overflow)?;
-    let rate = contract.retainage.unwrap_or(Percent::ZERO);
     let retainage_to_date = to_date.percent(rate).ok_or_else(overflow)?;
     let retainage_previous = previous.percent(rate).ok_or_else(overflow)?;
     let retainage_this = retainage_to_date.checked_sub(retainage_previous).ok_or_else(overflow)?;
     let net_due = this_period.checked_sub(retainage_this).ok_or_else(overflow)?;
-    Ok(InvoiceSummary { rows, scheduled, previous, this_period, to_date, retainage_rate: rate, retainage_to_date, retainage_this, net_due })
+    Ok(InvoiceSummary { rows: out, scheduled, previous, this_period, to_date, retainage_rate: rate, retainage_to_date, retainage_this, net_due })
 }
 
-/// How far billing on a prime contract has got.
+/// Works out an owner invoice.
+pub fn invoice_summary(state: &CompanyState, inv: &OwnerInvoice) -> Result<InvoiceSummary, EngineError> {
+    let contract = state.prime_contracts.get(inv.contract).ok_or_else(|| EngineError::not_found("the invoice's prime contract is missing"))?;
+    let earlier: Vec<&[InvoiceLine]> = state
+        .owner_invoices
+        .iter()
+        .filter(|o| o.contract == inv.contract && o.deleted.is_none() && o.status.billed() && o.number < inv.number && o.id != inv.id)
+        .map(|o| o.lines.as_slice())
+        .collect();
+    summarize(billable_rows(state, contract), &earlier, &inv.lines, contract.retainage.unwrap_or(Percent::ZERO))
+}
+
+/// Works out a commitment invoice.
+pub fn commitment_invoice_summary(state: &CompanyState, inv: &CommitmentInvoice) -> Result<InvoiceSummary, EngineError> {
+    let commitment = state.commitments.get(inv.commitment).ok_or_else(|| EngineError::not_found("the invoice's commitment is missing"))?;
+    let earlier: Vec<&[InvoiceLine]> = state
+        .commitment_invoices
+        .iter()
+        .filter(|o| o.commitment == inv.commitment && o.deleted.is_none() && o.status.billed() && o.number < inv.number && o.id != inv.id)
+        .map(|o| o.lines.as_slice())
+        .collect();
+    summarize(commitment_billable_rows(state, commitment), &earlier, &inv.lines, commitment.retainage.unwrap_or(Percent::ZERO))
+}
+
+/// How far billing on a contract or commitment has got.
 #[derive(Clone, Copy, Debug)]
 pub struct ContractSummary {
     pub original: Money,
@@ -457,27 +491,50 @@ pub struct ContractSummary {
     pub balance_to_finish: Money,
 }
 
-pub fn contract_summary(state: &CompanyState, contract: &PrimeContract) -> Result<ContractSummary, EngineError> {
-    let original = Money::sum(contract.lines.iter().map(|l| l.amount)).ok_or_else(overflow)?;
-    let mut change_totals = Vec::new();
-    for c in state.prime_changes.iter().filter(|c| c.contract == contract.id && c.deleted.is_none() && c.status == ChangeStatus::Approved) {
-        change_totals.push(Money::sum(c.lines.iter().map(|l| l.amount)).ok_or_else(overflow)?);
-    }
-    let changes = Money::sum(change_totals).ok_or_else(overflow)?;
+fn billing_summary(
+    original: Money,
+    changes: Money,
+    rate: Percent,
+    invoices: Vec<(InvoiceStatus, InvoiceSummary)>,
+) -> Result<ContractSummary, EngineError> {
     let revised = original.checked_add(changes).ok_or_else(overflow)?;
-    let invoices: Vec<&OwnerInvoice> =
-        state.owner_invoices.iter().filter(|o| o.contract == contract.id && o.deleted.is_none() && o.status.billed()).collect();
     let mut billed = Money::ZERO;
     let mut paid = Money::ZERO;
-    for inv in &invoices {
-        let s = invoice_summary(state, inv)?;
+    for (status, s) in &invoices {
         billed = billed.checked_add(s.this_period).ok_or_else(overflow)?;
-        if inv.status == InvoiceStatus::Paid {
+        if *status == InvoiceStatus::Paid {
             paid = paid.checked_add(s.net_due).ok_or_else(overflow)?;
         }
     }
-    let rate = contract.retainage.unwrap_or(Percent::ZERO);
     let retainage_held = billed.percent(rate).ok_or_else(overflow)?;
     let balance_to_finish = revised.checked_sub(billed).ok_or_else(overflow)?;
     Ok(ContractSummary { original, changes, revised, billed, retainage_held, paid, balance_to_finish })
+}
+
+pub fn contract_summary(state: &CompanyState, contract: &PrimeContract) -> Result<ContractSummary, EngineError> {
+    let original = Money::sum(contract.lines.iter().map(|l| l.amount)).ok_or_else(overflow)?;
+    let mut totals = Vec::new();
+    for c in state.prime_changes.iter().filter(|c| c.contract == contract.id && c.deleted.is_none() && c.status == ChangeStatus::Approved) {
+        totals.push(Money::sum(c.lines.iter().map(|l| l.amount)).ok_or_else(overflow)?);
+    }
+    let changes = Money::sum(totals).ok_or_else(overflow)?;
+    let mut invoices = Vec::new();
+    for inv in state.owner_invoices.iter().filter(|o| o.contract == contract.id && o.deleted.is_none() && o.status.billed()) {
+        invoices.push((inv.status, invoice_summary(state, inv)?));
+    }
+    billing_summary(original, changes, contract.retainage.unwrap_or(Percent::ZERO), invoices)
+}
+
+pub fn commitment_billing(state: &CompanyState, c: &Commitment) -> Result<ContractSummary, EngineError> {
+    let original = c.total().ok_or_else(overflow)?;
+    let mut totals = Vec::new();
+    for x in state.commitment_changes.iter().filter(|x| x.commitment == c.id && x.deleted.is_none() && x.status == ChangeStatus::Approved) {
+        totals.push(Money::sum(x.lines.iter().map(|l| l.amount)).ok_or_else(overflow)?);
+    }
+    let changes = Money::sum(totals).ok_or_else(overflow)?;
+    let mut invoices = Vec::new();
+    for inv in state.commitment_invoices.iter().filter(|o| o.commitment == c.id && o.deleted.is_none() && o.status.billed()) {
+        invoices.push((inv.status, commitment_invoice_summary(state, inv)?));
+    }
+    billing_summary(original, changes, c.retainage.unwrap_or(Percent::ZERO), invoices)
 }

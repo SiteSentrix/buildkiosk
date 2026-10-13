@@ -286,6 +286,21 @@ pub fn commitment(req: &Req<'_>, id: Id<Project>, cid: Id<Commitment>, history: 
             }
             @if !c.status.counts() { p class="muted small" { "Only approved and complete commitments count as committed cost in the budget." } }
         }
+        @if c.status.counts() && view::level(state, req.actor(), id, Tool::Invoicing) >= Level::Read {
+            @if let Ok(b) = view::commitment_billing(state, c) {
+                div class="card" {
+                    div class="card-head" { h2 { "Billing" } a class="btn small" href=(format!("/projects/{id}/commitment-invoices")) { "Commitment invoices" } }
+                    dl class="facts" {
+                        dt { "Retainage" } dd { @if let Some(r) = c.retainage { (r) } @else { "None" } }
+                        dt { "Revised commitment" } dd { (b.revised) }
+                        dt { "Billed to date" } dd { (b.billed) }
+                        dt { "Retainage held" } dd { (b.retainage_held) }
+                        dt { "Paid (net)" } dd { (b.paid) }
+                        dt { "Balance to finish" } dd { (b.balance_to_finish) }
+                    }
+                }
+            }
+        }
         @let changes: Vec<_> = state.commitment_changes.iter().filter(|x| x.commitment == c.id && x.deleted.is_none() && view::can_see_commitment_change(state, req.actor(), x)).collect();
         @if !changes.is_empty() || (c.status.counts() && req.allowed("commitment_change.create", Some(id))) {
             div class="card" {
@@ -358,6 +373,7 @@ pub fn commitment_form(req: &Req<'_>, id: Id<Project>, existing: Option<Id<Commi
                     (field("Title", "title", true, true, html! { input type="text" id="title" name="title" required maxlength="200" value=(current.map(|c| c.title.clone()).unwrap_or_default()); }))
                     (field("Type", "kind", false, false, html! { select id="kind" name="kind" { @for k in [CommitmentKind::Subcontract, CommitmentKind::PurchaseOrder] { option value=(k.key()) selected[k == kind] { (k.label()) } } } }))
                     (field("Company", "vendor", false, false, html! { select id="vendor" name="vendor" { option value="" { "—" } @for v in &vendors { option value=(v.id) selected[current.and_then(|c| c.vendor) == Some(v.id)] { (v.name) } } } }))
+                    (field("Retainage (%)", "retainage", false, false, html! { input type="text" id="retainage" name="retainage" inputmode="decimal" placeholder="5" value=(current.and_then(|c| c.retainage).map(|r| r.to_string().trim_end_matches('%').to_string()).unwrap_or_default()); }))
                     (field("Description", "description", false, true, html! { textarea id="description" name="description" class="short" { (current.map(|c| c.description.clone()).unwrap_or_default()) } }))
                 }
             }

@@ -174,6 +174,7 @@ fn setup(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         currency,
         rfi_due_days: 7,
         submittal_review_days: 10,
+        require_prequalification: false,
         created: stamp,
         updated: stamp,
     });

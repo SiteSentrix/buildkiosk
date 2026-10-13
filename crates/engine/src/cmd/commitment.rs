@@ -271,6 +271,9 @@ fn approve(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     if c.lines.is_empty() {
         return Err(EngineError::conflict(format!("add at least one line to {} before approving it", c.label())));
     }
+    if let Some(v) = c.vendor {
+        super::prequal::check_prequalified(ctx, v)?;
+    }
     if ctx.state.projects.get(c.project).is_some_and(|x| x.require_signed_contracts) && c.signature.status != SignatureStatus::Signed {
         return Err(EngineError::conflict(format!(
             "this project needs a signed contract before {} is approved; record the signature first",

@@ -268,6 +268,7 @@ fn award(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     let Some(bid) = b.bids.iter().find(|x| x.vendor == vendor && !x.withdrawn).cloned() else {
         return Err(EngineError::conflict("that company has no standing bid"));
     };
+    super::prequal::check_prequalified(ctx, vendor)?;
     let mut commitment: Option<Id<Commitment>> = None;
     if p.flag_or("commitment", false)? {
         let Some(code) = b.cost_code else { return Err(EngineError::conflict("set the package's cost code to start a commitment")) };

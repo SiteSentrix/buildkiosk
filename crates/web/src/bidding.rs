@@ -146,7 +146,9 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, bid: Id<BidPackage>) -> Markup {
         div class="card" {
             h2 { "Invited" }
             @if b.invited.is_empty() { p class="muted" { "No companies invited yet. Edit the package to invite some." } } @else {
-                ul class="plain" { @for v in &b.invited { li { (vname(*v)) " " @if b.bids.iter().any(|x| x.vendor == *v && !x.withdrawn) { span class="pill green" { "Bid in" } } @else { span class="pill" { "No bid yet" } } } } }
+                @let see_prequal = buildkiosk_engine::model::perm::company_level(req.engine.state(), req.person, Tool::Prequalification) >= Level::Read;
+                @let today = req.today();
+                ul class="plain" { @for v in &b.invited { li { (vname(*v)) " " @if see_prequal { a href=(format!("/prequalification/{v}")) { (crate::prequal::standing_pill(buildkiosk_engine::cmd::prequal::vendor_standing(req.engine.state(), *v, today))) } " " } @if b.bids.iter().any(|x| x.vendor == *v && !x.withdrawn) { span class="pill green" { "Bid in" } } @else { span class="pill" { "No bid yet" } } } } }
             }
         }
         @if can_edit && matches!(b.status, BidStatus::Open | BidStatus::Closed) {
@@ -208,6 +210,8 @@ pub fn form(req: &Req<'_>, id: Id<Project>, current: Option<Id<BidPackage>>) -> 
     let next = cur.map(|b| format!("{base}/{}", b.id)).unwrap_or_else(|| format!("{base}/{{id}}"));
     let all = vendors(req);
     let codes = view::project_cost_codes(state, id);
+    let see_prequal = buildkiosk_engine::model::perm::company_level(state, req.person, Tool::Prequalification) >= Level::Read;
+    let today = req.today();
     let body = html! {
         div class="page-head" { div { h1 { (if cur.is_some() { "Edit bid package" } else { "New bid package" }) } } }
         div class="card" {
@@ -227,7 +231,7 @@ pub fn form(req: &Req<'_>, id: Id<Project>, current: Option<Id<BidPackage>>) -> 
                         input type="hidden" name="invite[]" value="";
                         details class="multi" {
                             summary { "Choose companies" }
-                            div class="options" { @for v in &all { label { input type="checkbox" name="invite[]" value=(v.id) checked[cur.is_some_and(|b| b.invited.contains(&v.id))]; (v.name) @if !v.trade.is_empty() { " (" (v.trade) ")" } } } }
+                            div class="options" { @for v in &all { label { input type="checkbox" name="invite[]" value=(v.id) checked[cur.is_some_and(|b| b.invited.contains(&v.id))]; (v.name) @if !v.trade.is_empty() { " (" (v.trade) ")" } @if see_prequal && !matches!(buildkiosk_engine::cmd::prequal::vendor_standing(state, v.id, today), buildkiosk_engine::model::prequal::Standing::Current | buildkiosk_engine::model::prequal::Standing::ExpiringSoon) { " " span class="muted small" { "(not prequalified)" } } } } }
                         }
                     }
                 }

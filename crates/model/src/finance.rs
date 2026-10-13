@@ -78,6 +78,9 @@ pub struct Commitment {
     #[serde(default)]
     pub description: String,
     pub lines: Vec<CommitmentLine>,
+    /// Withheld from each invoice until the work is finished.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retainage: Option<Percent>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub approved: Option<Stamp>,
     #[serde(default)]
@@ -302,8 +305,10 @@ impl InvoiceStatus {
 /// (`change` empty) or of an approved prime change order.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct InvoiceLine {
+    /// The raw id of the change order whose line this is (a prime change order on an owner
+    /// invoice, a commitment change order on a commitment invoice).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub change: Option<Id<PrimeChange>>,
+    pub change: Option<u64>,
     /// The line's position in the contract or change order, from 0.
     pub line: u32,
     pub this_period: Money,
@@ -336,3 +341,30 @@ pub struct OwnerInvoice {
     pub deleted: Option<Stamp>,
 }
 record!(OwnerInvoice, "owner_invoice", trash, project);
+
+/// An invoice from a subcontractor or supplier against a commitment, laid out like an owner
+/// invoice: work completed this period on the commitment's rows, with retainage withheld.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CommitmentInvoice {
+    pub id: Id<CommitmentInvoice>,
+    pub project: Id<Project>,
+    pub number: u32,
+    pub commitment: Id<Commitment>,
+    pub period_end: Date,
+    #[serde(default)]
+    pub status: InvoiceStatus,
+    #[serde(default)]
+    pub notes: String,
+    pub lines: Vec<InvoiceLine>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub submitted: Option<Stamp>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approved: Option<Stamp>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub paid_on: Option<Date>,
+    pub created: Stamp,
+    pub updated: Stamp,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deleted: Option<Stamp>,
+}
+record!(CommitmentInvoice, "commitment_invoice", trash, project);

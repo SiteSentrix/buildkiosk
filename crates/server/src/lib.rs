@@ -19,6 +19,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use buildkiosk_core::{Id, Timestamp, text};
 use buildkiosk_engine::model::finance::{BudgetChange, ChangeEvent, CommitmentChange, PrimeChange, PrimeContract};
+use buildkiosk_engine::model::finance::{CommitmentInvoice, OwnerInvoice};
 use buildkiosk_engine::model::observation::Observation;
 use buildkiosk_engine::model::punch::PunchItem;
 use buildkiosk_engine::model::{CompanyState, FileRef};
@@ -26,6 +27,7 @@ use buildkiosk_engine::workitem::{self, WorkItem};
 use buildkiosk_engine::{Actor, EngineError, find_command, view};
 use buildkiosk_store::creds::check_password_rules;
 use buildkiosk_store::{Credentials, DataDir, Tenant, hex, random_bytes};
+use buildkiosk_web::invoicing::{self, InvoicePage};
 use buildkiosk_web::linedocs::{self, LineDoc};
 use buildkiosk_web::pages::{self, RfiFilter};
 use buildkiosk_web::workitems::{self, WorkPage};
@@ -119,9 +121,6 @@ pub fn router(app: Shared) -> Router {
         .route("/projects/{id}/rfis/new", get(rfi_new))
         .route("/projects/{id}/submittals", get(submittal_list))
         .route("/notifications", get(notifications))
-        .route("/projects/{id}/owner-invoices", get(invoice_list))
-        .route("/projects/{id}/owner-invoices/{iid}", get(invoice_detail))
-        .route("/projects/{id}/owner-invoices/{iid}/save", post(invoice_save))
         .route("/projects/{id}/budget", get(budget_page))
         .route("/projects/{id}/budget.csv", get(budget_csv))
         .route("/projects/{id}/direct-costs", get(direct_costs_page))
@@ -170,6 +169,8 @@ pub fn router(app: Shared) -> Router {
     let router = doc_routes::<BudgetChange>(router);
     let router = doc_routes::<PrimeContract>(router);
     let router = doc_routes::<PrimeChange>(router);
+    let router = invoice_routes::<OwnerInvoice>(router);
+    let router = invoice_routes::<CommitmentInvoice>(router);
     router
         .fallback(not_found)
         .layer(DefaultBodyLimit::max(MAX_BODY))
@@ -766,7 +767,7 @@ fn commitment_save_impl(app: Shared, headers: HeaderMap, project: u64, commitmen
     if let Some(c) = commitment {
         params.insert("id".into(), json!(c));
     }
-    for key in ["title", "kind", "vendor", "description"] {
+    for key in ["title", "kind", "vendor", "description", "retainage"] {
         params.insert(key.into(), Value::String(get_form(&form, key).to_string()));
     }
     params.insert("lines".into(), indexed_rows(&form, "lines"));
@@ -780,32 +781,39 @@ fn commitment_save_impl(app: Shared, headers: HeaderMap, project: u64, commitmen
     }
 }
 
-async fn invoice_list(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
-    page(&app, &headers, &q, |r, _| buildkiosk_web::invoicing::list(r, Id::new(id)))
+async fn invoice_list<T: InvoicePage>(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| invoicing::list::<T>(r, Id::new(id)))
 }
 
-async fn invoice_detail(State(app): State<Shared>, headers: HeaderMap, Path((id, iid)): Path<(u64, u64)>, Query(q): Q) -> Response {
-    page(&app, &headers, &q, |r, t| {
-        buildkiosk_web::invoicing::detail(r, Id::new(id), Id::new(iid), &t.store.history("owner_invoices", iid).unwrap_or_default())
-    })
+async fn invoice_detail<T: InvoicePage>(State(app): State<Shared>, headers: HeaderMap, Path((id, iid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, t| invoicing::detail::<T>(r, Id::new(id), Id::new(iid), &t.store.history(T::TABLE, iid).unwrap_or_default()))
 }
 
 /// Saves the amounts typed on a draft invoice (`amount.<row key>`), its period and its notes.
-async fn invoice_save(State(app): State<Shared>, headers: HeaderMap, Path((id, iid)): Path<(u64, u64)>, body: Bytes) -> Response {
+async fn invoice_save<T: InvoicePage>(State(app): State<Shared>, headers: HeaderMap, Path((id, iid)): Path<(u64, u64)>, body: Bytes) -> Response {
     let form = parse_form(&body);
     let mut inner = app.lock();
     let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
     if !auth::csrf_ok(app.secret(), &s.cookie, get_form(&form, "_csrf")) {
         return plain(StatusCode::FORBIDDEN, "The form expired. Go back, reload the page and try again.");
     }
-    let back = format!("/projects/{id}/owner-invoices/{iid}");
+    let back = format!("/projects/{id}/{}/{iid}", T::PATH);
     let lines: Vec<Value> =
         form.iter().filter_map(|(k, v)| k.strip_prefix("amount.").map(|row| json!({"row": row, "amount": v}))).take(1000).collect();
     let params = json!({"project": id, "id": iid, "period_end": get_form(&form, "period_end"), "notes": get_form(&form, "notes"), "lines": lines});
-    match inner.run(Actor::Person(s.person), "owner_invoice.update", &params) {
+    match inner.run(Actor::Person(s.person), &format!("{}.update", T::PREFIX), &params) {
         Ok(_) => redirect(&with_flash(&back, true, "Amounts saved.")),
         Err(e) => redirect(&with_flash(&back, false, &e.to_string())),
     }
+}
+
+/// Registers the pages of an invoice kind under `/projects/{id}/<path>`.
+fn invoice_routes<T: InvoicePage>(router: Router<Shared>) -> Router<Shared> {
+    let base = format!("/projects/{{id}}/{}", T::PATH);
+    router
+        .route(&base, get(invoice_list::<T>))
+        .route(&format!("{base}/{{iid}}"), get(invoice_detail::<T>))
+        .route(&format!("{base}/{{iid}}/save"), post(invoice_save::<T>))
 }
 
 async fn notifications(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Response {

@@ -5,7 +5,7 @@
 //! A contract is a draft its author edits until an admin approves it; once invoices exist its
 //! schedule of values is fixed. Approved prime change orders add billable lines to the contract.
 
-use buildkiosk_core::{Id, Percent};
+use buildkiosk_core::Id;
 use buildkiosk_model::directory::Vendor;
 use buildkiosk_model::finance::{ChangeEvent, ChangeStatus, InvoiceStatus, PrimeChange, PrimeContract};
 use buildkiosk_model::project::Project;
@@ -136,11 +136,7 @@ impl CostDoc for PrimeContract {
             self.owner = v;
         }
         if p.present("retainage") {
-            let r = p.percent("retainage")?;
-            if r.is_some_and(|r| r.hundredths() < 0 || r.hundredths() > Percent::HUNDRED.hundredths()) {
-                return Err(p.bad("retainage", "must be between 0 and 100"));
-            }
-            self.retainage = r;
+            self.retainage = super::invoice::retainage(p)?;
         }
         if !creating && p.present("lines") && has_invoices(ctx.state, self.id) {
             return Err(EngineError::conflict("invoices exist for this contract, so its schedule of values can't change"));
@@ -270,7 +266,7 @@ fn void_change(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         return Err(EngineError::conflict(format!("{} is already void", label(&c))));
     }
     let billed = ctx.state.owner_invoices.iter().any(|o| {
-        o.deleted.is_none() && o.status != InvoiceStatus::Void && o.lines.iter().any(|l| l.change == Some(c.id) && !l.this_period.is_zero())
+        o.deleted.is_none() && o.status != InvoiceStatus::Void && o.lines.iter().any(|l| l.change == Some(c.id.raw()) && !l.this_period.is_zero())
     });
     if billed {
         return Err(EngineError::conflict("an invoice bills this change order's lines; void or edit that invoice first"));

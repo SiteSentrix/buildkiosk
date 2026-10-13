@@ -68,6 +68,7 @@ pub enum Nav {
     BudgetChanges(Id<Project>),
     PrimeContracts(Id<Project>),
     OwnerInvoices(Id<Project>),
+    CommitmentInvoices(Id<Project>),
     Notifications,
 }
 
@@ -127,6 +128,7 @@ pub fn app(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Option<String>
         | Nav::BudgetChanges(p)
         | Nav::PrimeContracts(p)
         | Nav::OwnerInvoices(p)
+        | Nav::CommitmentInvoices(p)
         | Nav::DailyLogs(p)
         | Nav::Punch(p)
         | Nav::Observations(p) => state.projects.get(p),
@@ -175,6 +177,7 @@ pub fn app(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Option<String>
                                     (Tool::DirectCosts, "direct-costs", "Direct costs", matches!(nav, Nav::DirectCosts(_))),
                                     (Tool::PrimeContracts, "prime-contracts", "Prime contract", matches!(nav, Nav::PrimeContracts(_))),
                                     (Tool::Invoicing, "owner-invoices", "Owner invoices", matches!(nav, Nav::OwnerInvoices(_))),
+                                    (Tool::Invoicing, "commitment-invoices", "Commitment invoices", matches!(nav, Nav::CommitmentInvoices(_))),
                                     (Tool::ChangeEvents, "change-events", "Change events", matches!(nav, Nav::ChangeEvents(_))),
                                     (Tool::ChangeOrders, "change-orders", "Change orders", matches!(nav, Nav::ChangeOrders(_))),
                                     (Tool::ChangeOrders, "budget-changes", "Budget changes", matches!(nav, Nav::BudgetChanges(_))),

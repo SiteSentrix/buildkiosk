@@ -143,3 +143,84 @@ fn drafts_are_private_and_projects_are_isolated() {
     w.err(pm, "owner_invoice.submit", json!({"project": p, "id": empty}));
     w.assert_replay();
 }
+
+#[test]
+fn commitment_invoices_bill_the_schedule_and_its_change_orders() {
+    use buildkiosk_engine::view::{commitment_billing, commitment_invoice_summary};
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let eng = w.member(p, "Eli", "Engineer", "Project engineer");
+    let sub = w.member(p, "Sam", "Sub", "Subcontractor");
+    w.ok(
+        pm,
+        "member.update",
+        json!({"project": p, "person": eng, "overrides": {"invoicing": "standard", "commitments": "standard", "change_orders": "standard"}}),
+    );
+    let (concrete, steel) = (code(&w, "03-300"), code(&w, "05-100"));
+    let c = w.ok(
+        eng,
+        "commitment.create",
+        json!({"project": p, "title": "Slab", "retainage": "5", "lines": [
+            {"cost_code": concrete, "description": "Footings", "amount": "40000"}, {"cost_code": steel, "description": "Rebar", "amount": "20000"}
+        ]}),
+    )["id"]
+        .as_u64()
+        .unwrap();
+    w.err(eng, "commitment.create", json!({"project": p, "title": "Bad", "retainage": "101"}));
+    w.err(eng, "commitment_invoice.create", json!({"project": p, "commitment": c}));
+    w.ok(pm, "commitment.approve", json!({"project": p, "id": c}));
+    w.err(sub, "commitment_invoice.create", json!({"project": p, "commitment": c}));
+
+    let i1 = w.ok(
+        eng,
+        "commitment_invoice.create",
+        json!({"project": p, "commitment": c, "period_end": "2026-10-31", "lines": [{"row": "c.0", "amount": "20000"}]}),
+    )["id"]
+        .as_u64()
+        .unwrap();
+    let summary = |w: &World, id: u64| {
+        let inv = w.engine.state().commitment_invoices.iter().find(|i| i.id.raw() == id).unwrap().clone();
+        commitment_invoice_summary(w.engine.state(), &inv).unwrap()
+    };
+    let s = summary(&w, i1);
+    assert_eq!((s.this_period, s.retainage_this, s.net_due, s.scheduled), (m("20000"), m("1000"), m("19000"), m("60000")));
+    w.err(eng, "commitment_invoice.update", json!({"project": p, "id": i1, "lines": [{"row": "c.0", "amount": "40000.01"}]}));
+    w.ok(eng, "commitment_invoice.submit", json!({"project": p, "id": i1}));
+    w.ok(pm, "commitment_invoice.approve", json!({"project": p, "id": i1}));
+    w.ok(pm, "commitment_invoice.pay", json!({"project": p, "id": i1, "paid_on": "2026-11-12"}));
+
+    // Once invoiced, the lines are fixed and the commitment can't be voided; a change order adds a row.
+    w.err(pm, "commitment.update", json!({"project": p, "id": c, "lines": [{"cost_code": concrete, "amount": "1"}]}));
+    w.err(pm, "commitment.void", json!({"project": p, "id": c}));
+    let cco = w.ok(eng, "commitment_change.create", json!({"project": p, "commitment": c, "title": "Extra rebar", "lines": [{"cost_code": steel, "description": "Added rebar", "amount": "5000"}]}))["id"].as_u64().unwrap();
+    w.ok(pm, "commitment_change.approve", json!({"project": p, "id": cco}));
+    let i2 = w.ok(
+        eng,
+        "commitment_invoice.create",
+        json!({"project": p, "commitment": c, "lines": [
+            {"row": "c.0", "amount": "10000"}, {"row": "c.1", "amount": "20000"}, {"row": format!("p.{cco}.0"), "amount": "5000"}
+        ]}),
+    )["id"]
+        .as_u64()
+        .unwrap();
+    let s = summary(&w, i2);
+    assert_eq!((s.previous, s.this_period, s.scheduled), (m("20000"), m("35000"), m("65000")));
+    assert_eq!((s.retainage_this, s.net_due), (m("1750"), m("33250")));
+    w.err(eng, "commitment_invoice.update", json!({"project": p, "id": i2, "lines": [{"row": "p.999.0", "amount": "1"}]}));
+    w.ok(eng, "commitment_invoice.submit", json!({"project": p, "id": i2}));
+    w.err(pm, "commitment_invoice.void", json!({"project": p, "id": i1}));
+    w.err(pm, "commitment_change.void", json!({"project": p, "id": cco}));
+
+    let commitment = w.engine.state().commitments.iter().next().unwrap().clone();
+    let b = commitment_billing(w.engine.state(), &commitment).unwrap();
+    assert_eq!((b.original, b.changes, b.revised), (m("60000"), m("5000"), m("65000")));
+    assert_eq!((b.billed, b.retainage_held, b.paid, b.balance_to_finish), (m("55000"), m("2750"), m("19000"), m("10000")));
+    // Owner invoices and commitment invoices are separate: the owner side is untouched.
+    assert!(w.engine.state().owner_invoices.iter().next().is_none());
+    // Drafts are private to their author and admins.
+    let draft = w.ok(eng, "commitment_invoice.create", json!({"project": p, "commitment": c, "lines": []}))["id"].as_u64().unwrap();
+    w.err(sub, "commitment_invoice.get", json!({"project": p, "id": draft}));
+    w.ok(pm, "commitment_invoice.get", json!({"project": p, "id": draft}));
+    w.assert_replay();
+}

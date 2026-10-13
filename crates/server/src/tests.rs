@@ -792,7 +792,7 @@ async fn prime_contract_and_owner_invoicing_in_the_browser_flow() {
         send(&app, post("/projects/1/owner-invoices/1/save", &ada, format!("_csrf={csrf}&period_end=2026-10-31&notes=&amount.c.0=100000.01"))).await;
     assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("error="), "billing beyond the scheduled value is refused");
     let (_, _, detail) = send(&app, get("/projects/1/owner-invoices/1")).await;
-    for want in ["40,000.00", "4,000.00", "36,000.00", "Submit to owner"] {
+    for want in ["40,000.00", "4,000.00", "36,000.00", "Submit"] {
         assert!(detail.contains(want), "{want} missing from the invoice");
     }
     for step in ["submit", "approve", "pay"] {
@@ -807,6 +807,64 @@ async fn prime_contract_and_owner_invoicing_in_the_browser_flow() {
     let (st, _, cos) = send(&app, get("/projects/1/prime-change-orders")).await;
     assert_eq!(st, StatusCode::OK);
     assert!(cos.contains("Prime change orders"));
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
+async fn commitment_invoices_in_the_browser_flow() {
+    let dir = temp("cinvoices");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=P"))).await;
+    let (_, _, budget) = send(&app, get("/projects/1/budget")).await;
+    let i = budget.find(">03-300 ").unwrap();
+    let v = budget[..i].rfind("value=\"").unwrap() + 7;
+    let concrete = budget[v..].split('"').next().unwrap().to_string();
+
+    let (_, h, _) = send(
+        &app,
+        post("/projects/1/commitments/save", &ada, format!("_csrf={csrf}&title=Slab&kind=subcontract&vendor=&retainage=5&description=&lines.0.cost_code={concrete}&lines.0.description=Footings&lines.0.amount=40000")),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="));
+    let (_, _, list) = send(&app, get("/projects/1/commitment-invoices")).await;
+    assert!(list.contains("Nothing is approved to invoice yet"), "a draft commitment can't be invoiced");
+    send(&app, post("/do/commitment.approve", &ada, format!("_csrf={csrf}&project=1&id=1"))).await;
+    let (_, _, list) = send(&app, get("/projects/1/commitment-invoices")).await;
+    assert!(list.contains("Start an invoice") && list.contains("Slab"));
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/do/commitment_invoice.create",
+            &ada,
+            format!("_csrf={csrf}&_next=/projects/1/commitment-invoices/%7Bid%7D&project=1&commitment=1&period_end=2026-10-31"),
+        ),
+    )
+    .await;
+    assert_eq!(h.get(LOCATION).unwrap().to_str().unwrap().split('?').next().unwrap(), "/projects/1/commitment-invoices/1");
+    send(&app, post("/projects/1/commitment-invoices/1/save", &ada, format!("_csrf={csrf}&period_end=2026-10-31&notes=&amount.c.0=20000"))).await;
+    let (_, _, detail) = send(&app, get("/projects/1/commitment-invoices/1")).await;
+    for want in ["20,000.00", "1,000.00", "19,000.00", "Submit"] {
+        assert!(detail.contains(want), "{want} missing");
+    }
+    for step in ["submit", "approve", "pay"] {
+        send(&app, post(&format!("/do/commitment_invoice.{step}"), &ada, format!("_csrf={csrf}&project=1&id=1"))).await;
+    }
+    let (_, _, commitment) = send(&app, get("/projects/1/commitments/1")).await;
+    for want in ["Billing", "Billed to date", "Retainage held", "19,000.00", "20,000.00"] {
+        assert!(commitment.contains(want), "{want} missing from the commitment");
+    }
+    let (_, _, owner) = send(&app, get("/projects/1/owner-invoices")).await;
+    assert!(owner.contains("Nothing is approved to invoice yet"), "owner and commitment invoices stay separate");
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }

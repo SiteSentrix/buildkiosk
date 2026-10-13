@@ -1,16 +1,108 @@
 //! Owner invoice pages: the list and the payment application (detail).
 
 use buildkiosk_core::Id;
-use buildkiosk_engine::cmd::invoice::{can_edit, can_see, invoices_for};
-use buildkiosk_engine::model::finance::{ChangeStatus, InvoiceStatus, OwnerInvoice};
+use buildkiosk_engine::invoicedoc::{InvoiceDoc, can_edit, can_see, invoices_for};
+use buildkiosk_engine::model::finance::{ChangeStatus, Commitment, CommitmentInvoice, InvoiceStatus, OwnerInvoice};
 use buildkiosk_engine::model::project::Project;
-use buildkiosk_engine::model::{Choice, Level, Tool};
+use buildkiosk_engine::model::{Choice, Level};
 use buildkiosk_engine::{JournalEntry, find_command, view};
 use maud::{Markup, html};
 
 use crate::icons::tool_icon;
 use crate::layout::{self, Nav, Req, button_form, command_form, empty, field};
 use crate::pages::{not_found, project_for};
+use buildkiosk_core::Date;
+
+/// How one kind of invoice presents itself.
+pub trait InvoicePage: InvoiceDoc {
+    /// The command prefix: `owner_invoice`.
+    const PREFIX: &'static str;
+    /// The path under the project.
+    const PATH: &'static str;
+    /// Its table in the journal (for the change history).
+    const TABLE: &'static str;
+    const TITLE: &'static str;
+    const SUBTITLE: &'static str;
+    /// What is invoiced: "Prime contract" or "Commitment".
+    const PARENT_LABEL: &'static str;
+
+    fn nav(project: Id<Project>) -> Nav;
+    fn period_end(&self) -> Date;
+    fn paid_on(&self) -> Option<Date>;
+    fn notes(&self) -> &str;
+    /// The things that can be invoiced now: (id, label).
+    fn parents(req: &Req<'_>, project: Id<Project>) -> Vec<(u64, String)>;
+    /// A link to what the invoice bills.
+    fn parent_link(&self, req: &Req<'_>) -> Markup;
+}
+
+impl InvoicePage for OwnerInvoice {
+    const PREFIX: &'static str = "owner_invoice";
+    const PATH: &'static str = "owner-invoices";
+    const TABLE: &'static str = "owner_invoices";
+    const TITLE: &'static str = "Owner invoices";
+    const SUBTITLE: &'static str = "Payment applications for the work completed each period";
+    const PARENT_LABEL: &'static str = "Prime contract";
+
+    fn nav(project: Id<Project>) -> Nav {
+        Nav::OwnerInvoices(project)
+    }
+    fn period_end(&self) -> Date {
+        self.period_end
+    }
+    fn paid_on(&self) -> Option<Date> {
+        self.paid_on
+    }
+    fn notes(&self) -> &str {
+        &self.notes
+    }
+    fn parents(req: &Req<'_>, project: Id<Project>) -> Vec<(u64, String)> {
+        req.engine
+            .state()
+            .prime_contracts
+            .iter()
+            .filter(|c| c.project == project && c.deleted.is_none() && c.status == ChangeStatus::Approved)
+            .map(|c| (c.id.raw(), c.title.clone()))
+            .collect()
+    }
+    fn parent_link(&self, req: &Req<'_>) -> Markup {
+        html! { @if let Some(c) = req.engine.state().prime_contracts.get(self.contract) { a href=(format!("/projects/{}/prime-contracts/{}", self.project, c.id)) { (c.title) } } }
+    }
+}
+
+impl InvoicePage for CommitmentInvoice {
+    const PREFIX: &'static str = "commitment_invoice";
+    const PATH: &'static str = "commitment-invoices";
+    const TABLE: &'static str = "commitment_invoices";
+    const TITLE: &'static str = "Commitment invoices";
+    const SUBTITLE: &'static str = "What subcontractors and suppliers bill against their commitments";
+    const PARENT_LABEL: &'static str = "Commitment";
+
+    fn nav(project: Id<Project>) -> Nav {
+        Nav::CommitmentInvoices(project)
+    }
+    fn period_end(&self) -> Date {
+        self.period_end
+    }
+    fn paid_on(&self) -> Option<Date> {
+        self.paid_on
+    }
+    fn notes(&self) -> &str {
+        &self.notes
+    }
+    fn parents(req: &Req<'_>, project: Id<Project>) -> Vec<(u64, String)> {
+        let state = req.engine.state();
+        view::commitments_for(state, req.actor(), project)
+            .into_iter()
+            .filter(|c| c.status.counts())
+            .map(|c| (c.id.raw(), format!("{}: {}", c.label(), c.title)))
+            .collect()
+    }
+    fn parent_link(&self, req: &Req<'_>) -> Markup {
+        let c: Option<&Commitment> = req.engine.state().commitments.get(self.commitment);
+        html! { @if let Some(c) = c { a href=(format!("/projects/{}/commitments/{}", self.project, c.id)) { (c.label()) ": " (c.title) } } }
+    }
+}
 
 fn status_pill(s: InvoiceStatus) -> Markup {
     let class = match s {
@@ -23,43 +115,47 @@ fn status_pill(s: InvoiceStatus) -> Markup {
     html! { span class=(format!("pill {class}")) { (s.label()) } }
 }
 
-fn crumbs<'a>(p: &'a Project, last: Option<&'a str>) -> Vec<(&'a str, Option<String>)> {
+fn crumbs<'a, T: InvoicePage>(p: &'a Project, last: Option<&'a str>) -> Vec<(&'a str, Option<String>)> {
     let mut c = vec![("Projects", Some("/".to_string())), (p.name.as_str(), Some(format!("/projects/{}", p.id)))];
     match last {
         Some(l) => {
-            c.push(("Owner invoices", Some(format!("/projects/{}/owner-invoices", p.id))));
+            c.push((T::TITLE, Some(format!("/projects/{}/{}", p.id, T::PATH))));
             c.push((l, None));
         }
-        None => c.push(("Owner invoices", None)),
+        None => c.push((T::TITLE, None)),
     }
     c
 }
 
-pub fn list(req: &Req<'_>, id: Id<Project>) -> Markup {
+fn cmd<T: InvoicePage>(verb: &str) -> String {
+    format!("{}.{verb}", T::PREFIX)
+}
+
+pub fn list<T: InvoicePage>(req: &Req<'_>, id: Id<Project>) -> Markup {
     let Some(p) = project_for(req, id) else { return not_found(req) };
     let state = req.engine.state();
-    if view::level(state, req.actor(), id, Tool::Invoicing) < Level::Read {
+    if view::level(state, req.actor(), id, T::TOOL) < Level::Read {
         return not_found(req);
     }
-    let all = invoices_for(state, req.actor(), id);
-    let base = format!("/projects/{id}/owner-invoices");
-    let contracts: Vec<_> =
-        state.prime_contracts.iter().filter(|c| c.project == id && c.deleted.is_none() && c.status == ChangeStatus::Approved).collect();
+    let all = invoices_for::<T>(state, req.actor(), id);
+    let base = format!("/projects/{id}/{}", T::PATH);
+    let parents = T::parents(req, id);
     let body = html! {
-        div class="page-head" { div { h1 { "Owner invoices" } div class="sub" { "Payment applications for the work completed each period" } } }
+        div class="page-head" { div { h1 { (T::TITLE) } div class="sub" { (T::SUBTITLE) } } }
         @if all.is_empty() {
-            div class="card" { (empty(tool_icon(Tool::Invoicing), "No invoices yet", "Approve the prime contract, then start the first invoice below.")) }
+            div class="card" { (empty(tool_icon(T::TOOL), "No invoices yet", "Once there is something approved to invoice, start the first invoice below.")) }
         } @else {
             div class="table-wrap" {
                 table class="data" {
-                    thead { tr { th { "#" } th { "Period ending" } th { "Status" } th class="num" { "This period" } th class="num" { "Retainage" } th class="num" { "Amount due" } } }
+                    thead { tr { th { "#" } th { (T::PARENT_LABEL) } th { "Period ending" } th { "Status" } th class="num" { "This period" } th class="num" { "Retainage" } th class="num" { "Amount due" } } }
                     tbody {
                         @for i in &all {
-                            @let s = view::invoice_summary(state, i).ok();
+                            @let s = i.summary(state).ok();
                             tr {
-                                td class="nowrap" { (i.number) }
-                                td { a class="row-link" href=(format!("{base}/{}", i.id)) { (i.period_end.pretty()) } }
-                                td { (status_pill(i.status)) }
+                                td class="nowrap" { (i.number()) }
+                                td { (i.parent_link(req)) }
+                                td { a class="row-link" href=(format!("{base}/{}", i.id())) { (i.period_end().pretty()) } }
+                                td { (status_pill(i.status())) }
                                 td class="num" { @if let Some(s) = &s { (s.this_period) } }
                                 td class="num" { @if let Some(s) = &s { (s.retainage_this) } }
                                 td class="num" { @if let Some(s) = &s { (s.net_due) } }
@@ -69,15 +165,15 @@ pub fn list(req: &Req<'_>, id: Id<Project>) -> Markup {
                 }
             }
         }
-        @if req.allowed("owner_invoice.create", Some(id)) {
+        @if req.allowed(&cmd::<T>("create"), Some(id)) {
             div class="card" {
                 h2 { "Start an invoice" }
-                @if contracts.is_empty() { p class="muted" { "There is no approved prime contract to invoice yet." } }
+                @if parents.is_empty() { p class="muted" { "Nothing is approved to invoice yet." } }
                 @else {
-                    (command_form(req, "owner_invoice.create", &format!("{base}/{{id}}"), &base, html! {
+                    (command_form(req, &cmd::<T>("create"), &format!("{base}/{{id}}"), &base, html! {
                         input type="hidden" name="project" value=(id);
                         div class="form-grid" {
-                            (field("Prime contract", "contract", true, false, html! { select id="contract" name="contract" required { @for c in &contracts { option value=(c.id) { (c.title) } } } }))
+                            (field(T::PARENT_LABEL, "parent", true, false, html! { select id="parent" name=(T::PARENT) required { @for (pid, name) in &parents { option value=(pid) { (name) } } } }))
                             (field("Period ending", "period_end", true, false, html! { input type="date" id="period_end" name="period_end" required value=(req.today().to_string()); }))
                         }
                         div class="form-actions" { button type="submit" class="btn primary" { "Start invoice" } }
@@ -86,22 +182,22 @@ pub fn list(req: &Req<'_>, id: Id<Project>) -> Markup {
             }
         }
     };
-    layout::app(req, "Owner invoices", Nav::OwnerInvoices(id), &crumbs(p, None), body)
+    layout::app(req, T::TITLE, T::nav(id), &crumbs::<T>(p, None), body)
 }
 
-pub fn detail(req: &Req<'_>, id: Id<Project>, iid: Id<OwnerInvoice>, history: &[JournalEntry]) -> Markup {
+pub fn detail<T: InvoicePage>(req: &Req<'_>, id: Id<Project>, iid: Id<T>, history: &[JournalEntry]) -> Markup {
     let Some(p) = project_for(req, id) else { return not_found(req) };
     let state = req.engine.state();
-    let Some(i) = state.owner_invoices.get(iid).filter(|i| i.project == id && can_see(state, req.actor(), i)) else { return not_found(req) };
-    let Ok(s) = view::invoice_summary(state, i) else { return not_found(req) };
-    let base = format!("/projects/{id}/owner-invoices");
-    let here = format!("{base}/{}", i.id);
-    let ids = [("project", id.to_string()), ("id", i.id.to_string())];
-    let level = view::level(state, req.actor(), id, Tool::Invoicing);
+    let Some(i) = T::table(state).get(iid).filter(|i| i.project() == id && can_see(state, req.actor(), *i)) else { return not_found(req) };
+    let Ok(s) = i.summary(state) else { return not_found(req) };
+    let base = format!("/projects/{id}/{}", T::PATH);
+    let here = format!("{base}/{}", i.id());
+    let ids = [("project", id.to_string()), ("id", i.id().to_string())];
+    let level = view::level(state, req.actor(), id, T::TOOL);
     let admin = level == Level::Admin;
-    let editing = can_edit(state, req.actor(), i) && i.status == InvoiceStatus::Draft;
-    let name = format!("Invoice #{}", i.number);
-    let contract = state.prime_contracts.get(i.contract);
+    let status = i.status();
+    let editing = can_edit(state, req.actor(), i) && status == InvoiceStatus::Draft;
+    let name = format!("Invoice #{}", i.number());
     let table = html! {
         div class="table-wrap" { table class="data" {
             thead { tr { th { "Item" } th class="num" { "Scheduled value" } th class="num" { "Billed before" } th class="num" { "This period" } th class="num" { "To date" } th class="num" { "%" } th class="num" { "Balance to finish" } } }
@@ -123,15 +219,15 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, iid: Id<OwnerInvoice>, history: &[
     let body = html! {
         div class="page-head" {
             div {
-                h1 { (name) " " (status_pill(i.status)) }
-                div class="sub" { "Period ending " (i.period_end.pretty()) @if let Some(c) = contract { " · " a href=(format!("/projects/{id}/prime-contracts/{}", c.id)) { (c.title) } } @if let Some(d) = i.paid_on { " · paid " (d.pretty()) } }
+                h1 { (name) " " (status_pill(status)) }
+                div class="sub" { "Period ending " (i.period_end().pretty()) " · " (i.parent_link(req)) @if let Some(d) = i.paid_on() { " · paid " (d.pretty()) } }
             }
             div class="actions" {
-                @if i.status == InvoiceStatus::Draft && can_edit(state, req.actor(), i) { (button_form(req, "owner_invoice.submit", &here, &ids, "Submit to owner", "primary")) }
-                @if i.status == InvoiceStatus::Submitted && admin { (button_form(req, "owner_invoice.approve", &here, &ids, "Approve", "primary")) (button_form(req, "owner_invoice.reopen", &here, &ids, "Back to draft", "")) }
-                @if i.status == InvoiceStatus::Approved && admin { (button_form(req, "owner_invoice.pay", &here, &ids, "Record payment", "primary")) }
-                @if admin && !matches!(i.status, InvoiceStatus::Paid | InvoiceStatus::Void) { (button_form(req, "owner_invoice.void", &here, &ids, "Void", "danger")) }
-                @if level >= Level::Standard && matches!(i.status, InvoiceStatus::Draft | InvoiceStatus::Void) && (admin || i.created.by == Some(req.person)) { (button_form(req, "owner_invoice.delete", &base, &ids, "Delete", "danger")) }
+                @if status == InvoiceStatus::Draft && can_edit(state, req.actor(), i) { (button_form(req, &cmd::<T>("submit"), &here, &ids, "Submit", "primary")) }
+                @if status == InvoiceStatus::Submitted && admin { (button_form(req, &cmd::<T>("approve"), &here, &ids, "Approve", "primary")) (button_form(req, &cmd::<T>("reopen"), &here, &ids, "Back to draft", "")) }
+                @if status == InvoiceStatus::Approved && admin { (button_form(req, &cmd::<T>("pay"), &here, &ids, "Record payment", "primary")) }
+                @if admin && !matches!(status, InvoiceStatus::Paid | InvoiceStatus::Void) { (button_form(req, &cmd::<T>("void"), &here, &ids, "Void", "danger")) }
+                @if level >= Level::Standard && matches!(status, InvoiceStatus::Draft | InvoiceStatus::Void) && (admin || i.created().by == Some(req.person)) { (button_form(req, &cmd::<T>("delete"), &base, &ids, "Delete", "danger")) }
             }
         }
         div class="card" {
@@ -142,14 +238,14 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, iid: Id<OwnerInvoice>, history: &[
                     p class="muted small" { "Enter the work completed this period for each item. You can't bill an item beyond its scheduled value." }
                     (table)
                     div class="form-grid" {
-                        (field("Period ending", "period_end", true, false, html! { input type="date" id="period_end" name="period_end" required value=(i.period_end.to_string()); }))
-                        (field("Notes", "notes", false, true, html! { textarea id="notes" name="notes" class="short" { (i.notes) } }))
+                        (field("Period ending", "period_end", true, false, html! { input type="date" id="period_end" name="period_end" required value=(i.period_end().to_string()); }))
+                        (field("Notes", "notes", false, true, html! { textarea id="notes" name="notes" class="short" { (i.notes()) } }))
                     }
                     div class="form-actions" { button type="submit" class="btn primary" { "Save amounts" } }
                 }
             } @else {
                 (table)
-                @if !i.notes.is_empty() { p class="prose" { (i.notes) } }
+                @if !i.notes().is_empty() { p class="prose" { (i.notes()) } }
             }
         }
         div class="card" {
@@ -173,5 +269,5 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, iid: Id<OwnerInvoice>, history: &[
             }
         }
     };
-    layout::app(req, &name, Nav::OwnerInvoices(id), &crumbs(p, Some(&name)), body)
+    layout::app(req, &name, T::nav(id), &crumbs::<T>(p, Some(&name)), body)
 }

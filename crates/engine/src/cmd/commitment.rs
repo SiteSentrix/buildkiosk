@@ -11,7 +11,7 @@
 
 use buildkiosk_core::{Id, text};
 use buildkiosk_model::directory::Vendor;
-use buildkiosk_model::finance::{Commitment, CommitmentKind, CommitmentLine, CommitmentStatus};
+use buildkiosk_model::finance::{Commitment, CommitmentKind, CommitmentLine, CommitmentStatus, InvoiceStatus};
 use buildkiosk_model::project::{CostCode, Project};
 use buildkiosk_model::{Level, Tool};
 use serde_json::{Value, json};
@@ -28,7 +28,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Create commitment",
         Tool::Commitments,
         Access::Project(Level::Standard),
-        "project: project id; title: text; kind?: subcontract|purchase_order; vendor?: company id; description?: text; \
+        "project: project id; title: text; kind?: subcontract|purchase_order; vendor?: company id; description?: text; retainage?: percent (such as 10, withheld on each invoice); \
          lines?: [{cost_code: cost code id, description?: text, amount: amount}]",
         create,
     ),
@@ -126,7 +126,13 @@ fn apply_fields(ctx: &Ctx<'_>, p: &Params<'_>, c: &mut Commitment, creating: boo
     if p.present("description") {
         c.description = p.text_or_empty("description", text::LONG)?;
     }
+    if p.present("retainage") {
+        c.retainage = super::invoice::retainage(p)?;
+    }
     if p.present("lines") {
+        if !creating && ctx.state.commitment_invoices.iter().any(|i| i.commitment == c.id && i.deleted.is_none() && i.status != InvoiceStatus::Void) {
+            return Err(EngineError::conflict("invoices exist for this commitment, so its lines can't change (use a change order)"));
+        }
         c.lines = read_lines(ctx, p, c.project)?;
         if c.total().is_none() {
             return Err(p.bad("lines", "the amounts are too large to add up"));
@@ -149,6 +155,7 @@ fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         vendor: None,
         description: String::new(),
         lines: Vec::new(),
+        retainage: None,
         approved: None,
         attachments: Vec::new(),
         created: stamp,
@@ -214,6 +221,9 @@ fn void(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     let c = load(ctx, p)?;
     if c.status == CommitmentStatus::Void {
         return Err(EngineError::conflict(format!("{} is already void", c.label())));
+    }
+    if ctx.state.commitment_invoices.iter().any(|i| i.commitment == c.id && i.deleted.is_none() && i.status != InvoiceStatus::Void) {
+        return Err(EngineError::conflict("invoices exist for this commitment; void them first"));
     }
     Ok(set_status(ctx, c, CommitmentStatus::Void))
 }

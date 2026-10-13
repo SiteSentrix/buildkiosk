@@ -16,6 +16,7 @@ pub mod cmd;
 pub mod costdoc;
 pub mod ctx;
 pub mod guard;
+pub mod invoicedoc;
 pub mod journal;
 pub mod params;
 pub mod view;

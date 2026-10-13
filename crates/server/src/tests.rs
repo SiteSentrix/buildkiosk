@@ -64,7 +64,7 @@ async fn setup_login_and_forms() {
     let (st, ..) = send(&app, post("/do/project.create", &session, "_csrf=nope&name=Evil".into())).await;
     assert_eq!(st, StatusCode::FORBIDDEN);
     let (_, h, _) = send(&app, post("/do/project.create", &session, format!("_csrf={csrf}&_next=/&name="))).await;
-    assert!(h.get(LOCATION).unwrap().to_str().unwrap().starts_with("/?error="));
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().starts_with("/?") && h.get(LOCATION).unwrap().to_str().unwrap().contains("error="));
 
     // The API needs a token.
     let (st, ..) = send(&app, Request::post("/api/v1/commands/project.list").body(Body::empty()).unwrap()).await;
@@ -376,7 +376,10 @@ async fn daily_log_form_saves_lists_and_submits() {
     }
     // A second log for the same day is refused with a message, and a bad hours value too.
     let (_, h, _) = send(&app, post("/projects/1/daily-logs/save", &ada, format!("_csrf={csrf}&date=2026-10-12"))).await;
-    assert!(h.get(LOCATION).unwrap().to_str().unwrap().starts_with("/projects/1/daily-logs/new?error="));
+    assert!(
+        h.get(LOCATION).unwrap().to_str().unwrap().starts_with("/projects/1/daily-logs/new?")
+            && h.get(LOCATION).unwrap().to_str().unwrap().contains("error=")
+    );
     let (_, h, _) = send(
         &app,
         post(
@@ -1800,6 +1803,67 @@ async fn pdf_downloads_for_documents_and_lists() {
     assert_eq!(st, StatusCode::SEE_OTHER, "signed-out people don't get documents");
     let (_, _, page) = send(&app, get("/projects/1/rfis/1")).await;
     assert!(page.contains("/projects/1/rfis/1/pdf"));
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn save_forms_post_to_the_save_route() {
+    assert_eq!(save_action("/projects/1/daily-logs/new"), "/projects/1/daily-logs/save");
+    assert_eq!(save_action("/projects/1/commitments/7/edit"), "/projects/1/commitments/7/save");
+    assert_eq!(save_action("/projects/1/x"), "/projects/1/x");
+}
+
+#[tokio::test]
+async fn refused_saves_keep_what_was_typed() {
+    let dir = temp("drafts");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=P"))).await;
+
+    // A generic form: a refused RFI keeps its subject, question and priority.
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/do/rfi.create",
+            &ada,
+            format!("_csrf={csrf}&_next=/projects/1/rfis/%7Bid%7D&_back=/projects/1/rfis/new&project=1&subject=Door+%22hardware%22&question=Which+hinge%3F&due=not-a-date"),
+        ),
+    )
+    .await;
+    let loc = h.get(LOCATION).unwrap().to_str().unwrap().to_string();
+    assert!(loc.starts_with("/projects/1/rfis/new?") && loc.contains("error=") && loc.contains("draft="), "{loc}");
+    let (_, _, form) = send(&app, get(&loc)).await;
+    assert!(form.contains("Door &quot;hardware&quot;") && form.contains("Which hinge?"), "{form}");
+
+    // Someone else, or a made-up marker, sees an empty form.
+    let (_, _, plain_form) = send(&app, get("/projects/1/rfis/new?draft=nope")).await;
+    assert!(!plain_form.contains("Which hinge?"));
+    // The CSRF token and password-like fields are never replayed from a draft.
+    assert!(form.contains(&format!("value=\"{csrf}\"")) || form.contains("name=\"_csrf\""));
+
+    // A custom save form: a refused daily log keeps its text.
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/projects/1/daily-logs/save",
+            &ada,
+            format!("_csrf={csrf}&date=2026-10-12&sky=rain&high=abc&low=&weather_notes=&work_performed=Poured+footings&delays=&safety=&notes="),
+        ),
+    )
+    .await;
+    let loc = h.get(LOCATION).unwrap().to_str().unwrap().to_string();
+    assert!(loc.contains("draft="), "{loc}");
+    let (_, _, form) = send(&app, get(&loc)).await;
+    assert!(form.contains("Poured footings") && form.contains("value=\"abc\""), "{form}");
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }

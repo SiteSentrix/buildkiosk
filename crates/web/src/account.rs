@@ -108,7 +108,7 @@ pub fn page(req: &Req<'_>, tokens: &[TokenRow], new_token: Option<&str>, mail: &
             }
         }
         @if me.is_some_and(|p| p.company_admin) {
-            p class="muted" { a href="/admin/email" { "Set up outgoing email" } }
+            p class="muted" { a href="/settings" { "Company settings" } " · " a href="/admin/email" { "Set up outgoing email" } }
         }
         div class="card" {
             h2 { "API tokens" }

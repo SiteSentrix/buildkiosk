@@ -150,6 +150,7 @@ pub fn project_home(req: &Req<'_>, id: Id<Project>) -> Markup {
                 h1 { (p.name) " " span class=(format!("pill {}", stage_class(p.stage))) { (p.stage.label()) } }
                 div class="sub" { @if !p.number.is_empty() { (p.number) " · " } (p.address.one_line()) }
             }
+            @if req.allowed("project.update", Some(id)) { div class="actions" { a class="btn" href=(format!("/projects/{id}/settings")) { "Settings" } } }
         }
         div class="stat-row" {
             a class="stat" href=(format!("{base}/rfis?status=open")) { div class="label" { "Open RFIs" } div class="value" { (open) } }
@@ -238,6 +239,7 @@ pub fn team(req: &Req<'_>, id: Id<Project>) -> Markup {
                                             }
                                         }))
                                     }
+                                    a class="btn small" href=(format!("{here}/{}", m.person)) { "Tool access" }
                                     (button_form(req, "member.remove", &here, &[("project", id.to_string()), ("person", m.person.to_string())], "Remove", "small danger"))
                                 }
                             }
@@ -265,6 +267,59 @@ pub fn team(req: &Req<'_>, id: Id<Project>) -> Markup {
         }
     };
     layout::app(req, "Team", Nav::Team(id), &[("Projects", Some("/".into())), (&p.name, Some(format!("/projects/{id}"))), ("Team", None)], body)
+}
+
+/// One team member's access to each tool: what their template gives, and an override per tool.
+pub fn member_access(req: &Req<'_>, id: Id<Project>, person: Id<Person>) -> Markup {
+    let Some(p) = project_for(req, id) else { return not_found(req) };
+    let state = req.engine.state();
+    let Some(m) = perm::membership(state, id, person) else { return not_found(req) };
+    if !req.allowed("member.update", Some(id)) {
+        return not_found(req);
+    }
+    let name = view::person_name(state, person);
+    let here = format!("/projects/{id}/team/{person}");
+    let template = m.template.and_then(|t| state.templates.get(t));
+    let body = html! {
+        div class="page-head" { div {
+            h1 { "Tool access: " (name) }
+            div class="sub" {
+                @if m.project_admin { "A project admin has full access to every tool, so overrides have no effect." }
+                @else { "The template " strong { (template.map(|t| t.name.as_str()).unwrap_or("(none)")) } " sets the level on each tool. An override replaces it for this person on this project only." }
+            }
+        } }
+        div class="card" {
+            (command_form(req, "member.update", &here, &here, html! {
+                input type="hidden" name="project" value=(id);
+                input type="hidden" name="person" value=(person);
+                @for group in buildkiosk_engine::model::ToolGroup::ALL {
+                    @let tools: Vec<Tool> = Tool::ALL.iter().copied().filter(|x| x.group() == *group && x.scope() == buildkiosk_engine::model::Scope::Project).collect();
+                    @if !tools.is_empty() {
+                        h2 { (group.label()) }
+                        table class="data matrix" {
+                            thead { tr { th { "Tool" } th { "Template gives" } th { "Override" } } }
+                            tbody { @for tool in tools { tr {
+                                td { (tool.label()) }
+                                td { (template.map(|t| t.level(tool).label()).unwrap_or("None")) }
+                                td { select name=(format!("overrides.{}", tool.key())) aria-label=(format!("Override for {}", tool.label())) {
+                                    option value="inherit" selected[!m.overrides.contains_key(&tool)] { "Use the template" }
+                                    @for l in Level::ALL { option value=(l.key()) selected[m.overrides.get(&tool) == Some(l)] { (l.label()) } }
+                                } }
+                            } } }
+                        }
+                    }
+                }
+                div class="form-actions" { a class="btn" href=(format!("/projects/{id}/team")) { "Back" } button type="submit" class="btn primary" { "Save access" } }
+            }))
+        }
+    };
+    layout::app(
+        req,
+        "Tool access",
+        Nav::Team(id),
+        &[("Projects", Some("/".into())), (&p.name, Some(format!("/projects/{id}"))), ("Team", Some(format!("/projects/{id}/team"))), (&name, None)],
+        body,
+    )
 }
 
 // -- RFIs
@@ -853,6 +908,20 @@ pub fn vendor_edit(req: &Req<'_>, id: buildkiosk_core::Id<buildkiosk_engine::mod
                 }
                 div class="form-actions" { a class="btn" href="/directory" { "Cancel" } button type="submit" class="btn primary" { "Save" } }
             }))
+        }
+        @if req.allowed("vendor.merge", None) {
+            @let others: Vec<_> = state.vendors.iter().filter(|o| o.deleted.is_none() && o.id != id).collect();
+            @if !others.is_empty() {
+                div class="card" {
+                    h2 { "Merge into another company" }
+                    p class="muted" { "If this company was entered twice, merge it into the one to keep. RFIs, commitments, bids, people and other records that name " (v.name) " will name the kept company instead, and " (v.name) " is removed from the directory. Blank details of the kept company are filled in from this one." }
+                    (command_form(req, "vendor.merge", "/directory", &here, html! {
+                        input type="hidden" name="from" value=(id);
+                        (field("Keep this company", "into", true, false, html! { select id="into" name="into" required { @for o in &others { option value=(o.id) { (o.name) } } } }))
+                        div class="form-actions" { button type="submit" class="btn danger" { "Merge and remove " (v.name) } }
+                    }))
+                }
+            }
         }
     };
     layout::app(req, &v.name, Nav::Directory, &[("Directory", Some("/directory".into())), (&v.name, None)], body)

@@ -53,6 +53,14 @@ pub const COMMANDS: &[CommandSpec] = &[
         vendor_update,
     ),
     CommandSpec::mutate("vendor.delete", "Delete company", Tool::Directory, Access::Company(Level::Admin), "id: company id", vendor_delete),
+    CommandSpec::mutate(
+        "vendor.merge",
+        "Merge duplicate companies",
+        Tool::Directory,
+        Access::Company(Level::Admin),
+        "from: company id (the duplicate, removed afterwards); into: company id (kept). Everything that pointed at `from` points at `into`.",
+        vendor_merge,
+    ),
     CommandSpec::mutate("vendor.restore", "Restore company", Tool::Directory, Access::Company(Level::Admin), "id: company id", vendor_restore),
     CommandSpec::query("vendor.list", "List companies", Tool::Directory, Access::Company(Level::Read), "q?: text; kind?: vendor kind", vendor_list),
     CommandSpec::query("vendor.get", "Show company", Tool::Directory, Access::Company(Level::Read), "id: company id", vendor_get),
@@ -377,6 +385,112 @@ fn vendor_delete(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         })
         .ok_or_else(|| EngineError::not_found(format!("company {id} not found")))?;
     Ok(json!({ "id": id }))
+}
+
+/// Points everything that referred to the duplicate company at the one kept, then removes the
+/// duplicate. Blank details of the kept company are filled in from the duplicate.
+fn vendor_merge(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let from: Id<Vendor> = p.id("from")?;
+    let into: Id<Vendor> = p.id("into")?;
+    if from == into {
+        return Err(p.bad("into", "must be a different company"));
+    }
+    ctx.check_vendor(from)?;
+    ctx.check_vendor(into)?;
+    let s = &mut *ctx.state;
+    let swap = |v: &mut Id<Vendor>| {
+        if *v == from {
+            *v = into;
+        }
+    };
+    let swap_opt = |v: &mut Option<Id<Vendor>>| {
+        if *v == Some(from) {
+            *v = Some(into);
+        }
+    };
+    let mut moved = 0usize;
+    macro_rules! repoint {
+        ($table:ident, $field:ident) => {
+            let ids: Vec<_> = s.$table.iter().filter(|r| r.$field == Some(from)).map(|r| r.id).collect();
+            moved += ids.len();
+            for id in ids {
+                s.$table.update(id, |r| swap_opt(&mut r.$field));
+            }
+        };
+    }
+    repoint!(people, vendor);
+    repoint!(rfis, responsible_vendor);
+    repoint!(projects, owner);
+    repoint!(schedule_tasks, company);
+    repoint!(commitments, vendor);
+    repoint!(direct_costs, vendor);
+    repoint!(prime_contracts, owner);
+
+    // Bid packages: invitations, bids (one per company: the later one stands) and the award.
+    let ids: Vec<_> = s
+        .bid_packages
+        .iter()
+        .filter(|b| b.invited.contains(&from) || b.awarded_to == Some(from) || b.bids.iter().any(|x| x.vendor == from))
+        .map(|b| b.id)
+        .collect();
+    moved += ids.len();
+    for id in ids {
+        s.bid_packages.update(id, |b| {
+            b.invited.iter_mut().for_each(swap);
+            let mut seen = std::collections::BTreeSet::new();
+            b.invited.retain(|v| seen.insert(v.raw()));
+            swap_opt(&mut b.awarded_to);
+            let kept_later = b.bids.iter().filter(|x| x.vendor == into).map(|x| x.received).max();
+            let dup_later = b.bids.iter().filter(|x| x.vendor == from).map(|x| x.received).max();
+            if let (Some(k), Some(d)) = (kept_later, dup_later) {
+                if d > k {
+                    b.bids.retain(|x| x.vendor != into);
+                } else {
+                    b.bids.retain(|x| x.vendor != from);
+                }
+            }
+            b.bids.iter_mut().for_each(|x| swap(&mut x.vendor));
+        });
+    }
+
+    // Prequalification: one live record per company. The kept company's stands; otherwise the
+    // duplicate's moves over.
+    let kept_has = s.prequalifications.iter().any(|q| q.vendor == into && q.deleted.is_none());
+    let stamp = ctx.stamp();
+    let s = &mut *ctx.state;
+    let ids: Vec<_> = s.prequalifications.iter().filter(|q| q.vendor == from).map(|q| q.id).collect();
+    for id in ids {
+        s.prequalifications.update(id, |q| {
+            if kept_has && q.deleted.is_none() {
+                q.deleted = Some(stamp);
+            }
+            q.vendor = into;
+        });
+    }
+
+    // Fill the kept company's blanks, then retire the duplicate.
+    let Some(dup) = s.vendors.get(from).cloned() else { return Err(EngineError::not_found(format!("company {from} not found"))) };
+    s.vendors.update(into, |k| {
+        for (mine, theirs) in [
+            (&mut k.trade, &dup.trade),
+            (&mut k.email, &dup.email),
+            (&mut k.phone, &dup.phone),
+            (&mut k.website, &dup.website),
+            (&mut k.license_number, &dup.license_number),
+            (&mut k.address.street, &dup.address.street),
+            (&mut k.address.city, &dup.address.city),
+            (&mut k.address.region, &dup.address.region),
+            (&mut k.address.postal_code, &dup.address.postal_code),
+            (&mut k.address.country, &dup.address.country),
+        ] {
+            if mine.trim().is_empty() {
+                *mine = theirs.clone();
+            }
+        }
+        k.updated = stamp;
+    });
+    s.vendors.update(from, |v| v.deleted = Some(stamp));
+    Ok(json!({ "into": into, "records_moved": moved }))
 }
 
 fn vendor_restore(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {

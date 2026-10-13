@@ -41,7 +41,7 @@ fn code_options(req: &Req<'_>, project: Id<Project>, selected: Option<Id<buildki
 
 /// The columns and grouping a budget is shown with: the chosen saved view, else the standard layout (which adds
 /// the percent-complete column when the project forecasts by progress).
-fn budget_layout(
+pub(crate) fn budget_layout(
     state: &buildkiosk_engine::model::CompanyState,
     id: Id<Project>,
     chosen: Option<Id<BudgetView>>,
@@ -62,7 +62,7 @@ fn budget_layout(
 }
 
 /// One cell of the budget table.
-fn budget_cell(row: &view::BudgetRow, column: BudgetColumn) -> Markup {
+pub(crate) fn budget_cell(row: &view::BudgetRow, column: BudgetColumn) -> Markup {
     match column {
         BudgetColumn::Percent => html! { td class="num" { @if let Some(x) = row.percent_complete { (x) "%" } @else { span class="muted" { "—" } } } },
         BudgetColumn::Forecast => {
@@ -73,6 +73,20 @@ fn budget_cell(row: &view::BudgetRow, column: BudgetColumn) -> Markup {
         }
         _ => html! { td class="num" { (view::column_amount(row, column).unwrap_or_default()) } },
     }
+}
+
+/// A budget cell as plain text (for the PDF).
+pub(crate) fn budget_text(row: &view::BudgetRow, column: BudgetColumn) -> String {
+    match column {
+        BudgetColumn::Percent => row.percent_complete.map(|x| format!("{x}%")).unwrap_or_else(|| "—".into()),
+        BudgetColumn::Forecast => row.forecast_to_complete.map(|x| x.to_string()).unwrap_or_else(|| "—".into()),
+        _ => view::column_amount(row, column).unwrap_or_default().to_string(),
+    }
+}
+
+/// A total or subtotal cell as plain text (blank where a total makes no sense).
+pub(crate) fn total_text(t: &view::BudgetTotals, column: BudgetColumn) -> String {
+    view::total_amount(t, column).map(|m| m.to_string()).unwrap_or_default()
 }
 
 /// One cell of a total or subtotal row (blank where a total makes no sense).
@@ -115,9 +129,9 @@ pub fn budget(
         div class="page-head" {
             div { h1 { "Budget" } div class="sub" { "What each cost code was budgeted, what is committed and what has been spent" } }
             div class="actions" {
-                a class="btn" href=(format!("{here}.pdf")) { "PDF" }
+                a class="btn" href=(format!("{here}.pdf?view={}", current.map_or(0, |c| c.id.raw()))) { "PDF" }
                 a class="btn" href=(format!("/projects/{id}/budget-changes")) { "Budget changes" }
-                a class="btn" href=(format!("{here}.csv")) { (Icon::Download.svg()) "Export CSV" }
+                a class="btn" href=(format!("{here}.csv?view={}", current.map_or(0, |c| c.id.raw()))) { (Icon::Download.svg()) "Export CSV" }
             }
         }
         @if let Some(t) = totals {
@@ -134,8 +148,16 @@ pub fn budget(
         @if locked { div class="flash ok" role="status" { "The original budget is locked. Change it with a budget change; forecasts can still be edited." } }
         @if !saved_views.is_empty() || can_views {
             div class="tabs" {
-                a href=(here.clone()) class=(if current.is_none() { "active" } else { "" }) { "Standard" }
+                a href=(format!("{here}?view=0")) class=(if current.is_none() { "active" } else { "" }) { "Standard" }
                 @for v in &saved_views { a href=(format!("{here}?view={}", v.id)) class=(if current.is_some_and(|c| c.id == v.id) { "active" } else { "" }) { (v.name) } }
+            }
+        }
+        @if (!saved_views.is_empty() || can_views) && req.allowed("budget.view_default", Some(id)) {
+            @let mine = view::default_budget_view(state, req.person, id);
+            @if mine != current.map(|c| c.id) {
+                (button_form(req, "budget.view_default", &here, &[("project", id.to_string()), ("id", current.map(|c| c.id.to_string()).unwrap_or_default())], if current.is_some() { "Open this view by default" } else { "Open the standard layout by default" }, "small"))
+            } @else if mine.is_some() {
+                p class="muted small" { "This is the view you open by default." }
             }
         }
         @if rows.is_empty() {
@@ -422,7 +444,7 @@ pub fn budget_csv(req: &Req<'_>, id: Id<Project>, chosen: Option<Id<BudgetView>>
 
 // -- commitments
 
-fn signature_pill(s: SignatureStatus) -> Markup {
+pub(crate) fn signature_pill(s: SignatureStatus) -> Markup {
     let class = match s {
         SignatureStatus::NotSent => "grey",
         SignatureStatus::Sent => "amber",
@@ -833,4 +855,78 @@ pub fn direct_costs(req: &Req<'_>, id: Id<Project>) -> Markup {
         &crumbs(p, "Direct costs", None).into_iter().take(2).chain([("Direct costs", None)]).collect::<Vec<_>>(),
         body,
     )
+}
+
+/// The signature card of a prime contract or change order: where the signing stands and the steps that move it.
+pub(crate) fn signature_card(
+    req: &Req<'_>,
+    prefix: &str,
+    project: Id<Project>,
+    doc: u64,
+    sig: &buildkiosk_engine::model::finance::ContractSignature,
+    (open, approved): (bool, bool),
+    here: &str,
+) -> Markup {
+    let state = req.engine.state();
+    let requires = state.projects.get(project).is_some_and(|p| p.require_signed_contracts);
+    let can_sign = open && req.allowed(&format!("{prefix}.send_for_signature"), Some(project));
+    let admin =
+        view::level(state, req.actor(), project, if prefix == "prime_contract" { Tool::PrimeContracts } else { Tool::ChangeOrders }) == Level::Admin;
+    let ids = [("project", project.to_string()), ("id", doc.to_string())];
+    html! {
+        @if sig.status != SignatureStatus::NotSent || can_sign || requires {
+            div class="card" {
+                div class="card-head" { h2 { "Signature" } (signature_pill(sig.status)) }
+                @if requires && sig.status != SignatureStatus::Signed && !approved {
+                    p class="muted small" { "This project needs a signed contract before this can be approved." }
+                }
+                @if sig.status != SignatureStatus::NotSent {
+                    dl class="facts" {
+                        @if let Some(d) = sig.sent_on { dt { "Sent" } dd { (d.pretty()) @if !sig.sent_to.is_empty() { " to " (sig.sent_to) } } }
+                        @if let Some(d) = sig.signed_on { dt { "Signed" } dd { (d.pretty()) @if !sig.signer.is_empty() { " by " (sig.signer) } } }
+                        @if !sig.note.is_empty() { dt { "Note" } dd { (sig.note) } }
+                    }
+                }
+                @if can_sign {
+                    @if sig.status != SignatureStatus::Signed {
+                        @if sig.status != SignatureStatus::Sent {
+                            (command_form(req, &format!("{prefix}.send_for_signature"), here, here, html! {
+                                input type="hidden" name="project" value=(project); input type="hidden" name="id" value=(doc);
+                                div class="form-grid" {
+                                    (field("Sent to", "sig_to", false, false, html! { input type="text" id="sig_to" name="to" placeholder="Name or email"; }))
+                                    (field("Date sent", "sig_on", false, false, html! { input type="date" id="sig_on" name="on"; }))
+                                }
+                                div class="form-actions" { button type="submit" class="btn" { "Mark as sent for signature" } }
+                            }))
+                        }
+                        details class="disclosure" {
+                            summary { "Record the signature" }
+                            (command_form(req, &format!("{prefix}.record_signature"), here, here, html! {
+                                input type="hidden" name="project" value=(project); input type="hidden" name="id" value=(doc);
+                                div class="form-grid" {
+                                    (field("Signed by", "sig_by", true, false, html! { input type="text" id="sig_by" name="signer" required placeholder="Who signed for the owner"; }))
+                                    (field("Date signed", "sig_when", false, false, html! { input type="date" id="sig_when" name="on"; }))
+                                    (field("Note", "sig_note", false, true, html! { input type="text" id="sig_note" name="note"; }))
+                                }
+                                div class="form-actions" { button type="submit" class="btn primary" { "Record signature" } }
+                            }))
+                        }
+                    }
+                    @if sig.status == SignatureStatus::Sent {
+                        details class="disclosure" {
+                            summary { "It came back unsigned" }
+                            (command_form(req, &format!("{prefix}.decline_signature"), here, here, html! {
+                                input type="hidden" name="project" value=(project); input type="hidden" name="id" value=(doc);
+                                (field("Why", "sig_why", false, true, html! { input type="text" id="sig_why" name="note"; }))
+                                div class="form-actions" { button type="submit" class="btn" { "Record as declined" } }
+                            }))
+                        }
+                    }
+                    @if sig.status != SignatureStatus::NotSent && (sig.status != SignatureStatus::Signed || admin) {
+                        (button_form(req, &format!("{prefix}.reset_signature"), here, &ids, if sig.status == SignatureStatus::Signed { "Clear the signature" } else { "Take back" }, "small"))
+                    }
+                }
+            }
+        }
+    }
 }

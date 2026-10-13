@@ -154,6 +154,68 @@ pub fn restore(from: &Path, into: &Path, replace: bool, now_seconds: u64) -> Res
     Ok(RestoreReport { companies, moved_aside })
 }
 
+/// Puts one company of a backup back into an existing data directory (no server may be using it), leaving the
+/// others alone. The company's current folder is moved aside to `<data>.before-restore-<company>-<seconds>`
+/// rather than deleted, and a company that is not in the data directory yet is simply added. The backup is
+/// replayed first, and the restored company is replayed after, so a damaged backup changes nothing.
+pub fn restore_company(from: &Path, into: &Path, slug: &str, now_seconds: u64) -> Result<CompanyReport> {
+    if !crate::valid_slug(slug) {
+        return Err(StoreError::Invalid(format!("`{slug}` is not a valid company id (lowercase letters, digits and hyphens)")));
+    }
+    if !from.join("instance.json").is_file() {
+        return Err(StoreError::Invalid(format!("{} is not a BuildKiosk backup (no instance.json)", from.display())));
+    }
+    if from == into || into.starts_with(from) || from.starts_with(into) {
+        return Err(StoreError::Invalid("the backup and the data directory can't be the same folder or inside one another".into()));
+    }
+    let source = DataDir::open(from)?;
+    if !source.companies()?.iter().any(|c| c == slug) {
+        return Err(StoreError::Invalid(format!("the backup has no company `{slug}`")));
+    }
+    source.load(slug).map_err(|e| StoreError::Invalid(format!("company `{slug}` in the backup does not load, so nothing was changed: {e}")))?;
+    if !into.join("instance.json").is_file() {
+        return Err(StoreError::Invalid(format!("{} is not a BuildKiosk data directory", into.display())));
+    }
+    // Taking the lock proves no server is running on it.
+    let target = DataDir::open(into)?;
+    let name = into.file_name().and_then(|n| n.to_str()).unwrap_or("data");
+    let staged = into.with_file_name(format!("{name}.restoring-{slug}-{now_seconds}"));
+    let aside = into.with_file_name(format!("{name}.before-restore-{slug}-{now_seconds}"));
+    if staged.exists() || aside.exists() {
+        return Err(StoreError::Invalid(format!("{} or {} already exists", staged.display(), aside.display())));
+    }
+    copy_dir(&from.join("companies").join(slug), &staged)?;
+    let live = into.join("companies").join(slug);
+    let had_one = live.exists();
+    let swap = || -> Result<()> {
+        if had_one {
+            fs::rename(&live, &aside).map_err(|e| StoreError::io(&live, e))?;
+        }
+        fs::rename(&staged, &live).map_err(|e| StoreError::io(&staged, e))?;
+        Ok(())
+    };
+    if let Err(e) = swap() {
+        // Put things back as they were.
+        if had_one && aside.exists() && !live.exists() {
+            let _ = fs::rename(&aside, &live);
+        }
+        let _ = fs::remove_dir_all(&staged);
+        return Err(e);
+    }
+    fsutil::sync_dir(&into.join("companies"));
+    let t = target.load(slug).map_err(|e| StoreError::Invalid(format!("company `{slug}` was restored but does not load: {e}")))?;
+    let rows = t.engine.state().row_counts().into_iter().filter(|(_, n)| *n > 0).collect();
+    Ok(CompanyReport { slug: slug.to_string(), journal_entries: t.store.len(), rows })
+}
+
+/// Copies a finished backup folder to another place (a second disk, a mounted share) as it is.
+pub fn copy_backup(from: &Path, to: &Path) -> Result<()> {
+    if to.starts_with(from) || from.starts_with(to) {
+        return Err(StoreError::Invalid("the copy can't be inside the backup or the other way round".into()));
+    }
+    copy_dir(from, to)
+}
+
 fn copy_dir(from: &Path, to: &Path) -> Result<()> {
     fs::create_dir_all(to).map_err(|e| StoreError::io(to, e))?;
     for entry in fs::read_dir(from).map_err(|e| StoreError::io(from, e))? {
@@ -303,5 +365,61 @@ mod tests {
         for p in [&src, &bak, &live, &aside, &not_a_backup, &stranger] {
             let _ = fs::remove_dir_all(p);
         }
+    }
+
+    #[test]
+    fn one_company_is_restored_and_the_others_are_left_alone() {
+        let src = temp("co-src");
+        let bak = temp("co-bak");
+        let at = buildkiosk_core::Timestamp::from_millis(3);
+        let setup_two =
+            serde_json::json!({"name": "Beta", "slug": "beta", "admin_first_name": "B", "admin_last_name": "B", "admin_email": "b@example.com"});
+        {
+            let (data, mut t) = setup(&src);
+            add_project(&mut t, "Tower One");
+            let mut b = data.create("beta").unwrap();
+            b.engine.execute(&mut b.store, buildkiosk_engine::Actor::System, at, "company.setup", &setup_two).unwrap();
+            drop((t, b));
+            data.backup_to(&bak).unwrap();
+        }
+        // After the backup both companies move on.
+        {
+            let data = DataDir::open(&src).unwrap();
+            let mut t = data.load("acme").unwrap();
+            add_project(&mut t, "Tower Two");
+            let mut b = data.load("beta").unwrap();
+            b.engine.execute(&mut b.store, buildkiosk_engine::Actor::System, at, "project.create", &serde_json::json!({"name": "Beta job"})).unwrap();
+        }
+        let projects = |p: &Path, slug: &str| {
+            let d = DataDir::open(p).unwrap();
+            d.load(slug).unwrap().engine.state().row_counts().into_iter().find(|(t, _)| *t == "projects").map(|(_, n)| n)
+        };
+        assert_eq!((projects(&src, "acme"), projects(&src, "beta")), (Some(2), Some(1)));
+        // Refused: a bad name, a company the backup lacks, a running server, a backup that is not one.
+        assert!(restore_company(&bak, &src, "Acme!", 10).is_err());
+        assert!(restore_company(&bak, &src, "gamma", 10).is_err());
+        {
+            let _held = DataDir::open(&src).unwrap();
+            assert!(matches!(restore_company(&bak, &src, "acme", 10), Err(StoreError::Locked(_))));
+        }
+        let nothing = temp("co-nothing");
+        fs::create_dir_all(&nothing).unwrap();
+        assert!(restore_company(&nothing, &src, "acme", 10).is_err());
+        assert_eq!(projects(&src, "acme"), Some(2), "nothing changed");
+        // Acme goes back to the backup; Beta keeps what it had; the old Acme is kept aside.
+        let r = restore_company(&bak, &src, "acme", 11).unwrap();
+        assert_eq!(r.slug, "acme");
+        assert_eq!((projects(&src, "acme"), projects(&src, "beta")), (Some(1), Some(1)));
+        let aside = src.with_file_name(format!("{}.before-restore-acme-11", src.file_name().unwrap().to_str().unwrap()));
+        assert!(aside.join("journal.jsonl").is_file(), "the replaced company is kept");
+        assert!(restore_company(&bak, &src, "acme", 11).is_err(), "won't overwrite an earlier move-aside");
+        // A company that was lost altogether is simply put back.
+        fs::remove_dir_all(src.join("companies").join("beta")).unwrap();
+        restore_company(&bak, &src, "beta", 12).unwrap();
+        assert_eq!(projects(&src, "beta"), Some(0), "as of the backup");
+        for p in [&src, &bak, &nothing, &aside] {
+            let _ = fs::remove_dir_all(p);
+        }
+        let _ = fs::remove_dir_all(src.with_file_name(format!("{}.before-restore-beta-12", src.file_name().unwrap().to_str().unwrap())));
     }
 }

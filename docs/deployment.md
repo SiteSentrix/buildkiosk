@@ -106,8 +106,16 @@ The defaults are every 24 hours and keeping the newest 7. Each backup is a folde
 replayed to prove it loads; one that fails or is interrupted is removed and the failure is logged. Requests wait only
 while the small files (snapshot, credentials) are copied. The journal is copied up to the length it had at that
 moment and the uploaded files after, so the backup is whole as of when it began. The folder must be outside the data
-directory, and the server only ever deletes folders it named itself (`backup-<digits>`). Copy them off the machine
-as for any other backup.
+directory, and the server only ever deletes folders it named itself (`backup-<digits>`).
+
+**A second copy.** Add `--backup-copy-to /mnt/offsite/buildkiosk` and every finished backup is also copied there
+(another disk, or a share mounted from another machine, an NFS or SMB mount or an object-storage mount such as
+rclone's), keeping the same number. If the second place is full or missing the backup itself is still kept and the
+failure is logged. The copy is a plain folder you can restore from. For storage that can't be mounted, run your own
+sync tool (`rclone`, `aws s3 sync`) from cron against the backup folder.
+
+**Back up now.** Company admins open *My account → Backups* (`/admin/backups`) to see the backups kept, whether each
+reached the second place, and a *Back up now* button.
 
 ## Restore
 
@@ -123,6 +131,18 @@ you're sure), the backup is copied into place and the result is replayed again. 
 directory must be missing or empty. It refuses to touch a directory a server is using, or a folder that isn't a
 BuildKiosk data directory. Then start the server. All sessions stay valid because `instance.json` is restored with
 the data.
+
+### Restoring one company
+
+If only one company went wrong, put just that company back and leave the others alone (stop the server first):
+
+```
+buildkiosk restore --from /backups/2026-10-13 --data /var/lib/buildkiosk --company acme
+```
+
+The backup is replayed first. The company's current folder is moved next to the data directory, to
+`/var/lib/buildkiosk.before-restore-acme-<seconds>`, never deleted. A company that is not in the data directory (lost
+altogether) is simply put back as of the backup.
 
 ## Check
 

@@ -931,6 +931,17 @@ async fn budget_commitments_and_direct_costs_in_the_browser_flow() {
     assert!(viewed.contains("Projected cost") && !viewed.contains("Committed</th>"), "{viewed}");
     let (_, _, csv) = send(&app, get("/projects/1/budget.csv?view=1")).await;
     assert!(csv.starts_with("Cost code,Description,Original budget,Projected cost\r\n"), "{csv}");
+    // The PDF follows the view, and a view can be each person's default.
+    let (st, h, _) = send(&app, get("/projects/1/budget.pdf?view=1")).await;
+    assert!(st == StatusCode::OK && h.get(CONTENT_TYPE).unwrap() == "application/pdf");
+    send(&app, post("/do/budget.view_default", &ada, format!("_csrf={csrf}&project=1&id=1"))).await;
+    let (_, _, dflt) = send(&app, get("/projects/1/budget")).await;
+    assert!(dflt.contains("Division 03") && dflt.contains("This is the view you open by default."), "{dflt}");
+    let (_, _, standard) = send(&app, get("/projects/1/budget?view=0")).await;
+    assert!(!standard.contains("Division 03") && standard.contains("Open the standard layout by default"), "{standard}");
+    send(&app, post("/do/budget.view_default", &ada, format!("_csrf={csrf}&project=1&id="))).await;
+    let (_, _, cleared) = send(&app, get("/projects/1/budget")).await;
+    assert!(!cleared.contains("Division 03"), "{cleared}");
     // Forecasting by committed cost: the 05-100 line (nothing spent) stops being assumed spent.
     let (_, h, _) =
         send(&app, post("/do/budget.set_method", &ada, format!("_csrf={csrf}&_next=/projects/1/budget&project=1&method=committed"))).await;
@@ -1104,6 +1115,11 @@ async fn prime_contract_and_owner_invoicing_in_the_browser_flow() {
     for want in ["150,000.00", "Billed to date", "40,000.00", "Retainage held", "Paid (net)", "36,000.00", "110,000.00"] {
         assert!(contract.contains(want), "{want} missing from the contract");
     }
+    // Signing the contract with the owner is tracked on the contract's page.
+    assert!(contract.contains("Mark as sent for signature") && contract.contains("Record the signature"), "{contract}");
+    send(&app, post("/do/prime_contract.record_signature", &ada, format!("_csrf={csrf}&project=1&id=1&signer=Olga+Owner&on=2026-10-01"))).await;
+    let (_, _, contract) = send(&app, get("/projects/1/prime-contracts/1")).await;
+    assert!(contract.contains("Olga Owner") && contract.contains("Clear the signature"), "{contract}");
     let (_, _, detail) = send(&app, get("/projects/1/owner-invoices/1")).await;
     assert!(detail.contains("Paid"));
     let (st, _, print) = send(&app, get("/projects/1/owner-invoices/1/print")).await;
@@ -3304,6 +3320,58 @@ async fn scheduled_backups_run_while_the_server_is_up_and_keep_the_newest() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
     let _ = std::fs::remove_dir_all(&backups);
+}
+
+#[tokio::test]
+async fn admins_back_up_now_and_each_backup_is_copied_to_a_second_folder() {
+    let dir = temp("now-backup");
+    let backups = temp("now-backup-out");
+    let second = temp("now-backup-second");
+    let plain = App::open(DataDir::open(temp("now-backup-plain")).unwrap(), None).unwrap();
+    assert!(plain.with_backup_copy(second.clone()).is_err(), "a second copy needs backups");
+    let app = App::open(DataDir::open(&dir).unwrap(), None).unwrap().with_backups(backups.clone(), 24, 2).unwrap();
+    assert!(app.with_backup_copy(backups.join("nested")).is_err(), "not inside the backup folder");
+    let app = App::open(DataDir::open(&dir).unwrap(), None).unwrap().with_backups(backups.clone(), 24, 2).unwrap();
+    assert!(app.with_backup_copy(dir.join("copy")).is_err(), "not inside the data directory");
+    let app = Arc::new(
+        App::open(DataDir::open(&dir).unwrap(), None)
+            .unwrap()
+            .with_backups(backups.clone(), 24, 2)
+            .unwrap()
+            .with_backup_copy(second.clone())
+            .unwrap(),
+    );
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+
+    let (st, ..) = send(&app, Request::get("/admin/backups").body(Body::empty()).unwrap()).await;
+    assert_eq!(st, StatusCode::SEE_OTHER, "signed-out people are sent to sign in");
+    let (_, _, empty) = send(&app, get("/admin/backups")).await;
+    assert!(empty.contains("Back up now") && empty.contains("None yet"), "{empty}");
+    let (st, ..) = send(&app, post("/admin/backups/run", &ada, "_csrf=bad".to_string())).await;
+    assert_eq!(st, StatusCode::FORBIDDEN);
+    let (_, h, _) = send(&app, post("/admin/backups/run", &ada, format!("_csrf={csrf}"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let count =
+        |d: &std::path::Path| std::fs::read_dir(d).unwrap().flatten().filter(|e| e.file_name().to_string_lossy().starts_with("backup-")).count();
+    assert_eq!((count(&backups), count(&second)), (1, 1));
+    assert_eq!(DataDir::open(std::fs::read_dir(&second).unwrap().flatten().next().unwrap().path()).unwrap().companies().unwrap().len(), 1);
+    let (_, _, listed) = send(&app, get("/admin/backups")).await;
+    assert!(listed.contains("Copied") && listed.contains("backup-"), "{listed}");
+    let (_, _, account) = send(&app, get("/account")).await;
+    assert!(account.contains("/admin/backups"), "{account}");
+    drop(app);
+    for d in [&dir, &backups, &second] {
+        let _ = std::fs::remove_dir_all(d);
+    }
+    let _ = std::fs::remove_dir_all(temp("now-backup-plain"));
 }
 
 fn form_has_task_fields(form: &str) -> bool {

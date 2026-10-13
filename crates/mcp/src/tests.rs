@@ -276,3 +276,94 @@ fn documents_are_resources_for_the_people_who_may_open_them() {
     assert_eq!((r["result"]["resources"].as_array().unwrap().len(), r["result"].get("nextCursor").is_none()), (21, true));
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn drawings_and_photos_are_resources_too() {
+    let dir = temp("sheets");
+    let (_data, mut t) = company(&dir);
+    let admin = Actor::Person(buildkiosk_core::Id::new(1));
+    let stranger = Actor::Person(buildkiosk_core::Id::new(99));
+    let (pdf_sha, pdf_size) = t.store.blobs.put(b"%PDF-1.4 A101").unwrap();
+    let (png_sha, png_size) = t.store.blobs.put(b"\x89PNG\r\n\x1a\n-site").unwrap();
+    let r = call_tool(
+        &mut t,
+        admin,
+        "drawing_add",
+        json!({"project": 1, "number": "A101", "title": "First floor plan", "revision": "A", "sha256": pdf_sha, "name": "A101.pdf", "size": pdf_size, "mime": "application/pdf"}),
+    );
+    assert_eq!(r["result"]["isError"], false, "{r}");
+    let r = call_tool(
+        &mut t,
+        admin,
+        "photo_add",
+        json!({"project": 1, "sha256": png_sha, "name": "IMG_1.png", "size": png_size, "mime": "image/png", "caption": "Footing forms"}),
+    );
+    assert_eq!(r["result"]["isError"], false, "{r}");
+
+    let r = send(&mut t, admin, json!({"jsonrpc": "2.0", "id": 1, "method": "resources/list"}));
+    let uris: Vec<&str> = r["result"]["resources"].as_array().unwrap().iter().map(|x| x["uri"].as_str().unwrap()).collect();
+    assert_eq!(uris, vec!["buildkiosk://drawing/1/1", "buildkiosk://photo/1/1"], "{r}");
+    let names: Vec<&str> = r["result"]["resources"].as_array().unwrap().iter().map(|x| x["name"].as_str().unwrap()).collect();
+    assert_eq!(names, vec!["A101 First floor plan", "Footing forms"]);
+    let r = send(&mut t, admin, json!({"jsonrpc": "2.0", "id": 2, "method": "resources/templates/list"}));
+    assert_eq!(r["result"]["resourceTemplates"].as_array().unwrap().len(), 3);
+
+    let read =
+        |t: &mut Tenant, who: Actor, uri: &str| send(t, who, json!({"jsonrpc": "2.0", "id": 3, "method": "resources/read", "params": {"uri": uri}}));
+    let r = read(&mut t, admin, "buildkiosk://drawing/1/1");
+    let blob = r["result"]["contents"][0]["blob"].as_str().unwrap();
+    assert_eq!(base64::Engine::decode(&base64::engine::general_purpose::STANDARD, blob).unwrap(), b"%PDF-1.4 A101");
+    assert_eq!(r["result"]["contents"][0]["mimeType"], "application/pdf");
+    let r = read(&mut t, admin, "buildkiosk://photo/1/1");
+    assert_eq!(r["result"]["contents"][0]["mimeType"], "image/png", "{r}");
+    // A person with no access gets nothing, and a document address can't reach a photo.
+    for uri in ["buildkiosk://drawing/1/1", "buildkiosk://photo/1/1"] {
+        assert_eq!(read(&mut t, stranger, uri)["error"]["code"], -32002, "{uri}");
+    }
+    assert_eq!(read(&mut t, admin, "buildkiosk://document/1/1")["error"]["code"], -32002);
+    assert_eq!(read(&mut t, admin, "buildkiosk://photo/1/2")["error"]["code"], -32002);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn prompts_are_offered_filled_in_and_name_real_tools() {
+    let dir = temp("prompts");
+    let (_data, mut t) = company(&dir);
+    let admin = Actor::Person(buildkiosk_core::Id::new(1));
+    let r = send(&mut t, admin, json!({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}));
+    assert!(r["result"]["capabilities"]["prompts"].is_object());
+    let r = send(&mut t, admin, json!({"jsonrpc": "2.0", "id": 2, "method": "prompts/list"}));
+    let list = r["result"]["prompts"].as_array().unwrap().clone();
+    assert!(list.len() >= 4 && list.iter().all(|p| p["name"].is_string() && p["arguments"].is_array()), "{r}");
+
+    // Every tool a prompt mentions exists.
+    let tools: std::collections::HashSet<String> = all_commands().map(|c| tool_name(c.id)).collect();
+    for p in &list {
+        let args: Map<String, Value> =
+            p["arguments"].as_array().unwrap().iter().map(|a| (a["name"].as_str().unwrap().to_string(), json!("1"))).collect();
+        let r = send(&mut t, admin, json!({"jsonrpc": "2.0", "id": 3, "method": "prompts/get", "params": {"name": p["name"], "arguments": args}}));
+        let text = r["result"]["messages"][0]["content"]["text"].as_str().unwrap_or_else(|| panic!("{r}"));
+        for word in text.split(|c: char| !(c.is_ascii_lowercase() || c == '_')).filter(|w| w.contains('_')) {
+            let looks_like_tool = ["_list", "_get", "_create", "_lookahead", "_loading"].iter().any(|s| word.ends_with(s));
+            assert!(!looks_like_tool || tools.contains(word), "prompt {} names {word}, which is not a tool", p["name"]);
+        }
+    }
+    // Arguments are filled in; a missing required one, an unknown one and an unknown prompt are refused.
+    let r = send(
+        &mut t,
+        admin,
+        json!({"jsonrpc": "2.0", "id": 4, "method": "prompts/get", "params": {"name": "project_status", "arguments": {"project": "7"}}}),
+    );
+    assert!(r["result"]["messages"][0]["content"]["text"].as_str().unwrap().contains("project 7"), "{r}");
+    for params in [
+        json!({"name": "project_status"}),
+        json!({"name": "project_status", "arguments": {"project": "1", "bogus": "x"}}),
+        json!({"name": "nothing"}),
+        json!({}),
+        json!("x"),
+    ] {
+        let r = send(&mut t, admin, json!({"jsonrpc": "2.0", "id": 5, "method": "prompts/get", "params": params}));
+        assert_eq!(r["error"]["code"], -32602, "{params}: {r}");
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}

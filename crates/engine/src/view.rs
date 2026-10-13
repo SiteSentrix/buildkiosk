@@ -688,3 +688,12 @@ pub fn can_see_document(state: &CompanyState, actor: Actor, doc: &Document) -> b
     }
     actor.person().is_some_and(|p| doc.access.contains(&p) || doc.created.by == Some(p))
 }
+
+/// The budget view the person opens by default on a project, if they chose one.
+pub fn default_budget_view(
+    state: &CompanyState,
+    person: Id<buildkiosk_model::directory::Person>,
+    project: Id<Project>,
+) -> Option<Id<buildkiosk_model::finance::BudgetView>> {
+    state.budget_views.iter().find(|v| v.project == project && v.deleted.is_none() && v.default_for.contains(&person)).map(|v| v.id)
+}

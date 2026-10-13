@@ -108,7 +108,7 @@ pub fn page(req: &Req<'_>, tokens: &[TokenRow], new_token: Option<&str>, mail: &
             }
         }
         @if me.is_some_and(|p| p.company_admin) {
-            p class="muted" { a href="/settings" { "Company settings" } " · " a href="/admin/email" { "Set up outgoing email" } }
+            p class="muted" { a href="/settings" { "Company settings" } " · " a href="/admin/email" { "Set up outgoing email" } " · " a href="/admin/backups" { "Backups" } }
         }
         div class="card" {
             h2 { "API tokens" }
@@ -139,4 +139,65 @@ pub fn page(req: &Req<'_>, tokens: &[TokenRow], new_token: Option<&str>, mail: &
         }
     };
     layout::app(req, "My account", Nav::Account, &[("My account", None)], body)
+}
+
+/// One finished backup in the backup folder.
+pub struct BackupRow {
+    pub name: String,
+    /// When it was taken, in unix seconds.
+    pub taken: i64,
+    pub bytes: u64,
+    /// Whether it is also in the second folder.
+    pub copied: bool,
+}
+
+/// What the backups page shows: whether scheduled backups are on, where they go and what is there.
+#[derive(Default)]
+pub struct BackupInfo {
+    pub configured: bool,
+    pub dir: String,
+    pub copy_to: Option<String>,
+    pub every_hours: u64,
+    pub keep: usize,
+    pub rows: Vec<BackupRow>,
+}
+
+/// Backups taken while the server runs: the list, and a button to take one now.
+pub fn backups_page(req: &Req<'_>, info: &BackupInfo) -> Markup {
+    let body = html! {
+        div class="page-head" { div { h1 { "Backups" } div class="sub" { "Copies of all the company data, each checked by loading it" } } }
+        @if !info.configured {
+            div class="card" {
+                p { "Scheduled backups are not turned on. Start the server with " code { "--backup-dir /path/to/backups" } " to take one every day and keep the last seven. See the deployment notes for restoring one." }
+            }
+        } @else {
+            div class="card" {
+                dl class="facts" {
+                    dt { "Folder" } dd { code { (info.dir) } }
+                    dt { "Schedule" } dd { "Every " (info.every_hours) " hours, keeping the newest " (info.keep) }
+                    dt { "Second copy" } dd { @if let Some(c) = &info.copy_to { code { (c) } } @else { span class="muted" { "None. Add --backup-copy-to FOLDER to copy each backup to another disk or a mounted share." } } }
+                }
+                form method="post" action="/admin/backups/run" class="stack" {
+                    input type="hidden" name="_csrf" value=(req.csrf);
+                    div class="form-actions" { button type="submit" class="btn primary" { "Back up now" } }
+                }
+                p class="muted small" { "Making a backup takes a moment and holds other requests up only while the small files are copied." }
+            }
+            div class="card" {
+                h2 { "Backups kept" }
+                @if info.rows.is_empty() { p class="muted" { "None yet." } } @else {
+                    div class="table-wrap" { table class="data" {
+                        thead { tr { th { "Backup" } th { "Taken" } th class="num" { "Size" } th { "Second copy" } } }
+                        tbody { @for r in &info.rows { tr {
+                            td { code { (r.name) } }
+                            td class="nowrap" { (req.when(buildkiosk_core::Timestamp::from_millis(r.taken.saturating_mul(1000)))) }
+                            td class="num" { (crate::pages::human_size(r.bytes)) }
+                            td { @if info.copy_to.is_none() { span class="muted" { "—" } } @else if r.copied { span class="pill green" { "Copied" } } @else { span class="pill amber" { "Not copied" } } }
+                        } } }
+                    } }
+                }
+            }
+        }
+    };
+    layout::app(req, "Backups", Nav::Account, &[("My account", Some("/account".into())), ("Backups", None)], body)
 }

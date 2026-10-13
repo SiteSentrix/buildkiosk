@@ -19,12 +19,14 @@ usage: buildkiosk <command> [options]
 
 commands:
   serve    --data DIR [--company SLUG] [--bind ADDR] [--secure-cookies]
-           [--backup-dir DIR [--backup-every-hours N] [--backup-keep N]]
+           [--backup-dir DIR [--backup-every-hours N] [--backup-keep N] [--backup-copy-to DIR]]
                                                        run the web app (default bind 127.0.0.1:8080); use
                                                        --secure-cookies behind an HTTPS proxy; --backup-dir takes
-                                                       a backup while it runs (default every 24 hours, keeping 7)
+                                                       a backup while it runs (default every 24 hours, keeping 7);
+                                                       --backup-copy-to also copies each one to a second folder
   backup   --data DIR --to DIR                         copy the data directory (server stopped) and verify the copy
-  restore  --from DIR --data DIR [--replace]           put a backup in place as the data directory (server stopped);
+  restore  --from DIR --data DIR [--replace | --company SLUG]  put a backup in place as the data directory, or put one
+                                                       company of it back into the existing one (server stopped);
                                                        --replace moves an existing data directory aside first
   check    --data DIR                                  replay every company's journal and print row counts
   demo     --data DIR                                  create a fictional demo company with sample projects
@@ -124,8 +126,11 @@ fn serve(a: &Args) -> Result<(), String> {
         };
         let (hours, keep) = (number("backup-every-hours", 24)?, number("backup-keep", 7)?);
         app = app.with_backups(dir.into(), hours, usize::try_from(keep).unwrap_or(usize::MAX))?;
-    } else if a.get("backup-every-hours").is_some() || a.get("backup-keep").is_some() {
-        return Err("--backup-every-hours and --backup-keep need --backup-dir".into());
+        if let Some(second) = a.get("backup-copy-to") {
+            app = app.with_backup_copy(second.into())?;
+        }
+    } else if a.get("backup-every-hours").is_some() || a.get("backup-keep").is_some() || a.get("backup-copy-to").is_some() {
+        return Err("--backup-every-hours, --backup-keep and --backup-copy-to need --backup-dir".into());
     }
     let app = Arc::new(app);
     let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().map_err(|e| e.to_string())?;
@@ -142,10 +147,22 @@ fn print_reports(reports: &[buildkiosk_store::CompanyReport]) {
     }
 }
 
-/// Puts a backup in place as the data directory.
+/// Puts a backup in place as the data directory, or one company of it back into the existing one.
 fn restore(a: &Args) -> Result<(), String> {
     let (from, into) = (a.need("from")?, a.need("data")?);
     let seconds = u64::try_from(now().millis() / 1000).unwrap_or(0);
+    if let Some(company) = a.get("company") {
+        if a.get("replace").is_some() {
+            return Err("--company already replaces that company (its old folder is kept aside); leave out --replace".into());
+        }
+        let report = buildkiosk_store::ops::restore_company(std::path::Path::new(from), std::path::Path::new(into), company, seconds)
+            .map_err(|e| e.to_string())?;
+        print_reports(&[report]);
+        println!(
+            "restored company {company} from {from} into {into}; its previous folder was kept next to the data directory (…before-restore-{company}-{seconds})"
+        );
+        return Ok(());
+    }
     let report = buildkiosk_store::ops::restore(std::path::Path::new(from), std::path::Path::new(into), a.get("replace").is_some(), seconds)
         .map_err(|e| e.to_string())?;
     if let Some(aside) = &report.moved_aside {

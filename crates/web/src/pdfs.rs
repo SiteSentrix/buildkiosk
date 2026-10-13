@@ -313,8 +313,16 @@ pub fn correspondence_letter(req: &Req<'_>, id: Id<Project>, cid: Id<buildkiosk_
         .filter(|r| r.project == id && view::can_see_rfi(state, req.actor(), r))
         .map(|r| format!("RFI #{} {}", r.number, r.subject))
         .collect();
-    if !rfis.is_empty() {
-        facts.push(("Refers to".into(), rfis.join("; ")));
+    let subs: Vec<String> = c
+        .submittals
+        .iter()
+        .filter_map(|x| state.submittals.get(*x))
+        .filter(|x| x.project == id && view::can_see_submittal(state, req.actor(), x))
+        .map(|x| format!("Submittal #{} {}", x.number, x.title))
+        .collect();
+    let refers: Vec<String> = rfis.into_iter().chain(subs).collect();
+    if !refers.is_empty() {
+        facts.push(("Refers to".into(), refers.join("; ")));
     }
     if let Some(d) = c.reply_by {
         facts.push(("Reply requested by".into(), d.pretty()));

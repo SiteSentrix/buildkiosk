@@ -127,6 +127,8 @@ fieldset{border:0;padding:0;margin:12px 0}
 fieldset legend{font-weight:600;margin-bottom:6px}
 fieldset>.options{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px 16px}
 .chart svg{width:100%;height:auto;max-width:760px}
+.compare{display:grid;grid-template-columns:repeat(auto-fit,minmax(18rem,1fr));gap:1rem}
+.compare .photo-large{max-width:100%;height:auto}
 .calendar td{vertical-align:top;height:6.5rem;width:14.28%;padding:.3rem}
 .calendar td.off{background:var(--surface-2,#f4f4f4);color:var(--muted)}
 .calendar td.today{outline:2px solid var(--primary);outline-offset:-2px}

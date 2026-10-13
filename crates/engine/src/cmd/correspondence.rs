@@ -27,7 +27,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Create correspondence",
         Tool::Correspondence,
         Access::Project(Level::Standard),
-        "project: project id; subject: text; kind?: text (Letter, Notice, Email…); date?: YYYY-MM-DD (default today); to?: [person ids]; cc?: [person ids]; reply_by?: YYYY-MM-DD; body?: text; private?: bool; rfis?: [RFI ids]; documents?: [document ids] (links). When the project has configured types, kind must be one of them and the item gets that type's next reference (LTR-003)",
+        "project: project id; subject: text; kind?: text (Letter, Notice, Email…); date?: YYYY-MM-DD (default today); to?: [person ids]; cc?: [person ids]; reply_by?: YYYY-MM-DD; body?: text; private?: bool; rfis?: [RFI ids]; submittals?: [submittal ids]; documents?: [document ids] (links). When the project has configured types, kind must be one of them and the item gets that type's next reference (LTR-003)",
         create,
     ),
     CommandSpec::mutate(
@@ -254,6 +254,23 @@ fn apply(ctx: &Ctx<'_>, p: &Params<'_>, c: &mut Correspondence) -> Result<()> {
             }
         }
         c.rfis = ids;
+    }
+    if p.present("submittals") {
+        let mut ids = p.ids::<buildkiosk_model::submittal::Submittal>("submittals")?;
+        ids.sort();
+        ids.dedup();
+        if ids.len() > MAX_LINKS {
+            return Err(p.bad("submittals", format!("lists more than {MAX_LINKS} submittals")));
+        }
+        for id in &ids {
+            let ok = in_project(&ctx.state.submittals, c.project, *id, "submittal")
+                .ok()
+                .is_some_and(|x| x.deleted.is_none() && view::can_see_submittal(ctx.state, ctx.actor, x));
+            if !ok {
+                return Err(p.bad("submittals", format!("submittal {id} not found in this project")));
+            }
+        }
+        c.submittals = ids;
     }
     if p.present("documents") {
         let mut ids = p.ids::<Document>("documents")?;
@@ -621,6 +638,7 @@ fn blank(ctx: &Ctx<'_>, project: Id<Project>) -> Correspondence {
         reference: String::new(),
         rfis: Vec::new(),
         documents: Vec::new(),
+        submittals: Vec::new(),
         incoming: None,
         sent: None,
         closed: None,

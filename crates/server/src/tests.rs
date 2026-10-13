@@ -1538,6 +1538,10 @@ async fn schedule_page_gantt_and_csv() {
     )
     .await;
     assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("error="), "a bad weekday is refused");
+    // Named baselines: saved from the page, listed with the one in use marked.
+    send(&app, post("/do/schedule.baseline_save", &session, format!("_csrf={csrf}&project=1&name=Contract"))).await;
+    let (_, _, sched_page) = send(&app, get("/projects/1/schedule")).await;
+    assert!(sched_page.contains("Baselines") && sched_page.contains("Contract") && sched_page.contains("In use"), "{sched_page}");
     // A company holiday list, taken by the project, shows on the calendar page.
     send(&app, post("/do/holiday_list.save", &session, format!("_csrf={csrf}&name=Federal+2026&holidays=2026-11-11+Veterans+Day"))).await;
     let (_, _, cal) = send(&app, get("/projects/1/schedule/calendar")).await;
@@ -2062,6 +2066,19 @@ async fn photos_upload_gallery_and_inline_image() {
     let decoded = image::load_from_memory(&thumb).unwrap();
     assert!(decoded.height() > decoded.width(), "turned upright: {}x{}", decoded.width(), decoded.height());
 
+    // Two photos side by side.
+    let (_, _, side) = send(&app, get("/projects/1/photos/compare?a=3&b=1")).await;
+    assert!(
+        side.contains("Compare photos")
+            && side.contains("/projects/1/photos/3/image")
+            && side.contains("/projects/1/photos/1/image")
+            && side.contains("Swap sides"),
+        "{side}"
+    );
+    let (_, _, nope) = send(&app, get("/projects/1/photos/compare?a=3&b=999")).await;
+    assert!(!nope.contains("/projects/1/photos/3/image"), "an unknown photo gives not found");
+    let (_, _, det) = send(&app, get("/projects/1/photos/3")).await;
+    assert!(det.contains("Compare with") && det.contains("Side by side"), "{det}");
     // Tag a photo to a punch item and see it on the item's page; slideshow and zip.
     send(&app, post("/do/punch.create", &ada, format!("_csrf={csrf}&project=1&title=Touch+up+paint"))).await;
     send(&app, post("/do/photo.link", &ada, format!("_csrf={csrf}&project=1&id=3&tag=punch%3A1"))).await;

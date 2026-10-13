@@ -118,6 +118,8 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, cid: Id<Correspondence>) -> Markup
                 @if let Some(sn) = &c.incoming { dt { "From" } dd { (sn.name) @if !sn.email.is_empty() { " <" (sn.email) ">" } " (outside the company)" } }
                 @let rfis: Vec<_> = c.rfis.iter().filter_map(|r| state.rfis.get(*r)).filter(|r| r.project == id && view::can_see_rfi(state, req.actor(), r)).collect();
                 @let docs: Vec<_> = c.documents.iter().filter_map(|d| state.documents.get(*d)).filter(|d| d.project == id && view::can_see_document(state, req.actor(), d)).collect();
+                @let subs: Vec<_> = c.submittals.iter().filter_map(|x| state.submittals.get(*x)).filter(|x| x.project == id && view::can_see_submittal(state, req.actor(), x)).collect();
+                @if !subs.is_empty() { dt { "Submittals" } dd { @for (i, x) in subs.iter().enumerate() { @if i > 0 { ", " } a href=(format!("/projects/{id}/submittals/{}", x.id)) { "#" (x.number) " " (x.title) } } } }
                 @if !rfis.is_empty() { dt { "RFIs" } dd { @for (i, r) in rfis.iter().enumerate() { @if i > 0 { ", " } a href=(format!("/projects/{id}/rfis/{}", r.id)) { "#" (r.number) " " (r.subject) } } } }
                 @if !docs.is_empty() { dt { "Documents" } dd { @for (i, d) in docs.iter().enumerate() { @if i > 0 { ", " } a href=(format!("/projects/{id}/documents/{}", d.id)) { (d.title) } } } }
                 dt { "To" } dd { (dash(&view::people_names(state, &c.to))) }
@@ -190,6 +192,7 @@ pub fn form(req: &Req<'_>, id: Id<Project>, current: Option<Id<Correspondence>>)
     let people = user_options(req, id, true);
     let kinds = types(state, id);
     let rfis: Vec<_> = view::rfis_for(state, req.actor(), id);
+    let subs: Vec<_> = view::submittals_for(state, req.actor(), id);
     let docs: Vec<_> =
         state.documents.iter().filter(|d| d.project == id && d.deleted.is_none() && view::can_see_document(state, req.actor(), d)).collect();
     let picker = |name: &str, label: &str, chosen: &[Id<buildkiosk_engine::model::directory::Person>]| {
@@ -225,6 +228,10 @@ pub fn form(req: &Req<'_>, id: Id<Project>, current: Option<Id<Correspondence>>)
                     } }))
                     (picker("to", "To", cur.map(|c| c.to.as_slice()).unwrap_or_default()))
                     (picker("cc", "Copy", cur.map(|c| c.cc.as_slice()).unwrap_or_default()))
+                    @if !subs.is_empty() {
+                        div class="field full" { div class="label" { "Linked submittals" } input type="hidden" name="submittals[]" value="";
+                            details class="multi" { summary { "Choose submittals" } div class="options" { @for x in &subs { label { input type="checkbox" name="submittals[]" value=(x.id) checked[cur.is_some_and(|c| c.submittals.contains(&x.id))]; "#" (x.number) " " (x.title) } } } } }
+                    }
                     @if !rfis.is_empty() {
                         div class="field full" { div class="label" { "Linked RFIs" } input type="hidden" name="rfis[]" value="";
                             details class="multi" { summary { "Choose RFIs" } div class="options" { @for r in &rfis { label { input type="checkbox" name="rfis[]" value=(r.id) checked[cur.is_some_and(|c| c.rfis.contains(&r.id))]; "#" (r.number) " " (r.subject) } } } } }

@@ -8,6 +8,7 @@ use crate::directory::Person;
 use crate::document::Document;
 use crate::project::Project;
 use crate::rfi::Rfi;
+use crate::submittal::Submittal;
 use crate::{choice, record};
 
 choice! {
@@ -71,6 +72,8 @@ pub struct Correspondence {
     pub rfis: Vec<Id<Rfi>>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub documents: Vec<Id<Document>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub submittals: Vec<Id<Submittal>>,
     /// Set for a message that came from outside the company and was filed here.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub incoming: Option<Sender>,

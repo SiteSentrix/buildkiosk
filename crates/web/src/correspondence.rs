@@ -101,6 +101,7 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, cid: Id<Correspondence>) -> Markup
         div class="page-head" {
             div { h1 { (c.label()) ": " (c.subject) " " (status_pill(c.status)) } div class="sub" { @if !c.kind.is_empty() { (c.kind) " · " } (c.date.pretty()) @if let Some(s) = c.sent { " · sent by " (s.by.map(|b| view::person_name(state, b)).unwrap_or_default()) } } }
             div class="actions" {
+                a class="btn" href=(format!("{here}/pdf")) { "PDF" }
                 @if can_edit { a class="btn" href=(format!("{here}/edit")) { "Edit" } }
                 @if draft && can_edit { (button_form(req, "correspondence.send", &here, &ids, "Send", "primary")) }
                 @if c.status == CorrespondenceStatus::Open && (admin || author) { (button_form(req, "correspondence.close", &here, &ids, "Close", "")) }

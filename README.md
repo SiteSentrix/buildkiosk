@@ -9,7 +9,7 @@ the HTTP API, the command line and MCP.
 ## Status
 
 _2026-10-13._ Every tool in the scope list has a first, working slice: engine commands with tests, pages, CSV
-where it makes sense, and API and MCP access. Not built yet: email delivery, PDF export, in-page viewing and
+where it makes sense, and API and MCP access. Not built yet: in-page viewing and
 markup of drawings and PDFs, and most of the long tail of each tool. See [`ROADMAP.md`](ROADMAP.md) for the
 numbers and [`docs/gaps.md`](docs/gaps.md) for the ranked list of what is missing in each tool.
 

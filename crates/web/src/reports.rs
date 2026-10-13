@@ -22,7 +22,7 @@ pub fn page(req: &Req<'_>, id: Id<Project>) -> Markup {
     let body = html! {
         div class="page-head" {
             div { h1 { "Project report" } div class="sub" { "Where each tool stands today, for the tools you can see" } }
-            div class="actions" { a class="btn" href=(format!("{base}/reports.csv")) { "Export CSV" } }
+            div class="actions" { a class="btn" href=(format!("{base}/reports.pdf")) { "PDF" } a class="btn" href=(format!("{base}/reports.csv")) { "Export CSV" } }
         }
         div class="stat-row" {
             div class="stat" { div class="label" { "Items needing action" } div class="value" { (open) } }

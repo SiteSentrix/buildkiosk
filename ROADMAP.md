@@ -21,6 +21,7 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 2. Next tools in the order of `docs/gaps.md` (then the financial remainder; financials still to do: forecasting, budget snapshots).
 
 ## Progress log
+- 2026-10-13: PDF export (own writer, no dependency) for RFIs, submittals, daily logs, meetings, transmittals, correspondence, estimates, bid leveling, action plans, forms, invoices, budget, drawing log, schedule, project report and work-item lists.
 - 2026-10-13: My account page: change your own password, create and revoke API tokens.
 - 2026-10-13: MCP over HTTP (`POST /mcp` with an API token) on the running server.
 - 2026-10-13: the project sidebar is grouped into collapsible sections (project management, quality and safety, plans and files, financials, preconstruction, resources) and only lists tools the person can read.

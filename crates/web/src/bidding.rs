@@ -108,6 +108,7 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, bid: Id<BidPackage>) -> Markup {
         div class="page-head" {
             div { h1 { (b.label()) ": " (b.title) " " (status_pill(b.status)) } div class="sub" { @if let Some(d) = b.due { "Bids due " (d.pretty()) " · " } @if let Some(c) = b.cost_code.and_then(|c| state.cost_codes.get(c)) { "Cost code " (c.code) " " (c.description) } } }
             div class="actions" {
+                a class="btn" href=(format!("{here}/pdf")) { "PDF" }
                 @if can_edit && b.status != BidStatus::Awarded { a class="btn" href=(format!("{here}/edit")) { "Edit" } }
                 @if can_edit && b.status == BidStatus::Draft { (button_form(req, "bid_package.open", &here, &ids, "Send out for bid", "primary")) }
                 @if can_edit && b.status == BidStatus::Open { (button_form(req, "bid_package.close", &here, &ids, "Close bidding", "")) }

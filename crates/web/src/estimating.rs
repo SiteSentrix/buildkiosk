@@ -78,6 +78,7 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, eid: Id<Estimate>) -> Markup {
         div class="page-head" {
             div { h1 { (e.label()) ": " (e.name) " " (status_pill(e.status)) } div class="sub" { @if e.applied.is_some() { "Put in the budget " (e.applied.map(|a| req.when(a.at)).unwrap_or_default()) } @else { "Not in the budget yet" } } }
             div class="actions" {
+                a class="btn" href=(format!("{here}/pdf")) { "PDF" }
                 a class="btn" href=(format!("{here}/csv")) { "Export CSV" }
                 @if lvl >= Level::Standard && e.status == EstimateStatus::Draft { a class="btn" href=(format!("{here}/edit")) { "Edit" } (button_form(req, "estimate.finalize", &here, &ids, "Issue", "primary")) }
                 @if lvl >= Level::Standard && e.status == EstimateStatus::Final { (button_form(req, "estimate.reopen", &here, &ids, "Reopen", "")) }

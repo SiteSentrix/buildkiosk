@@ -47,7 +47,7 @@ pub fn page(req: &Req<'_>, id: Id<Project>, q: &HashMap<String, String>) -> Mark
     let body = html! {
         div class="page-head" {
             div { h1 { "Drawings" } div class="sub" { "The sheet log: each sheet with its revisions; the newest revision is current" } }
-            div class="actions" { a class="btn" href=(format!("{base}.csv")) { "Export CSV" } }
+            div class="actions" { a class="btn" href=(format!("{base}.pdf")) { "PDF" } a class="btn" href=(format!("{base}.csv")) { "Export CSV" } }
         }
         form method="get" action=(base) class="filters" {
             input type="search" name="q" value=(text) placeholder="Search sheet number or title" aria-label="Search drawings";

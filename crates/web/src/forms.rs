@@ -193,6 +193,7 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, rid: Id<FormRecord>) -> Markup {
         div class="page-head" {
             div { h1 { (r.label()) @if !r.title.is_empty() { ": " (r.title) } " " (status_pill(r.status)) } div class="sub" { "Started " (req.when(r.created.at)) " by " (r.created.by.map(|b| view::person_name(state, b)).unwrap_or_default()) } }
             div class="actions" {
+                a class="btn" href=(format!("{here}/pdf")) { "PDF" }
                 @if editing && r.status == FormStatus::Draft { (button_form(req, "form.submit", &here, &ids, "Submit", "primary")) }
                 @if admin && r.status == FormStatus::Submitted { (button_form(req, "form.reopen", &here, &ids, "Reopen", "")) }
                 @if editing { (button_form(req, "form.delete", &base, &ids, "Delete", "danger")) }

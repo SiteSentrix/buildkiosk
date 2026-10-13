@@ -171,6 +171,7 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, sid: Id<Submittal>, history: &[Jou
                 div class="sub" { "Created " (req.when(s.created.at)) @if let Some(b) = s.created.by { " by " (view::person_name(state, b)) } }
             }
             div class="actions" {
+                a class="btn" href=(format!("{here}/pdf")) { "PDF" }
                 @if editable { a class="btn" href=(format!("{here}/edit")) { "Edit" } }
                 @if s.status == SubmittalStatus::Draft && level >= Level::Standard && (manager_like || s.created.by == Some(req.person)) {
                     (button_form(req, "submittal.open", &here, &ids, "Send for review", "primary"))

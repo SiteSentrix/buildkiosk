@@ -223,6 +223,7 @@ pub fn detail<T: InvoicePage>(req: &Req<'_>, id: Id<Project>, iid: Id<T>, histor
                 div class="sub" { "Period ending " (i.period_end().pretty()) " · " (i.parent_link(req)) @if let Some(d) = i.paid_on() { " · paid " (d.pretty()) } }
             }
             div class="actions" {
+                a class="btn" href=(format!("{here}/pdf")) { "PDF" }
                 a class="btn" href=(format!("{here}/print")) { "Print view" }
                 a class="btn" href=(format!("{here}/csv")) { "Export CSV" }
                 @if status == InvoiceStatus::Draft && can_edit(state, req.actor(), i) { (button_form(req, &cmd::<T>("submit"), &here, &ids, "Submit", "primary")) }
@@ -353,4 +354,72 @@ pub fn csv<T: InvoicePage>(req: &Req<'_>, id: Id<Project>, iid: Id<T>) -> Option
         out.push_str(&format!("{},,,,,,{}\r\n", layout::csv_cell(label), value));
     }
     Some(out)
+}
+
+/// The payment application as a PDF.
+pub fn pdf<T: InvoicePage>(req: &Req<'_>, id: Id<Project>, iid: Id<T>) -> Option<(String, Vec<u8>)> {
+    use crate::pdf::{Align, Block, Doc, Table, render};
+    let p = project_for(req, id)?;
+    let state = req.engine.state();
+    let i = T::table(state).get(iid).filter(|i| i.project() == id && can_see(state, req.actor(), *i))?;
+    let s = i.summary(state).ok()?;
+    let company = state.company().map(|c| c.name.clone()).unwrap_or_default();
+    let title = format!("Invoice #{}", i.number());
+    let code = |c| state.cost_codes.get(c).map(|c| c.code.clone()).unwrap_or_default();
+    let mut rows: Vec<Vec<String>> = s
+        .rows
+        .iter()
+        .map(|r| {
+            vec![
+                format!("{} {}", r.row.description, code(r.row.cost_code)).trim().to_string(),
+                r.row.scheduled.to_string(),
+                r.previous.to_string(),
+                r.this_period.to_string(),
+                r.to_date().to_string(),
+                r.to_date().ratio(r.row.scheduled).map(|x| x.to_string()).unwrap_or_default(),
+                r.balance().to_string(),
+            ]
+        })
+        .collect();
+    rows.push(vec![
+        "Total".into(),
+        s.scheduled.to_string(),
+        s.previous.to_string(),
+        s.this_period.to_string(),
+        s.to_date.to_string(),
+        String::new(),
+        s.scheduled.checked_sub(s.to_date).unwrap_or_default().to_string(),
+    ]);
+    let doc = Doc {
+        title: title.clone(),
+        subtitle: format!("{} · {}: period ending {} · {}", p.name, T::PARENT_LABEL, i.period_end().pretty(), i.status().label()),
+        running_head: format!("{company} · {}", p.name),
+        blocks: vec![
+            Block::Table(Table {
+                headers: ["Item", "Scheduled value", "Billed before", "This period", "To date", "%", "Balance to finish"]
+                    .iter()
+                    .map(|h| h.to_string())
+                    .collect(),
+                widths: vec![3.4, 1.7, 1.6, 1.6, 1.6, 0.8, 1.7],
+                aligns: vec![Align::Left, Align::Right, Align::Right, Align::Right, Align::Right, Align::Right, Align::Right],
+                rows,
+                footer: None,
+            }),
+            Block::Facts(vec![
+                ("Work completed this period".into(), s.this_period.to_string()),
+                (format!("Retainage withheld ({})", s.retainage_rate), format!("-{}", s.retainage_this)),
+                ("Amount due this invoice".into(), s.net_due.to_string()),
+                ("Retainage held to date".into(), s.retainage_to_date.to_string()),
+            ]),
+            Block::Space,
+            Block::Paragraph(i.notes().to_string()),
+            Block::Space,
+            Block::Facts(vec![
+                ("Submitted by".into(), "______________________________".into()),
+                ("Approved by".into(), "______________________________".into()),
+                ("Date".into(), "______________________________".into()),
+            ]),
+        ],
+    };
+    Some((format!("{}-{}.pdf", T::PATH, i.number()), render(&doc)))
 }

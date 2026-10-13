@@ -60,6 +60,7 @@ pub fn budget(req: &Req<'_>, id: Id<Project>, compare: Option<Id<buildkiosk_engi
         div class="page-head" {
             div { h1 { "Budget" } div class="sub" { "What each cost code was budgeted, what is committed and what has been spent" } }
             div class="actions" {
+                a class="btn" href=(format!("{here}.pdf")) { "PDF" }
                 a class="btn" href=(format!("/projects/{id}/budget-changes")) { "Budget changes" }
                 a class="btn" href=(format!("{here}.csv")) { (Icon::Download.svg()) "Export CSV" }
             }

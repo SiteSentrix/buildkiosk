@@ -99,7 +99,7 @@ pub fn page(req: &Req<'_>, id: Id<Project>, filter: &str) -> Markup {
     let body = html! {
         div class="page-head" {
             div { h1 { "Schedule" } div class="sub" { "Tasks in working days (Monday to Friday), linked finish to start; the critical path is the chain with no float" } }
-            div class="actions" { a class="btn" href=(format!("{base}.csv")) { "Export CSV" } }
+            div class="actions" { a class="btn" href=(format!("{base}.pdf")) { "PDF" } a class="btn" href=(format!("{base}.csv")) { "Export CSV" } }
         }
         @if !all.is_empty() {
             div class="stat-row" {

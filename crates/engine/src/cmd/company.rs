@@ -77,7 +77,7 @@ fn default_templates() -> Vec<(&'static str, &'static str, BTreeMap<Tool, Level>
         ),
         (
             "Subcontractor",
-            "Trade partners: can raise and answer RFIs, send submittals, work punch items; reads drawings and the schedule; no financials.",
+            "Trade partners: can raise and answer RFIs, send submittals, work punch items and tasks; reads drawings and the schedule; no financials.",
             with(
                 Level::Read,
                 &[(ToolGroup::Financials, Level::None), (ToolGroup::Preconstruction, Level::None), (ToolGroup::Admin, Level::None)],
@@ -86,6 +86,7 @@ fn default_templates() -> Vec<(&'static str, &'static str, BTreeMap<Tool, Level>
                     (Tool::Submittals, Level::Standard),
                     (Tool::PunchList, Level::Standard),
                     (Tool::Observations, Level::Standard),
+                    (Tool::Tasks, Level::Standard),
                     (Tool::DailyLog, Level::None),
                     (Tool::Incidents, Level::None),
                 ],

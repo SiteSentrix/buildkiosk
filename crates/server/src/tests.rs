@@ -1183,3 +1183,30 @@ async fn meeting_form_issue_and_actions() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn tasks_use_the_shared_work_pages() {
+    let dir = temp("tasks");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=P"))).await;
+    let (st, _, form) = send(&app, get("/projects/1/tasks/new")).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(form.contains("Add task"));
+    send(&app, post("/do/task.create", &ada, format!("_csrf={csrf}&_next=/projects/1/tasks&project=1&title=Order+hardware&priority=high"))).await;
+    let (_, _, list) = send(&app, get("/projects/1/tasks")).await;
+    assert!(list.contains("Order hardware") && list.contains("Tasks"), "{list}");
+    let (st, h, csv) = send(&app, get("/projects/1/tasks.csv")).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(h.get("content-disposition").is_some() && csv.contains("Order hardware"));
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

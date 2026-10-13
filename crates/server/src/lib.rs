@@ -22,6 +22,7 @@ use buildkiosk_engine::model::finance::{BudgetChange, ChangeEvent, CommitmentCha
 use buildkiosk_engine::model::finance::{CommitmentInvoice, OwnerInvoice};
 use buildkiosk_engine::model::observation::Observation;
 use buildkiosk_engine::model::punch::PunchItem;
+use buildkiosk_engine::model::task::Task;
 use buildkiosk_engine::model::{CompanyState, FileRef, Level, Tool};
 use buildkiosk_engine::workitem::{self, WorkItem};
 use buildkiosk_engine::{Actor, EngineError, find_command, view};
@@ -201,6 +202,7 @@ pub fn router(app: Shared) -> Router {
         .route("/static/favicon.svg", get(favicon));
     let router = work_routes::<PunchItem>(router);
     let router = work_routes::<Observation>(router);
+    let router = work_routes::<Task>(router);
     let router = doc_routes::<ChangeEvent>(router);
     let router = doc_routes::<CommitmentChange>(router);
     let router = doc_routes::<BudgetChange>(router);

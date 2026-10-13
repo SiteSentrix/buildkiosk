@@ -882,3 +882,57 @@ async fn secure_mode_marks_cookies_and_sends_hsts() {
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
+
+#[tokio::test]
+async fn documents_upload_versions_and_download() {
+    let dir = temp("documents");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let session = cookies(&h);
+    let (_, _, home) = send(&app, Request::get("/").header("cookie", &session).body(Body::empty()).unwrap()).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &session, format!("_csrf={csrf}&name=P"))).await;
+    send(&app, post("/do/folder.create", &session, format!("_csrf={csrf}&project=1&name=Contracts"))).await;
+
+    let upload = |uri: &str, parts: &[(&str, &str)], content: &str| {
+        let mut body = String::new();
+        for (k, v) in parts {
+            body.push_str(&format!("--B\r\nContent-Disposition: form-data; name=\"{k}\"\r\n\r\n{v}\r\n"));
+        }
+        body.push_str(&format!(
+            "--B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"plan.txt\"\r\nContent-Type: text/plain\r\n\r\n{content}\r\n--B--\r\n"
+        ));
+        Request::post(uri.to_string())
+            .header("cookie", &session)
+            .header("content-type", "multipart/form-data; boundary=B")
+            .body(Body::from(body))
+            .unwrap()
+    };
+    let (_, h, _) = send(&app, upload("/projects/1/documents/upload", &[("_csrf", &csrf), ("folder", "1"), ("title", "Plan set")], "one")).await;
+    let loc = h.get(LOCATION).unwrap().to_str().unwrap().to_string();
+    assert!(loc.starts_with("/projects/1/documents/1?ok="), "{loc}");
+    let (_, h, _) = send(&app, upload("/projects/1/documents/1/upload", &[("_csrf", &csrf), ("note", "Rev B")], "two")).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="));
+    let (st, ..) = send(&app, upload("/projects/1/documents/1/upload", &[("_csrf", "bad")], "three")).await;
+    assert_eq!(st, StatusCode::FORBIDDEN);
+
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &session).body(Body::empty()).unwrap();
+    let (_, _, list) = send(&app, get("/projects/1/documents?folder=1")).await;
+    assert!(list.contains("Plan set") && list.contains("v2"), "{list}");
+    let (_, _, detail) = send(&app, get("/projects/1/documents/1")).await;
+    assert!(detail.contains("Rev B") && detail.contains("Current"));
+    let href = detail.split("href=\"").find(|s| s.contains("/files/")).unwrap().split('"').next().unwrap().to_string();
+    let (st, h, body) = send(&app, get(&href)).await;
+    assert_eq!((st, body.as_str()), (StatusCode::OK, "two"));
+    assert_eq!(h.get("content-type").unwrap(), "application/octet-stream");
+    let (_, _, found) = send(&app, get("/projects/1/documents?q=plan")).await;
+    assert!(found.contains("Plan set"));
+    let (st, ..) = send(&app, get("/projects/1/documents/99")).await;
+    assert_eq!(st, StatusCode::OK, "pages answer not-found inside the page");
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

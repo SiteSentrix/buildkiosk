@@ -7,6 +7,7 @@
 use buildkiosk_core::{Id, Money, Percent};
 use buildkiosk_model::daily_log::{DailyLog, LogStatus};
 use buildkiosk_model::directory::{Person, Vendor};
+use buildkiosk_model::document::{Document, Folder};
 use buildkiosk_model::finance::{
     ChangeEventStatus, ChangeStatus, Commitment, CommitmentInvoice, CommitmentStatus, InvoiceLine, InvoiceStatus, OwnerInvoice, PrimeChange,
     PrimeContract,
@@ -537,4 +538,42 @@ pub fn commitment_billing(state: &CompanyState, c: &Commitment) -> Result<Contra
         invoices.push((inv.status, commitment_invoice_summary(state, inv)?));
     }
     billing_summary(original, changes, c.retainage.unwrap_or(Percent::ZERO), invoices)
+}
+
+/// Folders nest at most this deep.
+pub const MAX_FOLDER_DEPTH: usize = 12;
+
+/// Whether the actor may open a folder: Documents Read access, and for a private folder (or one
+/// inside a private folder) being listed on it or a Documents admin.
+pub fn can_see_folder(state: &CompanyState, actor: Actor, folder: &Folder) -> bool {
+    let lvl = level(state, actor, folder.project, Tool::Documents);
+    if lvl < Level::Read {
+        return false;
+    }
+    if lvl == Level::Admin {
+        return true;
+    }
+    let mut at = Some(folder);
+    for _ in 0..=MAX_FOLDER_DEPTH {
+        let Some(f) = at else { return true };
+        if f.deleted.is_some() {
+            return false;
+        }
+        if f.private && !actor.person().is_some_and(|p| f.access.contains(&p)) {
+            return false;
+        }
+        at = f.parent.and_then(|id| state.folders.get(id));
+    }
+    false
+}
+
+/// Whether the actor may open a document: its folder must be visible to them.
+pub fn can_see_document(state: &CompanyState, actor: Actor, doc: &Document) -> bool {
+    if level(state, actor, doc.project, Tool::Documents) < Level::Read {
+        return false;
+    }
+    match doc.folder {
+        None => true,
+        Some(f) => state.folders.get(f).is_some_and(|f| can_see_folder(state, actor, f)),
+    }
 }

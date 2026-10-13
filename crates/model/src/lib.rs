@@ -11,6 +11,7 @@ pub mod choice;
 pub mod common;
 pub mod daily_log;
 pub mod directory;
+pub mod document;
 pub mod finance;
 pub mod inspection;
 pub mod notification;

@@ -226,6 +226,11 @@ a.stat:hover{border-color:var(--primary)}
 .gallery .shot img{width:100%;height:165px;object-fit:cover;border-radius:8px;background:var(--surface-2)}
 .gallery .shot .cap{font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .photo-large{max-width:100%;height:auto;border-radius:8px}
+.nav-section{margin-top:6px}
+.nav-section>summary{cursor:pointer;list-style:none;padding:8px 12px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.nav-section>summary::-webkit-details-marker{display:none}
+.nav-section>summary::after{content:"+";float:right;font-weight:400}
+.nav-section[open]>summary::after{content:"–"}
 .auth-wrap{min-height:100vh;display:grid;place-items:center;padding:24px}
 .auth-card{width:100%;max-width:420px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:28px}
 .auth-card .brand{color:var(--text);margin-bottom:18px}

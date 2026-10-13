@@ -21,6 +21,7 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 2. Next tools in the order of `docs/gaps.md` (then the financial remainder; financials still to do: forecasting, budget snapshots).
 
 ## Progress log
+- 2026-10-13: the project sidebar is grouped into collapsible sections (project management, quality and safety, plans and files, financials, preconstruction, resources) and only lists tools the person can read.
 - 2026-10-13: directory: edit companies; add and edit permission templates (level per tool).
 - 2026-10-13: prequalification (company-level records, review, lapse warnings). Every Procore tool now has a first slice.
 - 2026-10-13: estimating (priced lines by cost code, markups, issue, put in the budget, CSV).

@@ -59,6 +59,7 @@ pub enum Nav {
     Documents(Id<Project>),
     Transmittals(Id<Project>),
     Meetings(Id<Project>),
+    Tasks(Id<Project>),
     Drawings(Id<Project>),
     Schedule(Id<Project>),
     DailyLogs(Id<Project>),
@@ -157,7 +158,8 @@ pub fn app(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Option<String>
         | Nav::CommitmentInvoices(p)
         | Nav::DailyLogs(p)
         | Nav::Punch(p)
-        | Nav::Observations(p) => state.projects.get(p),
+        | Nav::Observations(p)
+        | Nav::Tasks(p) => state.projects.get(p),
     };
     html! {
         (DOCTYPE)
@@ -195,6 +197,9 @@ pub fn app(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Option<String>
                                 a href=(format!("/projects/{}", p.id)) class=(if matches!(nav, Nav::Home(_)) { "active" } else { "" }) { (Icon::Home.svg()) "Project home" }
                                 a href=(format!("/projects/{}/daily-logs", p.id)) class=(if matches!(nav, Nav::DailyLogs(_)) { "active" } else { "" }) { (tool_icon(Tool::DailyLog).svg()) "Daily log" }
                                 a href=(format!("/projects/{}/punch-list", p.id)) class=(if matches!(nav, Nav::Punch(_)) { "active" } else { "" }) { (tool_icon(Tool::PunchList).svg()) "Punch list" }
+                                @if view::level(state, req.actor(), p.id, Tool::Tasks) >= buildkiosk_engine::model::Level::Read {
+                                    a href=(format!("/projects/{}/tasks", p.id)) class=(if matches!(nav, Nav::Tasks(_)) { "active" } else { "" }) { (tool_icon(Tool::Tasks).svg()) "Tasks" }
+                                }
                                 a href=(format!("/projects/{}/observations", p.id)) class=(if matches!(nav, Nav::Observations(_)) { "active" } else { "" }) { (tool_icon(Tool::Observations).svg()) "Observations" }
                                 a href=(format!("/projects/{}/inspections", p.id)) class=(if matches!(nav, Nav::Inspections(_)) { "active" } else { "" }) { (tool_icon(Tool::Inspections).svg()) "Inspections" }
                                 @for (tool, path, label, current) in [

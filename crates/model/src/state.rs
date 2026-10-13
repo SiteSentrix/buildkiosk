@@ -16,6 +16,7 @@ use crate::meeting::Meeting;
 use crate::schedule::ScheduleTask;
 use crate::spec::SpecSection;
 use crate::submittal::Submittal;
+use crate::task::Task;
 use crate::transmittal::Transmittal;
 
 // -- quality and safety
@@ -129,6 +130,7 @@ tables! {
     submittals: Submittal,
     transmittals: Transmittal,
     meetings: Meeting,
+    tasks: Task,
     spec_sections: SpecSection,
 
     // -- quality and safety

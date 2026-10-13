@@ -15,6 +15,7 @@ pub mod rfi;
 pub mod meeting;
 pub mod spec;
 pub mod submittal;
+pub mod task;
 pub mod transmittal;
 
 // -- quality and safety
@@ -128,6 +129,7 @@ const MODULES: &[&[CommandSpec]] = &[
     spec::COMMANDS,
     meeting::COMMANDS,
     submittal::COMMANDS,
+    task::COMMANDS,
     transmittal::COMMANDS,
     // -- quality and safety
     inspection::COMMANDS,

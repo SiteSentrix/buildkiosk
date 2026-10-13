@@ -5,6 +5,7 @@ use buildkiosk_core::Id;
 use buildkiosk_engine::model::observation::Observation;
 use buildkiosk_engine::model::project::Project;
 use buildkiosk_engine::model::punch::PunchItem;
+use buildkiosk_engine::model::task::Task;
 use buildkiosk_engine::model::work::WorkStatus;
 use buildkiosk_engine::model::{Choice, Level, Priority};
 use buildkiosk_engine::workitem::{WorkItem, can_edit, can_see, items_for, label};
@@ -54,6 +55,20 @@ impl WorkPage for PunchItem {
 
     fn nav(project: Id<Project>) -> Nav {
         Nav::Punch(project)
+    }
+}
+
+impl WorkPage for Task {
+    const PREFIX: &'static str = "task";
+    const TITLE: &'static str = "Tasks";
+    const SUBTITLE: &'static str = "Things to get done, with an owner and a due date";
+    const ADD: &'static str = "Add task";
+    const KIND_LABEL: &'static str = "Category";
+    const KIND_HINT: &'static str = "Closeout, procurement, permits…";
+    const EMPTY_HINT: &'static str = "Add the first task to get started.";
+
+    fn nav(project: Id<Project>) -> Nav {
+        Nav::Tasks(project)
     }
 }
 

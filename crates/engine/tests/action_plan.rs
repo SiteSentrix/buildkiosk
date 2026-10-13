@@ -1,0 +1,68 @@
+//! Action plans: outline, items, activation, completion.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing)]
+
+use buildkiosk_model::action_plan::PlanStatus;
+use buildkiosk_testkit::World;
+use serde_json::json;
+
+#[test]
+fn outline_assign_tick_and_complete() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let sup = w.member(p, "Sue", "Super", "Superintendent");
+    let eng = w.member(p, "Eli", "Engineer", "Project engineer");
+    let reader = w.member(p, "Rae", "Reader", "Read only");
+
+    let id = w.ok(
+        sup,
+        "action_plan.create",
+        json!({"project": p, "title": "Closeout", "outline": "Loose item\n# Documents\n- Collect warranties\n* Record drawings\n\n# Site\nFinal clean\n"}),
+    )["id"]
+        .as_u64()
+        .unwrap();
+    let plan = w.engine.state().action_plans.iter().next().unwrap().clone();
+    assert_eq!(plan.sections.len(), 3);
+    assert_eq!((plan.sections[0].title.as_str(), plan.sections[1].items.len(), plan.progress()), ("Items", 2, (0, 4)));
+    w.err(sup, "action_plan.create", json!({"project": p, "title": "x", "outline": "#\nitem"}));
+    w.err(reader, "action_plan.create", json!({"project": p, "title": "x"}));
+    w.err(sup, "action_plan.activate", json!({"project": p, "id": w.engine.state().action_plans.iter().next().unwrap().id.raw() + 5}));
+
+    // Only the manager (the author here) assigns; owners tick their own items.
+    w.err(eng, "action_plan.set_item", json!({"project": p, "id": id, "section": 1, "item": 0, "assignee": eng.raw()}));
+    w.ok(
+        sup,
+        "action_plan.set_item",
+        json!({"project": p, "id": id, "section": 1, "item": 0, "assignee": eng.raw(), "due": "2026-11-15", "note": "Binder"}),
+    );
+    w.ok(sup, "action_plan.activate", json!({"project": p, "id": id}));
+    w.err(sup, "action_plan.activate", json!({"project": p, "id": id}));
+    assert!(w.engine.state().notifications.iter().any(|n| n.person == eng && n.text.contains("Action plan #1")));
+    w.err(reader, "action_plan.set_item", json!({"project": p, "id": id, "section": 1, "item": 0, "done": true}));
+    w.err(eng, "action_plan.set_item", json!({"project": p, "id": id, "section": 1, "item": 1, "done": true}));
+    w.ok(eng, "action_plan.set_item", json!({"project": p, "id": id, "section": 1, "item": 0, "done": true}));
+    w.err(sup, "action_plan.set_item", json!({"project": p, "id": id, "section": 9, "item": 0, "done": true}));
+    w.err(sup, "action_plan.complete", json!({"project": p, "id": id}));
+
+    // A new outline keeps what was recorded on the items that stay.
+    w.ok(sup, "action_plan.update", json!({"project": p, "id": id, "outline": "# Documents\n- Collect warranties\n- Record drawings\n- Training"}));
+    let plan = w.engine.state().action_plans.iter().next().unwrap().clone();
+    assert_eq!(plan.sections.len(), 1);
+    assert!(plan.sections[0].items[0].done && plan.sections[0].items[0].assignee == Some(eng) && plan.sections[0].items[0].note == "Binder");
+    for i in 1..3 {
+        w.ok(sup, "action_plan.set_item", json!({"project": p, "id": id, "section": 0, "item": i, "done": true}));
+    }
+    w.err(eng, "action_plan.complete", json!({"project": p, "id": id}));
+    w.ok(sup, "action_plan.complete", json!({"project": p, "id": id}));
+    assert_eq!(w.engine.state().action_plans.iter().next().unwrap().status, PlanStatus::Complete);
+    w.err(sup, "action_plan.update", json!({"project": p, "id": id, "title": "x"}));
+    w.err(eng, "action_plan.reopen", json!({"project": p, "id": id}));
+    w.ok(pm, "action_plan.reopen", json!({"project": p, "id": id}));
+    assert_eq!(w.ok(reader, "action_plan.list", json!({"project": p, "q": "training"})).as_array().unwrap().len(), 1);
+    w.err(eng, "action_plan.delete", json!({"project": p, "id": id}));
+    w.ok(sup, "action_plan.delete", json!({"project": p, "id": id}));
+    w.ok(pm, "action_plan.restore", json!({"project": p, "id": id}));
+    let other = w.project("Other");
+    w.err(pm, "action_plan.get", json!({"project": other, "id": id}));
+    w.assert_replay();
+}

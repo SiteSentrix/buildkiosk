@@ -21,6 +21,7 @@ pub mod task;
 pub mod transmittal;
 
 // -- quality and safety
+pub mod action_plan;
 pub mod form;
 pub mod incident;
 pub mod inspection;
@@ -141,6 +142,7 @@ const MODULES: &[&[CommandSpec]] = &[
     transmittal::COMMANDS,
     // -- quality and safety
     form::COMMANDS,
+    action_plan::COMMANDS,
     incident::COMMANDS,
     inspection::COMMANDS,
     observation::COMMANDS,

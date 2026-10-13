@@ -10,6 +10,7 @@ use crate::project::{CostCode, Project};
 use crate::rfi::Rfi;
 use crate::table::{Table, TableChange, TableData};
 // -- project management
+use crate::action_plan::ActionPlan;
 use crate::correspondence::Correspondence;
 use crate::document::{Document, Folder};
 use crate::drawing::Drawing;
@@ -146,6 +147,7 @@ tables! {
     inspection_templates: InspectionTemplate,
     inspections: Inspection,
     observations: Observation,
+    action_plans: ActionPlan,
     incidents: Incident,
 
     // -- field

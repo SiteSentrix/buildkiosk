@@ -448,9 +448,15 @@ pub fn router(app: Shared) -> Router {
             .route("/api/v1/commands/{id}", post(api_command))
             .route("/static/app.css", get(css))
             .route("/static/favicon.svg", get(favicon))
-            .route("/static/viewer/start.js", get(|| async { embedded(viewer_assets::START_JS, "text/javascript; charset=utf-8") }))
-            .route("/static/viewer/viewer.js", get(|| async { embedded(viewer_assets::VIEWER_JS, "text/javascript; charset=utf-8") }))
-            .route("/static/viewer/viewer_bg.wasm", get(|| async { embedded(viewer_assets::VIEWER_WASM, "application/wasm") }));
+            .route(
+                "/static/viewer/start.js",
+                get(|h: HeaderMap| async move { embedded(&h, viewer_assets::START_JS, "text/javascript; charset=utf-8") }),
+            )
+            .route(
+                "/static/viewer/viewer.js",
+                get(|h: HeaderMap| async move { embedded(&h, viewer_assets::VIEWER_JS, "text/javascript; charset=utf-8") }),
+            )
+            .route("/static/viewer/viewer_bg.wasm", get(|h: HeaderMap| async move { embedded(&h, viewer_assets::VIEWER_WASM, "application/wasm") }));
     let router = work_routes::<PunchItem>(router);
     let router = work_routes::<Observation>(router).route(
         "/projects/{id}/observations/trends",
@@ -2426,11 +2432,29 @@ async fn not_found(State(app): State<Shared>, headers: HeaderMap) -> Response {
 /// from elsewhere), and fetching the sheet file from this server.
 const VIEWER_CSP: &str = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; style-src 'self'; img-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
 
-/// A file built into the server (or "not found" when this build has none).
-fn embedded(bytes: Option<&'static [u8]>, kind: &'static str) -> Response {
-    let Some(bytes) = bytes else { return plain(StatusCode::NOT_FOUND, "Not found") };
-    let mut res = Bytes::from_static(bytes).into_response();
+/// A file built into the server, stored gzipped (or "not found" when this build has none). Browsers
+/// that accept gzip get it as is; anyone else gets it unpacked.
+fn embedded(headers: &HeaderMap, gz: Option<&'static [u8]>, kind: &'static str) -> Response {
+    use std::io::Read as _;
+    let Some(gz) = gz else { return plain(StatusCode::NOT_FOUND, "Not found") };
+    let accepts = headers
+        .get_all("accept-encoding")
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .any(|v| v.split(',').any(|e| e.trim().split(';').next().is_some_and(|n| n.eq_ignore_ascii_case("gzip"))));
+    let mut res = if accepts {
+        let mut res = Bytes::from_static(gz).into_response();
+        res.headers_mut().insert("content-encoding", HeaderValue::from_static("gzip"));
+        res
+    } else {
+        let mut plain_bytes = Vec::new();
+        if flate2::read::GzDecoder::new(gz).read_to_end(&mut plain_bytes).is_err() {
+            return plain(StatusCode::INTERNAL_SERVER_ERROR, "Not available");
+        }
+        Bytes::from(plain_bytes).into_response()
+    };
     res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static(kind));
+    res.headers_mut().insert("vary", HeaderValue::from_static("accept-encoding"));
     // Not fingerprinted, so it is checked again within the hour.
     res.headers_mut().insert("cache-control", HeaderValue::from_static("public, max-age=3600"));
     res

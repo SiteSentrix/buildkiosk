@@ -7,6 +7,7 @@
 //! the engine. When the module is missing, can't load, or can't draw the file, the page keeps
 //! working without it.
 
+pub mod diff;
 mod dom;
 pub mod geom;
 pub mod shapes;

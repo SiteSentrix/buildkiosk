@@ -10,6 +10,9 @@ use crate::geom::{Camera, from_units};
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct Mark {
     pub id: u32,
+    /// The page, from 1.
+    #[serde(default)]
+    pub page: u32,
     pub kind: MarkupKind,
     pub x: u16,
     pub y: u16,
@@ -21,6 +24,9 @@ pub struct Mark {
     pub text: String,
     #[serde(default)]
     pub resolved: bool,
+    /// What a length or area measures, as text ("12.50 ft").
+    #[serde(default)]
+    pub measure: Option<String>,
 }
 
 /// At most this many markups are read from a page.
@@ -35,10 +41,38 @@ pub fn parse(json: &str) -> Vec<Mark> {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Shape {
-    Pin { x: f64, y: f64, label: String },
-    Box { x: f64, y: f64, w: f64, h: f64, label: String },
-    Arrow { x1: f64, y1: f64, x2: f64, y2: f64, label: String },
-    Text { x: f64, y: f64, label: String },
+    Pin {
+        x: f64,
+        y: f64,
+        label: String,
+    },
+    Box {
+        x: f64,
+        y: f64,
+        w: f64,
+        h: f64,
+        label: String,
+    },
+    Arrow {
+        x1: f64,
+        y1: f64,
+        x2: f64,
+        y2: f64,
+        label: String,
+    },
+    /// A length: a line with a tick at each end.
+    Line {
+        x1: f64,
+        y1: f64,
+        x2: f64,
+        y2: f64,
+        label: String,
+    },
+    Text {
+        x: f64,
+        y: f64,
+        label: String,
+    },
 }
 
 /// A shape and whether it is resolved (drawn in grey).
@@ -56,10 +90,20 @@ pub fn shapes(marks: &[Mark], camera: &Camera) -> Vec<Drawn> {
                 MarkupKind::Rectangle => Shape::Box { x: x.min(x2), y: y.min(y2), w: (x - x2).abs(), h: (y - y2).abs(), label: id },
                 MarkupKind::Arrow => Shape::Arrow { x1: x, y1: y, x2, y2, label: id },
                 MarkupKind::Text => Shape::Text { x, y, label: format!("{id}. {}", m.text) },
+                MarkupKind::Dimension => Shape::Line { x1: x, y1: y, x2, y2, label: with_measure(&id, m) },
+                MarkupKind::Area => Shape::Box { x: x.min(x2), y: y.min(y2), w: (x - x2).abs(), h: (y - y2).abs(), label: with_measure(&id, m) },
             };
             (shape, m.resolved)
         })
         .collect()
+}
+
+/// "3" or, for a measurement, "3 · 12.50 ft".
+fn with_measure(id: &str, m: &Mark) -> String {
+    match &m.measure {
+        Some(t) if !t.is_empty() => format!("{id} · {t}"),
+        _ => id.to_string(),
+    }
 }
 
 /// The two corner points of an arrow head: the head is at (`x2`, `y2`), `size` long.
@@ -105,6 +149,18 @@ mod tests {
         let zoomed = shapes(&marks, &z);
         let [(Shape::Box { w: w2, .. }, _)] = zoomed.as_slice() else { panic!() };
         assert!((w2 - 2.0 * w).abs() < 1e-9);
+    }
+
+    #[test]
+    fn measurements_say_what_they_measure() {
+        let cam = Camera::fit(Stage { w: 800.0, h: 600.0 }, 1.0);
+        let marks = parse(
+            r#"[{"id":4,"kind":"dim","x":0,"y":0,"x2":5000,"y2":0,"measure":"12.50 ft"},{"id":5,"kind":"area","x":0,"y":0,"x2":5000,"y2":5000,"measure":"100.0 sq ft"},{"id":6,"kind":"dim","x":0,"y":0,"x2":9,"y2":0}]"#,
+        );
+        let drawn = shapes(&marks, &cam);
+        assert!(matches!(&drawn[0].0, Shape::Line { label, .. } if label == "4 · 12.50 ft"));
+        assert!(matches!(&drawn[1].0, Shape::Box { label, .. } if label == "5 · 100.0 sq ft"));
+        assert!(matches!(&drawn[2].0, Shape::Line { label, .. } if label == "6"), "a measurement without a scale shows only its number");
     }
 
     #[test]

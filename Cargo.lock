@@ -346,6 +346,7 @@ dependencies = [
  "buildkiosk-store",
  "buildkiosk-testkit",
  "buildkiosk-web",
+ "flate2",
  "hayro",
  "hmac",
  "http-body-util",

@@ -142,6 +142,13 @@ fn junk_input_never_panics_or_changes_anything() {
         r#"{"id":1,"method":"tools/call","params":{"name":"rfi_create","arguments":{"project":"x","subject":[1,2,3],"assignees":{"a":1}}}}"#,
         r#"{"id":1,"method":"tools/call","params":{"name":"project_create","arguments":{"name":1e999}}}"#,
         r#"{"id":1,"method":"initialize","params":{"protocolVersion":{"a":[1]}}}"#,
+        r#"{"id":1,"method":"resources/read","params":"x"}"#,
+        r#"{"id":1,"method":"resources/read","params":{"uri":5}}"#,
+        r#"{"id":1,"method":"resources/read","params":{"uri":"buildkiosk://document/99999999999999999999/1"}}"#,
+        r#"{"id":1,"method":"resources/read","params":{"uri":"buildkiosk://document/1/"}}"#,
+        r#"{"id":1,"method":"resources/list","params":{"cursor":[1]}}"#,
+        r#"{"id":1,"method":"resources/list","params":{"cursor":"18446744073709551615"}}"#,
+        r#"{"id":1,"method":"resources/list","params":"x"}"#,
     ];
     for line in fixed {
         let _ = handle_line(&mut t, admin, Timestamp::from_millis(0), line);
@@ -161,5 +168,111 @@ fn junk_input_never_panics_or_changes_anything() {
         }
     }
     assert!(t.engine.seq() >= before, "the journal only grows");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+fn call_tool(t: &mut Tenant, who: Actor, name: &str, args: Value) -> Value {
+    send(t, who, json!({"jsonrpc": "2.0", "id": 9, "method": "tools/call", "params": {"name": name, "arguments": args}}))
+}
+
+#[test]
+fn results_are_structured_too() {
+    let dir = temp("structured");
+    let (_data, mut t) = company(&dir);
+    let admin = Actor::Person(buildkiosk_core::Id::new(1));
+    // An object comes back as it is, beside the text.
+    let r = call_tool(&mut t, admin, "project_get", json!({"project": 1}));
+    assert_eq!(r["result"]["structuredContent"]["name"], "Tower One", "{r}");
+    let text: Value = serde_json::from_str(r["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    assert_eq!(text, r["result"]["structuredContent"]);
+    // A list is wrapped, because structured content is an object.
+    let r = call_tool(&mut t, admin, "rfi_list", json!({"project": 1}));
+    assert_eq!(r["result"]["structuredContent"]["result"], json!([]), "{r}");
+    // A failure says what kind and why.
+    let r = call_tool(&mut t, admin, "rfi_create", json!({"project": 1}));
+    assert_eq!(r["result"]["isError"], true);
+    assert_eq!(r["result"]["structuredContent"]["error"]["kind"], "bad_params");
+    assert!(r["result"]["structuredContent"]["error"]["message"].as_str().unwrap().contains("subject"), "{r}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn documents_are_resources_for_the_people_who_may_open_them() {
+    let dir = temp("resources");
+    let (_data, mut t) = company(&dir);
+    let admin = Actor::Person(buildkiosk_core::Id::new(1));
+    let stranger = Actor::Person(buildkiosk_core::Id::new(99));
+    let put = |t: &Tenant, bytes: &[u8]| t.store.blobs.put(bytes).unwrap();
+    let (text_sha, text_size) = put(&t, b"Pour the slab at 4,000 psi.");
+    let (bin_sha, bin_size) = put(&t, &[0, 159, 146, 150, 255]);
+    let add = |t: &mut Tenant, folder: Option<u64>, title: &str, sha: &str, size: u64, name: &str, mime: &str| {
+        let mut args = json!({"project": 1, "title": title, "sha256": sha, "size": size, "name": name, "mime": mime});
+        if let Some(f) = folder {
+            args["folder"] = json!(f);
+        }
+        let r = call_tool(t, Actor::Person(buildkiosk_core::Id::new(1)), "document_add", args);
+        assert_eq!(r["result"]["isError"], false, "{r}");
+    };
+    add(&mut t, None, "Concrete notes", &text_sha, text_size, "notes.txt", "text/plain");
+    add(&mut t, None, "Scan", &bin_sha, bin_size, "scan.bin", "application/octet-stream");
+
+    // The handshake offers resources; the list names both, with type and size.
+    let r = send(&mut t, admin, json!({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}));
+    assert!(r["result"]["capabilities"]["resources"].is_object());
+    let r = send(&mut t, admin, json!({"jsonrpc": "2.0", "id": 2, "method": "resources/list"}));
+    let list = r["result"]["resources"].as_array().unwrap();
+    assert_eq!(list.len(), 2, "{r}");
+    assert_eq!(
+        (
+            list[0]["uri"].as_str().unwrap(),
+            list[0]["name"].as_str().unwrap(),
+            list[0]["mimeType"].as_str().unwrap(),
+            list[0]["size"].as_u64().unwrap()
+        ),
+        ("buildkiosk://document/1/1", "Concrete notes", "text/plain", text_size)
+    );
+    assert!(r["result"].get("nextCursor").is_none());
+    let r = send(&mut t, admin, json!({"jsonrpc": "2.0", "id": 3, "method": "resources/templates/list"}));
+    assert!(r["result"]["resourceTemplates"][0]["uriTemplate"].as_str().unwrap().starts_with("buildkiosk://document/"));
+
+    // Text is read as text, anything else as base64.
+    let read =
+        |t: &mut Tenant, who: Actor, uri: &str| send(t, who, json!({"jsonrpc": "2.0", "id": 4, "method": "resources/read", "params": {"uri": uri}}));
+    let r = read(&mut t, admin, "buildkiosk://document/1/1");
+    assert_eq!(r["result"]["contents"][0]["text"], "Pour the slab at 4,000 psi.", "{r}");
+    let r = read(&mut t, admin, "buildkiosk://document/1/2");
+    let blob = r["result"]["contents"][0]["blob"].as_str().unwrap();
+    assert_eq!(base64::Engine::decode(&base64::engine::general_purpose::STANDARD, blob).unwrap(), vec![0, 159, 146, 150, 255]);
+
+    // Someone with no access sees none and can't read by guessing the address; wrong project and junk are not found.
+    let r = send(&mut t, stranger, json!({"jsonrpc": "2.0", "id": 5, "method": "resources/list"}));
+    assert_eq!(r["result"]["resources"].as_array().unwrap().len(), 0);
+    for (who, uri) in [
+        (stranger, "buildkiosk://document/1/1"),
+        (admin, "buildkiosk://document/2/1"),
+        (admin, "buildkiosk://document/1/99"),
+        (admin, "buildkiosk://document/x/y"),
+        (admin, "file:///etc/passwd"),
+        (admin, ""),
+    ] {
+        let r = read(&mut t, who, uri);
+        assert_eq!(r["error"]["code"], -32002, "{uri}: {r}");
+    }
+    let r = send(&mut t, admin, json!({"jsonrpc": "2.0", "id": 6, "method": "resources/read", "params": {}}));
+    assert_eq!(r["error"]["code"], -32602);
+    let r = send(&mut t, admin, json!({"jsonrpc": "2.0", "id": 7, "method": "resources/list", "params": {"cursor": "banana"}}));
+    assert_eq!(r["error"]["code"], -32602);
+
+    // A deleted document disappears; long lists come in pages.
+    let r = call_tool(&mut t, admin, "document_delete", json!({"project": 1, "id": 2}));
+    assert_eq!(r["result"]["isError"], false, "{r}");
+    assert_eq!(read(&mut t, admin, "buildkiosk://document/1/2")["error"]["code"], -32002);
+    for n in 0..120 {
+        add(&mut t, None, &format!("Copy {n}"), &text_sha, text_size, "notes.txt", "text/plain");
+    }
+    let r = send(&mut t, admin, json!({"jsonrpc": "2.0", "id": 8, "method": "resources/list"}));
+    assert_eq!((r["result"]["resources"].as_array().unwrap().len(), r["result"]["nextCursor"].as_str()), (100, Some("100")));
+    let r = send(&mut t, admin, json!({"jsonrpc": "2.0", "id": 9, "method": "resources/list", "params": {"cursor": "100"}}));
+    assert_eq!((r["result"]["resources"].as_array().unwrap().len(), r["result"].get("nextCursor").is_none()), (21, true));
     let _ = std::fs::remove_dir_all(&dir);
 }

@@ -19,9 +19,13 @@ usage: buildkiosk <command> [options]
 
 commands:
   serve    --data DIR [--company SLUG] [--bind ADDR] [--secure-cookies]
+           [--backup-dir DIR [--backup-every-hours N] [--backup-keep N]]
                                                        run the web app (default bind 127.0.0.1:8080); use
-                                                       --secure-cookies behind an HTTPS proxy
+                                                       --secure-cookies behind an HTTPS proxy; --backup-dir takes
+                                                       a backup while it runs (default every 24 hours, keeping 7)
   backup   --data DIR --to DIR                         copy the data directory (server stopped) and verify the copy
+  restore  --from DIR --data DIR [--replace]           put a backup in place as the data directory (server stopped);
+                                                       --replace moves an existing data directory aside first
   check    --data DIR                                  replay every company's journal and print row counts
   demo     --data DIR                                  create a fictional demo company with sample projects
   run      --data DIR --company SLUG --as EMAIL|system COMMAND ['{json params}']
@@ -49,6 +53,7 @@ impl Args {
         while let Some(a) = it.next() {
             match a.strip_prefix("--") {
                 Some("secure-cookies") => opts.push(("secure-cookies".to_string(), "true".to_string())),
+                Some("replace") => opts.push(("replace".to_string(), "true".to_string())),
                 Some(name) => {
                     let v = it.next().ok_or_else(|| format!("--{name} needs a value"))?;
                     opts.push((name.to_string(), v.clone()));
@@ -91,6 +96,7 @@ fn run(args: &[String]) -> Result<(), String> {
         "demo" => demo::create(a.need("data")?),
         "run" => run_command(&a),
         "backup" => backup(&a),
+        "restore" => restore(&a),
         "check" => check(&a),
         "commands" => {
             for c in all_commands() {
@@ -111,7 +117,17 @@ fn run(args: &[String]) -> Result<(), String> {
 fn serve(a: &Args) -> Result<(), String> {
     let bind: SocketAddr = a.get("bind").unwrap_or("127.0.0.1:8080").parse().map_err(|e| format!("--bind: {e}"))?;
     let data = DataDir::open(a.need("data")?).map_err(|e| e.to_string())?;
-    let app = Arc::new(App::open(data, a.get("company"))?.with_secure_cookies(a.get("secure-cookies").is_some()));
+    let mut app = App::open(data, a.get("company"))?.with_secure_cookies(a.get("secure-cookies").is_some());
+    if let Some(dir) = a.get("backup-dir") {
+        let number = |name: &str, default: u64| -> Result<u64, String> {
+            a.get(name).map_or(Ok(default), |v| v.parse::<u64>().map_err(|_| format!("--{name} needs a whole number")))
+        };
+        let (hours, keep) = (number("backup-every-hours", 24)?, number("backup-keep", 7)?);
+        app = app.with_backups(dir.into(), hours, usize::try_from(keep).unwrap_or(usize::MAX))?;
+    } else if a.get("backup-every-hours").is_some() || a.get("backup-keep").is_some() {
+        return Err("--backup-every-hours and --backup-keep need --backup-dir".into());
+    }
+    let app = Arc::new(app);
     let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().map_err(|e| e.to_string())?;
     rt.block_on(buildkiosk_server::serve(app, bind))
 }
@@ -124,6 +140,20 @@ fn print_reports(reports: &[buildkiosk_store::CompanyReport]) {
     if reports.is_empty() {
         println!("no companies");
     }
+}
+
+/// Puts a backup in place as the data directory.
+fn restore(a: &Args) -> Result<(), String> {
+    let (from, into) = (a.need("from")?, a.need("data")?);
+    let seconds = u64::try_from(now().millis() / 1000).unwrap_or(0);
+    let report = buildkiosk_store::ops::restore(std::path::Path::new(from), std::path::Path::new(into), a.get("replace").is_some(), seconds)
+        .map_err(|e| e.to_string())?;
+    if let Some(aside) = &report.moved_aside {
+        println!("the previous data directory was moved to {}", aside.display());
+    }
+    print_reports(&report.companies);
+    println!("restored {from} to {into}");
+    Ok(())
 }
 
 /// Copies the data directory to a new folder and proves the copy loads.

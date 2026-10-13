@@ -41,9 +41,14 @@ can do exactly what that person can and no more.
 
 - **Tools:** every command is a tool, named by its id with the dot made an underscore (`rfi.create` → `rfi_create`).
   Descriptions carry the parameter documentation; queries are marked `readOnlyHint`.
-- **Results:** a successful call returns the command's JSON as text. A failed call returns a normal result with
-  `isError: true` and `kind: message`, so the agent can read why and try again. Protocol mistakes (unknown tool, bad
-  JSON) are JSON-RPC errors.
+- **Results:** a successful call returns the command's JSON as text and as `structuredContent` (an object; a list or
+  a single value comes wrapped as `{"result": …}`). A failed call returns a normal result with `isError: true`, the
+  text `kind: message` and `structuredContent: {"error": {"kind", "message"}}`, so the agent can read why and try
+  again. Protocol mistakes (unknown tool, bad JSON) are JSON-RPC errors.
+- **Resources:** the project documents the person may open are resources, addressed
+  `buildkiosk://document/{project}/{id}` (`resources/list` in pages of 100 with `cursor`, `resources/templates/list`,
+  `resources/read`). Reading returns the current version: text types as `text`, anything else as base64 `blob`, up to
+  8 MB. A document the person can't open is "not found" (-32002), the same as one that doesn't exist.
 - **Start here:** call `me_get` to see who you are and which projects you can open, then `project_list` and the tool's
   own `*_list` command.
 

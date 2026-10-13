@@ -5,6 +5,11 @@
 //! engine's permission checks apply exactly as they do in the web app. Queries are marked
 //! read-only. Input is untrusted: nothing here panics, and every failure becomes a JSON-RPC error
 //! or a tool result with `isError` set.
+//!
+//! Tool results carry the command's JSON twice: as text (for clients that only read text) and as
+//! `structuredContent` (an object; a list or a single value is wrapped as `{"result": …}`). The
+//! project's documents are resources: `resources/list` names the ones the person may open and
+//! `resources/read` returns the current version's file (text as text, anything else as base64).
 #![forbid(unsafe_code)]
 
 use buildkiosk_core::Timestamp;
@@ -18,7 +23,8 @@ const DEFAULT_PROTOCOL: &str = "2024-11-05";
 const INSTRUCTIONS: &str = "BuildKiosk construction management. Every tool is a command; tool names are command ids with the dot \
 written as an underscore (rfi.create is rfi_create). Most project tools take `project` (a project id) and `id` (an item id). \
 Start with me_get to see who you are and which projects you can open, then project_list and the tool's own list command. \
-Failed calls return isError with the reason; nothing is changed by a failed call.";
+Failed calls return isError with the reason; nothing is changed by a failed call. Results come as text and as \
+structuredContent. Project documents are resources (resources/list, resources/read).";
 
 /// Handles one line of input. Returns the line to send back, or `None` for notifications and
 /// blank lines. `now` is the time commands run at.
@@ -71,7 +77,15 @@ fn handle_message(tenant: &mut Tenant, actor: Actor, now: Timestamp, message: &V
             Ok(result) => ok(id, result),
             Err((code, msg)) => error(id, code, &msg),
         },
-        "resources/list" => ok(id, json!({ "resources": [] })),
+        "resources/list" => match resources::list(tenant, actor, &params) {
+            Ok(result) => ok(id, result),
+            Err((code, msg)) => error(id, code, &msg),
+        },
+        "resources/templates/list" => ok(id, resources::templates()),
+        "resources/read" => match resources::read(tenant, actor, &params) {
+            Ok(result) => ok(id, result),
+            Err((code, msg)) => error(id, code, &msg),
+        },
         "prompts/list" => ok(id, json!({ "prompts": [] })),
         other => error(id, -32601, &format!("method `{other}` is not supported")),
     })
@@ -81,7 +95,7 @@ fn initialize(params: &Value) -> Value {
     let version = params.get("protocolVersion").and_then(Value::as_str).filter(|v| v.len() <= 32).unwrap_or(DEFAULT_PROTOCOL);
     json!({
         "protocolVersion": version,
-        "capabilities": { "tools": { "listChanged": false } },
+        "capabilities": { "tools": { "listChanged": false }, "resources": { "subscribe": false, "listChanged": false } },
         "serverInfo": { "name": "buildkiosk", "version": env!("CARGO_PKG_VERSION") },
         "instructions": INSTRUCTIONS,
     })
@@ -149,11 +163,19 @@ fn call(tenant: &mut Tenant, actor: Actor, now: Timestamp, params: &Value) -> Re
     let Tenant { engine, store, .. } = tenant;
     Ok(match engine.execute(store, actor, now, spec.id, &arguments) {
         Ok(value) => {
-            json!({ "content": [{ "type": "text", "text": serde_json::to_string_pretty(&value).unwrap_or_else(|_| value.to_string()) }], "isError": false })
+            let text = serde_json::to_string_pretty(&value).unwrap_or_else(|_| value.to_string());
+            let structured = if value.is_object() { value } else { json!({ "result": value }) };
+            json!({ "content": [{ "type": "text", "text": text }], "structuredContent": structured, "isError": false })
         }
-        Err(e) => json!({ "content": [{ "type": "text", "text": format!("{}: {e}", e.kind()) }], "isError": true }),
+        Err(e) => json!({
+            "content": [{ "type": "text", "text": format!("{}: {e}", e.kind()) }],
+            "structuredContent": { "error": { "kind": e.kind(), "message": e.to_string() } },
+            "isError": true,
+        }),
     })
 }
+
+mod resources;
 
 #[cfg(test)]
 mod tests;

@@ -13,7 +13,7 @@
 
 use buildkiosk_core::{Date, Id, text};
 use buildkiosk_model::common::FileRef;
-use buildkiosk_model::directory::Person;
+use buildkiosk_model::directory::{DistributionGroup, Person};
 use buildkiosk_model::project::Project;
 use buildkiosk_model::submittal::{Decision, Submittal, SubmittalReview, SubmittalStatus};
 use buildkiosk_model::{Level, Tool};
@@ -32,7 +32,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         Tool::Submittals,
         Access::Project(Level::Standard),
         "project: project id; then the submittal fields: title: text; description?: text; spec_section?, kind?: text; manager?: person id (default: you); \
-         submitter?: person id; reviewers?: [person ids, in review order]; ordered?: bool (reviewers answer one after another, in that order); distribution?: [person ids]; due?: YYYY-MM-DD; private?: bool; open?: bool (send for review now)",
+         submitter?: person id; reviewers?: [person ids, in review order]; ordered?: bool (reviewers answer one after another, in that order); distribution?: [person ids]; reviewer_groups?, distribution_groups?: [distribution group ids] (their members are added); due?: YYYY-MM-DD; private?: bool; open?: bool (send for review now)",
         create,
     ),
     CommandSpec::mutate(
@@ -184,6 +184,23 @@ fn apply_fields(ctx: &Ctx<'_>, p: &Params<'_>, s: &mut Submittal, creating: bool
                 fresh
             });
             *field = v;
+        }
+    }
+    // Groups add their members after the people named one by one (nobody twice).
+    for (key, field) in [("reviewer_groups", &mut s.reviewers), ("distribution_groups", &mut s.distribution)] {
+        let groups: Vec<Id<DistributionGroup>> = p.ids(key)?;
+        for g in groups {
+            let group = ctx
+                .state
+                .groups
+                .get(g)
+                .filter(|x| x.deleted.is_none() && x.project.is_none_or(|gp| gp == s.project))
+                .ok_or_else(|| p.bad(key, format!("group {g} not found")))?;
+            for m in &group.members {
+                if field.len() < 100 && !field.contains(m) && ctx.state.people.get(*m).is_some_and(|x| x.is_enabled()) {
+                    field.push(*m);
+                }
+            }
         }
     }
     if p.present("due") {

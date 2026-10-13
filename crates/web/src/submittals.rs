@@ -106,6 +106,7 @@ pub fn list(req: &Req<'_>, id: Id<Project>, filter: &Filter) -> Markup {
         div class="page-head" {
             div { h1 { "Submittals" } div class="sub" { "Documents sent for review before the work goes ahead" } }
             div class="actions" {
+                a class="btn" href=(format!("{base}/log")) { "Log" }
                 a class="btn" href=(format!("{base}.csv")) { (Icon::Download.svg()) "Export register" }
                 @if req.allowed("submittal.create", Some(id)) { a class="btn primary" href=(format!("{base}/new")) { (Icon::Plus.svg()) "New submittal" } }
             }
@@ -130,6 +131,12 @@ pub fn list(req: &Req<'_>, id: Id<Project>, filter: &Filter) -> Markup {
                 details class="disclosure" {
                     summary { "Import a register from CSV" }
                     p class="muted small" { "One submittal per line: title, spec section, type, due date (YYYY-MM-DD). A header line is skipped. Each row becomes a draft." }
+                    form method="post" action=(format!("{base}/import")) enctype="multipart/form-data" class="stack" {
+                        input type="hidden" name="_csrf" value=(req.csrf);
+                        (field("CSV file", "import_file", true, true, html! { input type="file" id="import_file" name="file" accept=".csv,text/csv,text/plain" required; }))
+                        div class="form-actions" { button type="submit" class="btn primary" { "Import file" } }
+                    }
+                    p class="muted small" { "Or paste the lines:" }
                     (command_form(req, "submittal.import", &base, &base, html! {
                         input type="hidden" name="project" value=(id);
                         (field("CSV text", "import_text", true, true, html! { textarea id="import_text" name="text" required placeholder="title,spec_section,kind,due" {} }))
@@ -371,6 +378,14 @@ pub fn form(req: &Req<'_>, id: Id<Project>, existing: Option<Id<Submittal>>) -> 
                         }
                         div class="hint" { "Each person once; blank rows are ignored." }
                     }
+                    @let groups: Vec<_> = state.groups.iter().filter(|g| g.deleted.is_none() && g.project.is_none_or(|p| p == id)).collect();
+                    @if !groups.is_empty() {
+                        div class="field full" {
+                            div class="label" { "Add reviewers from a group" }
+                            select name="reviewer_groups[]" aria-label="Reviewer group" { option value="" { "—" } @for g in &groups { option value=(g.id) { (g.name) " (" (g.members.len()) ")" } }  }
+                            div class="hint" { "Everyone in the group is added after the reviewers named above." }
+                        }
+                    }
                     div class="field full" {
                         input type="hidden" name="ordered" value="false";
                         label class="check" { input type="checkbox" name="ordered" value="true" checked[current.is_some_and(|s| s.ordered)]; "Reviewers answer one after another, in this order" }
@@ -424,4 +439,143 @@ pub fn csv(req: &Req<'_>, id: Id<Project>) -> Option<String> {
         out.push_str("\r\n");
     }
     Some(out)
+}
+
+// -- log report
+
+/// One line of the submittal log.
+pub struct LogRow {
+    pub number: String,
+    pub title: String,
+    pub spec: String,
+    pub kind: String,
+    pub status: SubmittalStatus,
+    pub decision: String,
+    pub ball: String,
+    pub due: String,
+    pub overdue: bool,
+    /// Days from sending for review to the final answer (or to today while still open); `None` for drafts.
+    pub days: Option<i64>,
+    pub id: u64,
+}
+
+/// The log: totals and every submittal ordered by spec section, then number.
+pub struct Log {
+    pub total: usize,
+    pub draft: usize,
+    pub in_review: usize,
+    pub closed: usize,
+    pub overdue: usize,
+    /// Closed submittals by final decision.
+    pub decisions: Vec<(&'static str, usize)>,
+    /// Average days in review of the closed ones, if any.
+    pub average_days: Option<i64>,
+    pub rows: Vec<LogRow>,
+}
+
+pub fn log_data(req: &Req<'_>, id: Id<Project>) -> Option<Log> {
+    project_for(req, id)?;
+    if view::level(req.engine.state(), req.actor(), id, Tool::Submittals) < Level::Read {
+        return None;
+    }
+    let state = req.engine.state();
+    let today = req.today();
+    let day = |t: buildkiosk_core::Timestamp| t.date_at(state.utc_offset());
+    let mut list = view::submittals_for(state, req.actor(), id);
+    list.sort_by(|a, b| (a.spec_section.as_str(), a.number, a.revision).cmp(&(b.spec_section.as_str(), b.number, b.revision)));
+    let count = |s: SubmittalStatus| list.iter().filter(|x| x.status == s).count();
+    let rows: Vec<LogRow> = list
+        .iter()
+        .map(|s| {
+            let days = s.opened.map(|o| day(o.at).days_until(s.closed.map(|c| day(c.at)).unwrap_or(today)));
+            LogRow {
+                number: if s.revision == 0 { s.number.to_string() } else { format!("{}.{}", s.number, s.revision) },
+                title: s.title.clone(),
+                spec: s.spec_section.clone(),
+                kind: s.kind.clone(),
+                status: s.status,
+                decision: s.final_decision.map(|d| d.label().to_string()).unwrap_or_default(),
+                ball: view::people_names(state, &s.ball_in_court),
+                due: s.due.map(|d| d.to_string()).unwrap_or_default(),
+                overdue: s.is_overdue(today),
+                days,
+                id: s.id.raw(),
+            }
+        })
+        .collect();
+    let closed_days: Vec<i64> = list
+        .iter()
+        .filter(|s| s.status == SubmittalStatus::Closed)
+        .filter_map(|s| s.opened.zip(s.closed))
+        .map(|(o, c)| day(o.at).days_until(day(c.at)))
+        .collect();
+    let average_days = i64::try_from(closed_days.len()).ok().filter(|n| *n > 0).and_then(|n| closed_days.iter().sum::<i64>().checked_div(n));
+    Some(Log {
+        total: list.len(),
+        draft: count(SubmittalStatus::Draft),
+        in_review: count(SubmittalStatus::InReview),
+        closed: count(SubmittalStatus::Closed),
+        overdue: list.iter().filter(|s| s.is_overdue(today)).count(),
+        decisions: Decision::ALL.iter().map(|d| (d.label(), list.iter().filter(|s| s.final_decision == Some(*d)).count())).collect(),
+        average_days,
+        rows,
+    })
+}
+
+/// The submittal log: where every submittal stands, by spec section.
+pub fn log(req: &Req<'_>, id: Id<Project>) -> Markup {
+    let Some(p) = project_for(req, id) else { return not_found(req) };
+    let Some(log) = log_data(req, id) else { return not_found(req) };
+    let base = format!("/projects/{id}/submittals");
+    let body = html! {
+        div class="page-head" {
+            div { h1 { "Submittal log" } div class="sub" { (p.name) " · as of " (req.today().pretty()) } }
+            div class="actions" {
+                a class="btn" href=(format!("{base}/log/pdf")) { "PDF" }
+                a class="btn" href=(format!("{base}.csv")) { (Icon::Download.svg()) "Export register" }
+                a class="btn" href=(base.clone()) { "Back to submittals" }
+            }
+        }
+        div class="stat-row" {
+            div class="stat" { div class="label" { "Submittals" } div class="value" { (log.total) } }
+            div class="stat" { div class="label" { "Drafts" } div class="value" { (log.draft) } }
+            div class="stat" { div class="label" { "In review" } div class="value" { (log.in_review) } }
+            div class=(if log.overdue > 0 { "stat alert" } else { "stat" }) { div class="label" { "Overdue" } div class="value" { (log.overdue) } }
+            div class="stat" { div class="label" { "Closed" } div class="value" { (log.closed) } }
+            div class="stat" { div class="label" { "Average days in review" } div class="value" { @if let Some(d) = log.average_days { (d) } @else { "—" } } }
+        }
+        @if log.closed > 0 {
+            div class="card" {
+                h2 { "Final decisions" }
+                p { @for (label, n) in &log.decisions { span class="tag" { (label) ": " (n) } " " } }
+            }
+        }
+        @if log.rows.is_empty() {
+            div class="card" { (empty(tool_icon(Tool::Submittals), "No submittals yet", "The log lists every submittal once there are some.")) }
+        } @else {
+            div class="table-wrap" {
+                table class="data" {
+                    thead { tr { th { "Spec section" } th { "#" } th { "Title" } th { "Type" } th { "Status" } th { "Decision" } th { "Ball in court" } th { "Due" } th { "Days" } } }
+                    tbody { @for r in &log.rows { tr {
+                        td class="nowrap" { (dash(&r.spec)) }
+                        td class="nowrap" { (r.number) }
+                        td { a class="row-link" href=(format!("{base}/{}", r.id)) { (r.title) } }
+                        td { (dash(&r.kind)) }
+                        td { (status_pill(r.status)) }
+                        td { (dash(&r.decision)) }
+                        td { (dash(&r.ball)) }
+                        td class="nowrap" { span class=(if r.overdue { "overdue" } else { "" }) { (dash(&r.due)) } }
+                        td class="nowrap" { @if let Some(d) = r.days { (d) } @else { "—" } }
+                    } } }
+                }
+            }
+        }
+    };
+    layout::app(
+        req,
+        "Submittal log",
+        Nav::Submittals(id),
+        &[("Projects", Some("/".into())), (&p.name, Some(format!("/projects/{id}"))), ("Submittals", Some(base)), ("Log", None)],
+        body,
+    )
 }

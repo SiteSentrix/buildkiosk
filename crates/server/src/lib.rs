@@ -277,7 +277,20 @@ pub fn router(app: Shared) -> Router {
             .route("/projects/{id}/documents/{did}/upload", post(document_upload_version).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
             .route("/projects/{id}/documents/{did}/files/{sha}", get(document_download))
             .route("/projects/{id}/submittals.csv", get(submittal_csv))
+            .route("/projects/{id}/submittals/import", post(submittal_import_file).layer(DefaultBodyLimit::max(1024 * 1024 + 64 * 1024)))
             .route("/projects/{id}/submittals/new", get(submittal_new))
+            .route(
+                "/projects/{id}/submittals/log",
+                get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, Query(q): Q| async move {
+                    page(&s.0, &h, &q, |r, _| buildkiosk_web::submittals::log(r, Id::new(id)))
+                }),
+            )
+            .route(
+                "/projects/{id}/submittals/log/pdf",
+                get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>| async move {
+                    pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::submittal_log(r, Id::new(id)))
+                }),
+            )
             .route("/projects/{id}/submittals/{sid}/review", post(submittal_review).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
             .route("/projects/{id}/submittals/{sid}", get(submittal_detail))
             .route("/projects/{id}/submittals/{sid}/edit", get(submittal_edit))
@@ -1701,6 +1714,44 @@ async fn drawing_upload(app: Shared, headers: HeaderMap, id: u64, did: Option<u6
 
 async fn specifications(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
     page(&app, &headers, &q, |r, _| buildkiosk_web::specs::page(r, Id::new(id)))
+}
+
+/// Imports a register from an uploaded CSV file (up to 1 MB).
+async fn submittal_import_file(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, mut multipart: Multipart) -> Response {
+    let back = format!("/projects/{id}/submittals");
+    let too_big = "The upload failed or the file is larger than 1 MB.";
+    let (mut token, mut file) = (String::new(), None);
+    loop {
+        let field = match multipart.next_field().await {
+            Ok(Some(f)) => f,
+            Ok(None) => break,
+            Err(_) => return redirect(&with_flash(&back, false, too_big)),
+        };
+        let name = field.name().unwrap_or("").to_string();
+        let Ok(bytes) = field.bytes().await else { return redirect(&with_flash(&back, false, too_big)) };
+        match name.as_str() {
+            "_csrf" => token = String::from_utf8_lossy(&bytes).into_owned(),
+            "file" if file.is_none() => file = Some(bytes),
+            _ => {}
+        }
+    }
+    let mut inner = app.lock();
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    if !auth::csrf_ok(app.secret(), &s.cookie, &token) {
+        return plain(StatusCode::FORBIDDEN, "The form expired. Go back, reload the page and try again.");
+    }
+    let Some(bytes) = file.filter(|b| !b.is_empty()) else { return redirect(&with_flash(&back, false, "Choose a CSV file to import.")) };
+    let Ok(text) = String::from_utf8(bytes.to_vec()) else {
+        return redirect(&with_flash(&back, false, "The file isn't text. Save the register as CSV (UTF-8) and try again."));
+    };
+    let text = text.trim_start_matches('\u{feff}');
+    match inner.run(Actor::Person(s.person), "submittal.import", &json!({"project": id, "text": text})) {
+        Ok(v) => {
+            let n = v.get("created").and_then(Value::as_u64).unwrap_or(0);
+            redirect(&with_flash(&back, true, &format!("Imported {n} submittals as drafts.")))
+        }
+        Err(e) => redirect(&with_flash(&back, false, &e.to_string())),
+    }
 }
 
 async fn submittal_csv(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>) -> Response {

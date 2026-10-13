@@ -59,3 +59,32 @@ fn log_revisions_and_import() {
     w.err(pm, "drawing.get", json!({"project": other, "id": d}));
     w.assert_replay();
 }
+
+#[test]
+fn publishing_tells_people_and_items_name_their_sheet() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let eng = w.member(p, "Eli", "Engineer", "Project engineer");
+    let arch = w.member(p, "Arch", "Itect", "Owner / design team");
+    let reader = w.member(p, "Rae", "Reader", "Read only");
+    let unread = |w: &mut World, who| w.ok(who, "notification.list", json!({"unread": true})).as_array().unwrap().len();
+    let group = w.ok(w.admin(), "group.create", json!({"name": "Design team", "members": [arch, eng]}))["id"].as_u64().unwrap();
+
+    let id = w.ok(pm, "drawing.add", json!({"project": p, "number": "A-101", "title": "Floor plan"}))["id"].as_u64().unwrap();
+    w.err(pm, "drawing.publish", json!({"project": p, "id": id, "people": [eng]}));
+    w.ok(pm, "drawing.add_revision", json!({"project": p, "id": id, "revision": "B", "set": "Bulletin 2"}));
+    w.err(pm, "drawing.publish", json!({"project": p, "id": id}));
+    w.err(reader, "drawing.publish", json!({"project": p, "id": id, "people": [eng]}));
+    let out = w.ok(pm, "drawing.publish", json!({"project": p, "id": id, "people": [eng], "groups": [group], "message": "Door swing changed"}));
+    assert_eq!(out["told"], 2, "named people and the group, nobody twice");
+    assert_eq!((unread(&mut w, eng), unread(&mut w, arch), unread(&mut w, pm)), (1, 1, 0));
+    w.err(pm, "drawing.publish", json!({"project": p, "id": id, "groups": [9999]}));
+
+    let punch = w.ok(pm, "punch.create", json!({"project": p, "title": "Door swing", "drawing_number": "A-101"}))["id"].as_u64().unwrap();
+    let item = w.engine.state().punch_items.iter().find(|i| i.id.raw() == punch).unwrap().clone();
+    assert_eq!(item.drawing_number, "A-101");
+    w.ok(pm, "punch.update", json!({"project": p, "id": punch, "drawing_number": ""}));
+    assert_eq!(w.engine.state().punch_items.iter().next().unwrap().drawing_number, "");
+    w.assert_replay();
+}

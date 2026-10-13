@@ -117,10 +117,14 @@ fn apply_fields<T: WorkItem>(ctx: &Ctx<'_>, p: &Params<'_>, item: &mut T, creati
     if p.present("description") {
         item.description = p.text_or_empty("description", text::LONG)?;
     }
-    for key in ["location", "kind"] {
+    for key in ["location", "kind", "drawing_number"] {
         if p.present(key) {
             let v = p.line_or_empty(key, text::SHORT)?;
-            if key == "location" { item.location = v } else { item.kind = v }
+            match key {
+                "location" => item.location = v,
+                "kind" => item.kind = v,
+                _ => item.drawing_number = v,
+            }
         }
     }
     if let Some(pr) = p.choice::<Priority>("priority")? {
@@ -468,7 +472,7 @@ macro_rules! work_commands {
                 $tool,
                 $crate::cmd::Access::Project(buildkiosk_model::Level::Standard),
                 concat!(
-                    "project: project id; title: text; description?, location?, kind?: text (kind: the trade or category); priority?: low|medium|high|urgent; \
+                    "project: project id; title: text; description?, location?, drawing_number?, kind?: text (kind: the trade or category; drawing_number: the sheet it refers to); priority?: low|medium|high|urgent; \
                      manager?: person id (default: you; accepts the work); assignees?: [person ids]; due?: YYYY-MM-DD",
                     $extra
                 ),

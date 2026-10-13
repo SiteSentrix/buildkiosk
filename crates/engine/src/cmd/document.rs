@@ -30,7 +30,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Edit folder",
         Tool::Documents,
         Access::Project(Level::Standard),
-        "project: project id; id: folder id; name?: text; private?: bool (admins only); access?: [person ids] (admins only)",
+        "project: project id; id: folder id; name?: text; parent?: folder id to move it under (empty moves it to the top level); private?: bool (admins only); access?: [person ids] (admins only)",
         folder_update,
     ),
     CommandSpec::mutate(
@@ -136,6 +136,20 @@ fn depth(ctx: &Ctx<'_>, folder: &Folder) -> usize {
     n
 }
 
+/// How many levels of live folders sit below `id` (0 for none).
+fn subtree_height(ctx: &Ctx<'_>, id: Id<Folder>, seen: usize) -> usize {
+    if seen > view::MAX_FOLDER_DEPTH {
+        return 0;
+    }
+    ctx.state
+        .folders
+        .iter()
+        .filter(|c| c.deleted.is_none() && c.parent == Some(id))
+        .map(|c| 1 + subtree_height(ctx, c.id, seen + 1))
+        .max()
+        .unwrap_or(0)
+}
+
 fn name_taken(ctx: &Ctx<'_>, project: Id<Project>, parent: Option<Id<Folder>>, name: &str, except: Option<Id<Folder>>) -> bool {
     ctx.state
         .folders
@@ -194,6 +208,35 @@ fn folder_update(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
             return Err(EngineError::conflict(format!("a folder named {name} is already there")));
         }
         f.name = name;
+    }
+    if p.present("parent") {
+        let new_parent = p.opt_id::<Folder>("parent")?;
+        if new_parent != f.parent {
+            if let Some(np) = new_parent {
+                live_folder(ctx, project, np)?;
+                // Not into itself or anything below it.
+                let mut at = Some(np);
+                let mut hops = 0;
+                while let Some(a) = at {
+                    if a == id {
+                        return Err(p.bad("parent", "a folder can't be moved into itself or into a folder inside it"));
+                    }
+                    hops += 1;
+                    if hops > view::MAX_FOLDER_DEPTH + 1 {
+                        break;
+                    }
+                    at = ctx.state.folders.get(a).and_then(|x| x.parent);
+                }
+            }
+            let new_depth = new_parent.and_then(|np| ctx.state.folders.get(np)).map(|np| depth(ctx, np)).unwrap_or(0);
+            if new_depth + 1 + subtree_height(ctx, id, 0) > view::MAX_FOLDER_DEPTH {
+                return Err(p.bad("parent", format!("folders can be at most {} levels deep", view::MAX_FOLDER_DEPTH)));
+            }
+            if name_taken(ctx, project, new_parent, &f.name, Some(id)) {
+                return Err(EngineError::conflict(format!("a folder named {} is already there", f.name)));
+            }
+            f.parent = new_parent;
+        }
     }
     if p.present("private") || p.present("access") {
         if !is_admin(ctx, project) {

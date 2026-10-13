@@ -1148,6 +1148,61 @@ async fn documents_upload_versions_and_download() {
     assert!(found.contains("Plan set"));
     let (st, ..) = send(&app, get("/projects/1/documents/99")).await;
     assert_eq!(st, StatusCode::OK, "pages answer not-found inside the page");
+
+    // Several files at once, a zip of the folder, moving a folder, and the deleted-files page.
+    let many = |token: &str| {
+        let mut body = format!(
+            "--B\r\nContent-Disposition: form-data; name=\"_csrf\"\r\n\r\n{token}\r\n--B\r\nContent-Disposition: form-data; name=\"folder\"\r\n\r\n1\r\n"
+        );
+        for (name, content) in [("a.txt", "alpha"), ("b.txt", "beta"), ("a.txt", "alpha again")] {
+            body.push_str(&format!(
+                "--B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{name}\"\r\nContent-Type: text/plain\r\n\r\n{content}\r\n"
+            ));
+        }
+        body.push_str("--B--\r\n");
+        Request::post("/projects/1/documents/upload-many")
+            .header("cookie", &session)
+            .header("content-type", "multipart/form-data; boundary=B")
+            .body(Body::from(body))
+            .unwrap()
+    };
+    let (st, ..) = send(&app, many("bad")).await;
+    assert_eq!(st, StatusCode::FORBIDDEN);
+    let (_, h, _) = send(&app, many(&csrf)).await;
+    let loc = h.get(LOCATION).unwrap().to_str().unwrap().to_string();
+    assert!(loc.starts_with("/projects/1/documents?folder=1&ok=") && loc.contains("Uploaded%203"), "{loc}");
+    let res = router(app.clone())
+        .oneshot(Request::get("/projects/1/documents/zip?folder=1").header("cookie", &session).body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(res.headers().get(CONTENT_TYPE).unwrap(), "application/zip");
+    let zip = res.into_body().collect().await.unwrap().to_bytes();
+    assert!(zip.starts_with(b"PK\x03\x04"));
+    let text = String::from_utf8_lossy(&zip);
+    assert!(
+        text.contains("a.txt") && text.contains("a (2).txt") && text.contains("b.txt") && text.contains("alpha again") && text.contains("plan.txt"),
+        "unique names, current versions"
+    );
+    let (st, ..) = send(&app, Request::get("/projects/1/documents/zip").body(Body::empty()).unwrap()).await;
+    assert_eq!(st, StatusCode::SEE_OTHER);
+    let (_, h, _) = send(&app, Request::get("/projects/1/documents/zip?folder=99").header("cookie", &session).body(Body::empty()).unwrap()).await;
+    assert!(h.get(LOCATION).is_none(), "an unknown folder is just not found");
+    send(&app, post("/do/folder.create", &session, format!("_csrf={csrf}&project=1&name=Archive"))).await;
+    let (_, _, folder_page) =
+        send(&app, Request::get("/projects/1/documents?folder=1").header("cookie", &session).body(Body::empty()).unwrap()).await;
+    assert!(folder_page.contains("Move this folder into") && folder_page.contains("Download all as zip"));
+    let (_, h, _) =
+        send(&app, post("/do/folder.update", &session, format!("_csrf={csrf}&_next=/projects/1/documents&project=1&id=1&parent=2"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, moved) = send(&app, Request::get("/projects/1/documents?folder=1").header("cookie", &session).body(Body::empty()).unwrap()).await;
+    assert!(moved.contains("Archive"));
+    send(&app, post("/do/document.delete", &session, format!("_csrf={csrf}&project=1&id=2"))).await;
+    let (st, _, trash) = send(&app, Request::get("/projects/1/documents/trash").header("cookie", &session).body(Body::empty()).unwrap()).await;
+    assert!(st == StatusCode::OK && trash.contains("Deleted files") && trash.contains("a.txt") && trash.contains("Restore"), "{trash}");
+    send(&app, post("/do/document.restore", &session, format!("_csrf={csrf}&project=1&id=2"))).await;
+    let (_, _, trash) = send(&app, Request::get("/projects/1/documents/trash").header("cookie", &session).body(Body::empty()).unwrap()).await;
+    assert!(trash.contains("Nothing deleted"));
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -1211,6 +1266,43 @@ async fn drawings_log_revisions_and_csv() {
     let (st, h, csv) = send(&app, get("/projects/1/drawings.csv")).await;
     assert_eq!(st, StatusCode::OK);
     assert!(h.get("content-disposition").is_some() && csv.contains("A-101,Plan,Architectural"), "{csv}");
+
+    // A set of sheets at once: new numbers become sheets, a known number gets a revision.
+    let set = |token: &str, files: &[(&str, &str)]| {
+        let mut body = format!(
+            "--B\r\nContent-Disposition: form-data; name=\"_csrf\"\r\n\r\n{token}\r\n--B\r\nContent-Disposition: form-data; name=\"revision\"\r\n\r\nSet-1\r\n--B\r\nContent-Disposition: form-data; name=\"set\"\r\n\r\nPermit set\r\n"
+        );
+        for (name, content) in files {
+            body.push_str(&format!(
+                "--B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{name}\"\r\nContent-Type: application/pdf\r\n\r\n{content}\r\n"
+            ));
+        }
+        body.push_str("--B--\r\n");
+        Request::post("/projects/1/drawings/upload-set")
+            .header("cookie", &session)
+            .header("content-type", "multipart/form-data; boundary=B")
+            .body(Body::from(body))
+            .unwrap()
+    };
+    let (st, ..) = send(&app, set("bad", &[("S-201 Framing.pdf", "x")])).await;
+    assert_eq!(st, StatusCode::FORBIDDEN);
+    let (_, h, _) = send(&app, set(&csrf, &[("S-201 Framing plan.pdf", "framing"), ("FP-001_Sprinklers.pdf", "sprinklers")])).await;
+    let loc = h.get(LOCATION).unwrap().to_str().unwrap().to_string();
+    assert!(loc.contains("ok=") && loc.contains("1%20new%20sheet%20and%201%20new%20revision"), "{loc}");
+    let (_, h, _) = send(&app, set(&csrf, &[("s-201 Framing plan.pdf", "again")])).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("error="), "the same revision label twice is refused: {h:?}");
+    let (_, _, list) = send(&app, Request::get("/projects/1/drawings").header("cookie", &session).body(Body::empty()).unwrap()).await;
+    assert!(
+        list.contains("S-201")
+            && list.contains("Framing plan")
+            && list.contains("FP-001")
+            && list.contains("Sprinklers")
+            && list.contains("Upload a set of sheets")
+    );
+    assert_eq!(sheet_from_file_name("A-101 Floor plan.pdf"), ("A-101".to_string(), "Floor plan".to_string()));
+    assert_eq!(sheet_from_file_name("E-2_Panel_schedule.pdf"), ("E-2".to_string(), "Panel schedule".to_string()));
+    assert_eq!(discipline_for_sheet("FP-001"), "fire_protection");
+    assert_eq!(discipline_for_sheet("S-201"), "structural");
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }

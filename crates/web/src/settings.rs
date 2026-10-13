@@ -41,6 +41,8 @@ pub fn project(req: &Req<'_>, id: Id<Project>) -> Markup {
                     (field("Days to answer an RFI", "rfi_due_days", false, false, html! { input type="number" min="1" max="90" id="rfi_due_days" name="rfi_due_days" value=(p.rfi_due_days.map(|d| d.to_string()).unwrap_or_default()) placeholder="company default"; }))
                 }
                 (field("Description", "description", false, true, html! { textarea id="description" name="description" { (p.description) } }))
+                (field("Observation categories", "observation_types", false, true, html! { textarea id="observation_types" name="observation_types" class="short" placeholder="Safety&#10;Quality&#10;Housekeeping" { (p.observation_types.join("\n")) } }))
+                p class="muted small" { "One category per line. When there are some, new observations pick from them; leave it empty to type any category." }
                 input type="hidden" name="active" value="false";
                 label class="check" { input type="checkbox" name="active" value="true" checked[p.active]; " Active (inactive projects are hidden from the project list)" }
                 div class="form-actions" { a class="btn" href=(format!("/projects/{id}")) { "Back" } button type="submit" class="btn primary" { "Save" } }

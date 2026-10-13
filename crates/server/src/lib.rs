@@ -206,11 +206,29 @@ pub fn router(app: Shared) -> Router {
             .route("/projects/{id}/inspections/templates", get(inspection_templates))
             .route("/projects/{id}/inspections/{iid}", get(inspection_detail))
             .route("/projects/{id}/inspections/{iid}/edit", get(inspection_edit))
+            .route(
+                "/projects/{id}/inspections/{iid}/pdf",
+                get(|s: State<Shared>, h: HeaderMap, Path((id, x)): Path<(u64, u64)>| async move {
+                    pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::inspection(r, Id::new(id), Id::new(x)))
+                }),
+            )
             .route("/projects/{id}/inspections/{iid}/answers", post(inspection_answers))
             .route("/projects/{id}/inspections/{iid}/files/{sha}", get(inspection_file))
             .route("/projects/{id}/inspections/{iid}/upload", post(inspection_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
             .route("/projects/{id}/daily-logs", get(daily_log_list))
             .route("/projects/{id}/daily-logs/new", get(daily_log_new))
+            .route(
+                "/projects/{id}/daily-logs/week",
+                get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, Query(q): Q| async move {
+                    page(&s.0, &h, &q, |r, _| buildkiosk_web::daily_logs::week(r, Id::new(id), week_day(&q, r)))
+                }),
+            )
+            .route(
+                "/projects/{id}/daily-logs/week/pdf",
+                get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, Query(q): Q| async move {
+                    pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::daily_log_week(r, Id::new(id), week_day(&q, r)))
+                }),
+            )
             .route("/projects/{id}/daily-logs/save", post(daily_log_save_new))
             .route("/projects/{id}/daily-logs/{lid}", get(daily_log_detail))
             .route("/projects/{id}/daily-logs/{lid}/edit", get(daily_log_edit))
@@ -392,7 +410,12 @@ pub fn router(app: Shared) -> Router {
             .route("/static/app.css", get(css))
             .route("/static/favicon.svg", get(favicon));
     let router = work_routes::<PunchItem>(router);
-    let router = work_routes::<Observation>(router);
+    let router = work_routes::<Observation>(router).route(
+        "/projects/{id}/observations/trends",
+        get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, Query(q): Q| async move {
+            page(&s.0, &h, &q, |r, _| workitems::observation_trends(r, Id::new(id)))
+        }),
+    );
     let router = work_routes::<Task>(router);
     let router = work_routes::<Incident>(router);
     let router = doc_routes::<ChangeEvent>(router);
@@ -679,7 +702,7 @@ async fn daily_log_list(State(app): State<Shared>, headers: HeaderMap, Path(id):
 }
 
 async fn daily_log_new(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
-    page(&app, &headers, &q, |r, _| buildkiosk_web::daily_logs::form(r, Id::new(id), None))
+    page(&app, &headers, &q, |r, _| buildkiosk_web::daily_logs::form(r, Id::new(id), None, q.get("copy").is_some_and(|c| c == "1")))
 }
 
 async fn daily_log_detail(State(app): State<Shared>, headers: HeaderMap, Path((id, lid)): Path<(u64, u64)>, Query(q): Q) -> Response {
@@ -687,7 +710,7 @@ async fn daily_log_detail(State(app): State<Shared>, headers: HeaderMap, Path((i
 }
 
 async fn daily_log_edit(State(app): State<Shared>, headers: HeaderMap, Path((id, lid)): Path<(u64, u64)>, Query(q): Q) -> Response {
-    page(&app, &headers, &q, |r, _| buildkiosk_web::daily_logs::form(r, Id::new(id), Some(Id::new(lid))))
+    page(&app, &headers, &q, |r, _| buildkiosk_web::daily_logs::form(r, Id::new(id), Some(Id::new(lid)), false))
 }
 
 async fn daily_log_save_new(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, body: Bytes) -> Response {
@@ -754,6 +777,11 @@ fn daily_log_save_impl(app: Shared, headers: HeaderMap, project: u64, log: Optio
         };
     }
     redirect(&with_flash(&detail, true, "Daily log saved."))
+}
+
+/// The day a weekly summary was asked for (`?date=`), else today.
+fn week_day(q: &HashMap<String, String>, r: &Req<'_>) -> buildkiosk_core::Date {
+    q.get("date").and_then(|d| buildkiosk_core::Date::parse(d)).unwrap_or_else(|| r.today())
 }
 
 /// The list filter a work item page or PDF was asked for.

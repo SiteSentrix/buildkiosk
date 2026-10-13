@@ -594,3 +594,77 @@ pub fn submittal_log(req: &Req<'_>, id: Id<Project>) -> Option<Pdf> {
     ));
     Some(("submittal-log.pdf".into(), render(&doc)))
 }
+
+pub fn daily_log_week(req: &Req<'_>, id: Id<Project>, any_day: buildkiosk_core::Date) -> Option<Pdf> {
+    let p = project_of(req, id, Tool::DailyLog)?;
+    let w = crate::daily_logs::week_data(req, id, any_day)?;
+    let end = w.start.add_days(6).unwrap_or(w.start);
+    let (mut doc, _) = start(req, p, "Daily log: weekly summary".into(), &format!("{} to {}", w.start.pretty(), end.pretty()));
+    doc.blocks.push(Block::Facts(vec![
+        ("Days logged".into(), format!("{} of 7", w.logged)),
+        ("Worker-days".into(), w.worker_days.to_string()),
+        ("Worker-hours".into(), hours_text(w.tenths)),
+    ]));
+    let rows = w
+        .days
+        .iter()
+        .map(|d| {
+            vec![
+                format!("{} {}", d.date.weekday().short(), d.date.pretty()),
+                if d.log.is_some() { dash(&d.weather) } else { "No log".into() },
+                if d.log.is_some() { d.workers.to_string() } else { String::new() },
+                if d.log.is_some() { hours_text(d.tenths) } else { String::new() },
+                d.work.clone(),
+                d.delays.clone(),
+                d.safety.clone(),
+            ]
+        })
+        .collect();
+    doc.blocks.push(table(
+        &["Day", "Weather", "Workers", "Hours", "Work performed", "Delays", "Safety"],
+        &[1.9, 1.6, 0.9, 0.9, 3.4, 2.0, 1.8],
+        &[2, 3],
+        rows,
+    ));
+    Some((file_name(&format!("daily-log-week-{}", w.start)), render(&doc)))
+}
+
+/// An inspection's checklist to print: answered lines show the result, open ones leave boxes to tick.
+pub fn inspection(req: &Req<'_>, id: Id<Project>, iid: Id<buildkiosk_engine::model::inspection::Inspection>) -> Option<Pdf> {
+    let state = req.engine.state();
+    let p = project_of(req, id, Tool::Inspections)?;
+    let i = state.inspections.get(iid).filter(|i| i.project == id && view::can_see_inspection(state, req.actor(), i))?;
+    let (mut doc, _) = start(req, p, format!("{}: {}", i.label(), i.title), &format!("Status: {}", i.status.label()));
+    doc.blocks.push(Block::Facts(vec![
+        ("Checklist".into(), dash(&i.template_name)),
+        ("Location".into(), dash(&i.location)),
+        ("Inspector".into(), person(state, i.inspector)),
+        ("Manager".into(), person(state, i.manager)),
+        ("Scheduled".into(), i.scheduled.map(|d| d.pretty()).unwrap_or_else(|| "—".into())),
+        ("Answered".into(), format!("{} of {}, {} failed", i.answered(), i.items.len(), i.failed())),
+    ]));
+    let mut section: Option<&str> = None;
+    let mut rows: Vec<Vec<String>> = Vec::new();
+    let flush = |doc: &mut Doc, section: Option<&str>, rows: &mut Vec<Vec<String>>| {
+        if rows.is_empty() {
+            return;
+        }
+        if let Some(s) = section.filter(|s| !s.is_empty()) {
+            doc.blocks.push(Block::Heading(s.to_string()));
+        }
+        doc.blocks.push(table(&["#", "Item", "Result", "Note"], &[0.6, 4.6, 2.4, 3.0], &[0], std::mem::take(rows)));
+    };
+    for (n, item) in i.items.iter().enumerate() {
+        if section != Some(item.section.as_str()) {
+            flush(&mut doc, section, &mut rows);
+            section = Some(item.section.as_str());
+        }
+        let result = match item.answer {
+            Some(a) => a.label().to_string(),
+            None => "[  ] Pass  [  ] Fail  [  ] N/A".to_string(),
+        };
+        rows.push(vec![(n + 1).to_string(), item.text.clone(), result, item.note.clone()]);
+    }
+    flush(&mut doc, section, &mut rows);
+    Some((file_name(&i.label()), render(&doc)))
+}

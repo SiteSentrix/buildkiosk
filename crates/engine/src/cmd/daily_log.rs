@@ -7,6 +7,7 @@
 
 use buildkiosk_core::{Date, Id, text};
 use buildkiosk_model::daily_log::{DailyLog, Delivery, EquipmentUse, LogStatus, Manpower, Sky, Visitor, Weather, parse_hours};
+use buildkiosk_model::directory::Person;
 use buildkiosk_model::project::Project;
 use buildkiosk_model::{Level, Tool};
 use serde_json::{Value, json};
@@ -22,7 +23,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Start daily log",
         Tool::DailyLog,
         Access::Project(Level::Standard),
-        "project: project id; date?: YYYY-MM-DD (default: today); then the log fields: sky?: clear|partly_cloudy|overcast|rain|snow|fog|windy|storm; high?, low?: integer degrees; \
+        "project: project id; date?: YYYY-MM-DD (default: today); copy_previous?: bool (start from the manpower and equipment of the latest earlier log you can see); then the log fields: sky?: clear|partly_cloudy|overcast|rain|snow|fog|windy|storm; high?, low?: integer degrees; \
          weather_notes?, work_performed?, delays?, safety?, notes?: text; manpower?: [{company, trade?, workers: integer, hours: hours each (7.5), notes?}]; \
          equipment?: [{name, hours, notes?}]; deliveries?: [{description, company?, notes?}]; visitors?: [{name, company?, purpose?}]",
         create,
@@ -210,6 +211,18 @@ fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         updated: stamp,
         deleted: None,
     };
+    if p.flag_or("copy_previous", false)? {
+        let previous = ctx
+            .state
+            .daily_logs
+            .iter()
+            .filter(|l| l.project == project && l.date < date && view::can_see_daily_log(ctx.state, ctx.actor, l))
+            .max_by_key(|l| l.date);
+        if let Some(prev) = previous {
+            log.manpower = prev.manpower.clone();
+            log.equipment = prev.equipment.clone();
+        }
+    }
     apply_fields(p, &mut log)?;
     let id = ctx.state.daily_logs.alloc();
     log.id = id;
@@ -251,7 +264,18 @@ fn submit(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     log.submitted = Some(ctx.stamp());
     log.updated = ctx.stamp();
     let id = log.id;
+    // The project's daily log admins are told it is in.
+    let managers: Vec<Id<Person>> = ctx
+        .state
+        .members
+        .iter()
+        .filter(|m| m.project == log.project && m.removed.is_none())
+        .map(|m| m.person)
+        .filter(|m| view::level(ctx.state, crate::Actor::Person(*m), log.project, Tool::DailyLog) == Level::Admin)
+        .collect();
+    let (project, text, link) = (log.project, format!("{} was submitted", log.label()), format!("/projects/{}/daily-logs/{id}", log.project));
     ctx.state.daily_logs.put(log);
+    super::notification::notify(ctx, &managers, project, &text, &link);
     Ok(json!({ "id": id }))
 }
 

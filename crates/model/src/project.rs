@@ -53,6 +53,9 @@ pub struct Project {
     /// Working days to an RFI's default due date on this project (else the company's).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rfi_due_days: Option<u32>,
+    /// The categories people pick from when adding an observation (empty: free text).
+    #[serde(default)]
+    pub observation_types: Vec<String>,
     #[serde(default = "yes")]
     pub active: bool,
     /// The original budget is locked: only budget changes alter it.

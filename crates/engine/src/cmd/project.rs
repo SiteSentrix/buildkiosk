@@ -16,7 +16,7 @@ use crate::{Ctx, EngineError, Params, Result, View};
 
 const PROJECT_FIELDS: &str = "name: text; number?: text (job number); stage?: bidding|preconstruction|construction|closeout|warranty|complete|on_hold|cancelled; \
      kind?: text; street?, city?, region?, postal_code?, country?: text; start?, completion?: YYYY-MM-DD; value?: amount; description?: text; \
-     owner?: company id; rfi_due_days?: integer (1..90)";
+     owner?: company id; rfi_due_days?: integer (1..90); observation_types?: text, one category per line (up to 50)";
 
 pub const COMMANDS: &[CommandSpec] = &[
     CommandSpec::mutate("project.create", "Create project", Tool::Portfolio, Access::Company(Level::Standard), PROJECT_FIELDS, create),
@@ -142,6 +142,20 @@ fn apply_fields(ctx: &Ctx<'_>, p: &Params<'_>, x: &mut Project, creating: bool) 
     if p.present("rfi_due_days") {
         x.rfi_due_days = p.int("rfi_due_days", 1..=90)?.and_then(|d| u32::try_from(d).ok());
     }
+    if p.present("observation_types") {
+        let body = p.text_or_empty("observation_types", 10_000)?;
+        let mut types: Vec<String> = Vec::new();
+        for line in body.lines().map(str::trim).filter(|l| !l.is_empty()) {
+            let t = text::required_line(line, 100).map_err(|e| p.bad("observation_types", e.to_string()))?;
+            if !types.iter().any(|x| x.eq_ignore_ascii_case(&t)) {
+                types.push(t);
+            }
+        }
+        if types.len() > 50 {
+            return Err(p.bad("observation_types", "can hold at most 50 categories"));
+        }
+        x.observation_types = types;
+    }
     if let Some(a) = p.flag("active")? {
         x.active = a;
     }
@@ -163,6 +177,7 @@ fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         description: String::new(),
         owner: None,
         rfi_due_days: None,
+        observation_types: Vec::new(),
         active: true,
         budget_locked: false,
         created: stamp,

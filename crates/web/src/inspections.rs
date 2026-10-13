@@ -13,6 +13,19 @@ use crate::layout::{self, Nav, Req, button_form, command_form, empty, field};
 use crate::pages::{dash, human_size, not_found, project_for, user_options};
 
 /// Whether line `n` opens a new, named section.
+/// A template's checklist as the text the form takes: `# Section` lines and one line per item.
+fn items_text(items: &[buildkiosk_engine::model::inspection::TemplateItem]) -> String {
+    let mut out = String::new();
+    for (n, item) in items.iter().enumerate() {
+        if starts_section(items, n) {
+            out.push_str(&format!("# {}\n", item.section));
+        }
+        out.push_str(&item.text);
+        out.push('\n');
+    }
+    out
+}
+
 fn starts_section(items: &[impl HasSection], n: usize) -> bool {
     let Some(item) = items.get(n) else { return false };
     !item.section().is_empty() && n.checked_sub(1).and_then(|p| items.get(p)).is_none_or(|prev| prev.section() != item.section())
@@ -163,6 +176,7 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, iid: Id<Inspection>, history: &[Jo
                 div class="sub" { @if !i.template_name.is_empty() { "From “" (i.template_name) "” · " } "Started " (req.when(i.created.at)) @if let Some(b) = i.created.by { " by " (view::person_name(state, b)) } }
             }
             div class="actions" {
+                a class="btn" href=(format!("{here}/pdf")) { "Printable checklist" }
                 @if can_edit(state, req.actor(), i) { a class="btn" href=(format!("{here}/edit")) { "Edit" } }
                 @if standard && manager_like && i.status == InspectionStatus::Completed { (button_form(req, "inspection.reopen", &here, &ids, "Reopen", "")) }
                 @if standard && (level == Level::Admin || (i.answered() == 0 && i.created.by == Some(req.person))) { (button_form(req, "inspection.delete", &base, &ids, "Delete", "danger")) }
@@ -361,6 +375,22 @@ pub fn templates(req: &Req<'_>, id: Id<Project>) -> Markup {
                         h2 { (t.name) @if !t.kind.is_empty() { " " span class="tag" { (t.kind) } } }
                         @if can_edit { (button_form(req, "inspection_template.delete", &here, &[("project", id.to_string()), ("id", t.id.to_string())], "Delete", "small danger")) }
                     }
+                    @if can_edit {
+                        details class="disclosure" {
+                            summary { "Edit this template" }
+                            p class="muted small" { "Inspections already started keep the checklist they were made with." }
+                            (command_form(req, "inspection_template.update", &here, &here, html! {
+                                input type="hidden" name="project" value=(id);
+                                input type="hidden" name="id" value=(t.id);
+                                div class="form-grid" {
+                                    (field("Name", &format!("n{}", t.id), true, false, html! { input type="text" id=(format!("n{}", t.id)) name="name" value=(t.name) required; }))
+                                    (field("Kind", &format!("k{}", t.id), false, false, html! { input type="text" id=(format!("k{}", t.id)) name="kind" value=(t.kind); }))
+                                    (field("Checklist", &format!("i{}", t.id), true, true, html! { textarea id=(format!("i{}", t.id)) name="items" required { (items_text(&t.items)) } }))
+                                }
+                                div class="form-actions" { button type="submit" class="btn primary" { "Save template" } }
+                            }))
+                        }
+                    }
                     ol class="stack" {
                         @for (n, item) in t.items.iter().enumerate() {
                             @if starts_section(&t.items, n) { p class="muted small" { strong { (item.section) } } }
@@ -371,6 +401,23 @@ pub fn templates(req: &Req<'_>, id: Id<Project>) -> Markup {
             }
         }
         @if can_edit {
+            @let others: Vec<(String, &buildkiosk_engine::model::inspection::InspectionTemplate)> = state
+                .inspection_templates
+                .iter()
+                .filter(|t| t.project != id && t.deleted.is_none() && view::level(state, req.actor(), t.project, Tool::Inspections) >= Level::Read)
+                .filter_map(|t| state.projects.get(t.project).filter(|p| p.deleted.is_none()).map(|p| (p.name.clone(), t)))
+                .collect();
+            @if !others.is_empty() {
+                div class="card" {
+                    h2 { "Copy a template from another project" }
+                    table class="data" {
+                        tbody { @for (pname, t) in &others { tr {
+                            td { (t.name) } td class="muted" { (pname) } td class="muted" { (t.items.len()) " lines" }
+                            td class="right" { (button_form(req, "inspection_template.copy", &here, &[("project", id.to_string()), ("from_project", t.project.to_string()), ("id", t.id.to_string())], "Copy here", "small")) }
+                        } } }
+                    }
+                }
+            }
             div class="card" {
                 h2 { "Add a template" }
                 (command_form(req, "inspection_template.create", &here, &here, html! {

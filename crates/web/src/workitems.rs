@@ -29,8 +29,14 @@ pub trait WorkPage: WorkItem {
     const KIND_LABEL: &'static str;
     const KIND_HINT: &'static str;
     const EMPTY_HINT: &'static str;
+    /// Whether the tool has a trends page at `/trends`.
+    const TRENDS: bool = false;
 
     fn nav(project: Id<Project>) -> Nav;
+    /// The categories the project offers for the free-text kind field (empty: any text).
+    fn types(_project: &Project) -> &[String] {
+        &[]
+    }
     /// Cards shown above the comments (kind-specific).
     fn extra_cards(&self) -> Markup {
         html! {}
@@ -129,9 +135,14 @@ impl WorkPage for Observation {
     const KIND_LABEL: &'static str = "Category";
     const KIND_HINT: &'static str = "Safety, quality, housekeeping…";
     const EMPTY_HINT: &'static str = "Add the first observation to get started.";
+    const TRENDS: bool = true;
 
     fn nav(project: Id<Project>) -> Nav {
         Nav::Observations(project)
+    }
+
+    fn types(project: &Project) -> &[String] {
+        &project.observation_types
     }
 
     fn extra_cards(&self) -> Markup {
@@ -344,6 +355,7 @@ pub fn list<T: WorkPage>(req: &Req<'_>, id: Id<Project>, filter: &Filter) -> Mar
         div class="page-head" {
             div { h1 { (T::TITLE) } div class="sub" { (T::SUBTITLE) } }
             div class="actions" {
+                @if T::TRENDS { a class="btn" href=(format!("{base}/trends")) { "Trends" } }
                 a class="btn" href=(with_query(format!("{base}.pdf"))) { "PDF" }
                 a class="btn" href=(format!("{base}.csv")) { (Icon::Download.svg()) "Export CSV" }
                 @if req.allowed(&cmd::<T>("create"), Some(id)) { a class="btn primary" href=(format!("{base}/new")) { (Icon::Plus.svg()) (T::ADD) } }
@@ -569,7 +581,17 @@ pub fn form<T: WorkPage>(req: &Req<'_>, id: Id<Project>, existing: Option<Id<T>>
                     (field("Title", "title", true, true, html! { input type="text" id="title" name="title" required maxlength="200" value=(text(|i| i.title.clone())); }))
                     (field("Description", "description", false, true, html! { textarea id="description" name="description" class="short" { (text(|i| i.description.clone())) } }))
                     (field("Location", "location", false, false, html! { input type="text" id="location" name="location" value=(text(|i| i.location.clone())); }))
-                    (field(T::KIND_LABEL, "kind", false, false, html! { input type="text" id="kind" name="kind" placeholder=(T::KIND_HINT) value=(text(|i| i.kind.clone())); }))
+                    @let types = T::types(p);
+                    @let kind = text(|i| i.kind.clone());
+                    @if types.is_empty() {
+                        (field(T::KIND_LABEL, "kind", false, false, html! { input type="text" id="kind" name="kind" placeholder=(T::KIND_HINT) value=(kind); }))
+                    } @else {
+                        (field(T::KIND_LABEL, "kind", false, false, html! { select id="kind" name="kind" {
+                            option value="" { "—" }
+                            @for t in types { option value=(t) selected[t.eq_ignore_ascii_case(&kind)] { (t) } }
+                            @if !kind.is_empty() && !types.iter().any(|t| t.eq_ignore_ascii_case(&kind)) { option value=(kind) selected { (kind) } }
+                        } }))
+                    }
                     (T::extra_fields(current, req))
                     (field("Priority", "priority", false, false, html! { select id="priority" name="priority" { @for pr in [Priority::Low, Priority::Medium, Priority::High, Priority::Urgent] { option value=(pr.key()) selected[pr == priority] { (pr.label()) } } } }))
                     (field("Due date", "due", false, false, html! { input type="date" id="due" name="due" value=(current.and_then(|i| i.due).map(|d| d.to_string()).unwrap_or_default()); }))
@@ -619,4 +641,73 @@ pub fn csv<T: WorkPage>(req: &Req<'_>, id: Id<Project>) -> Option<String> {
         out.push_str("\r\n");
     }
     Some(out)
+}
+
+/// Observations by category and month over the last six months, to show where hazards cluster
+/// and whether they are getting better. Months run from the first of the month; an observation
+/// counts in the month it was observed (else the month it was added).
+pub fn observation_trends(req: &Req<'_>, id: Id<Project>) -> Markup {
+    let Some(p) = project_for(req, id) else { return not_found(req) };
+    let state = req.engine.state();
+    if view::level(state, req.actor(), id, Observation::TOOL) < Level::Read {
+        return not_found(req);
+    }
+    let all = items_for::<Observation>(state, req.actor(), id);
+    let today = req.today();
+    let this_month = today.month_start();
+    // The first day of each of the six months, oldest first.
+    let mut months = vec![this_month];
+    for _ in 0..5 {
+        let first = months.first().copied().unwrap_or(this_month);
+        match first.add_days(-1).map(|d| d.month_start()) {
+            Some(prev) => months.insert(0, prev),
+            None => break,
+        }
+    }
+    let day_of = |o: &Observation| o.observed.unwrap_or_else(|| o.created.at.date_at(state.utc_offset()));
+    let in_window: Vec<&&Observation> = all.iter().filter(|o| day_of(o) >= months.first().copied().unwrap_or(this_month)).collect();
+    let mut categories: Vec<String> = in_window.iter().map(|o| if o.kind.is_empty() { "No category".to_string() } else { o.kind.clone() }).collect();
+    categories.sort_by_key(|c| c.to_lowercase());
+    categories.dedup_by_key(|c| c.to_lowercase());
+    let count = |cat: &str, month: buildkiosk_core::Date| {
+        in_window
+            .iter()
+            .filter(|o| day_of(o).month_start() == month)
+            .filter(|o| (if o.kind.is_empty() { "No category" } else { o.kind.as_str() }).eq_ignore_ascii_case(cat))
+            .count()
+    };
+    let month_total = |month: buildkiosk_core::Date| in_window.iter().filter(|o| day_of(o).month_start() == month).count();
+    let open = all.iter().filter(|o| o.status != WorkStatus::Closed).count();
+    let overdue = all.iter().filter(|o| o.is_overdue(today)).count();
+    let base = format!("/projects/{id}/{}", Observation::PATH);
+    let label = |d: buildkiosk_core::Date| format!("{} {}", d.pretty().split(' ').next().unwrap_or(""), d.ymd().0);
+    let body = html! {
+        div class="page-head" {
+            div { h1 { "Observation trends" } div class="sub" { (p.name) " · last six months" } }
+            div class="actions" { a class="btn" href=(base.clone()) { "Back to observations" } }
+        }
+        div class="stat-row" {
+            div class="stat" { div class="label" { "Observations (6 months)" } div class="value" { (in_window.len()) } }
+            div class="stat" { div class="label" { "Not closed" } div class="value" { (open) } }
+            div class=(if overdue > 0 { "stat alert" } else { "stat" }) { div class="label" { "Overdue" } div class="value" { (overdue) } }
+        }
+        @if in_window.is_empty() {
+            div class="card" { (empty(tool_icon(Observation::TOOL), "Nothing to show yet", "Trends appear once observations are recorded.")) }
+        } @else {
+            div class="table-wrap" {
+                table class="data" {
+                    thead { tr { th { "Category" } @for m in &months { th class="num" { (label(*m)) } } th class="num" { "Total" } } }
+                    tbody {
+                        @for c in &categories { tr {
+                            td { a href=(format!("{base}?kind={}", if c == "No category" { String::new() } else { c.clone() })) { (c) } }
+                            @for m in &months { td class="num" { (count(c, *m)) } }
+                            td class="num" { strong { (months.iter().map(|m| count(c, *m)).sum::<usize>()) } }
+                        } }
+                        tr { th { "All categories" } @for m in &months { th class="num" { (month_total(*m)) } } th class="num" { (in_window.len()) } }
+                    }
+                }
+            }
+        }
+    };
+    layout::app(req, "Observation trends", Observation::nav(id), &crumbs::<Observation>(p, Some(("Trends", base))), body)
 }

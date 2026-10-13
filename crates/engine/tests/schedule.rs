@@ -502,3 +502,72 @@ fn the_schedule_exports_to_project_xml_and_reads_back() {
     let third = w.project("Empty");
     assert!(export_xml(w.engine.state(), third, today).contains("<Tasks>"));
 }
+
+#[test]
+fn more_constraints_and_company_holiday_lists() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let span = |list: &Value, n| (row(list, n)["start"].as_str().unwrap().to_string(), row(list, n)["finish"].as_str().unwrap().to_string());
+    // 1: must finish on Wed 21; 2: finish no earlier than Thu 15; 3: start no later than Tue 13 but starts Wed 14.
+    w.ok(
+        pm,
+        "schedule.add",
+        json!({"project": p, "name": "Pour", "start": "2026-10-12", "days": 2, "constraint": "mfo", "constraint_date": "2026-10-21"}),
+    );
+    w.ok(
+        pm,
+        "schedule.add",
+        json!({"project": p, "name": "Inspect", "start": "2026-10-12", "days": 1, "constraint": "fnet", "constraint_date": "2026-10-15"}),
+    );
+    w.ok(
+        pm,
+        "schedule.add",
+        json!({"project": p, "name": "Late", "start": "2026-10-14", "days": 1, "constraint": "snlt", "constraint_date": "2026-10-13"}),
+    );
+    // 4 delivers for 5, which must start Wed 21: delivery can wait until Tuesday 20.
+    w.ok(pm, "schedule.add", json!({"project": p, "name": "Deliver", "start": "2026-10-12", "days": 1, "constraint": "alap"}));
+    w.ok(pm, "schedule.add", json!({"project": p, "name": "Install", "start": "2026-10-21", "days": 2, "predecessors": "4", "constraint": "mso", "constraint_date": "2026-10-21"}));
+    w.err(pm, "schedule.add", json!({"project": p, "name": "Bad", "start": "2026-10-12", "constraint": "mfo"}));
+    let list = w.ok(pm, "schedule.list", json!({"project": p}));
+    assert!(row(&list, 1)["broken"].as_bool().unwrap() && row(&list, 2)["broken"].as_bool().unwrap() && row(&list, 3)["broken"].as_bool().unwrap());
+    assert!(!row(&list, 4)["broken"].as_bool().unwrap(), "as late as possible is never broken");
+    assert!(w.ok(pm, "schedule.get", json!({"project": p, "id": 4}))["constraint_date"].is_null());
+
+    w.ok(pm, "schedule.recalculate", json!({"project": p}));
+    let list = w.ok(pm, "schedule.list", json!({"project": p}));
+    assert_eq!(span(&list, 1), ("2026-10-20".into(), "2026-10-21".into()), "finish fixed, start follows");
+    assert_eq!(span(&list, 2), ("2026-10-15".into(), "2026-10-15".into()), "pushed until it finishes on the 15th");
+    assert_eq!(span(&list, 3), ("2026-10-14".into(), "2026-10-14".into()), "a late start is flagged, not moved");
+    assert!(row(&list, 3)["broken"].as_bool().unwrap() && !row(&list, 1)["broken"].as_bool().unwrap() && !row(&list, 2)["broken"].as_bool().unwrap());
+    assert_eq!(span(&list, 4), ("2026-10-20".into(), "2026-10-20".into()), "pushed to the latest day before Install");
+    assert_eq!(span(&list, 5), ("2026-10-21".into(), "2026-10-22".into()));
+
+    // Company holiday lists: admins keep them, projects subscribe, and every duration follows.
+    let rae = w.member(p, "Rae", "Reader", "Read only");
+    w.err(pm, "holiday_list.save", json!({"name": "Federal 2026", "holidays": "2026-10-12 Columbus Day"}));
+    let l =
+        w.ok(w.admin(), "holiday_list.save", json!({"name": "Federal 2026", "holidays": "2026-11-11 Veterans Day\n2026-10-12 Columbus Day"}))["id"]
+            .as_u64()
+            .unwrap();
+    w.err(w.admin(), "holiday_list.save", json!({"name": "federal 2026", "holidays": ""}));
+    w.err(w.admin(), "holiday_list.save", json!({"name": "Bad", "holidays": "soon"}));
+    w.err(w.admin(), "holiday_list.save", json!({"name": "Twice", "holidays": "2026-10-12\n2026-10-12"}));
+    assert_eq!(w.ok(rae, "holiday_list.list", json!({})).as_array().unwrap().len(), 1);
+    assert!(!sched::calendar(w.engine.state(), p).holiday_on(d("2026-10-12")));
+    w.err(rae, "schedule.calendar_set", json!({"project": p, "lists": [l]}));
+    w.err(pm, "schedule.calendar_set", json!({"project": p, "lists": [9999]}));
+    w.ok(pm, "schedule.calendar_set", json!({"project": p, "lists": [l], "holidays": "2026-12-25 Christmas"}));
+    let cal = sched::calendar(w.engine.state(), p);
+    assert!(cal.holiday_on(d("2026-10-12")) && cal.holiday_on(d("2026-11-11")) && cal.holiday_on(d("2026-12-25")));
+    assert_eq!(sched::shift_in(&cal, d("2026-10-09"), 1), Some(d("2026-10-13")), "Columbus Day is skipped");
+    // The project's own list is stored on its own; the company days are not copied in.
+    assert_eq!(w.engine.state().projects.get(p).unwrap().calendar.holidays.len(), 1);
+    // Changing the company list changes the project; deleting it lets go.
+    w.ok(w.admin(), "holiday_list.save", json!({"id": l, "name": "Federal 2026", "holidays": "2026-11-11 Veterans Day"}));
+    assert!(!sched::calendar(w.engine.state(), p).holiday_on(d("2026-10-12")));
+    w.ok(w.admin(), "holiday_list.delete", json!({"id": l}));
+    assert!(w.engine.state().projects.get(p).unwrap().holiday_lists.is_empty());
+    assert!(!sched::calendar(w.engine.state(), p).holiday_on(d("2026-11-11")));
+    w.assert_replay();
+}

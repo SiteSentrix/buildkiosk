@@ -70,7 +70,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Edit document",
         Tool::Documents,
         Access::Project(Level::Standard),
-        "project: project id; id: document id; title?: text; description?: text; folder?: folder id (empty moves it to the top level)",
+        "project: project id; id: document id; title?: text; description?: text; folder?: folder id (empty moves it to the top level); restricted?: bool and access?: [person ids] (admins: only the uploader, those people and admins open it)",
         update,
     ),
     CommandSpec::mutate(
@@ -315,6 +315,8 @@ fn add(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         title,
         description,
         versions: vec![version],
+        restricted: false,
+        access: Vec::new(),
         created: stamp,
         updated: stamp,
         deleted: None,
@@ -361,6 +363,26 @@ fn update(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
             live_folder(ctx, d.project, f)?;
         }
         d.folder = folder;
+    }
+    if p.present("restricted") || p.present("access") {
+        if ctx.level(d.project, Tool::Documents) != Level::Admin {
+            return Err(EngineError::forbidden("only Documents admins can restrict a document to named people"));
+        }
+        if let Some(r) = p.flag("restricted")? {
+            d.restricted = r;
+        }
+        if p.present("access") {
+            let mut ids = p.ids::<buildkiosk_model::directory::Person>("access")?;
+            ids.sort();
+            ids.dedup();
+            if ids.len() > 200 {
+                return Err(p.bad("access", "names more than 200 people"));
+            }
+            for x in &ids {
+                ctx.check_person(*x)?;
+            }
+            d.access = ids;
+        }
     }
     d.updated = ctx.stamp();
     let id = d.id;

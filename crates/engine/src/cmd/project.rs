@@ -185,6 +185,7 @@ fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         incident_hours: Vec::new(),
         overtime: Default::default(),
         calendar: Default::default(),
+        holiday_lists: Vec::new(),
         resource_limits: Vec::new(),
         created: stamp,
         updated: stamp,

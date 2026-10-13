@@ -1301,6 +1301,35 @@ async fn documents_upload_versions_and_download() {
     send(&app, post("/do/document.restore", &session, format!("_csrf={csrf}&project=1&id=2"))).await;
     let (_, _, trash) = send(&app, Request::get("/projects/1/documents/trash").header("cookie", &session).body(Body::empty()).unwrap()).await;
     assert!(trash.contains("Nothing deleted"));
+    // A picture (and a PDF) is previewed on the document page; a restricted document is hidden from others.
+    let mut png = Vec::new();
+    image::DynamicImage::ImageRgb8(image::RgbImage::from_fn(40, 30, |x, y| image::Rgb([x as u8, y as u8, 7])))
+        .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+        .unwrap();
+    let mut body: Vec<u8> = Vec::new();
+    body.extend_from_slice(format!("--B\r\nContent-Disposition: form-data; name=\"_csrf\"\r\n\r\n{csrf}\r\n").as_bytes());
+    body.extend_from_slice(b"--B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"site.png\"\r\nContent-Type: image/png\r\n\r\n");
+    body.extend_from_slice(&png);
+    body.extend_from_slice(b"\r\n--B--\r\n");
+    let req = Request::post("/projects/1/documents/upload")
+        .header("cookie", &session)
+        .header("content-type", "multipart/form-data; boundary=B")
+        .body(Body::from(body))
+        .unwrap();
+    let (_, h, _) = send(&app, req).await;
+    let loc = h.get(LOCATION).unwrap().to_str().unwrap().to_string();
+    let did = loc.trim_start_matches("/projects/1/documents/").split('?').next().unwrap().to_string();
+    let (_, _, detail) = send(&app, get(&format!("/projects/1/documents/{did}"))).await;
+    let view = detail.split("src=\"").find(|s| s.contains("/view/")).map(|s| s.split('"').next().unwrap().replace("&amp;", "&"));
+    let view = view.unwrap_or_else(|| panic!("a preview image: {detail}"));
+    let res = router(app.clone()).oneshot(get(&view)).await.unwrap();
+    assert_eq!((res.status(), res.headers().get(CONTENT_TYPE).unwrap().to_str().unwrap().to_string()), (StatusCode::OK, "image/png".to_string()));
+    let (st, ..) = send(&app, Request::get(view.clone()).body(Body::empty()).unwrap()).await;
+    assert_eq!(st, StatusCode::SEE_OTHER, "signed-out people don't see previews");
+    assert!(detail.contains("Who can open it"), "{detail}");
+    send(&app, post("/do/document.update", &session, format!("_csrf={csrf}&project=1&id={did}&restricted=true&access%5B%5D="))).await;
+    let (_, _, detail) = send(&app, get(&format!("/projects/1/documents/{did}"))).await;
+    assert!(detail.contains("Restricted"), "{detail}");
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -1493,6 +1522,13 @@ async fn schedule_page_gantt_and_csv() {
     )
     .await;
     assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("error="), "a bad weekday is refused");
+    // A company holiday list, taken by the project, shows on the calendar page.
+    send(&app, post("/do/holiday_list.save", &session, format!("_csrf={csrf}&name=Federal+2026&holidays=2026-11-11+Veterans+Day"))).await;
+    let (_, _, cal) = send(&app, get("/projects/1/schedule/calendar")).await;
+    assert!(cal.contains("Company holiday lists") && cal.contains("Federal 2026"), "{cal}");
+    send(&app, post("/do/schedule.calendar_set", &session, format!("_csrf={csrf}&project=1&lists%5B%5D=&lists%5B%5D=1"))).await;
+    let (_, _, cal) = send(&app, get("/projects/1/schedule/calendar")).await;
+    assert!(cal.contains("Days off from company lists") && cal.contains("Veterans Day") && cal.contains("2026-10-14 Founders Day"), "{cal}");
 
     // A link with a kind, shown the way it is written, and the look ahead.
     send(&app, post("/do/schedule.update", &session, format!("_csrf={csrf}&project=1&id=2&predecessors=1SS%2B1"))).await;

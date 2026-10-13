@@ -100,6 +100,10 @@ pub fn rows_from_xml(xml: &str) -> std::result::Result<(String, usize), String> 
             (Some("2"), Some(d)) => ("mso", d),
             (Some("4"), Some(d)) => ("snet", d),
             (Some("7"), Some(d)) => ("fnlt", d),
+            (Some("3"), Some(d)) => ("mfo", d),
+            (Some("5"), Some(d)) => ("snlt", d),
+            (Some("6"), Some(d)) => ("fnet", d),
+            (Some("1"), _) => ("alap", ""),
             _ => ("", ""),
         };
         // Tabs separate the cells, so a name with commas is safe; tabs and line breaks in a name become spaces.
@@ -172,13 +176,21 @@ pub fn export_xml(state: &buildkiosk_model::CompanyState, project: buildkiosk_co
             ));
         }
         let constraint = match (task.constraint, task.constraint_date) {
-            (Constraint::MustStartOn, Some(d)) => Some((2, d)),
-            (Constraint::StartNoEarlierThan, Some(d)) => Some((4, d)),
-            (Constraint::FinishNoLaterThan, Some(d)) => Some((7, d)),
+            (Constraint::MustStartOn, Some(d)) => Some((2, Some(d))),
+            (Constraint::StartNoEarlierThan, Some(d)) => Some((4, Some(d))),
+            (Constraint::FinishNoLaterThan, Some(d)) => Some((7, Some(d))),
+            (Constraint::MustFinishOn, Some(d)) => Some((3, Some(d))),
+            (Constraint::StartNoLaterThan, Some(d)) => Some((5, Some(d))),
+            (Constraint::FinishNoEarlierThan, Some(d)) => Some((6, Some(d))),
+            (Constraint::AsLateAsPossible, _) => Some((1, None)),
             _ => None,
         };
-        if let Some((kind, d)) = constraint {
-            out.push_str(&format!("      <ConstraintType>{kind}</ConstraintType>\n      <ConstraintDate>{d}T08:00:00</ConstraintDate>\n"));
+        match constraint {
+            Some((kind, Some(d))) => {
+                out.push_str(&format!("      <ConstraintType>{kind}</ConstraintType>\n      <ConstraintDate>{d}T08:00:00</ConstraintDate>\n"))
+            }
+            Some((kind, None)) => out.push_str(&format!("      <ConstraintType>{kind}</ConstraintType>\n")),
+            None => {}
         }
         out.push_str("    </Task>\n");
     }

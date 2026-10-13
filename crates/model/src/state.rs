@@ -22,7 +22,7 @@ use crate::meeting::Meeting;
 use crate::photo::Photo;
 use crate::prequal::{PrequalForm, Prequalification};
 use crate::saved_report::SavedReport;
-use crate::schedule::ScheduleTask;
+use crate::schedule::{HolidayList, ScheduleTask};
 use crate::spec::SpecSection;
 use crate::submittal::Submittal;
 use crate::task::Task;
@@ -165,6 +165,7 @@ tables! {
     time_entries: TimeEntry,
     pay_rates: PayRate,
     schedule_tasks: ScheduleTask,
+    holiday_lists: HolidayList,
 
     // -- financials
     budget_lines: BudgetLine,

@@ -52,6 +52,11 @@ pub struct Document {
     pub description: String,
     /// Oldest first; never empty.
     pub versions: Vec<DocVersion>,
+    /// A restricted document is opened only by its uploader, the people in `access` and Documents admins.
+    #[serde(default)]
+    pub restricted: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub access: Vec<Id<Person>>,
     pub created: Stamp,
     pub updated: Stamp,
     #[serde(default, skip_serializing_if = "Option::is_none")]

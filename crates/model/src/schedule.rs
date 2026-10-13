@@ -37,6 +37,21 @@ choice! {
         MustStartOn = ("mso", "Must start on"),
         /// A deadline: finish on or before the date.
         FinishNoLaterThan = ("fnlt", "Finish no later than"),
+        /// Finish on the date, whatever the links say.
+        MustFinishOn = ("mfo", "Must finish on"),
+        /// Start on or before the date (a late start is flagged).
+        StartNoLaterThan = ("snlt", "Start no later than"),
+        /// Never finish before the date.
+        FinishNoEarlierThan = ("fnet", "Finish no earlier than"),
+        /// Start as late as the float allows without delaying anything after it.
+        AsLateAsPossible = ("alap", "As late as possible"),
+    }
+}
+
+impl Constraint {
+    /// Whether the constraint is tied to a date (the first two kinds are not).
+    pub fn needs_date(self) -> bool {
+        !matches!(self, Constraint::None | Constraint::AsLateAsPossible)
     }
 }
 
@@ -70,6 +85,20 @@ pub struct Holiday {
     pub name: String,
 }
 
+/// A company-wide list of days off ("Federal holidays 2027") that projects subscribe to; each project's calendar
+/// adds them to its own.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct HolidayList {
+    pub id: Id<HolidayList>,
+    pub name: String,
+    /// Oldest first, one per date.
+    pub holidays: Vec<Holiday>,
+    pub created: crate::common::Stamp,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deleted: Option<crate::common::Stamp>,
+}
+crate::record!(HolidayList, "holiday_list", trash);
+
 /// The days a project's work is done on: which weekdays, minus the holidays. Schedule dates and
 /// durations are counted in these days.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -95,6 +124,11 @@ impl WorkCalendar {
     /// Whether work is done on `d`.
     pub fn is_working(&self, d: Date) -> bool {
         self.days.get(d.weekday().index()).copied().unwrap_or(false) && self.holiday(d).is_none()
+    }
+
+    /// Whether `d` is a listed day off (even on a weekend).
+    pub fn holiday_on(&self, d: Date) -> bool {
+        self.holiday(d).is_some()
     }
 
     pub fn holiday(&self, d: Date) -> Option<&Holiday> {

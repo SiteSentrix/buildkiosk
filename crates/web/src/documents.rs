@@ -298,7 +298,14 @@ pub fn page(req: &Req<'_>, id: Id<Project>, folder: Option<Id<Folder>>, q: &str)
     )
 }
 
-pub fn detail(req: &Req<'_>, id: Id<Project>, did: Id<Document>) -> Markup {
+/// What the page can show of the current version: its hash, how many pages it has and which one is open.
+pub struct Preview {
+    pub sha: String,
+    pub pages: usize,
+    pub page: usize,
+}
+
+pub fn detail(req: &Req<'_>, id: Id<Project>, did: Id<Document>, preview: Option<&Preview>) -> Markup {
     let Some(p) = project_for(req, id) else { return not_found(req) };
     let state = req.engine.state();
     let actor = req.actor();
@@ -314,12 +321,26 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, did: Id<Document>) -> Markup {
     let mut folders: Vec<&Folder> =
         state.folders.iter().filter(|f| f.project == id && f.deleted.is_none() && view::can_see_folder(state, actor, f)).collect();
     folders.sort_by_key(|f| f.name.to_lowercase());
+    let people = if lvl == Level::Admin { crate::pages::user_options(req, id, true) } else { Vec::new() };
     let body = html! {
         div class="page-head" {
             div { h1 { (d.title) } div class="sub" { "In " @if let Some(f) = folder { a href=(back) { (f.name) } } @else { a href=(back) { "All documents" } } } }
         }
+        @if let Some(pv) = preview {
+            div class="card" {
+                h2 { "Preview" @if pv.pages > 1 { " · page " (pv.page) " of " (pv.pages) } }
+                @if pv.pages > 1 {
+                    p {
+                        @if pv.page > 1 { a class="btn small" href=(format!("{here}?page={}", pv.page - 1)) { "← Previous page" } " " }
+                        @if pv.page < pv.pages { a class="btn small" href=(format!("{here}?page={}", pv.page + 1)) { "Next page →" } }
+                    }
+                }
+                img class="photo-large" src=(format!("{here}/view/{}?page={}&w=1200", pv.sha, pv.page)) alt=(format!("Preview of {}", d.title)) width="900";
+            }
+        }
         div class="card" {
             @if !d.description.is_empty() { p { (d.description) } }
+            @if d.restricted { p { span class="pill blue" { "Restricted" } " Only the uploader, " @if d.access.is_empty() { "nobody else named" } @else { (view::people_names(state, &d.access)) } " and Documents admins can open this." } }
             h2 { "Versions" }
             div class="table-wrap" {
                 table class="data" {
@@ -365,6 +386,17 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, did: Id<Document>) -> Markup {
                             @for f in &folders { option value=(f.id) selected[Some(f.id) == d.folder] { (f.name) } }
                         } }))
                         (field("Description", "description", false, true, html! { textarea id="description" name="description" { (d.description) } }))
+                    }
+                    @if lvl == Level::Admin {
+                        div class="field full" {
+                            div class="label" { "Who can open it" }
+                            select name="restricted" aria-label="Who can open it" {
+                                option value="false" selected[!d.restricted] { "Everyone who can open the folder" }
+                                option value="true" selected[d.restricted] { "Only the uploader, the people ticked below and admins" }
+                            }
+                            input type="hidden" name="access[]" value="";
+                            div class="options" { @for x in &people { label { input type="checkbox" name="access[]" value=(x.id) checked[d.access.contains(&x.id)]; (x.name()) } } }
+                        }
                     }
                     div class="form-actions" { button type="submit" class="btn primary" { "Save" } }
                 }))

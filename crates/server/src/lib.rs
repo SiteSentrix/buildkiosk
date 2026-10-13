@@ -124,6 +124,7 @@ pub fn router(app: Shared) -> Router {
         .route("/logout", post(logout))
         .route("/setup", get(setup_page).post(setup_post))
         .route("/directory", get(directory))
+        .route("/prequalification", get(prequalification_page))
         .route("/directory/people/{id}", get(person_edit))
         .route("/people/{id}/password", post(set_password))
         .route("/projects/{id}", get(project_home))
@@ -428,6 +429,14 @@ type Q = Query<HashMap<String, String>>;
 
 async fn home(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Response {
     page(&app, &headers, &q, |r, _| pages::home(r))
+}
+
+async fn prequalification_page(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Response {
+    use buildkiosk_engine::model::Choice;
+    let status = q.get("status").and_then(|s| buildkiosk_engine::model::prequal::PrequalStatus::parse(s));
+    let attention = q.get("attention").is_some_and(|a| a == "1");
+    let edit = q.get("edit").and_then(|e| e.parse::<u64>().ok()).map(Id::new);
+    page(&app, &headers, &q, |r, _| buildkiosk_web::prequal::page(r, status, attention, edit))
 }
 
 async fn directory(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Response {

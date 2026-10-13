@@ -85,6 +85,7 @@ pub enum Nav {
     OwnerInvoices(Id<Project>),
     CommitmentInvoices(Id<Project>),
     Notifications,
+    Prequalification,
 }
 
 fn head(title: &str) -> Markup {
@@ -144,7 +145,7 @@ pub fn app(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Option<String>
     let company = state.company().map(|c| c.name.clone()).unwrap_or_default();
     let unread = state.notifications.iter().filter(|n| n.person == req.person && !n.read).count();
     let project = match nav {
-        Nav::Projects | Nav::Directory | Nav::Notifications => None,
+        Nav::Projects | Nav::Directory | Nav::Notifications | Nav::Prequalification => None,
         Nav::Home(p)
         | Nav::Team(p)
         | Nav::Rfis(p)
@@ -207,6 +208,9 @@ pub fn app(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Option<String>
                             a href="/" class=(if nav == Nav::Projects { "active" } else { "" }) { (Icon::Building.svg()) "Projects" }
                             @if req.allowed("person.list", None) {
                                 a href="/directory" class=(if nav == Nav::Directory { "active" } else { "" }) { (Icon::People.svg()) "Directory" }
+                            }
+                            @if buildkiosk_engine::model::perm::company_level(state, req.person, Tool::Prequalification) >= buildkiosk_engine::model::Level::Read {
+                                a href="/prequalification" class=(if nav == Nav::Prequalification { "active" } else { "" }) { (tool_icon(Tool::Prequalification).svg()) "Prequalification" }
                             }
                         }
                         @if let Some(p) = project {

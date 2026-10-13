@@ -1555,3 +1555,31 @@ async fn estimate_form_totals_apply_and_csv() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn prequalification_record_review_and_lapse_warning() {
+    let dir = temp("prequal");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/vendor.create", &ada, format!("_csrf={csrf}&name=Keystone+Concrete&kind=subcontractor"))).await;
+    let (_, _, page) = send(&app, get("/prequalification")).await;
+    assert!(page.contains("Add or update a record") && page.contains("Keystone Concrete"), "{page}");
+    send(&app, post("/do/prequal.save", &ada, format!("_csrf={csrf}&vendor=1&valid_until=&insurance_expires=2020-01-01&license_expires=&emr=0.85&bonding_capacity=2500000&notes=Good+references"))).await;
+    send(&app, post("/do/prequal.review", &ada, format!("_csrf={csrf}&vendor=1&decision=approved"))).await;
+    let (_, _, page) = send(&app, get("/prequalification")).await;
+    assert!(page.contains("Approved") && page.contains("0.85") && page.contains("2,500,000.00") && page.contains("lapsed"), "{page}");
+    let (_, _, page) = send(&app, get("/prequalification?attention=1")).await;
+    assert!(page.contains("Keystone Concrete"));
+    let (_, _, page) = send(&app, get("/prequalification?status=rejected")).await;
+    assert!(!page.contains("Good references"));
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

@@ -20,6 +20,7 @@ use crate::form::{FormRecord, FormTemplate};
 use crate::incident::Incident;
 use crate::meeting::Meeting;
 use crate::photo::Photo;
+use crate::prequal::Prequalification;
 use crate::schedule::ScheduleTask;
 use crate::spec::SpecSection;
 use crate::submittal::Submittal;
@@ -128,6 +129,7 @@ tables! {
     company: Company,
     people: Person,
     vendors: Vendor,
+    prequalifications: Prequalification,
     groups: DistributionGroup,
     templates: PermissionTemplate,
     projects: Project,

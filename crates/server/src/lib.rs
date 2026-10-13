@@ -223,6 +223,10 @@ pub fn router(app: Shared) -> Router {
             .route("/setup", get(setup_page).post(setup_post))
             .route("/directory", get(directory))
             .route("/prequalification", get(prequalification_page))
+            .route("/prequalification/forms", get(prequal_forms_page))
+            .route("/prequalification/{vendor}", get(prequal_detail_page))
+            .route("/prequalification/{vendor}/upload", post(prequal_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
+            .route("/prequalification/{vendor}/files/{sha}", get(prequal_download))
             .route("/my-tasks", get(my_tasks_page))
             .route("/directory/people/{id}", get(person_edit))
             .route("/directory/templates/{id}", get(template_edit))
@@ -596,6 +600,7 @@ pub async fn serve(app: Shared, bind: SocketAddr) -> Result<(), String> {
     let listener = tokio::net::TcpListener::bind(bind).await.map_err(|e| format!("cannot listen on {bind}: {e}"))?;
     log::info!("listening on http://{bind}");
     tokio::spawn(mail_loop(app.clone()));
+    tokio::spawn(prequal_loop(app.clone()));
     if app.backups.is_some() {
         tokio::spawn(backup_loop(app.clone()));
     }
@@ -789,6 +794,107 @@ async fn home(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Res
 async fn my_tasks_page(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Response {
     let (closed, all) = (q.contains_key("closed"), q.contains_key("all"));
     page(&app, &headers, &q, |r, _| workitems::my_tasks(r, closed, all))
+}
+
+async fn prequal_forms_page(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Response {
+    let edit = q.get("edit").and_then(|e| e.parse::<u64>().ok()).map(Id::new);
+    page(&app, &headers, &q, |r, _| buildkiosk_web::prequal::forms_page(r, edit))
+}
+
+async fn prequal_detail_page(State(app): State<Shared>, headers: HeaderMap, Path(vendor): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::prequal::detail(r, Id::new(vendor)))
+}
+
+async fn prequal_download(State(app): State<Shared>, headers: HeaderMap, Path((vendor, sha)): Path<(u64, String)>) -> Response {
+    let found = {
+        let inner = app.lock();
+        let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+        let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+        let state = t.engine.state();
+        let may = buildkiosk_engine::model::perm::company_level(state, s.person, Tool::Prequalification) >= buildkiosk_engine::model::Level::Read;
+        let file = state
+            .prequalifications
+            .iter()
+            .find(|r| r.vendor.raw() == vendor && r.deleted.is_none())
+            .filter(|_| may)
+            .and_then(|r| r.attachments.iter().find(|a| a.sha256 == sha).cloned());
+        file.and_then(|a| t.store.blobs.path(&a.sha256).map(|p| (p, a.name.clone())))
+    };
+    let Some((path, name)) = found else { return plain(StatusCode::NOT_FOUND, "Not found") };
+    let bytes = match tokio::task::spawn_blocking(move || std::fs::read(path)).await {
+        Ok(Ok(b)) => b,
+        _ => return plain(StatusCode::NOT_FOUND, "That file is missing from storage."),
+    };
+    let mut res = bytes.into_response();
+    res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("application/octet-stream"));
+    if let Ok(v) = HeaderValue::from_str(&format!("attachment; filename=\"{}\"", safe_filename(&name))) {
+        res.headers_mut().insert("content-disposition", v);
+    }
+    res
+}
+
+async fn prequal_upload(State(app): State<Shared>, headers: HeaderMap, Path(vendor): Path<u64>, mut multipart: Multipart) -> Response {
+    let back = format!("/prequalification/{vendor}");
+    let (mut token, mut file) = (String::new(), None);
+    loop {
+        let field = match multipart.next_field().await {
+            Ok(Some(f)) => f,
+            Ok(None) => break,
+            Err(_) => return redirect(&with_flash(&back, false, "The upload failed or the file is larger than 25 MB.")),
+        };
+        let name = field.name().unwrap_or("").to_string();
+        let filename = field.file_name().unwrap_or("file").to_string();
+        let mime = field.content_type().unwrap_or("application/octet-stream").to_string();
+        let Ok(bytes) = field.bytes().await else {
+            return redirect(&with_flash(&back, false, "The upload failed or the file is larger than 25 MB."));
+        };
+        match name.as_str() {
+            "_csrf" => token = String::from_utf8_lossy(&bytes).into_owned(),
+            "file" if file.is_none() => file = Some((filename, mime, bytes)),
+            _ => {}
+        }
+    }
+    let mut inner = app.lock();
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    if !auth::csrf_ok(app.secret(), &s.cookie, &token) {
+        return plain(StatusCode::FORBIDDEN, "The form expired. Go back, reload the page and try again.");
+    }
+    let Some((name, mime, bytes)) = file.filter(|(_, _, b)| !b.is_empty()) else {
+        return redirect(&with_flash(&back, false, "Choose a file to attach."));
+    };
+    if bytes.len() > MAX_UPLOAD {
+        return redirect(&with_flash(&back, false, "Files can be at most 25 MB."));
+    }
+    let Some(t) = inner.tenant.as_mut() else { return redirect("/setup") };
+    let (sha256, size) = match t.store.blobs.put(&bytes) {
+        Ok(x) => x,
+        Err(e) => return redirect(&with_flash(&back, false, &e.to_string())),
+    };
+    match inner.run(Actor::Person(s.person), "prequal.attach", &json!({"vendor": vendor, "sha256": sha256, "name": name, "size": size, "mime": mime}))
+    {
+        Ok(_) => redirect(&with_flash(&back, true, "File attached.")),
+        Err(e) => redirect(&with_flash(&back, false, &e.to_string())),
+    }
+}
+
+/// Warns the Prequalification admins before approvals lapse: a pass every six hours (the engine sends each
+/// warning once, so more passes cost nothing).
+async fn prequal_loop(app: Shared) {
+    tokio::time::sleep(Duration::from_secs(90)).await;
+    loop {
+        let a = app.clone();
+        let pass = tokio::task::spawn_blocking(move || a.lock().run(Actor::System, "prequal.remind", &json!({}))).await;
+        match pass {
+            Ok(Ok(v)) => {
+                if v.get("reminded").and_then(Value::as_u64).unwrap_or(0) > 0 {
+                    log::info!("prequalification warnings sent: {v}");
+                }
+            }
+            Ok(Err(e)) => log::warn!("the prequalification warning pass failed: {e}"),
+            Err(e) => log::warn!("the prequalification warning pass stopped: {e}"),
+        }
+        tokio::time::sleep(Duration::from_secs(6 * 3600)).await;
+    }
 }
 
 async fn prequalification_page(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Response {

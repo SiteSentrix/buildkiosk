@@ -2246,6 +2246,54 @@ async fn prequalification_record_review_and_lapse_warning() {
     assert!(page.contains("Keystone Concrete"));
     let (_, _, page) = send(&app, get("/prequalification?status=rejected")).await;
     assert!(!page.contains("Good references"));
+
+    // A questionnaire, the company's answers, the points, and a certificate.
+    let (st, _, forms) = send(&app, get("/prequalification/forms")).await;
+    assert!(st == StatusCode::OK && forms.contains("New questionnaire") && forms.contains("Require prequalification"), "{forms}");
+    let text = "%23+Safety%0ASafety+program%3F+%7C+20%0AEMR+under+1%3F+%7C+10%0A%23+Financial%0AAudited+statements+%7C+30";
+    let (_, h, _) =
+        send(&app, post("/do/prequal.form_save", &ada, format!("_csrf={csrf}&_next=/prequalification/forms&name=Subs&text={text}"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, forms) = send(&app, get("/prequalification/forms?edit=1")).await;
+    assert!(forms.contains("Edit questionnaire") && forms.contains("Safety program?"), "{forms}");
+    let (st, _, detail) = send(&app, get("/prequalification/1")).await;
+    assert!(st == StatusCode::OK && detail.contains("Keystone Concrete") && detail.contains("Use this questionnaire"), "{detail}");
+    send(&app, post("/do/prequal.answer", &ada, format!("_csrf={csrf}&_next=/prequalification/1&vendor=1&form=1"))).await;
+    let (_, h, _) = send(
+        &app,
+        post("/do/prequal.answer", &ada, format!("_csrf={csrf}&_next=/prequalification/1&vendor=1&replies.0.section=0&replies.0.question=0&replies.0.text=Yes&replies.1.section=1&replies.1.question=0&replies.1.text=FY25")),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, h, _) = send(
+        &app,
+        post("/do/prequal.grade", &ada, format!("_csrf={csrf}&_next=/prequalification/1&vendor=1&points.0.section=0&points.0.question=0&points.0.points=20&points.1.section=0&points.1.question=1&points.1.points=&points.2.section=1&points.2.question=0&points.2.points=15")),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, detail) = send(&app, get("/prequalification/1")).await;
+    assert!(detail.contains("35 of 60 points") && detail.contains("58%") && detail.contains("Save points and score"), "{detail}");
+    // The upload and the download.
+    let body = format!(
+        "--B\r\nContent-Disposition: form-data; name=\"_csrf\"\r\n\r\n{csrf}\r\n--B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"coi.pdf\"\r\nContent-Type: application/pdf\r\n\r\ncertificate bytes\r\n--B--\r\n"
+    );
+    let up = Request::post("/prequalification/1/upload")
+        .header("cookie", &ada)
+        .header("content-type", "multipart/form-data; boundary=B")
+        .body(Body::from(body))
+        .unwrap();
+    let (_, h, _) = send(&app, up).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, detail) = send(&app, get("/prequalification/1")).await;
+    let sha = detail.split("/prequalification/1/files/").nth(1).unwrap().split('"').next().unwrap().to_string();
+    let (st, h, bytes) = send(&app, get(&format!("/prequalification/1/files/{sha}"))).await;
+    assert!(st == StatusCode::OK && bytes == "certificate bytes" && h.get("content-disposition").unwrap().to_str().unwrap().contains("coi.pdf"));
+    assert_eq!(send(&app, get("/prequalification/1/files/nothing")).await.0, StatusCode::NOT_FOUND);
+    assert!(!send(&app, get("/prequalification/99")).await.2.contains("Use this questionnaire"), "an unknown company has no page");
+    // The requirement shows on the questionnaires page.
+    send(&app, post("/do/prequal.require", &ada, format!("_csrf={csrf}&_next=/prequalification/forms&required=true"))).await;
+    let (_, _, forms) = send(&app, get("/prequalification/forms")).await;
+    assert!(forms.contains("needs a current prequalification"), "{forms}");
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }

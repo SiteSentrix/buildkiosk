@@ -33,6 +33,9 @@ pub struct Company {
     /// Working days a submittal reviewer gets by default.
     #[serde(default = "default_submittal_days")]
     pub submittal_review_days: u32,
+    /// A commitment can only be approved, and a bid awarded, to a company whose prequalification is current.
+    #[serde(default)]
+    pub require_prequalification: bool,
     pub created: Stamp,
     pub updated: Stamp,
 }

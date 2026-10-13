@@ -549,7 +549,7 @@ pub fn commitment(req: &Req<'_>, id: Id<Project>, cid: Id<Commitment>, history: 
         div class="page-head" {
             div {
                 h1 { (name) ": " (c.title) " " (status_pill(c.status)) }
-                div class="sub" { @if let Some(v) = c.vendor { (view::vendor_name(state, v)) " · " } "Created " (req.when(c.created.at)) @if let Some(b) = c.created.by { " by " (view::person_name(state, b)) } }
+                div class="sub" { @if let Some(v) = c.vendor { (view::vendor_name(state, v)) " " @if buildkiosk_engine::model::perm::company_level(state, req.person, Tool::Prequalification) >= Level::Read { a href=(format!("/prequalification/{v}")) { (crate::prequal::standing_pill(buildkiosk_engine::cmd::prequal::vendor_standing(state, v, req.today()))) } " " } " · " } "Created " (req.when(c.created.at)) @if let Some(b) = c.created.by { " by " (view::person_name(state, b)) } }
             }
             div class="actions" {
                 @if can_edit(state, req.actor(), c) { a class="btn" href=(format!("{here}/edit")) { "Edit" } }

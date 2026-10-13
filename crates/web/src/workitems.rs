@@ -6,9 +6,9 @@ use buildkiosk_engine::model::incident::{Incident, Severity};
 use buildkiosk_engine::model::observation::Observation;
 use buildkiosk_engine::model::project::Project;
 use buildkiosk_engine::model::punch::PunchItem;
-use buildkiosk_engine::model::task::Task;
+use buildkiosk_engine::model::task::{Repeat, Task};
 use buildkiosk_engine::model::work::WorkStatus;
-use buildkiosk_engine::model::{Choice, Level, Priority};
+use buildkiosk_engine::model::{Choice, Level, Priority, Tool};
 use buildkiosk_engine::workitem::{WorkItem, can_edit, can_see, items_for, label};
 use buildkiosk_engine::{JournalEntry, find_command, view};
 use maud::{Markup, html};
@@ -38,15 +38,15 @@ pub trait WorkPage: WorkItem {
         &[]
     }
     /// Cards shown above the comments (kind-specific).
-    fn extra_cards(&self) -> Markup {
+    fn extra_cards(&self, _req: &Req<'_>) -> Markup {
         html! {}
     }
     /// Rows of the details panel (kind-specific).
-    fn extra_facts(&self) -> Markup {
+    fn extra_facts(&self, _req: &Req<'_>) -> Markup {
         html! {}
     }
     /// Form fields (kind-specific); `item` is `None` on the new form.
-    fn extra_fields(_item: Option<&Self>, _req: &Req<'_>) -> Markup {
+    fn extra_fields(_item: Option<&Self>, _project: Id<Project>, _req: &Req<'_>) -> Markup {
         html! {}
     }
 }
@@ -77,6 +77,92 @@ impl WorkPage for Task {
     fn nav(project: Id<Project>) -> Nav {
         Nav::Tasks(project)
     }
+
+    fn extra_cards(&self, req: &Req<'_>) -> Markup {
+        let state = req.engine.state();
+        let subtasks: Vec<&Task> = state.tasks.iter().filter(|t| t.parent == Some(self.id) && t.deleted.is_none()).collect();
+        let here = format!("/projects/{}/tasks/{}", self.project, self.id);
+        let can_add = self.parent.is_none() && self.status != WorkStatus::Closed && req.allowed("task.create", Some(self.project));
+        html! {
+            @if !subtasks.is_empty() || can_add {
+                div class="card" {
+                    h2 { "Subtasks" }
+                    @if subtasks.is_empty() { p class="muted" { "No subtasks. This task can't be closed until its subtasks are." } } @else {
+                        ul class="plain" {
+                            @for t in &subtasks {
+                                li { a href=(format!("/projects/{}/tasks/{}", t.project, t.id)) { "#" (t.number) " " (t.title) } " " (status_pill(t.status)) @if let Some(d) = t.due { " " span class="muted small" { "due " (d.pretty()) } } }
+                            }
+                        }
+                    }
+                    @if can_add {
+                        (command_form(req, "task.create", &here, &here, html! {
+                            input type="hidden" name="project" value=(self.project);
+                            input type="hidden" name="parent" value=(self.id);
+                            @for a in &self.assignees { input type="hidden" name="assignees[]" value=(a); }
+                            (field("New subtask", "subtask_title", true, false, html! { input type="text" id="subtask_title" name="title" required; }))
+                            div class="form-actions" { button type="submit" class="btn small" { "Add subtask" } }
+                        }))
+                    }
+                }
+            }
+        }
+    }
+
+    fn extra_facts(&self, req: &Req<'_>) -> Markup {
+        let state = req.engine.state();
+        let task_link = |id: Id<Task>| {
+            state
+                .tasks
+                .get(id)
+                .filter(|t| t.project == self.project)
+                .map(|t| html! { a href=(format!("/projects/{}/tasks/{}", t.project, t.id)) { "#" (t.number) " " (t.title) } })
+        };
+        html! {
+            @if let Some(m) = self.parent.and_then(task_link) { dt { "Subtask of" } dd { (m) } }
+            @if self.repeat != Repeat::Never {
+                dt { "Repeats" } dd { (self.repeat.label()) @if let Some(u) = self.repeat_until { ", until " (u.pretty()) } }
+            }
+            @if let Some(n) = self.next.and_then(task_link) { dt { "Next occurrence" } dd { (n) } }
+            @if let Some(r) = self.rfi.and_then(|r| state.rfis.get(r)).filter(|r| r.project == self.project) {
+                dt { "From RFI" } dd { a href=(format!("/projects/{}/rfis/{}", self.project, r.id)) { "#" (r.number) " " (r.subject) } }
+            }
+            @if let Some(m) = self.meeting.and_then(|m| state.meetings.get(m)).filter(|m| m.project == self.project) {
+                dt { "From meeting" } dd { a href=(format!("/projects/{}/meetings/{}", self.project, m.id)) { (m.title) } }
+            }
+        }
+    }
+
+    fn extra_fields(item: Option<&Self>, project: Id<Project>, req: &Req<'_>) -> Markup {
+        let state = req.engine.state();
+        let parents: Vec<&Task> = state
+            .tasks
+            .iter()
+            .filter(|t| t.project == project && t.deleted.is_none() && t.parent.is_none() && Some(t.id) != item.map(|i| i.id))
+            .collect();
+        let rfis: Vec<_> = state.rfis.iter().filter(|r| r.project == project && r.deleted.is_none()).collect();
+        let meetings: Vec<_> = state.meetings.iter().filter(|m| m.project == project && m.deleted.is_none()).collect();
+        let repeat = item.map(|i| i.repeat).unwrap_or_default();
+        let until = item.and_then(|i| i.repeat_until).map(|d| d.to_string()).unwrap_or_default();
+        let has_children = item.is_some_and(|i| state.tasks.iter().any(|t| t.parent == Some(i.id) && t.deleted.is_none()));
+        html! {
+            @if !has_children {
+                (field("Subtask of", "parent", false, false, html! { select id="parent" name="parent" {
+                    option value="" { "Not a subtask" }
+                    @for t in &parents { option value=(t.id) selected[item.is_some_and(|i| i.parent == Some(t.id))] { "#" (t.number) " " (t.title) } }
+                } }))
+            }
+            (field("Repeats", "repeat", false, false, html! { select id="repeat" name="repeat" { @for r in Repeat::ALL { option value=(r.key()) selected[*r == repeat] { (r.label()) } } } }))
+            (field("Repeat until", "repeat_until", false, false, html! { input type="date" id="repeat_until" name="repeat_until" value=(until); }))
+            (field("From RFI", "rfi", false, false, html! { select id="rfi" name="rfi" {
+                option value="" { "None" }
+                @for r in &rfis { option value=(r.id) selected[item.is_some_and(|i| i.rfi == Some(r.id))] { "#" (r.number) " " (r.subject) } }
+            } }))
+            (field("From meeting", "meeting", false, false, html! { select id="meeting" name="meeting" {
+                option value="" { "None" }
+                @for m in &meetings { option value=(m.id) selected[item.is_some_and(|i| i.meeting == Some(m.id))] { (m.title) } }
+            } }))
+        }
+    }
 }
 
 impl WorkPage for Incident {
@@ -92,7 +178,7 @@ impl WorkPage for Incident {
         Nav::Incidents(project)
     }
 
-    fn extra_cards(&self) -> Markup {
+    fn extra_cards(&self, _req: &Req<'_>) -> Markup {
         html! {
             @if !self.people_involved.is_empty() { div class="card" { h2 { "People involved" } p class="prose" { (self.people_involved) } } }
             @if !self.root_cause.is_empty() { div class="card" { h2 { "Root cause" } p class="prose" { (self.root_cause) } } }
@@ -100,7 +186,7 @@ impl WorkPage for Incident {
         }
     }
 
-    fn extra_facts(&self) -> Markup {
+    fn extra_facts(&self, _req: &Req<'_>) -> Markup {
         html! {
             dt { "Occurred" } dd { @if let Some(d) = self.occurred { (d.pretty()) } @else { "—" } }
             dt { "Severity" } dd { (self.severity.label()) }
@@ -108,7 +194,7 @@ impl WorkPage for Incident {
         }
     }
 
-    fn extra_fields(item: Option<&Self>, req: &Req<'_>) -> Markup {
+    fn extra_fields(item: Option<&Self>, _project: Id<Project>, req: &Req<'_>) -> Markup {
         let occurred = item.map(|i| i.occurred).unwrap_or_else(|| Some(req.today())).map(|d| d.to_string()).unwrap_or_default();
         let severity = item.map(|i| i.severity).unwrap_or_default();
         let recordable = item.is_some_and(|i| i.recordable);
@@ -145,15 +231,15 @@ impl WorkPage for Observation {
         &project.observation_types
     }
 
-    fn extra_cards(&self) -> Markup {
+    fn extra_cards(&self, _req: &Req<'_>) -> Markup {
         html! { @if !self.corrective_action.is_empty() { div class="card" { h2 { "Corrective action" } p class="prose" { (self.corrective_action) } } } }
     }
 
-    fn extra_facts(&self) -> Markup {
+    fn extra_facts(&self, _req: &Req<'_>) -> Markup {
         html! { dt { "Observed" } dd { @if let Some(d) = self.observed { (d.pretty()) } @else { "—" } } }
     }
 
-    fn extra_fields(item: Option<&Self>, req: &Req<'_>) -> Markup {
+    fn extra_fields(item: Option<&Self>, _project: Id<Project>, req: &Req<'_>) -> Markup {
         let observed = item.map(|i| i.observed).unwrap_or_else(|| Some(req.today())).map(|d| d.to_string()).unwrap_or_default();
         let action = item.map(|i| i.corrective_action.clone()).unwrap_or_default();
         html! {
@@ -462,7 +548,7 @@ pub fn detail<T: WorkPage>(req: &Req<'_>, id: Id<Project>, iid: Id<T>, history: 
         div class="detail" {
             div {
                 @if !i.description.is_empty() { div class="card" { h2 { "Description" } p class="prose" { (i.description) } } }
-                (i.extra_cards())
+                (i.extra_cards(req))
                 @if i.status == WorkStatus::ReadyForReview && standard && manager_like {
                     div class="card" {
                         h2 { "Not right yet?" }
@@ -505,7 +591,7 @@ pub fn detail<T: WorkPage>(req: &Req<'_>, id: Id<Project>, iid: Id<T>, history: 
                             }
                         }
                         dt { (T::KIND_LABEL) } dd { (dash(&i.kind)) }
-                        (i.extra_facts())
+                        (i.extra_facts(req))
                         dt { "Manager" } dd { @if let Some(m) = i.manager { (view::person_name(state, m)) } @else { "—" } }
                         dt { "Assigned to" } dd { @if i.assignees.is_empty() { "—" } @else { (view::people_names(state, &i.assignees)) } }
                         dt { "Ball in court" } dd { @if i.ball_in_court.is_empty() { "—" } @else { (view::people_names(state, &i.ball_in_court)) } }
@@ -601,7 +687,7 @@ pub fn form<T: WorkPage>(req: &Req<'_>, id: Id<Project>, existing: Option<Id<T>>
                             @if !kind.is_empty() && !types.iter().any(|t| t.eq_ignore_ascii_case(&kind)) { option value=(kind) selected { (kind) } }
                         } }))
                     }
-                    (T::extra_fields(current, req))
+                    (T::extra_fields(current, id, req))
                     (field("Priority", "priority", false, false, html! { select id="priority" name="priority" { @for pr in [Priority::Low, Priority::Medium, Priority::High, Priority::Urgent] { option value=(pr.key()) selected[pr == priority] { (pr.label()) } } } }))
                     (field("Due date", "due", false, false, html! { input type="date" id="due" name="due" value=(current.and_then(|i| i.due).map(|d| d.to_string()).unwrap_or_default()); }))
                     (field("Manager (accepts the work)", "manager", false, false, html! { select id="manager" name="manager" { @for x in &people { option value=(x.id) selected[x.id == manager] { (x.name()) } } } }))
@@ -719,4 +805,46 @@ pub fn observation_trends(req: &Req<'_>, id: Id<Project>) -> Markup {
         }
     };
     layout::app(req, "Observation trends", Observation::nav(id), &crumbs::<Observation>(p, Some(("Trends", base))), body)
+}
+
+/// The person's tasks across every project they can read tasks in.
+pub fn my_tasks(req: &Req<'_>, include_closed: bool, all: bool) -> Markup {
+    let state = req.engine.state();
+    let today = req.today();
+    let tasks = buildkiosk_engine::cmd::task::tasks_for(state, req.actor(), include_closed, all);
+    let query = |closed: bool, everything: bool| {
+        let parts: Vec<&str> = [closed.then_some("closed=1"), everything.then_some("all=1")].into_iter().flatten().collect();
+        if parts.is_empty() { "/my-tasks".to_string() } else { format!("/my-tasks?{}", parts.join("&")) }
+    };
+    let body = html! {
+        div class="page-head" {
+            div { h1 { "My tasks" } div class="sub" { (if all { "Every task you can see, across your projects" } else { "Tasks assigned to you or that you manage, across your projects" }) } }
+        }
+        div class="tabs" {
+            a href=(query(include_closed, false)) class=(if !all { "active" } else { "" }) { "Mine" }
+            a href=(query(include_closed, true)) class=(if all { "active" } else { "" }) { "Everything I can see" }
+            a href=(query(!include_closed, all)) { (if include_closed { "Hide closed" } else { "Show closed" }) }
+        }
+        @if tasks.is_empty() {
+            div class="card" { (empty(tool_icon(Tool::Tasks), "Nothing to do", if all { "There are no tasks in your projects." } else { "No open tasks are assigned to you or managed by you." })) }
+        } @else {
+            div class="table-wrap" {
+                table class="data" {
+                    thead { tr { th { "Project" } th { "Task" } th { "Due" } th { "Status" } th { "Priority" } } }
+                    tbody {
+                        @for t in &tasks {
+                            tr {
+                                td { @if let Some(p) = state.projects.get(t.project) { a href=(format!("/projects/{}", p.id)) { (p.name) } } }
+                                td { a class="row-link" href=(format!("/projects/{}/tasks/{}", t.project, t.id)) { "#" (t.number) " " (t.title) } @if t.parent.is_some() { " " span class="tag" { "Subtask" } } }
+                                td class="nowrap" { @if let Some(d) = t.due { span class=(if t.is_overdue(today) { "overdue" } else { "" }) { (d.pretty()) } } @else { span class="muted" { "—" } } }
+                                td { (status_pill(t.status)) }
+                                td { (priority_tag(t.priority)) }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    };
+    layout::app(req, "My tasks", Nav::MyTasks, &[("Projects", Some("/".to_string())), ("My tasks", None)], body)
 }

@@ -119,6 +119,15 @@ impl Date {
         Date::from_days(i32::try_from(days).ok()?)
     }
 
+    /// The same day `n` months later (or earlier, when negative); in a shorter month, its last day
+    /// (31 January plus one month is 28 or 29 February).
+    pub fn add_months(self, n: i32) -> Option<Date> {
+        let (y, m, d) = self.ymd();
+        let index = i64::from(y).checked_mul(12)?.checked_add(i64::from(m) - 1)?.checked_add(i64::from(n))?;
+        let (year, month) = (i32::try_from(index.div_euclid(12)).ok()?, u32::try_from(index.rem_euclid(12)).ok()?.checked_add(1)?);
+        Date::from_ymd(year, month, d.min(days_in_month(year, month)))
+    }
+
     /// The date `n` working days (Monday to Friday) after this one. Starting on a weekend counts
     /// from the next Monday. `n` is capped at 50,000.
     pub fn add_business_days(self, n: u32) -> Option<Date> {
@@ -373,6 +382,23 @@ fn civil_from_days(z: i64) -> (i64, u32, u32) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn months_keep_the_day_or_the_last_day_of_a_shorter_month() {
+        let d = |y, m, day| Date::from_ymd(y, m, day).unwrap();
+        assert_eq!(d(2026, 10, 15).add_months(1), Some(d(2026, 11, 15)));
+        assert_eq!(d(2026, 10, 31).add_months(1), Some(d(2026, 11, 30)));
+        assert_eq!(d(2026, 1, 31).add_months(1), Some(d(2026, 2, 28)));
+        assert_eq!(d(2028, 1, 31).add_months(1), Some(d(2028, 2, 29)));
+        assert_eq!(d(2026, 12, 15).add_months(1), Some(d(2027, 1, 15)));
+        assert_eq!(d(2026, 1, 15).add_months(-1), Some(d(2025, 12, 15)));
+        assert_eq!(d(2026, 3, 31).add_months(-1), Some(d(2026, 2, 28)));
+        assert_eq!(d(2026, 6, 10).add_months(0), Some(d(2026, 6, 10)));
+        assert_eq!(d(2026, 6, 10).add_months(25), Some(d(2028, 7, 10)));
+        assert_eq!(d(2399, 12, 31).add_months(1), None, "past the supported years");
+        assert_eq!(d(2026, 6, 10).add_months(i32::MAX), None);
+        assert_eq!(d(2026, 6, 10).add_months(i32::MIN), None);
+    }
+
     use super::*;
     use proptest::prelude::*;
 

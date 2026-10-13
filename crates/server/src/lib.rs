@@ -350,6 +350,8 @@ pub fn router(app: Shared) -> Router {
             .route("/projects/{id}/bidding/new", get(bid_package_new))
             .route("/projects/{id}/bidding/{bid}", get(bid_package_page))
             .route("/projects/{id}/bidding/{bid}/edit", get(bid_package_edit))
+            .route("/projects/{id}/bidding/{bid}/upload", post(bid_package_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
+            .route("/projects/{id}/bidding/{bid}/files/{sha}", get(bid_package_download))
             .route("/projects/{id}/estimating", get(estimating_page))
             .route("/projects/{id}/estimating/new", get(estimate_new))
             .route("/projects/{id}/estimating/compare", get(estimate_compare))
@@ -2161,6 +2163,81 @@ async fn bidding_page(State(app): State<Shared>, headers: HeaderMap, Path(id): P
     let status = q.get("status").and_then(|s| buildkiosk_engine::model::bidding::BidStatus::parse(s));
     let text = q.get("q").map(|s| s.chars().take(100).collect::<String>()).unwrap_or_default();
     page(&app, &headers, &q, |r, _| buildkiosk_web::bidding::list(r, Id::new(id), status, &text))
+}
+
+async fn bid_package_download(State(app): State<Shared>, headers: HeaderMap, Path((id, bid, sha)): Path<(u64, u64, String)>) -> Response {
+    let found = {
+        let inner = app.lock();
+        let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+        let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+        let state = t.engine.state();
+        let may = view::level(state, Actor::Person(s.person), Id::new(id), Tool::Bidding) >= buildkiosk_engine::model::Level::Read;
+        let file = state
+            .bid_packages
+            .get(Id::new(bid))
+            .filter(|b| may && b.project.raw() == id && b.deleted.is_none())
+            .and_then(|b| b.attachments.iter().chain(b.bids.iter().flat_map(|x| x.files.iter())).find(|f| f.sha256 == sha).cloned());
+        file.and_then(|a| t.store.blobs.path(&a.sha256).map(|p| (p, a.name.clone())))
+    };
+    let Some((path, name)) = found else { return plain(StatusCode::NOT_FOUND, "Not found") };
+    let bytes = match tokio::task::spawn_blocking(move || std::fs::read(path)).await {
+        Ok(Ok(b)) => b,
+        _ => return plain(StatusCode::NOT_FOUND, "That file is missing from storage."),
+    };
+    let mut res = bytes.into_response();
+    res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("application/octet-stream"));
+    if let Ok(v) = HeaderValue::from_str(&format!("attachment; filename=\"{}\"", safe_filename(&name))) {
+        res.headers_mut().insert("content-disposition", v);
+    }
+    res
+}
+
+async fn bid_package_upload(State(app): State<Shared>, headers: HeaderMap, Path((id, bid)): Path<(u64, u64)>, mut multipart: Multipart) -> Response {
+    let back = format!("/projects/{id}/bidding/{bid}");
+    let (mut token, mut vendor, mut file) = (String::new(), String::new(), None);
+    loop {
+        let field = match multipart.next_field().await {
+            Ok(Some(f)) => f,
+            Ok(None) => break,
+            Err(_) => return redirect(&with_flash(&back, false, "The upload failed or the file is larger than 25 MB.")),
+        };
+        let name = field.name().unwrap_or("").to_string();
+        let filename = field.file_name().unwrap_or("file").to_string();
+        let mime = field.content_type().unwrap_or("application/octet-stream").to_string();
+        let Ok(bytes) = field.bytes().await else {
+            return redirect(&with_flash(&back, false, "The upload failed or the file is larger than 25 MB."));
+        };
+        match name.as_str() {
+            "_csrf" => token = String::from_utf8_lossy(&bytes).into_owned(),
+            "vendor" => vendor = String::from_utf8_lossy(&bytes).trim().chars().take(20).collect(),
+            "file" if file.is_none() => file = Some((filename, mime, bytes)),
+            _ => {}
+        }
+    }
+    let mut inner = app.lock();
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    if !auth::csrf_ok(app.secret(), &s.cookie, &token) {
+        return plain(StatusCode::FORBIDDEN, "The form expired. Go back, reload the page and try again.");
+    }
+    let Some((name, mime, bytes)) = file.filter(|(_, _, b)| !b.is_empty()) else {
+        return redirect(&with_flash(&back, false, "Choose a file to attach."));
+    };
+    if bytes.len() > MAX_UPLOAD {
+        return redirect(&with_flash(&back, false, "Files can be at most 25 MB."));
+    }
+    let Some(t) = inner.tenant.as_mut() else { return redirect("/setup") };
+    let (sha256, size) = match t.store.blobs.put(&bytes) {
+        Ok(x) => x,
+        Err(e) => return redirect(&with_flash(&back, false, &e.to_string())),
+    };
+    let mut params = json!({"project": id, "id": bid, "sha256": sha256, "name": name, "size": size, "mime": mime});
+    if let (false, Some(map)) = (vendor.is_empty(), params.as_object_mut()) {
+        map.insert("vendor".into(), json!(vendor));
+    }
+    match inner.run(Actor::Person(s.person), "bid_package.attach", &params) {
+        Ok(_) => redirect(&with_flash(&back, true, "File attached.")),
+        Err(e) => redirect(&with_flash(&back, false, &e.to_string())),
+    }
 }
 
 async fn bid_package_new(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {

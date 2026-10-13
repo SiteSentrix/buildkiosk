@@ -2179,6 +2179,107 @@ async fn bidding_package_bids_and_award() {
 }
 
 #[tokio::test]
+async fn bid_form_leveling_addenda_and_files() {
+    let dir = temp("bidform");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=P"))).await;
+    send(&app, post("/do/vendor.create", &ada, format!("_csrf={csrf}&name=Keystone+Concrete&kind=subcontractor"))).await;
+    send(&app, post("/do/vendor.create", &ada, format!("_csrf={csrf}&name=Northline+Concrete&kind=subcontractor"))).await;
+    let (_, _, new) = send(&app, get("/projects/1/bidding/new")).await;
+    assert!(new.contains("scope_items.0.text") && new.contains("form_items.0.description") && new.contains("bond_percent"), "{new}");
+    let (_, h, _) = send(
+        &app,
+        post("/do/bid_package.create", &ada, format!("_csrf={csrf}&_next=/projects/1/bidding/%7Bid%7D&project=1&title=Concrete&scope=Slab&invite%5B%5D=1&invite%5B%5D=2&scope_items.0.text=Footings&scope_items.1.text=Sealing&scope_items.2.text=&form_items.0.description=Slab&form_items.0.unit=sf&form_items.0.quantity=1000&form_items.1.description=&form_items.1.unit=&form_items.1.quantity=&alternates.0.name=Polished&alternates.1.name=&bond_percent=5")),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().starts_with("/projects/1/bidding/1?ok="), "{h:?}");
+    send(&app, post("/do/bid_package.open", &ada, format!("_csrf={csrf}&project=1&id=1"))).await;
+    let (_, _, detail) = send(&app, get("/projects/1/bidding/1")).await;
+    assert!(
+        detail.contains("Unit prices") && detail.contains("What the bid covers") && detail.contains("Issue addendum") && detail.contains("Bid bond"),
+        "{detail}"
+    );
+    let (_, h, _) = send(
+        &app,
+        post("/do/bid_package.record_bid", &ada, format!("_csrf={csrf}&_next=/projects/1/bidding/1&project=1&id=1&vendor=1&amount=&received=&notes=&lines.0.item=0&lines.0.unit_price=21&scope.0.item=0&scope.0.answer=included&scope.0.adjustment=&scope.1.item=1&scope.1.answer=excluded&scope.1.adjustment=2500&alternates.0.index=0&alternates.0.amount=4000&bond_received=true&bond_amount=1000")),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    send(&app, post("/do/bid_package.record_bid", &ada, format!("_csrf={csrf}&project=1&id=1&vendor=2&amount=23000&scope.0.item=0&scope.0.answer=included&scope.0.adjustment=&scope.1.item=1&scope.1.answer=included&scope.1.adjustment="))).await;
+    let (_, _, detail) = send(&app, get("/projects/1/bidding/1")).await;
+    assert!(
+        detail.contains("Leveling")
+            && detail.contains("23,500.00")
+            && detail.contains("Excluded")
+            && detail.contains("4,000.00")
+            && detail.contains("No bond"),
+        "{detail}"
+    );
+    // Addenda are issued and acknowledged; files attach to the package and to a bid and download.
+    send(
+        &app,
+        post("/do/bid_package.addendum", &ada, format!("_csrf={csrf}&_next=/projects/1/bidding/1&project=1&id=1&title=Slab+thicker&body=Six+inches")),
+    )
+    .await;
+    let (_, _, detail) = send(&app, get("/projects/1/bidding/1")).await;
+    assert!(
+        detail.contains("Addendum 1: Slab thicker") && detail.contains("Keystone Concrete acknowledged") && detail.contains("not acknowledged"),
+        "{detail}"
+    );
+    send(&app, post("/do/bid_package.acknowledge", &ada, format!("_csrf={csrf}&project=1&id=1&vendor=1&number=1"))).await;
+    let upload = |vendor: Option<&str>, content: &str| {
+        let mut body = format!("--B\r\nContent-Disposition: form-data; name=\"_csrf\"\r\n\r\n{csrf}\r\n");
+        if let Some(v) = vendor {
+            body.push_str(&format!("--B\r\nContent-Disposition: form-data; name=\"vendor\"\r\n\r\n{v}\r\n"));
+        }
+        body.push_str(&format!(
+            "--B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"f.pdf\"\r\nContent-Type: application/pdf\r\n\r\n{content}\r\n--B--\r\n"
+        ));
+        Request::post("/projects/1/bidding/1/upload")
+            .header("cookie", &ada)
+            .header("content-type", "multipart/form-data; boundary=B")
+            .body(Body::from(body))
+            .unwrap()
+    };
+    let (_, h, _) = send(&app, upload(None, "scope documents")).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, h, _) = send(&app, upload(Some("1"), "keystone proposal")).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, h, _) = send(&app, upload(Some("9"), "nobody")).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("error="), "{h:?}");
+    let (_, _, detail) = send(&app, get("/projects/1/bidding/1")).await;
+    let shas: Vec<String> = detail.split("/projects/1/bidding/1/files/").skip(1).map(|t| t.split('"').next().unwrap().to_string()).collect();
+    assert_eq!(shas.len(), 2, "{detail}");
+    let mut bodies = Vec::new();
+    for sha in &shas {
+        let (st, h, bytes) = send(&app, get(&format!("/projects/1/bidding/1/files/{sha}"))).await;
+        assert!(st == StatusCode::OK && h.get("content-disposition").is_some());
+        bodies.push(bytes);
+    }
+    bodies.sort();
+    assert_eq!(bodies, ["keystone proposal", "scope documents"]);
+    assert_eq!(send(&app, get("/projects/1/bidding/1/files/nothing")).await.0, StatusCode::NOT_FOUND);
+    // The award waits for the bond: Northline sent none, Keystone's is in.
+    let (_, h, _) =
+        send(&app, post("/do/bid_package.award", &ada, format!("_csrf={csrf}&_next=/projects/1/bidding/1&project=1&id=1&vendor=2"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("error="), "{h:?}");
+    let (_, h, _) =
+        send(&app, post("/do/bid_package.award", &ada, format!("_csrf={csrf}&_next=/projects/1/bidding/1&project=1&id=1&vendor=1"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
 async fn estimate_form_totals_apply_and_csv() {
     let dir = temp("estimating");
     let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());

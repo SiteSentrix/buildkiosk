@@ -1213,3 +1213,63 @@ async fn tasks_use_the_shared_work_pages() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn photos_upload_gallery_and_inline_image() {
+    let dir = temp("photos");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=P"))).await;
+
+    // A PNG header, an HTML file pretending to be a picture, and a real GIF header.
+    let mut body: Vec<u8> = Vec::new();
+    let text = |b: &mut Vec<u8>, k: &str, v: &str| {
+        b.extend_from_slice(format!("--B\r\nContent-Disposition: form-data; name=\"{k}\"\r\n\r\n{v}\r\n").as_bytes())
+    };
+    text(&mut body, "_csrf", &csrf);
+    text(&mut body, "album", "Foundations");
+    text(&mut body, "caption", "Forms");
+    for (name, content) in
+        [("a.png", &b"\x89PNG\r\n\x1a\n-pixels"[..]), ("evil.png", &b"<script>alert(1)</script>"[..]), ("b.gif", &b"GIF89a-pixels"[..])]
+    {
+        body.extend_from_slice(
+            format!("--B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{name}\"\r\nContent-Type: image/png\r\n\r\n").as_bytes(),
+        );
+        body.extend_from_slice(content);
+        body.extend_from_slice(b"\r\n");
+    }
+    body.extend_from_slice(b"--B--\r\n");
+    let req = Request::post("/projects/1/photos/upload")
+        .header("cookie", &ada)
+        .header("content-type", "multipart/form-data; boundary=B")
+        .body(Body::from(body))
+        .unwrap();
+    let (_, h, _) = send(&app, req).await;
+    let loc = h.get(LOCATION).unwrap().to_str().unwrap().to_string();
+    assert!(loc.contains("ok=") && loc.contains("2+added") || loc.contains("2%20added"), "{loc}");
+    let (_, _, gallery) = send(&app, get("/projects/1/photos?album=foundations")).await;
+    assert!(
+        gallery.contains("/projects/1/photos/1/image") && gallery.contains("/projects/1/photos/2/image") && !gallery.contains("photos/3/"),
+        "{gallery}"
+    );
+    let (st, h, body) = send(&app, get("/projects/1/photos/1/image")).await;
+    assert_eq!((st, h.get("content-type").unwrap().to_str().unwrap()), (StatusCode::OK, "image/png"));
+    assert!(body.starts_with("\u{89}PNG") || !body.is_empty());
+    assert_eq!(h.get("x-content-type-options").unwrap(), "nosniff");
+    let (_, h, _) = send(&app, get("/projects/1/photos/1/download")).await;
+    assert_eq!(h.get("content-type").unwrap(), "application/octet-stream");
+    let (st, ..) = send(&app, Request::get("/projects/1/photos/1/image").body(Body::empty()).unwrap()).await;
+    assert_eq!(st, StatusCode::SEE_OTHER, "signed-out people don't see photos");
+    let (_, _, detail) = send(&app, get("/projects/1/photos/1")).await;
+    assert!(detail.contains("Forms") && detail.contains("Download original"));
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

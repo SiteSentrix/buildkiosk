@@ -18,6 +18,7 @@ pub mod layout;
 pub mod linedocs;
 pub mod meetings;
 pub mod pages;
+pub mod photos;
 pub mod schedule;
 pub mod specs;
 pub mod style;

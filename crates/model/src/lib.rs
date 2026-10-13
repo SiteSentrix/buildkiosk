@@ -20,6 +20,7 @@ pub mod meeting;
 pub mod notification;
 pub mod observation;
 pub mod perm;
+pub mod photo;
 pub mod project;
 pub mod punch;
 pub mod rfi;

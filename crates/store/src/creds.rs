@@ -40,9 +40,37 @@ pub struct ApiToken {
     pub created: Timestamp,
 }
 
+/// Where outgoing email goes. The password is a secret, so this lives here, not in the journal.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct SmtpSettings {
+    pub host: String,
+    pub port: u16,
+    /// `starttls` (usual, port 587), `tls` (port 465) or `none` (a trusted local relay).
+    #[serde(default)]
+    pub security: String,
+    #[serde(default)]
+    pub username: String,
+    #[serde(default)]
+    pub password: String,
+    /// The sender, e.g. `BuildKiosk <noreply@example.com>`.
+    pub from: String,
+    /// Where the server is reached from outside, for links in messages (no trailing slash).
+    #[serde(default)]
+    pub base_url: String,
+}
+
 /// A company's credentials.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Credentials {
+    /// Outgoing email; `None` means no email is sent.
+    #[serde(default)]
+    pub smtp: Option<SmtpSettings>,
+    /// People who turned notification emails off.
+    #[serde(default)]
+    pub email_off: std::collections::BTreeSet<u64>,
+    /// Notifications up to this id have been emailed (or skipped).
+    #[serde(default)]
+    pub mail_mark: u64,
     #[serde(default)]
     pub people: BTreeMap<u64, PersonCred>,
     #[serde(default)]

@@ -5,6 +5,7 @@
 #![forbid(unsafe_code)]
 
 mod auth;
+mod mail;
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -175,6 +176,10 @@ pub fn router(app: Shared) -> Router {
             .route("/account/password", post(account_password))
             .route("/account/token", post(account_token))
             .route("/account/token/revoke", post(account_token_revoke))
+            .route("/account/email", post(account_email))
+            .route("/admin/email", get(mail_settings).post(mail_settings_save))
+            .route("/admin/email/test", post(mail_test))
+            .route("/admin/email/clear", post(mail_clear))
             .route("/projects/{id}", get(project_home))
             .route("/projects/{id}/team", get(team))
             .route("/projects/{id}/rfis", get(rfi_list))
@@ -392,6 +397,7 @@ pub fn router(app: Shared) -> Router {
 pub async fn serve(app: Shared, bind: SocketAddr) -> Result<(), String> {
     let listener = tokio::net::TcpListener::bind(bind).await.map_err(|e| format!("cannot listen on {bind}: {e}"))?;
     log::info!("listening on http://{bind}");
+    tokio::spawn(mail_loop(app.clone()));
     axum::serve(listener, router(app)).await.map_err(|e| e.to_string())
 }
 
@@ -1912,7 +1918,7 @@ async fn account_page(State(app): State<Shared>, headers: HeaderMap, Query(q): Q
     let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
     let csrf = auth::csrf_token(app.secret(), &s.cookie);
     let req = Req { engine: &t.engine, person: s.person, csrf: &csrf, now: Timestamp::from_millis(now_ms()), flash: flash_from(&q) };
-    html(StatusCode::OK, buildkiosk_web::account::page(&req, &token_rows(&inner, s.person.raw()), None))
+    html(StatusCode::OK, buildkiosk_web::account::page(&req, &token_rows(&inner, s.person.raw()), None, &mail_pref(&inner, s.person.raw())))
 }
 
 /// Checks the session and the CSRF token of an account form.
@@ -1956,6 +1962,235 @@ async fn account_password(State(app): State<Shared>, headers: HeaderMap, body: B
     }
 }
 
+// -- email
+
+fn mail_pref(inner: &Inner, person: u64) -> buildkiosk_web::account::MailPref {
+    buildkiosk_web::account::MailPref { configured: inner.creds.smtp.is_some(), on: !inner.creds.email_off.contains(&person) }
+}
+
+/// Saves the credential store; on failure leaves the in-memory copy alone.
+fn save_creds(inner: &mut Inner, creds: Credentials) -> Result<(), String> {
+    if let Some(t) = inner.tenant.as_ref() {
+        t.store.save_credentials(&creds).map_err(|e| e.to_string())?;
+    }
+    inner.creds = creds;
+    Ok(())
+}
+
+async fn account_email(State(app): State<Shared>, headers: HeaderMap, body: Bytes) -> Response {
+    let form = parse_form(&body);
+    let mut inner = app.lock();
+    let s = match account_form(&app, &inner, &headers, &form) {
+        Ok(s) => s,
+        Err(r) => return *r,
+    };
+    let mut creds = inner.creds.clone();
+    if get_form(&form, "on").is_empty() {
+        creds.email_off.insert(s.person.raw());
+    } else {
+        creds.email_off.remove(&s.person.raw());
+    }
+    match save_creds(&mut inner, creds) {
+        Ok(()) => redirect(&with_flash("/account", true, "Saved.")),
+        Err(e) => redirect(&with_flash("/account", false, &e)),
+    }
+}
+
+/// The signed-in company admin, or the response to send instead.
+fn admin_form(app: &Shared, inner: &Inner, headers: &HeaderMap, form: Option<&[(String, String)]>) -> Result<Session, Box<Response>> {
+    let Some(s) = session(app, inner, headers) else { return Err(Box::new(redirect("/login"))) };
+    if let Some(form) = form
+        && !auth::csrf_ok(app.secret(), &s.cookie, get_form(form, "_csrf"))
+    {
+        return Err(Box::new(plain(StatusCode::FORBIDDEN, "The form expired. Go back, reload the page and try again.")));
+    }
+    let is_admin = inner.tenant.as_ref().is_some_and(|t| t.engine.state().people.get(s.person).is_some_and(|p| p.company_admin));
+    if !is_admin {
+        return Err(Box::new(redirect(&with_flash("/account", false, "Only company admins can change email settings."))));
+    }
+    Ok(s)
+}
+
+async fn mail_settings(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Response {
+    let inner = app.lock();
+    let s = match admin_form(&app, &inner, &headers, None) {
+        Ok(s) => s,
+        Err(r) => return *r,
+    };
+    let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+    let csrf = auth::csrf_token(app.secret(), &s.cookie);
+    let req = Req { engine: &t.engine, person: s.person, csrf: &csrf, now: Timestamp::from_millis(now_ms()), flash: flash_from(&q) };
+    let m = match inner.creds.smtp.as_ref() {
+        Some(c) => buildkiosk_web::account::MailForm {
+            host: c.host.clone(),
+            port: c.port.to_string(),
+            security: c.security.clone(),
+            username: c.username.clone(),
+            has_password: !c.password.is_empty(),
+            from: c.from.clone(),
+            base_url: c.base_url.clone(),
+            configured: true,
+        },
+        None => buildkiosk_web::account::MailForm { port: "587".into(), ..Default::default() },
+    };
+    html(StatusCode::OK, buildkiosk_web::account::mail_page(&req, &m))
+}
+
+async fn mail_settings_save(State(app): State<Shared>, headers: HeaderMap, body: Bytes) -> Response {
+    let form = parse_form(&body);
+    let mut inner = app.lock();
+    if let Err(r) = admin_form(&app, &inner, &headers, Some(&form)) {
+        return *r;
+    }
+    let back = "/admin/email";
+    let Ok(port) = get_form(&form, "port").trim().parse::<u16>() else {
+        return redirect(&with_flash(back, false, "The port must be a number such as 587."));
+    };
+    let old = inner.creds.smtp.clone();
+    let password = match get_form(&form, "password") {
+        "" => old.as_ref().map(|o| o.password.clone()).unwrap_or_default(),
+        p => p.to_string(),
+    };
+    let new = mail::check(buildkiosk_store::creds::SmtpSettings {
+        host: get_form(&form, "host").to_string(),
+        port,
+        security: get_form(&form, "security").to_string(),
+        username: get_form(&form, "username").trim().to_string(),
+        password,
+        from: get_form(&form, "from").to_string(),
+        base_url: get_form(&form, "base_url").to_string(),
+    });
+    let new = match new {
+        Ok(n) => n,
+        Err(e) => return redirect(&with_flash(back, false, &e)),
+    };
+    let mut creds = inner.creds.clone();
+    if old.is_none() {
+        // Don't send the backlog the first time email is turned on.
+        creds.mail_mark = inner.tenant.as_ref().and_then(|t| t.engine.state().notifications.iter().map(|n| n.id.raw()).max()).unwrap_or(0);
+    }
+    creds.smtp = Some(new);
+    match save_creds(&mut inner, creds) {
+        Ok(()) => redirect(&with_flash(back, true, "Saved. Send a test email to check it.")),
+        Err(e) => redirect(&with_flash(back, false, &e)),
+    }
+}
+
+async fn mail_clear(State(app): State<Shared>, headers: HeaderMap, body: Bytes) -> Response {
+    let form = parse_form(&body);
+    let mut inner = app.lock();
+    if let Err(r) = admin_form(&app, &inner, &headers, Some(&form)) {
+        return *r;
+    }
+    let mut creds = inner.creds.clone();
+    creds.smtp = None;
+    match save_creds(&mut inner, creds) {
+        Ok(()) => redirect(&with_flash("/admin/email", true, "Email is turned off.")),
+        Err(e) => redirect(&with_flash("/admin/email", false, &e)),
+    }
+}
+
+async fn mail_test(State(app): State<Shared>, headers: HeaderMap, body: Bytes) -> Response {
+    let form = parse_form(&body);
+    let (settings, to) = {
+        let inner = app.lock();
+        let s = match admin_form(&app, &inner, &headers, Some(&form)) {
+            Ok(s) => s,
+            Err(r) => return *r,
+        };
+        let to = inner.tenant.as_ref().and_then(|t| t.engine.state().people.get(s.person).and_then(|p| p.email.clone()));
+        (inner.creds.smtp.clone(), to)
+    };
+    let back = "/admin/email";
+    let (Some(settings), Some(to)) = (settings, to) else {
+        return redirect(&with_flash(back, false, "Save the settings first, and give your own account an email address."));
+    };
+    let m = mail::Mail {
+        id: 0,
+        to: to.clone(),
+        subject: "BuildKiosk test email".into(),
+        body: "This is a test message from BuildKiosk. Email is working.".into(),
+    };
+    let sent = tokio::task::spawn_blocking(move || mail::send(&settings, &m)).await.unwrap_or_else(|e| Err(e.to_string()));
+    match sent {
+        Ok(()) => redirect(&with_flash(back, true, &format!("A test email was sent to {to}."))),
+        Err(e) => redirect(&with_flash(back, false, &format!("The email could not be sent: {e}"))),
+    }
+}
+
+/// Notifications that still need emailing, and the id to mark as done once they are sent.
+fn mail_pending(app: &App) -> Option<(buildkiosk_store::creds::SmtpSettings, Vec<mail::Mail>, u64)> {
+    let inner = app.lock();
+    let smtp = inner.creds.smtp.clone()?;
+    let state = inner.tenant.as_ref()?.engine.state();
+    let mut news: Vec<_> = state.notifications.iter().filter(|n| n.id.raw() > inner.creds.mail_mark).collect();
+    news.sort_by_key(|n| n.id.raw());
+    news.truncate(100);
+    let mark = news.last()?.id.raw();
+    let mails = news
+        .iter()
+        .filter(|n| !n.read && !inner.creds.email_off.contains(&n.person.raw()))
+        .filter_map(|n| {
+            let p = state.people.get(n.person)?;
+            let to = p.email.clone().filter(|_| p.is_user && p.active)?;
+            let subject: String = n.text.chars().filter(|c| !c.is_control()).take(120).collect();
+            let link = if n.link.is_empty() || smtp.base_url.is_empty() { String::new() } else { format!("\n\n{}{}", smtp.base_url, n.link) };
+            Some(mail::Mail {
+                id: n.id.raw(),
+                to,
+                subject,
+                body: format!(
+                    "{}{link}\n\nYou get this because email notifications are on for your BuildKiosk account. Turn them off under My account.\n",
+                    n.text
+                ),
+            })
+        })
+        .collect();
+    Some((smtp, mails, mark))
+}
+
+/// Emails the notifications made since the last pass. Returns how many were sent.
+fn mail_pass(app: &App) -> usize {
+    let Some((smtp, mails, mark)) = mail_pending(app) else { return 0 };
+    let mut sent = 0;
+    for m in &mails {
+        match mail::send(&smtp, m) {
+            Ok(()) => sent += 1,
+            Err(e) => {
+                // Stop at the first failure and try again on the next pass: nothing is lost.
+                log::warn!("could not send a notification email: {e}");
+                let done = m.id.saturating_sub(1);
+                let mut inner = app.lock();
+                if done > inner.creds.mail_mark {
+                    let mut creds = inner.creds.clone();
+                    creds.mail_mark = done;
+                    if let Err(e) = save_creds(&mut inner, creds) {
+                        log::warn!("could not record sent emails: {e}");
+                    }
+                }
+                return sent;
+            }
+        }
+    }
+    let mut inner = app.lock();
+    let mut creds = inner.creds.clone();
+    creds.mail_mark = mark;
+    if let Err(e) = save_creds(&mut inner, creds) {
+        log::warn!("could not record sent emails: {e}");
+    }
+    sent
+}
+
+async fn mail_loop(app: Shared) {
+    loop {
+        tokio::time::sleep(Duration::from_secs(20)).await;
+        let a = app.clone();
+        if let Err(e) = tokio::task::spawn_blocking(move || mail_pass(&a)).await {
+            log::warn!("the email sender stopped a pass: {e}");
+        }
+    }
+}
+
 async fn account_token(State(app): State<Shared>, headers: HeaderMap, body: Bytes) -> Response {
     let form = parse_form(&body);
     let mut inner = app.lock();
@@ -1977,7 +2212,10 @@ async fn account_token(State(app): State<Shared>, headers: HeaderMap, body: Byte
             let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
             let csrf = auth::csrf_token(app.secret(), &s.cookie);
             let req = Req { engine: &t.engine, person: s.person, csrf: &csrf, now: Timestamp::from_millis(now_ms()), flash: None };
-            let mut res = html(StatusCode::OK, buildkiosk_web::account::page(&req, &token_rows(&inner, s.person.raw()), Some(&token)));
+            let mut res = html(
+                StatusCode::OK,
+                buildkiosk_web::account::page(&req, &token_rows(&inner, s.person.raw()), Some(&token), &mail_pref(&inner, s.person.raw())),
+            );
             // The page holds a secret: keep it out of caches and history.
             res.headers_mut().insert("cache-control", HeaderValue::from_static("no-store"));
             res

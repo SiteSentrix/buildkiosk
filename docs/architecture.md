@@ -52,3 +52,13 @@ photos, which are checked by their first bytes and shown inline as JPEG, PNG, GI
 
 Each company is a separate state, journal and blob store under `companies/<slug>`; nothing reads across
 companies. Secrets (password hashes, API tokens, sessions) live in the credential store, never in the journal.
+
+## The sheet viewer
+
+Drawings are shown without client code. The server (L6) draws a PDF page into a PNG with a pure-Rust renderer
+(`crates/server/src/render.rs`, using `hayro`), keeps the newest pictures in memory (64 MB), and the viewer page
+(`crates/web/src/drawings.rs`) shows the picture with the markups drawn over it as inline SVG. A markup tool is a
+plain form around `<input type="image">`: the browser sends the click position, the server turns it into a
+fraction of the page, and saving goes through the `drawing.markup_add` command like everything else. Comparing two
+revisions lays both pages over each other as one more picture. The viewer treats the file as untrusted (size caps,
+no panics out of the renderer: a failure is a "can't be shown" page).

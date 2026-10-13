@@ -42,6 +42,31 @@ pub const COMMANDS: &[CommandSpec] = &[
         publish,
     ),
     CommandSpec::mutate(
+        "drawing.markup_add",
+        "Mark up a sheet",
+        Tool::Drawings,
+        Access::Project(Level::Standard),
+        "project: project id; id: drawing id; revision?: label (default the current one); page?: page number from 1 (default 1); kind: pin|rect|arrow|text; \
+         x, y: 0..10000 across and down the page; x2?, y2?: the far corner of a box or the head of an arrow; text?: the note (required for text)",
+        markup_add,
+    ),
+    CommandSpec::mutate(
+        "drawing.markup_resolve",
+        "Resolve or reopen a markup",
+        Tool::Drawings,
+        Access::Project(Level::Standard),
+        "project, id: ids; revision?: label (default the current one); markup: markup number; resolved?: bool (default true)",
+        markup_resolve,
+    ),
+    CommandSpec::mutate(
+        "drawing.markup_delete",
+        "Remove a markup",
+        Tool::Drawings,
+        Access::Project(Level::Standard),
+        "project, id: ids; revision?: label (default the current one); markup: markup number (its author or an admin)",
+        markup_delete,
+    ),
+    CommandSpec::mutate(
         "drawing.update",
         "Edit drawing",
         Tool::Drawings,
@@ -124,6 +149,7 @@ fn revision(ctx: &Ctx<'_>, p: &Params<'_>) -> Result<DrawingRevision> {
         file: file(p)?,
         by: ctx.person(),
         at: ctx.at,
+        markups: Vec::new(),
     })
 }
 
@@ -182,6 +208,86 @@ fn add_revision(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     let id = d.id;
     ctx.state.drawings.put(d);
     Ok(json!({ "id": id }))
+}
+
+const MAX_MARKUPS: usize = 500;
+
+/// The index of the revision named by `revision` (default: the newest) in the sheet.
+fn revision_index(d: &Drawing, p: &Params<'_>) -> Result<usize> {
+    match p.line("revision", 50)?.filter(|r| !r.is_empty()) {
+        Some(label) => d
+            .revisions
+            .iter()
+            .position(|r| r.label.eq_ignore_ascii_case(&label))
+            .ok_or_else(|| p.bad("revision", format!("{} has no revision {label}", d.number))),
+        None => d.revisions.len().checked_sub(1).ok_or_else(|| EngineError::conflict(format!("{} has no revision to mark up yet", d.number))),
+    }
+}
+
+fn markup_add(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    use buildkiosk_model::drawing::{MARKUP_SCALE, Markup, MarkupKind};
+    let mut d = load(ctx, p)?;
+    let at = revision_index(&d, p)?;
+    let kind = p.choice::<MarkupKind>("kind")?.ok_or_else(|| p.bad("kind", "is required"))?;
+    let coord = |key: &str, required: bool| -> Result<u16> {
+        match p.int(key, 0..=i64::from(MARKUP_SCALE))? {
+            Some(v) => Ok(u16::try_from(v).unwrap_or(0)),
+            None if required => Err(p.bad(key, "is required")),
+            None => Ok(0),
+        }
+    };
+    let (x, y) = (coord("x", true)?, coord("y", true)?);
+    let two_points = matches!(kind, MarkupKind::Rectangle | MarkupKind::Arrow);
+    let (x2, y2) = (coord("x2", two_points)?, coord("y2", two_points)?);
+    let text = p.text_or_empty("text", 1_000)?;
+    if kind == MarkupKind::Text && text.trim().is_empty() {
+        return Err(p.bad("text", "is required for a text markup"));
+    }
+    let page = p.int("page", 1..=2_000)?.and_then(|v| u32::try_from(v).ok()).unwrap_or(1);
+    let (person, now) = (ctx.person(), ctx.at);
+    let Some(rev) = d.revisions.get_mut(at) else { return Err(EngineError::not_found("revision not found")) };
+    if rev.markups.len() >= MAX_MARKUPS {
+        return Err(EngineError::conflict(format!("a revision holds at most {MAX_MARKUPS} markups")));
+    }
+    let id = rev.markups.iter().map(|m| m.id).max().unwrap_or(0).saturating_add(1);
+    rev.markups.push(Markup { id, page, kind, x, y, x2, y2, text, resolved: false, by: person, at: now });
+    d.updated = ctx.stamp();
+    let did = d.id;
+    ctx.state.drawings.put(d);
+    Ok(json!({ "id": did, "markup": id }))
+}
+
+fn markup_resolve(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut d = load(ctx, p)?;
+    let at = revision_index(&d, p)?;
+    let number = p.int("markup", 1..=i64::from(u32::MAX))?.and_then(|v| u32::try_from(v).ok()).ok_or_else(|| p.bad("markup", "is required"))?;
+    let resolved = p.flag_or("resolved", true)?;
+    let Some(m) = d.revisions.get_mut(at).and_then(|r| r.markups.iter_mut().find(|m| m.id == number)) else {
+        return Err(EngineError::not_found(format!("markup {number} not found")));
+    };
+    m.resolved = resolved;
+    d.updated = ctx.stamp();
+    let did = d.id;
+    ctx.state.drawings.put(d);
+    Ok(json!({ "id": did }))
+}
+
+fn markup_delete(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut d = load(ctx, p)?;
+    let at = revision_index(&d, p)?;
+    let number = p.int("markup", 1..=i64::from(u32::MAX))?.and_then(|v| u32::try_from(v).ok()).ok_or_else(|| p.bad("markup", "is required"))?;
+    let admin = ctx.level(d.project, Tool::Drawings) == Level::Admin;
+    let me = ctx.person();
+    let Some(rev) = d.revisions.get_mut(at) else { return Err(EngineError::not_found("revision not found")) };
+    let Some(pos) = rev.markups.iter().position(|m| m.id == number) else { return Err(EngineError::not_found(format!("markup {number} not found"))) };
+    if !admin && rev.markups.get(pos).and_then(|m| m.by) != me {
+        return Err(EngineError::forbidden("only the person who drew a markup or a Drawings admin can remove it"));
+    }
+    rev.markups.remove(pos);
+    d.updated = ctx.stamp();
+    let did = d.id;
+    ctx.state.drawings.put(d);
+    Ok(json!({ "id": did }))
 }
 
 fn publish(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {

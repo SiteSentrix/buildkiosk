@@ -2305,3 +2305,110 @@ async fn notifications_are_emailed() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn sheet_viewer_markup_and_compare() {
+    let dir = temp("viewer");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=P"))).await;
+
+    // Two revisions of a sheet, as real PDFs with a box in different places.
+    let upload = |uri: &str, fields: &[(&str, &str)], pdf: Vec<u8>| {
+        let mut body: Vec<u8> = Vec::new();
+        for (k, v) in fields {
+            body.extend_from_slice(format!("--B\r\nContent-Disposition: form-data; name=\"{k}\"\r\n\r\n{v}\r\n").as_bytes());
+        }
+        body.extend_from_slice(
+            b"--B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"a101.pdf\"\r\nContent-Type: application/pdf\r\n\r\n",
+        );
+        body.extend_from_slice(&pdf);
+        body.extend_from_slice(b"\r\n--B--\r\n");
+        Request::post(uri.to_string())
+            .header("cookie", &ada)
+            .header("content-type", "multipart/form-data; boundary=B")
+            .body(Body::from(body))
+            .unwrap()
+    };
+    let (_, h, _) = send(
+        &app,
+        upload(
+            "/projects/1/drawings/upload",
+            &[("_csrf", &csrf), ("number", "A-101"), ("title", "Plan"), ("revision", "A")],
+            render::tests::tiny_pdf(50),
+        ),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="));
+    let (_, h, _) = send(&app, upload("/projects/1/drawings/1/upload", &[("_csrf", &csrf), ("revision", "B")], render::tests::tiny_pdf(250))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="));
+
+    let (_, _, sheet) = send(&app, get("/projects/1/drawings/1")).await;
+    assert!(sheet.contains("Open in viewer"));
+    let (st, _, viewer) = send(&app, get("/projects/1/drawings/1/view")).await;
+    assert!(
+        st == StatusCode::OK && viewer.contains("Sheet viewer") && viewer.contains("view.png?page=1&amp;w=900") && viewer.contains("Compare with"),
+        "{viewer}"
+    );
+    // The picture is a real PNG of the right shape, and signed-out people don't get it.
+    let res = router(app.clone()).oneshot(get("/projects/1/drawings/1/view.png?page=1&w=800")).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(res.headers().get(CONTENT_TYPE).unwrap(), "image/png");
+    let png = res.into_body().collect().await.unwrap().to_bytes();
+    let img = image::load_from_memory(&png).unwrap();
+    assert_eq!((img.width(), img.height()), (800, 600));
+    let (st, ..) = send(&app, Request::get("/projects/1/drawings/1/view.png").body(Body::empty()).unwrap()).await;
+    assert_eq!(st, StatusCode::SEE_OTHER);
+    let (st, ..) = send(&app, get("/projects/1/drawings/1/view.png?rev=nope")).await;
+    assert_eq!(st, StatusCode::NOT_FOUND);
+    let (st, ..) = send(&app, get("/projects/1/drawings/1/view.png?page=9")).await;
+    assert_eq!(st, StatusCode::NOT_FOUND);
+
+    // Clicking with the pin tool turns pixels into a position and offers the form.
+    let (_, _, pinning) = send(&app, get("/projects/1/drawings/1/view?tool=pin&w=900&at.x=450&at.y=675")).await;
+    assert!(
+        pinning.contains("Add a pin") && pinning.contains("name=\"x\" value=\"5000\"") && pinning.contains("name=\"y\" value=\"10000\""),
+        "{pinning}"
+    );
+    let (_, _, rect1) = send(&app, get("/projects/1/drawings/1/view?tool=rect&w=900&at.x=90&at.y=0")).await;
+    assert!(
+        rect1.contains("Click the opposite corner")
+            && rect1.contains("name=\"x1\" value=\"1000\"")
+            && rect1.contains("name=\"y1\" value=\"0\"")
+            && !rect1.contains("Add a box"),
+        "{rect1}"
+    );
+    let (_, _, rect2) = send(&app, get("/projects/1/drawings/1/view?tool=rect&w=900&x1=1000&y1=0&at.x=450&at.y=675")).await;
+    assert!(
+        rect2.contains("Add a box")
+            && rect2.contains("name=\"x2\" value=\"5000\"")
+            && rect2.contains("name=\"y2\" value=\"10000\"")
+            && rect2.contains("name=\"x\" value=\"1000\""),
+        "{rect2}"
+    );
+    let (_, h, _) = send(&app, post("/do/drawing.markup_add", &ada, format!("_csrf={csrf}&_next=/projects/1/drawings/1/view%3Ftool%3Dpin&project=1&id=1&revision=B&page=1&kind=pin&x=5000&y=5000&text=Check+this+door"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, marked) = send(&app, get("/projects/1/drawings/1/view")).await;
+    assert!(marked.contains("<circle cx=\"450\" cy=\"338\"") && marked.contains("Check this door") && marked.contains("Resolve"), "{marked}");
+    let (_, _, other_rev) = send(&app, get("/projects/1/drawings/1/view?rev=A")).await;
+    assert!(!other_rev.contains("Check this door"), "markups belong to their revision");
+
+    // Compare: the old position is blue, the new one red.
+    let res = router(app.clone()).oneshot(get("/projects/1/drawings/1/compare.png?a=A&b=B&page=1&w=800")).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let png = res.into_body().collect().await.unwrap().to_bytes();
+    let diff = image::load_from_memory(&png).unwrap().to_rgb8();
+    assert_eq!((diff.get_pixel(140, 340).0, diff.get_pixel(540, 340).0), ([30, 90, 220], [220, 30, 30]));
+    let (_, _, cmp) = send(&app, get("/projects/1/drawings/1/view?compare=A")).await;
+    assert!(cmp.contains("compare.png?a=A&amp;b=B") && cmp.contains("only on revision B"), "{cmp}");
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

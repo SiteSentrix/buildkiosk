@@ -870,3 +870,20 @@ pub fn meeting_signin(req: &Req<'_>, id: Id<Project>, mid: Id<buildkiosk_engine:
     doc.blocks.push(table(&["Name", "Company", "Signature"], &[3.5, 3.0, 4.0], &[], rows));
     Some((file_name(&format!("sign-in {}", m.label())), render(&doc)))
 }
+
+/// The company report (a saved one, or the standard portfolio) as a document.
+pub fn company_report(req: &Req<'_>, report: Option<Id<buildkiosk_engine::model::saved_report::SavedReport>>) -> Option<Pdf> {
+    let crate::company_reports::TableText { title, headers, mut rows, totals, right } = crate::company_reports::table_text(req, report)?;
+    let company = req.engine.state().company().map(|c| c.name.clone()).unwrap_or_default();
+    let mut doc = Doc { title: title.clone(), subtitle: format!("As of {}", req.today().pretty()), running_head: company, blocks: Vec::new() };
+    rows.push(totals);
+    let n = headers.len().max(2);
+    let first = 3.4_f32;
+    let rest = (10.0 - first) / (n - 1) as f32;
+    let widths: Vec<f32> = std::iter::once(first).chain(std::iter::repeat_n(rest, n - 1)).collect();
+    let header_refs: Vec<&str> = headers.iter().map(String::as_str).collect();
+    let right_cols: Vec<usize> = right.iter().enumerate().filter(|(_, r)| **r).map(|(i, _)| i).collect();
+    doc.blocks.push(table(&header_refs, &widths, &right_cols, rows));
+    doc.blocks.push(Block::Paragraph("Only the projects you can open, and only what you can see of each, are included.".into()));
+    Some((file_name(&title), render(&doc)))
+}

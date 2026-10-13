@@ -284,3 +284,130 @@ pub fn portfolio(state: &CompanyState, actor: Actor, today: Date) -> Vec<Portfol
         })
         .collect()
 }
+
+/// One cell of the company report: what a column holds for a project.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(untagged)]
+pub enum Cell {
+    Text(String),
+    Count(usize),
+    Money(buildkiosk_core::Money),
+    Date(Date),
+    /// The person can't see what this column is made of (a tool or budget they don't read), or the project has no value.
+    Blank,
+}
+
+/// One project's line of a company report.
+#[derive(Clone, Debug, Serialize)]
+pub struct CompanyRow {
+    pub project: Id<Project>,
+    pub name: String,
+    pub cells: Vec<Cell>,
+}
+
+fn count_of(rows: &[SummaryRow], tool: &str) -> Cell {
+    rows.iter().find(|r| r.tool == tool).map_or(Cell::Blank, |r| Cell::Count(r.open))
+}
+
+/// The projects the actor may open, one line each with the chosen columns; the projects can be limited to a stage and
+/// sorted by a column. What the actor can't see of a project is blank.
+pub fn company_report(
+    state: &CompanyState,
+    actor: Actor,
+    today: Date,
+    columns: &[buildkiosk_model::saved_report::ReportColumn],
+    stage: Option<buildkiosk_model::project::ProjectStage>,
+    sort: Option<buildkiosk_model::saved_report::ReportColumn>,
+    descending: bool,
+) -> Vec<CompanyRow> {
+    use buildkiosk_model::Choice;
+    use buildkiosk_model::saved_report::ReportColumn as C;
+    let mut rows: Vec<CompanyRow> = view::projects_for(state, actor)
+        .into_iter()
+        .filter(|p| stage.is_none_or(|s| p.stage == s))
+        .map(|p| {
+            let summary = project_summary(state, actor, p.id, today);
+            let (open, overdue) = summary.iter().fold((0, 0), |a, r| (a.0 + r.open, a.1 + r.overdue));
+            let budget = if readable(state, actor, p.id, Tool::Budget) {
+                view::budget_rows(state, p.id).ok().and_then(|r| view::budget_totals(&r).ok())
+            } else {
+                None
+            };
+            let late = if readable(state, actor, p.id, Tool::Schedule) {
+                Cell::Count(crate::sched::rows(state, p.id, today).iter().filter(|r| !r.summary && r.late).count())
+            } else {
+                Cell::Blank
+            };
+            let money = |m: Option<buildkiosk_core::Money>| m.map_or(Cell::Blank, Cell::Money);
+            let cells = columns
+                .iter()
+                .map(|c| match c {
+                    C::Number => Cell::Text(p.number.clone()),
+                    C::Stage => Cell::Text(p.stage.label().to_string()),
+                    C::Start => p.start.map_or(Cell::Blank, Cell::Date),
+                    C::Completion => p.completion.map_or(Cell::Blank, Cell::Date),
+                    C::Open => Cell::Count(open),
+                    C::Overdue => Cell::Count(overdue),
+                    C::Rfis => count_of(&summary, "RFIs"),
+                    C::Submittals => count_of(&summary, "Submittals"),
+                    C::Punch => count_of(&summary, "Punch list"),
+                    C::LateTasks => late.clone(),
+                    C::Revised => money(budget.map(|t| t.revised())),
+                    C::Committed => money(budget.map(|t| t.committed)),
+                    C::Cost => money(budget.map(|t| t.cost())),
+                    C::Projected => money(budget.map(|t| t.projected)),
+                    C::Variance => money(budget.map(|t| t.variance())),
+                })
+                .collect();
+            CompanyRow { project: p.id, name: p.name.clone(), cells }
+        })
+        .collect();
+    let key = |r: &CompanyRow| -> (u8, i128, String) {
+        let at = sort.and_then(|s| columns.iter().position(|c| *c == s));
+        match at.and_then(|i| r.cells.get(i)) {
+            Some(Cell::Count(n)) => (0, *n as i128, r.name.to_lowercase()),
+            Some(Cell::Money(m)) => (0, i128::from(m.cents()), r.name.to_lowercase()),
+            Some(Cell::Date(d)) => (0, i128::from(d.days_since_epoch()), r.name.to_lowercase()),
+            Some(Cell::Text(t)) => (0, 0, format!("{}\u{0}{}", t.to_lowercase(), r.name.to_lowercase())),
+            // Projects with nothing to show in the sort column go last either way.
+            Some(Cell::Blank) => (1, 0, r.name.to_lowercase()),
+            None => (0, 0, r.name.to_lowercase()),
+        }
+    };
+    rows.sort_by_key(|r| key(r));
+    if descending {
+        // Reverse the order of what has a value, keeping the blanks at the end.
+        let (mut with, without): (Vec<_>, Vec<_>) = rows.into_iter().partition(|r| key(r).0 == 0);
+        with.reverse();
+        with.extend(without);
+        rows = with;
+    }
+    rows
+}
+
+/// The totals row: the sum of every column that adds up (blank where nothing was visible to add).
+pub fn company_totals(rows: &[CompanyRow], columns: &[buildkiosk_model::saved_report::ReportColumn]) -> Vec<Cell> {
+    columns
+        .iter()
+        .enumerate()
+        .map(|(i, c)| {
+            if !c.adds_up() {
+                return Cell::Blank;
+            }
+            let mut count: Option<usize> = None;
+            let mut money: Option<buildkiosk_core::Money> = None;
+            for r in rows {
+                match r.cells.get(i) {
+                    Some(Cell::Count(n)) => count = Some(count.unwrap_or(0).saturating_add(*n)),
+                    Some(Cell::Money(m)) => money = Some(money.unwrap_or(buildkiosk_core::Money::ZERO).checked_add(*m).unwrap_or(*m)),
+                    _ => {}
+                }
+            }
+            match (count, money) {
+                (Some(n), _) => Cell::Count(n),
+                (_, Some(m)) => Cell::Money(m),
+                _ => Cell::Blank,
+            }
+        })
+        .collect()
+}

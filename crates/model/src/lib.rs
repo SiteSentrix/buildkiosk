@@ -30,6 +30,7 @@ pub mod prequal;
 pub mod project;
 pub mod punch;
 pub mod rfi;
+pub mod saved_report;
 pub mod schedule;
 pub mod spec;
 pub mod state;

@@ -58,3 +58,84 @@ fn portfolio_lists_only_your_projects() {
     assert_eq!(all.as_array().unwrap().len(), 2);
     let _ = b;
 }
+
+fn names(run: &serde_json::Value) -> Vec<String> {
+    run["rows"].as_array().unwrap().iter().map(|r| r["name"].as_str().unwrap().to_string()).collect()
+}
+
+#[test]
+fn company_reports_choose_columns_and_respect_visibility() {
+    let mut w = World::new();
+    let admin = w.admin();
+    let a = w.project("Riverside Clinic");
+    let b = w.project("Harbor Office");
+    let c = w.project("Annex");
+    w.ok(admin, "project.update", json!({"project": b, "stage": "closeout"}));
+    let pm = w.member(a, "Paula", "Manager", "Project manager");
+    let template = buildkiosk_engine::cmd::company::template_named(w.engine.state(), "Project manager").unwrap();
+    w.ok(admin, "member.add", json!({"project": b, "person": pm, "template": template}));
+    let sub = w.member(a, "Sam", "Sub", "Subcontractor");
+    let code = w.engine.state().cost_codes.iter().find(|x| x.code == "03-300").unwrap().id.raw();
+    w.ok(pm, "budget.import", json!({"project": a, "text": "03-300, 100000"}));
+    w.ok(pm, "budget.import", json!({"project": b, "text": "03-300, 50000"}));
+    w.ok(pm, "direct_cost.create", json!({"project": a, "cost_code": code, "amount": "30000", "description": "Pour", "date": "2026-10-01"}));
+    for n in 0..3 {
+        w.ok(pm, "task.create", json!({"project": a, "title": format!("Task {n}")}));
+    }
+    w.ok(pm, "task.create", json!({"project": b, "title": "One task"}));
+    w.ok(pm, "rfi.create", json!({"project": a, "subject": "Footing", "question": "Depth?"}));
+    let _ = c;
+
+    // The chosen columns come back in the table's order, with a totals row; projects sort by a column either way round.
+    w.err(pm, "company_report.run", json!({"columns": "revised, nonsense"}));
+    w.err(pm, "company_report.run", json!({"columns": ""}));
+    let run = w.ok(pm, "company_report.run", json!({"columns": ["variance", "revised", "open", "rfis"], "sort": "open", "descending": true}));
+    let labels: Vec<&str> = run["columns"].as_array().unwrap().iter().map(|c| c["key"].as_str().unwrap()).collect();
+    assert_eq!(labels, ["open", "rfis", "revised", "variance"]);
+    assert_eq!(names(&run), ["Riverside Clinic", "Harbor Office"], "Annex isn't one of Paula's projects; most open items first");
+    let first = &run["rows"][0]["cells"];
+    assert_eq!(
+        (first[0].as_u64(), first[1].as_u64(), first[2].as_str()),
+        (Some(3), Some(0), Some("100000.00")),
+        "three tasks; the new RFI is still a draft"
+    );
+    assert_eq!(run["totals"][0].as_u64(), Some(4));
+    assert_eq!(run["totals"][2].as_str(), Some("150000.00"));
+    let asc = w.ok(pm, "company_report.run", json!({"columns": "open", "sort": "open"}));
+    assert_eq!(names(&asc), ["Harbor Office", "Riverside Clinic"]);
+    // A stage limits the projects; a project with nothing to show in the sort column goes last either way.
+    let closeout = w.ok(pm, "company_report.run", json!({"columns": "stage,completion", "stage": "closeout"}));
+    assert_eq!(names(&closeout), ["Harbor Office"]);
+    assert_eq!(closeout["rows"][0]["cells"][0], "Closeout");
+    assert!(closeout["rows"][0]["cells"][1].is_null() || closeout["rows"][0]["cells"][1].as_str().is_none(), "no completion date");
+    let by_date = w.ok(pm, "company_report.run", json!({"columns": "completion", "sort": "completion", "descending": true}));
+    assert_eq!(names(&by_date).len(), 2);
+    // Someone who can't read the budget sees blanks, not zeros.
+    let blind = w.ok(sub, "company_report.run", json!({"columns": "open,revised"}));
+    assert_eq!(names(&blind), ["Riverside Clinic"]);
+    assert!(blind["rows"][0]["cells"][1].is_null(), "{blind}");
+    assert!(blind["totals"][1].is_null());
+
+    // Saved reports: yours, shared ones, and who may change them.
+    w.err(admin, "company_report.save", json!({"name": "x", "columns": ""}));
+    w.err(pm, "company_report.save", json!({"name": "Bad sort", "columns": "open", "sort": "revised"}));
+    w.err(pm, "company_report.save", json!({"name": "Bad stage", "columns": "open", "stage": "someday"}));
+    let mine = w.ok(pm, "company_report.save", json!({"name": "Budget watch", "columns": "revised,variance,open", "sort": "variance"}))["id"]
+        .as_u64()
+        .unwrap();
+    let shared = w.ok(pm, "company_report.save", json!({"name": "Everyone", "columns": "stage,open", "shared": true}))["id"].as_u64().unwrap();
+    w.err(pm, "company_report.save", json!({"name": "budget WATCH", "columns": "open"}));
+    assert_eq!(w.ok(pm, "company_report.list", json!({})).as_array().unwrap().len(), 2);
+    assert_eq!(w.ok(sub, "company_report.list", json!({})).as_array().unwrap().len(), 1, "only the shared one");
+    w.err(sub, "company_report.run", json!({"id": mine}));
+    assert_eq!(names(&w.ok(sub, "company_report.run", json!({"id": shared}))), ["Riverside Clinic"]);
+    assert_eq!(names(&w.ok(pm, "company_report.run", json!({"id": mine}))).len(), 2);
+    assert_eq!(w.ok(admin, "company_report.list", json!({})).as_array().unwrap().len(), 2, "a company admin sees them all");
+    w.err(sub, "company_report.save", json!({"id": shared, "name": "Mine now", "columns": "open"}));
+    w.err(sub, "company_report.delete", json!({"id": shared}));
+    w.ok(pm, "company_report.save", json!({"id": shared, "name": "Everyone", "columns": "stage,open,overdue", "shared": true}));
+    w.ok(admin, "company_report.delete", json!({"id": mine}));
+    w.err(pm, "company_report.run", json!({"id": mine}));
+    w.ok(pm, "company_report.delete", json!({"id": shared}));
+    w.assert_replay();
+}

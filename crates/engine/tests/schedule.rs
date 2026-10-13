@@ -448,3 +448,57 @@ fn moving_and_resizing_tasks() {
     w.err(pm, "schedule.move", json!({"project": p, "id": 2, "finish_shift": -20}));
     w.assert_replay();
 }
+
+#[test]
+fn the_schedule_exports_to_project_xml_and_reads_back() {
+    use buildkiosk_engine::cmd::schedule_xml::export_xml;
+    let mut w = World::new();
+    let p = w.project("Riverside & Sons <Clinic>");
+    let other = w.project("Copy");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let template = buildkiosk_engine::cmd::company::template_named(w.engine.state(), "Project manager").unwrap();
+    w.ok(w.admin(), "member.add", json!({"project": other, "person": pm, "template": template}));
+    let phase = w.ok(pm, "schedule.add", json!({"project": p, "name": "Foundations & \"footings\"", "start": "2026-10-12", "days": 1}))["id"]
+        .as_u64()
+        .unwrap();
+    let a = w.ok(pm, "schedule.add", json!({"project": p, "name": "Excavate", "start": "2026-10-12", "days": 3, "parent": phase}))["id"]
+        .as_u64()
+        .unwrap();
+    let b = w.ok(pm, "schedule.add", json!({"project": p, "name": "Pour <slab>", "start": "2026-10-16", "days": 2, "parent": phase, "predecessors": format!("{}FS+1", 2), "constraint": "snet", "constraint_date": "2026-10-16"}));
+    let _ = (a, b);
+    w.ok(pm, "schedule.add", json!({"project": p, "name": "Inspection", "start": "2026-10-22", "milestone": true}));
+
+    let today = buildkiosk_core::Date::parse("2026-10-12").unwrap();
+    let xml = export_xml(w.engine.state(), p, today);
+    assert!(
+        xml.starts_with("<?xml")
+            && xml.contains("<Name>Riverside &amp; Sons &lt;Clinic&gt;</Name>")
+            && xml.contains("Foundations &amp; &quot;footings&quot;")
+            && xml.contains("Pour &lt;slab&gt;"),
+        "{xml}"
+    );
+    assert!(
+        xml.contains("<OutlineLevel>2</OutlineLevel>")
+            && xml.contains("<Milestone>1</Milestone>")
+            && xml.contains("<ConstraintType>4</ConstraintType>")
+            && xml.contains("<PredecessorUID>2</PredecessorUID>"),
+        "{xml}"
+    );
+
+    // Reading the file into another project gives the same tasks, nesting, links and constraint.
+    w.ok(pm, "schedule.import_xml", json!({"project": other, "text": xml}));
+    let rows = |w: &World, project| {
+        buildkiosk_engine::sched::rows(w.engine.state(), project, today)
+            .into_iter()
+            .map(|r| (r.name, r.depth, r.start.to_string(), r.finish.to_string(), r.milestone, r.constraint))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(rows(&w, p), rows(&w, other));
+    let links = |w: &World, project| {
+        w.engine.state().schedule_tasks.iter().filter(|t| t.project == project && t.deleted.is_none()).map(|t| t.predecessors.len()).sum::<usize>()
+    };
+    assert_eq!((links(&w, p), links(&w, other)), (1, 1));
+    // An empty schedule is still a well-formed file.
+    let third = w.project("Empty");
+    assert!(export_xml(w.engine.state(), third, today).contains("<Tasks>"));
+}

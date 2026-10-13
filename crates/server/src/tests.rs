@@ -2280,6 +2280,82 @@ async fn bid_form_leveling_addenda_and_files() {
 }
 
 #[tokio::test]
+async fn company_reports_save_chart_and_export() {
+    let dir = temp("companyreports");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=Riverside+Clinic"))).await;
+    send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=Harbor+Office"))).await;
+    send(&app, post("/do/budget.import", &ada, format!("_csrf={csrf}&project=1&text=03-300%2C+100000"))).await;
+    send(&app, post("/do/budget.import", &ada, format!("_csrf={csrf}&project=2&text=03-300%2C+50000"))).await;
+    for n in 0..3 {
+        send(&app, post("/do/task.create", &ada, format!("_csrf={csrf}&project=1&title=T{n}"))).await;
+    }
+    let (st, _, page) = send(&app, get("/reports")).await;
+    assert!(
+        st == StatusCode::OK
+            && page.contains("Riverside Clinic")
+            && page.contains("Harbor Office")
+            && page.contains("150,000.00")
+            && page.contains("<svg"),
+        "{page}"
+    );
+    assert!(page.contains("Save a report") && page.contains("columns[]") && page.contains("Reports"), "{page}");
+    // Save one, run it, chart another column, export it.
+    let (_, h, _) = send(
+        &app,
+        post("/do/company_report.save", &ada, format!("_csrf={csrf}&_next=/reports&name=Open+work&columns[]=open&columns[]=rfis&columns[]=revised&stage=&sort=open&descending=true&shared=true")),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, page) = send(&app, get("/reports?report=1&chart=revised")).await;
+    assert!(
+        page.contains("Open work")
+            && page.contains("Change this report")
+            && page.contains("Delete this report")
+            && page.contains("Revised budget by project"),
+        "{page}"
+    );
+    assert!(page.find("Riverside Clinic").unwrap() < page.find("Harbor Office").unwrap(), "most open work first");
+    let (st, h, csv) = send(&app, get("/reports.csv?report=1")).await;
+    assert!(st == StatusCode::OK && h.get("content-disposition").is_some(), "{csv}");
+    assert!(
+        csv.starts_with("Project,Needs action,Open RFIs,Revised budget\r\n")
+            && csv.contains("Riverside Clinic,3,0,100000.00")
+            && csv.contains("Harbor Office,0,0,50000.00")
+            && csv.contains("Total,3,0,150000.00"),
+        "{csv}"
+    );
+    let (st, h, pdf) = send(&app, get("/reports.pdf?report=1")).await;
+    assert!(st == StatusCode::OK && h.get(CONTENT_TYPE).unwrap() == "application/pdf" && pdf.starts_with("%PDF"));
+    assert_eq!(send(&app, get("/reports.csv?report=99")).await.0, StatusCode::NOT_FOUND);
+    // The schedule leaves as a project file.
+    send(&app, post("/do/schedule.add", &ada, format!("_csrf={csrf}&project=1&name=Excavate&start=2026-10-12&days=3"))).await;
+    let (st, h, xml) = send(&app, get("/projects/1/schedule.xml")).await;
+    assert!(
+        st == StatusCode::OK
+            && h.get("content-disposition").unwrap().to_str().unwrap().contains("schedule.xml")
+            && xml.contains("<Name>Excavate</Name>"),
+        "{xml}"
+    );
+    let (_, _, sched) = send(&app, get("/projects/1/schedule")).await;
+    assert!(sched.contains("schedule.xml"), "{sched}");
+    // Deleting it.
+    let (_, h, _) = send(&app, post("/do/company_report.delete", &ada, format!("_csrf={csrf}&_next=/reports&id=1"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
 async fn estimate_form_totals_apply_and_csv() {
     let dir = temp("estimating");
     let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());

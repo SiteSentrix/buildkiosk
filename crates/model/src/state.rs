@@ -21,6 +21,7 @@ use crate::incident::Incident;
 use crate::meeting::Meeting;
 use crate::photo::Photo;
 use crate::prequal::{PrequalForm, Prequalification};
+use crate::saved_report::SavedReport;
 use crate::schedule::ScheduleTask;
 use crate::spec::SpecSection;
 use crate::submittal::Submittal;
@@ -131,6 +132,7 @@ tables! {
     vendors: Vendor,
     prequalifications: Prequalification,
     prequal_forms: PrequalForm,
+    saved_reports: SavedReport,
     groups: DistributionGroup,
     templates: PermissionTemplate,
     projects: Project,

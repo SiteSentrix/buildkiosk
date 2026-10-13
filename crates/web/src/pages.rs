@@ -80,7 +80,7 @@ pub fn home(req: &Req<'_>) -> Markup {
         }
         @if projects.len() > 1 {
             div class="card" {
-                h2 { "Portfolio" }
+                div class="card-head" { h2 { "Portfolio" } a class="btn small" href="/reports" { "Choose columns, chart and export" } }
                 div class="table-wrap" { table class="data" {
                     thead { tr { th { "Project" } th { "Stage" } th class="num" { "Needs action" } th class="num" { "Past due" } th class="num" { "Revised budget" } th class="num" { "Projected over / under" } } }
                     tbody { @for r in buildkiosk_engine::report::portfolio(state, actor, req.today()) { tr {

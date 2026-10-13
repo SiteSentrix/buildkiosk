@@ -39,7 +39,7 @@ pub fn list(req: &Req<'_>, id: Id<Project>, status: Option<MeetingStatus>, q: &s
     let today = req.today();
     // Every open action across the project's meetings, soonest due first.
     let mut open: Vec<(&Meeting, usize)> =
-        all.iter().flat_map(|m| m.actions.iter().enumerate().filter(|(_, a)| !a.done).map(move |(i, _)| (*m, i))).collect();
+        all.iter().flat_map(|m| m.actions.iter().enumerate().filter(|(_, a)| a.is_open()).map(move |(i, _)| (*m, i))).collect();
     open.sort_by_key(|(m, i)| (m.actions.get(*i).and_then(|a| a.due).is_none(), m.actions.get(*i).and_then(|a| a.due), m.number));
     let base = format!("/projects/{id}/meetings");
     let body = html! {
@@ -79,7 +79,7 @@ pub fn list(req: &Req<'_>, id: Id<Project>, status: Option<MeetingStatus>, q: &s
                     td class="nowrap" { (m.date.to_string()) }
                     td { a href=(format!("{base}/{}", m.id)) { (m.title) } }
                     td { (dash(&m.category)) }
-                    td { (m.actions.iter().filter(|a| !a.done).count()) }
+                    td { (m.actions.iter().filter(|a| a.is_open()).count()) }
                     td { (status_pill(m.status)) }
                 } } }
             } }
@@ -108,11 +108,17 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, mid: Id<Meeting>) -> Markup {
     let author = m.created.by.is_some() && m.created.by == req.actor().person();
     let can_edit = req.allowed("meeting.update", Some(id)) && (admin || (author && m.status == MeetingStatus::Scheduled));
     let today = req.today();
+    let can_task = req.allowed("meeting.action_to_task", Some(id)) && view::level(state, req.actor(), id, Tool::Tasks) >= Level::Standard;
+    let earlier_open = can_edit
+        && state.meetings.iter().any(|x| {
+            x.project == id && x.deleted.is_none() && x.id != m.id && (x.date, x.number) < (m.date, m.number) && x.actions.iter().any(|a| a.is_open())
+        });
     let body = html! {
         div class="page-head" {
             div { h1 { (m.label()) ": " (m.title) " " (status_pill(m.status)) } div class="sub" { (m.date.pretty()) @if !m.time.is_empty() { " · " (m.time) } @if !m.location.is_empty() { " · " (m.location) } @if !m.category.is_empty() { " · " (m.category) } } }
             div class="actions" {
                 a class="btn" href=(format!("{here}/pdf")) { "PDF" }
+                a class="btn" href=(format!("{here}/signin.pdf")) { "Sign-in sheet" }
                 @if can_edit { a class="btn" href=(format!("{here}/edit")) { "Edit" } }
                 @if can_edit && m.status == MeetingStatus::Scheduled { (button_form(req, "meeting.issue", &here, &ids, "Issue minutes", "primary")) }
                 @if admin && m.status == MeetingStatus::Issued { (button_form(req, "meeting.reopen", &here, &ids, "Reopen minutes", "")) }
@@ -136,17 +142,51 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, mid: Id<Meeting>) -> Markup {
             h2 { "Action items" }
             @if m.actions.is_empty() { p class="muted" { "No action items." } } @else {
                 table class="data" {
-                    thead { tr { th { "Action" } th { "Who" } th { "Due" } th { "Done" } } }
+                    thead { tr { th { "Action" } th { "Who" } th { "Due" } th { "Done" } @if can_task { th {} } } }
                     tbody { @for (i, a) in m.actions.iter().enumerate() { tr {
-                        td { (a.description) }
+                        td {
+                            (a.description)
+                            @if let Some(f) = a.from_meeting.and_then(|f| state.meetings.get(f)) { " " span class="tag" { "From " a href=(format!("{base}/{}", f.id)) { (f.label()) } } }
+                            @if a.carried { " " span class="tag" { "Carried forward" } }
+                            @if let Some(t) = a.task.and_then(|t| state.tasks.get(t)) { " " span class="tag" { "Task " a href=(format!("/projects/{id}/tasks/{}", t.id)) { "#" (t.number) } } }
+                        }
                         td { (a.assignee.map(|x| view::person_name(state, x)).unwrap_or_default()) }
                         td class="nowrap" { @if let Some(d) = a.due { @if d < today && !a.done { span class="overdue" { (d.to_string()) } } @else { (d.to_string()) } } }
                         td {
                             @if req.allowed("meeting.set_action", Some(id)) && (admin || author || (a.assignee.is_some() && a.assignee == req.actor().person())) {
                                 (button_form(req, "meeting.set_action", &here, &[("project", id.to_string()), ("id", mid.to_string()), ("index", i.to_string()), ("done", (!a.done).to_string())], if a.done { "Done · reopen" } else { "Mark done" }, "small"))
-                            } @else if a.done { span class="pill green" { "Done" } } @else { span class="pill amber" { "Open" } }
+                            } @else if a.done { span class="pill green" { "Done" } } @else if a.carried { span class="pill" { "Carried" } } @else { span class="pill amber" { "Open" } }
                         }
+                        @if can_task { td { @if a.task.is_none() && !a.done && (admin || author || (a.assignee.is_some() && a.assignee == req.actor().person())) {
+                            (button_form(req, "meeting.action_to_task", &here, &[("project", id.to_string()), ("id", mid.to_string()), ("index", i.to_string())], "Make a task", "small"))
+                        } } }
                     } } }
+                }
+            }
+        }
+        @if earlier_open {
+            div class="card" {
+                h2 { "Open actions from earlier meetings" }
+                p class="muted small" { "Bring the actions still open from the previous meeting of this type into this one. They are marked as carried forward there, so each is counted once." }
+                (button_form(req, "meeting.carry_actions", &here, &ids, "Carry open actions forward", "small"))
+            }
+        }
+        @if req.allowed("meeting.repeat", Some(id)) {
+            div class="card" {
+                details class="disclosure" {
+                    summary { "Schedule more of these meetings" }
+                    (command_form(req, "meeting.repeat", &here, &base, html! {
+                        input type="hidden" name="project" value=(id);
+                        input type="hidden" name="id" value=(mid);
+                        div class="form-grid" {
+                            (field("How often", "rep_every", true, false, html! { select id="rep_every" name="every" {
+                                option value="weekly" { "Every week" } option value="biweekly" { "Every two weeks" } option value="monthly" { "Every month" }
+                            } }))
+                            (field("How many more", "rep_count", true, false, html! { input type="number" id="rep_count" name="count" min="1" max="26" value="4" required; }))
+                        }
+                        p class="muted small" { "Each has the same title, type, time, place, invitees and agenda topics, on the dates after this one." }
+                        div class="form-actions" { button type="submit" class="btn primary" { "Schedule" } }
+                    }))
                 }
             }
         }

@@ -170,6 +170,20 @@ impl WorkItem for Task {
     /// A repeating task makes the next one: the same work, due a step later (the first due date that is
     /// still ahead, so a task closed late doesn't start out overdue), unless it is past `repeat_until`.
     fn after_close(&mut self, ctx: &mut Ctx<'_>) -> Result<()> {
+        // A task made from a meeting action finishes the action, in the meeting it came from and in any later
+        // one the action was carried forward to.
+        if self.meeting.is_some() {
+            let me = self.id;
+            let holders: Vec<_> =
+                ctx.state.meetings.iter().filter(|m| m.actions.iter().any(|a| a.task == Some(me) && !a.done)).map(|m| m.id).collect();
+            for mid in holders {
+                ctx.state.meetings.update(mid, |m| {
+                    for a in m.actions.iter_mut().filter(|a| a.task == Some(me)) {
+                        a.done = true;
+                    }
+                });
+            }
+        }
         let (Some(due), true, None) = (self.due, self.repeat != Repeat::Never, self.next) else { return Ok(()) };
         let today = ctx.today();
         let mut next = self.repeat.step(due);

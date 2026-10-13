@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::common::{FileRef, Stamp};
 use crate::directory::Person;
 use crate::project::Project;
+use crate::task::Task;
 use crate::{choice, record};
 
 choice! {
@@ -45,6 +46,22 @@ pub struct MeetingAction {
     pub due: Option<Date>,
     #[serde(default)]
     pub done: bool,
+    /// Brought forward to a later meeting, which now carries it: it no longer counts as open here.
+    #[serde(default)]
+    pub carried: bool,
+    /// The task made from this action (closing the task marks the action done).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub task: Option<Id<Task>>,
+    /// The earlier meeting this action was carried forward from.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from_meeting: Option<Id<Meeting>>,
+}
+
+impl MeetingAction {
+    /// Still to do, and not handed on to a later meeting.
+    pub fn is_open(&self) -> bool {
+        !self.done && !self.carried
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

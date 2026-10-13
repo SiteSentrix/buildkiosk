@@ -1674,6 +1674,27 @@ async fn meeting_form_issue_and_actions() {
     assert!(h.get(LOCATION).unwrap().to_str().unwrap().starts_with("/projects/1/meetings/1?ok="), "{h:?}");
     let (_, _, detail) = send(&app, get("/projects/1/meetings/1")).await;
     assert!(detail.contains("Look-ahead") && detail.contains("Order steel") && detail.contains("Mark done") && detail.contains("Issue minutes"));
+    assert!(detail.contains("Make a task") && detail.contains("Schedule more of these meetings") && detail.contains("Sign-in sheet"), "{detail}");
+    // The action becomes a task; the meeting is repeated; the open action is carried into the next one.
+    let (_, h, _) =
+        send(&app, post("/do/meeting.action_to_task", &ada, format!("_csrf={csrf}&_next=/projects/1/meetings/1&project=1&id=1&index=0"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, h, _) =
+        send(&app, post("/do/meeting.repeat", &ada, format!("_csrf={csrf}&_next=/projects/1/meetings&project=1&id=1&every=weekly&count=2"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, next) = send(&app, get("/projects/1/meetings/2")).await;
+    assert!(next.contains("Carry open actions forward") && next.contains("Oct 27, 2026"), "{next}");
+    let (_, h, _) = send(&app, post("/do/meeting.carry_actions", &ada, format!("_csrf={csrf}&_next=/projects/1/meetings/2&project=1&id=2"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, next) = send(&app, get("/projects/1/meetings/2")).await;
+    assert!(next.contains("Order steel") && next.contains("From") && next.contains("href=\"/projects/1/tasks/1\""), "{next}");
+    let (_, _, first) = send(&app, get("/projects/1/meetings/1")).await;
+    assert!(first.contains("Carried forward"), "{first}");
+    let (st, h, pdf) = send(&app, get("/projects/1/meetings/1/signin.pdf")).await;
+    assert!(st == StatusCode::OK && h.get(CONTENT_TYPE).unwrap() == "application/pdf" && pdf.starts_with("%PDF"));
+    send(&app, post("/do/task.close", &ada, format!("_csrf={csrf}&project=1&id=1"))).await;
+    let (_, _, next) = send(&app, get("/projects/1/meetings/2")).await;
+    assert!(next.contains("Done"), "closing the task finishes the carried action too: {next}");
     send(&app, post("/do/meeting.set_action", &ada, format!("_csrf={csrf}&project=1&id=1&index=0&done=true"))).await;
     send(&app, post("/do/meeting.issue", &ada, format!("_csrf={csrf}&project=1&id=1"))).await;
     let (_, _, list) = send(&app, get("/projects/1/meetings")).await;

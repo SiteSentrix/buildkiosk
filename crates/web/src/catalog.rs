@@ -31,6 +31,9 @@ pub fn page(req: &Req<'_>, q: &str, edit_item: Option<Id<CatalogItem>>, edit_ass
     codes.truncate(500);
     let part_rows = cur_asm.map(|a| a.parts.len()).unwrap_or(0) + 4;
     let here = "/catalog";
+    let mut suppliers: Vec<_> = state.vendors.iter().filter(|v| v.deleted.is_none()).collect();
+    suppliers.sort_by_key(|v| v.name.to_lowercase());
+    suppliers.truncate(500);
     let body = html! {
         div class="page-head" { div { h1 { "Price catalogue" } div class="sub" { "Unit costs and assemblies, shared by every project's estimates" } } }
         form method="get" action=(here) class="filters" {
@@ -66,11 +69,40 @@ pub fn page(req: &Req<'_>, q: &str, edit_item: Option<Id<CatalogItem>>, edit_ass
                     div class="form-actions" { button type="submit" class="btn primary" { "Save item" } }
                 }))
             }
+            @if let Some(i) = cur {
+                div class="card" {
+                    h2 { "Prices for " (i.name) }
+                    @if i.prices.is_empty() { p class="muted" { "No prices are recorded by date yet." } } @else {
+                        table class="data" {
+                            thead { tr { th { "From" } th class="num" { "Unit cost" } th { "Supplier" } th { "Note" } } }
+                            tbody { @for pt in i.prices.iter().rev() { tr {
+                                td class="nowrap" { (pt.date.pretty()) } td class="num" { (pt.unit_cost) }
+                                td { (pt.vendor.map(|v| buildkiosk_engine::view::vendor_name(state, v)).unwrap_or_default()) } td { (pt.note) }
+                            } } }
+                        }
+                        p class="muted small" { "The newest price is the item's unit cost; an estimate line copies the price on the day it is made." }
+                    }
+                    (command_form(req, "catalog.price", here, here, html! {
+                        input type="hidden" name="id" value=(i.id);
+                        div class="form-grid" {
+                            (field("Unit cost", "cp_cost", true, false, html! { input type="text" inputmode="decimal" id="cp_cost" name="unit_cost" required; }))
+                            (field("From", "cp_date", false, false, html! { input type="date" id="cp_date" name="date" value=(req.today().to_string()); }))
+                            (field("Supplier", "cp_vendor", false, false, html! { select id="cp_vendor" name="vendor" { option value="" { "None" } @for v in &suppliers { option value=(v.id) { (v.name) } } } }))
+                            (field("Note", "cp_note", false, false, html! { input type="text" id="cp_note" name="note"; }))
+                        }
+                        div class="form-actions" { button type="submit" class="btn small primary" { "Record a price" } }
+                    }))
+                }
+            }
             div class="card" {
                 details class="disclosure" {
                     summary { "Import a price list" }
                     p class="muted small" { "One item per line: name, unit, unit cost, category (optional), cost code (optional, from the company's standard list). An item with the same name has its price changed." }
                     (command_form(req, "catalog.import", here, here, html! {
+                        div class="form-grid" {
+                            (field("Supplier (if it is their price list)", "ci_vendor", false, false, html! { select id="ci_vendor" name="vendor" { option value="" { "None" } @for v in &suppliers { option value=(v.id) { (v.name) } } } }))
+                            (field("Prices are from", "ci_date", false, false, html! { input type="date" id="ci_date" name="date" value=(req.today().to_string()); }))
+                        }
                         (field("Lines", "ci_import", true, true, html! { textarea id="ci_import" name="text" required placeholder="Ready-mix concrete, cy, 185, Concrete, 03-300" {} }))
                         div class="form-actions" { button type="submit" class="btn primary" { "Import" } }
                     }))

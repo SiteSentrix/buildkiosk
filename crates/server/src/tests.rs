@@ -2262,6 +2262,17 @@ async fn timesheets_week_submit_and_approve() {
     assert!(h.get(LOCATION).is_some(), "{h:?}");
     let (_, _, csv) = send(&app, get("/projects/1/timesheets/cost.csv?from=2026-10-12&to=2026-10-18")).await;
     assert!(csv.ends_with("Approved,yes\r\n"), "{csv}");
+    // A saved crew can be logged together.
+    send(&app, post("/do/crew.save", &ada, format!("_csrf={csrf}&project=1&name=Concrete+crew&members%5B%5D=&members%5B%5D=1"))).await;
+    let (_, _, crew_page) = send(&app, get("/projects/1/timesheets?week=2026-10-19")).await;
+    assert!(crew_page.contains("Concrete crew") && crew_page.contains("A saved crew") && crew_page.contains("Add crew"), "{crew_page}");
+    send(
+        &app,
+        post("/do/timesheet.add", &ada, format!("_csrf={csrf}&project=1&date=2026-10-20&hours=6&cost_code=&description=&crew=1&people%5B%5D=")),
+    )
+    .await;
+    let (_, _, crew_week) = send(&app, get("/projects/1/timesheets.csv?week=2026-10-19")).await;
+    assert!(crew_week.contains("2026-10-20,Ada Admin,6"), "{crew_week}");
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -2398,6 +2409,12 @@ async fn bidding_package_bids_and_award() {
             && detail.contains("Award and start a commitment"),
         "{detail}"
     );
+    // Scoring criteria and a score typed into the form (the blank box stays unscored).
+    send(&app, post("/do/bid_package.set_criteria", &ada, format!("_csrf={csrf}&project=1&id=1&text=Price%2C+60%2C+price%0ASafety%2C+40"))).await;
+    send(&app, post("/do/bid_package.score", &ada, format!("_csrf={csrf}&project=1&id=1&vendor=2&scores.2=9"))).await;
+    send(&app, post("/do/bid_package.score", &ada, format!("_csrf={csrf}&project=1&id=1&vendor=1&scores.2="))).await;
+    let (_, _, scored) = send(&app, get("/projects/1/bidding/1")).await;
+    assert!(scored.contains("Scoring") && scored.contains("Total (of 10)") && scored.contains("not complete") && scored.contains("9.60"), "{scored}");
     send(&app, post("/do/bid_package.award", &ada, format!("_csrf={csrf}&project=1&id=1&vendor=2&commitment=true"))).await;
     let (_, _, detail) = send(&app, get("/projects/1/bidding/1")).await;
     assert!(detail.contains("Awarded") && detail.contains("A draft commitment was started"), "{detail}");
@@ -2439,7 +2456,7 @@ async fn bid_form_leveling_addenda_and_files() {
     );
     let (_, h, _) = send(
         &app,
-        post("/do/bid_package.record_bid", &ada, format!("_csrf={csrf}&_next=/projects/1/bidding/1&project=1&id=1&vendor=1&amount=&received=&notes=&lines.0.item=0&lines.0.unit_price=21&scope.0.item=0&scope.0.answer=included&scope.0.adjustment=&scope.1.item=1&scope.1.answer=excluded&scope.1.adjustment=2500&alternates.0.index=0&alternates.0.amount=4000&bond_received=true&bond_amount=1000")),
+        post("/do/bid_package.record_bid", &ada, format!("_csrf={csrf}&_next=/projects/1/bidding/1&project=1&id=1&vendor=1&amount=&received=&notes=&lines.0.item=0&lines.0.unit_price=21&scope.0.item=0&scope.0.answer=included&scope.0.adjustment=&scope.1.item=1&scope.1.answer=excluded&scope.1.adjustment=2500&alternates.0.index=0&alternates.0.amount=4000&bond_received=true&bond_amount=1050")),
     )
     .await;
     assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
@@ -2638,6 +2655,13 @@ async fn estimate_form_totals_apply_and_csv() {
     )
     .await;
     assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    send(&app, post("/do/catalog.price", &ada, format!("_csrf={csrf}&_next=/catalog&id=1&unit_cost=182.50&date=2026-10-01&vendor=&note=Quote")))
+        .await;
+    let (_, _, hist) = send(&app, get("/catalog?edit=1")).await;
+    assert!(
+        hist.contains("Prices for Ready-mix") && hist.contains("182.50") && hist.contains("Record a price") && hist.contains("Import a price list"),
+        "{hist}"
+    );
     let (_, h, _) = send(&app, post("/do/catalog.import", &ada, format!("_csrf={csrf}&_next=/catalog&text=Mesh%2C+sf%2C+0.45%2C+Concrete"))).await;
     assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
     let (_, h, _) = send(&app, post("/do/assembly.save", &ada, format!("_csrf={csrf}&_next=/catalog&name=Slab&unit=sf&parts.0.item=1&parts.0.quantity=0.012&parts.1.item=2&parts.1.quantity=1&parts.2.item=&parts.2.quantity="))).await;

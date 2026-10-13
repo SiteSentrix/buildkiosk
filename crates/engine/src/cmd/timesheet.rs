@@ -12,7 +12,7 @@ use buildkiosk_model::directory::Person;
 use buildkiosk_model::finance::DirectCost;
 use buildkiosk_model::project::CostType;
 use buildkiosk_model::project::{CostCode, Project};
-use buildkiosk_model::timesheet::{OvertimeRules, PayRate, TimeEntry, TimeStatus};
+use buildkiosk_model::timesheet::{Crew, OvertimeRules, PayRate, TimeEntry, TimeStatus};
 use buildkiosk_model::{CompanyState, Level, Tool};
 use serde_json::{Value, json};
 
@@ -28,7 +28,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Log hours",
         Tool::Timesheets,
         Access::Project(Level::Standard),
-        "project: project id; date: YYYY-MM-DD; hours: 0 to 24 (one decimal); cost_code?: cost code id; description?: text; person?: person id (admins only; default yourself); people?: [person ids] (admins: the same hours for a whole crew, one entry each)",
+        "project: project id; date: YYYY-MM-DD; hours: 0 to 24 (one decimal); cost_code?: cost code id; description?: text; person?: person id (admins only; default yourself); people?: [person ids] and/or crew?: crew id (admins: the same hours for a whole crew, one entry each)",
         add,
     ),
     CommandSpec::mutate(
@@ -71,6 +71,16 @@ pub const COMMANDS: &[CommandSpec] = &[
         "project: project id; ids: [entry ids] or person with from, to?; note?: text (submitted entries go back to draft)",
         return_back,
     ),
+    CommandSpec::mutate(
+        "crew.save",
+        "Save crew",
+        Tool::Timesheets,
+        Access::Project(Level::Admin),
+        "project: project id; id?: crew id (changes it); name: text; members: [person ids] (a crew to log hours for together)",
+        crew_save,
+    ),
+    CommandSpec::mutate("crew.delete", "Delete crew", Tool::Timesheets, Access::Project(Level::Admin), "project, id: ids", crew_delete),
+    CommandSpec::query("crew.list", "List crews", Tool::Timesheets, Access::Project(Level::Admin), "project: project id", crew_list),
     CommandSpec::mutate(
         "timesheet.set_rate",
         "Set pay rate",
@@ -165,7 +175,14 @@ fn hours(p: &Params<'_>) -> Result<u32> {
 
 fn add(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     let project: Id<Project> = p.id("project")?;
-    let crew: Vec<Id<Person>> = if p.present("people") { p.ids("people")? } else { Vec::new() };
+    let mut crew: Vec<Id<Person>> = if p.present("people") { p.ids("people")? } else { Vec::new() };
+    if let Some(c) = p.opt_id::<Crew>("crew")? {
+        let c = in_project(&ctx.state.crews, project, c, "crew")?;
+        if c.deleted.is_some() {
+            return Err(p.bad("crew", format!("crew {} not found in this project", c.id)));
+        }
+        crew.extend(c.members.iter().copied());
+    }
     let people: Vec<Id<Person>> = if !crew.is_empty() {
         if !is_admin(ctx, project) {
             return Err(EngineError::forbidden("only Timesheets admins can log hours for a crew"));
@@ -431,6 +448,70 @@ fn list(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
         .filter(|e| status.is_none_or(|s| e.status == s))
         .collect();
     json(&list)
+}
+
+// -- crews
+
+fn crew_save(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let name = p.req_line("name", text::SHORT)?;
+    let mut members: Vec<Id<Person>> = p.ids("members")?;
+    members.sort();
+    members.dedup();
+    if members.is_empty() || members.len() > MAX_CREW {
+        return Err(p.bad("members", format!("name between 1 and {MAX_CREW} people")));
+    }
+    for m in &members {
+        ctx.check_person(*m)?;
+    }
+    let existing = p.opt_id::<Crew>("id")?;
+    if let Some(id) = existing {
+        let c = in_project(&ctx.state.crews, project, id, "crew")?;
+        if c.deleted.is_some() {
+            return Err(EngineError::not_found(format!("crew {id} not found in this project")));
+        }
+    }
+    if ctx.state.crews.iter().any(|c| c.project == project && c.deleted.is_none() && Some(c.id) != existing && c.name.eq_ignore_ascii_case(&name)) {
+        return Err(p.bad("name", "is already the name of a crew"));
+    }
+    let stamp = ctx.stamp();
+    let id = match existing {
+        Some(id) => {
+            ctx.state.crews.update(id, |c| (c.name, c.members) = (name, members));
+            id
+        }
+        None => {
+            if ctx.state.crews.iter().filter(|c| c.project == project && c.deleted.is_none()).count() >= 100 {
+                return Err(EngineError::conflict("a project keeps at most 100 crews"));
+            }
+            let id = ctx.state.crews.alloc();
+            ctx.state.crews.put(Crew { id, project, name, members, created: stamp, deleted: None });
+            id
+        }
+    };
+    Ok(json!({ "id": id }))
+}
+
+fn crew_delete(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let id: Id<Crew> = p.id("id")?;
+    if in_project(&ctx.state.crews, project, id, "crew")?.deleted.is_some() {
+        return Err(EngineError::not_found(format!("crew {id} not found in this project")));
+    }
+    let stamp = ctx.stamp();
+    ctx.state.crews.update(id, |c| c.deleted = Some(stamp));
+    Ok(json!({ "id": id }))
+}
+
+/// The project's crews, by name.
+pub fn crews(state: &CompanyState, project: Id<Project>) -> Vec<&Crew> {
+    let mut v: Vec<&Crew> = state.crews.iter().filter(|c| c.project == project && c.deleted.is_none()).collect();
+    v.sort_by_key(|c| c.name.to_lowercase());
+    v
+}
+
+fn crew_list(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
+    json(&crews(v.state, p.id("project")?))
 }
 
 // -- pay and overtime

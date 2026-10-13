@@ -204,6 +204,55 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, bid: Id<BidPackage>) -> Markup {
                 } }
             }
         }
+        @if !b.criteria.is_empty() || (can_edit && b.status != BidStatus::Awarded) {
+            div class="card" {
+                h2 { "Scoring" }
+                @if b.criteria.is_empty() {
+                    p class="muted" { "Bids are compared on price alone. Add criteria to weigh other things, such as safety record or schedule." }
+                } @else {
+                    @let ranked = { let mut v: Vec<(&buildkiosk_engine::model::bidding::Bid, Option<u32>)> = standing.iter().map(|x| (*x, b.weighted(x))).collect(); v.sort_by_key(|(_, t)| std::cmp::Reverse(t.unwrap_or(0))); v };
+                    div class="table-wrap" { table class="data" {
+                        thead { tr { th { "Company" } @for c in &b.criteria { th class="num" { (c.name) " " span class="muted small" { (c.weight) "%" } } } th class="num" { "Total (of 10)" } } }
+                        tbody { @for (x, total) in &ranked { tr {
+                            td { strong { (vname(x.vendor)) } }
+                            @for (i, c) in b.criteria.iter().enumerate() { td class="num" {
+                                @if c.price {
+                                    @let low_c = standing.iter().map(|y| y.leveled().unwrap_or(y.amount).cents()).filter(|v| *v > 0).min().unwrap_or(0);
+                                    @let mine = x.leveled().unwrap_or(x.amount).cents();
+                                    @if mine > 0 { (format!("{:.2}", (1000 * low_c / mine) as f64 / 100.0)) } @else { "—" }
+                                } @else { @if let Some(sc) = x.scores.iter().find(|s| s.criterion as usize == i) { (sc.score) } @else { span class="muted" { "—" } } }
+                            } }
+                            td class="num" { @if let Some(t) = total { strong { (format!("{:.2}", f64::from(*t) / 100.0)) } } @else { span class="muted" { "not complete" } } }
+                        } } }
+                    } }
+                }
+                @if can_edit && b.status != BidStatus::Awarded {
+                    @for x in &standing { @if !b.criteria.is_empty() {
+                        details class="disclosure" {
+                            summary { "Score " (vname(x.vendor)) }
+                            (command_form(req, "bid_package.score", &here, &here, html! {
+                                input type="hidden" name="project" value=(id); input type="hidden" name="id" value=(bid); input type="hidden" name="vendor" value=(x.vendor);
+                                div class="form-grid" {
+                                    @for (i, c) in b.criteria.iter().enumerate() { @if !c.price {
+                                        (field(&format!("{} (0 to 10)", c.name), &format!("sc_{}_{i}", x.vendor), false, false, html! { input type="number" min="0" max="10" id=(format!("sc_{}_{i}", x.vendor)) name=(format!("scores.{}", i + 1)) value=(x.scores.iter().find(|s| s.criterion as usize == i).map(|s| s.score.to_string()).unwrap_or_default()); }))
+                                    } }
+                                }
+                                div class="form-actions" { button type="submit" class="btn small primary" { "Save scores" } }
+                            }))
+                        }
+                    } }
+                    details class="disclosure" {
+                        summary { "Set the criteria" }
+                        (command_form(req, "bid_package.set_criteria", &here, &here, html! {
+                            input type="hidden" name="project" value=(id); input type="hidden" name="id" value=(bid);
+                            (field("One per line: name, weight (adding up to 100), then price for the one worked out from the bids", "crit_text", false, true, html! { textarea id="crit_text" name="text" rows="5" placeholder="Price, 50, price\nSafety record, 30\nSchedule, 20" { (b.criteria.iter().map(|c| format!("{}, {}{}\n", c.name, c.weight, if c.price { ", price" } else { "" })).collect::<String>()) } }))
+                            p class="muted small" { "Changing the criteria clears the scores already given." }
+                            div class="form-actions" { button type="submit" class="btn small" { "Save criteria" } }
+                        }))
+                    }
+                }
+            }
+        }
         div class="card" {
             h2 { "Addenda" }
             @if b.addenda.is_empty() { p class="muted" { "None issued." } } @else {

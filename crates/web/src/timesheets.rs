@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use buildkiosk_core::{Date, Id};
-use buildkiosk_engine::cmd::timesheet::{rate_list, report, visible};
+use buildkiosk_engine::cmd::timesheet::{crews, rate_list, report, visible};
 use buildkiosk_engine::model::daily_log::hours_text;
 use buildkiosk_engine::model::project::Project;
 use buildkiosk_engine::model::timesheet::{TimeEntry, TimeStatus};
@@ -50,6 +50,7 @@ pub fn page(req: &Req<'_>, id: Id<Project>, week: Option<Date>) -> Markup {
     let codes = view::project_cost_codes(state, id);
     let days: Vec<Date> = (0..7).filter_map(|i| start.add_days(i)).collect();
     let people = if admin { user_options(req, id, true) } else { Vec::new() };
+    let saved_crews = if admin { crews(state, id) } else { Vec::new() };
     // Admin: one row per person for the week.
     let mut by_person: BTreeMap<String, (buildkiosk_core::Id<buildkiosk_engine::model::directory::Person>, u64, u64, u64)> = BTreeMap::new();
     if admin {
@@ -106,6 +107,9 @@ pub fn page(req: &Req<'_>, id: Id<Project>, week: Option<Date>) -> Markup {
                 @if admin {
                     details class="disclosure" {
                         summary { "Log the same hours for a crew" }
+                        @if !saved_crews.is_empty() {
+                            (field("A saved crew", "crew", false, false, html! { select id="crew" name="crew" { option value="" { "None" } @for c in &saved_crews { option value=(c.id) { (c.name) " (" (c.members.len()) ")" } } } }))
+                        }
                         input type="hidden" name="people[]" value="";
                         div class="options" { @for x in &people { label { input type="checkbox" name="people[]" value=(x.id); (x.name()) } } }
                         p class="muted small" { "Each ticked person gets their own entry for this day. With nobody ticked, the hours are yours." }
@@ -131,6 +135,35 @@ pub fn page(req: &Req<'_>, id: Id<Project>, week: Option<Date>) -> Markup {
                         } } }
                     } }
                 }
+            }
+        }
+    };
+    let body = html! {
+        (body)
+        @if admin {
+            div class="card" {
+                h2 { "Crews" }
+                @if saved_crews.is_empty() { p class="muted" { "A crew is a named group you log hours for together." } }
+                @for c in &saved_crews {
+                    details class="disclosure" {
+                        summary { (c.name) " · " (c.members.len()) " people" }
+                        (command_form(req, "crew.save", &here, &here, html! {
+                            input type="hidden" name="project" value=(id); input type="hidden" name="id" value=(c.id);
+                            div class="form-grid" { (field("Name", &format!("cr_n{}", c.id), true, false, html! { input type="text" id=(format!("cr_n{}", c.id)) name="name" required value=(c.name); })) }
+                            input type="hidden" name="members[]" value="";
+                            div class="options" { @for x in &people { label { input type="checkbox" name="members[]" value=(x.id) checked[c.members.contains(&x.id)]; (x.name()) } } }
+                            div class="form-actions" { button type="submit" class="btn small primary" { "Save crew" } }
+                        }))
+                        (button_form(req, "crew.delete", &here, &[("project", id.to_string()), ("id", c.id.to_string())], "Delete crew", "small danger"))
+                    }
+                }
+                (command_form(req, "crew.save", &here, &here, html! {
+                    input type="hidden" name="project" value=(id);
+                    div class="form-grid" { (field("New crew", "cr_new", true, false, html! { input type="text" id="cr_new" name="name" required placeholder="Concrete crew"; })) }
+                    input type="hidden" name="members[]" value="";
+                    div class="options" { @for x in &people { label { input type="checkbox" name="members[]" value=(x.id); (x.name()) } } }
+                    div class="form-actions" { button type="submit" class="btn small primary" { "Add crew" } }
+                }))
             }
         }
     };

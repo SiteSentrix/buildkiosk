@@ -201,3 +201,69 @@ fn addenda_and_files() {
     w.err(pm, "bid_package.attach", json!({"project": p, "id": id, "sha256": SHA, "name": "late.pdf", "size": 1}));
     w.assert_replay();
 }
+
+#[test]
+fn weighted_scoring_and_the_size_of_the_bond() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let reader = w.member(p, "Rae", "Reader", "Read only");
+    let admin = w.admin();
+    let a = w.ok(admin, "vendor.create", json!({"name": "Keystone Concrete", "kind": "subcontractor"}))["id"].as_u64().unwrap();
+    let b = w.ok(admin, "vendor.create", json!({"name": "Northline Concrete", "kind": "subcontractor"}))["id"].as_u64().unwrap();
+    let id =
+        w.ok(pm, "bid_package.create", json!({"project": p, "title": "Concrete", "invite": [a, b], "bond_percent": "10"}))["id"].as_u64().unwrap();
+    w.ok(pm, "bid_package.open", json!({"project": p, "id": id}));
+
+    // Criteria: weights add up to 100, one can be the price, no repeats.
+    for bad in
+        ["Price, 50, price\nSafety record, 30", "Price, 100, price\nPrice, 0", "A, 60\nB, 40, cheap", "A, 50, price\nB, 50, price", "A, 0", ", 100"]
+    {
+        w.err(pm, "bid_package.set_criteria", json!({"project": p, "id": id, "text": bad}));
+    }
+    w.err(reader, "bid_package.set_criteria", json!({"project": p, "id": id, "text": "A, 100"}));
+    w.err(pm, "bid_package.score", json!({"project": p, "id": id, "vendor": a, "scores": {"1": 5}}));
+    w.ok(pm, "bid_package.set_criteria", json!({"project": p, "id": id, "text": "Price, 50, price\nSafety record, 30\nSchedule, 20"}));
+
+    // Bids: a bond below 10% of the bid is refused when recorded; the right one is taken.
+    w.err(
+        pm,
+        "bid_package.record_bid",
+        json!({"project": p, "id": id, "vendor": a, "amount": "100000", "bond_received": true, "bond_amount": "5000"}),
+    );
+    w.ok(
+        pm,
+        "bid_package.record_bid",
+        json!({"project": p, "id": id, "vendor": a, "amount": "100000", "bond_received": true, "bond_amount": "10000"}),
+    );
+    w.ok(pm, "bid_package.record_bid", json!({"project": p, "id": id, "vendor": b, "amount": "125000", "bond_received": true}));
+
+    // The price criterion is worked out (low bid 10.00; the other 100000/125000 of that = 8.00); the rest is scored 0 to 10.
+    let level = |w: &mut World| w.ok(pm, "bid_package.level", json!({"project": p, "id": id}));
+    assert!(level(&mut w)["rows"][0]["weighted"].is_null(), "unscored criteria leave the total open");
+    w.err(pm, "bid_package.score", json!({"project": p, "id": id, "vendor": a, "scores": {"1": 5}}));
+    w.err(pm, "bid_package.score", json!({"project": p, "id": id, "vendor": a, "scores": {"2": 11}}));
+    w.err(pm, "bid_package.score", json!({"project": p, "id": id, "vendor": a, "scores": {"4": 5}}));
+    w.err(pm, "bid_package.score", json!({"project": p, "id": id, "vendor": 9999, "scores": {"2": 5}}));
+    w.ok(pm, "bid_package.score", json!({"project": p, "id": id, "vendor": a, "scores": {"2": 6, "3": 8}}));
+    w.ok(pm, "bid_package.score", json!({"project": p, "id": id, "vendor": b, "scores": {"2": 10, "3": 9}}));
+    let pkg = package(&w, id);
+    let total = |v: u64| pkg.weighted(pkg.bids.iter().find(|x| x.vendor.raw() == v).unwrap());
+    // Keystone: 50*10 + 30*6 + 20*8 = 500+180+160 = 840 / 100 -> 8.40; Northline: 50*8 + 30*10 + 20*9 = 400+300+180 -> 8.80.
+    assert_eq!((total(a), total(b)), (Some(840), Some(880)));
+    let rows = level(&mut w);
+    let weighted: Vec<f64> = rows["rows"].as_array().unwrap().iter().map(|r| r["weighted"].as_f64().unwrap()).collect();
+    assert_eq!(weighted, vec![8.4, 8.8], "cheapest first, each with its total");
+
+    // A revised bid keeps the scores; changing the criteria clears them.
+    w.ok(
+        pm,
+        "bid_package.record_bid",
+        json!({"project": p, "id": id, "vendor": a, "amount": "110000", "bond_received": true, "bond_amount": "11000"}),
+    );
+    assert_eq!(package(&w, id).bids.iter().find(|x| x.vendor.raw() == a).unwrap().scores.len(), 2);
+    // An award is refused while the recorded bond is short of the bid (Northline gave none: amount unknown is allowed).
+    w.ok(pm, "bid_package.award", json!({"project": p, "id": id, "vendor": b}));
+    w.err(pm, "bid_package.set_criteria", json!({"project": p, "id": id, "text": "Price, 100, price"}));
+    w.assert_replay();
+}

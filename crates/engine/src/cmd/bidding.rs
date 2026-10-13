@@ -8,7 +8,8 @@
 
 use buildkiosk_core::{Date, Id, Money, Percent, text};
 use buildkiosk_model::bidding::{
-    Acknowledgement, Addendum, Bid, BidAlternate, BidItem, BidLine, BidPackage, BidStatus, BondReceipt, ScopeAnswer, ScopeResponse,
+    Acknowledgement, Addendum, Bid, BidAlternate, BidItem, BidLine, BidPackage, BidScore, BidStatus, BondReceipt, Criterion, ScopeAnswer,
+    ScopeResponse,
 };
 use buildkiosk_model::common::FileRef;
 use buildkiosk_model::directory::Vendor;
@@ -93,6 +94,22 @@ pub const COMMANDS: &[CommandSpec] = &[
         Access::Project(Level::Standard),
         "project, id: ids; vendor?: company id (a file of that company's bid); sha256: 64 hex digits",
         detach,
+    ),
+    CommandSpec::mutate(
+        "bid_package.set_criteria",
+        "Set bid scoring criteria",
+        Tool::Bidding,
+        Access::Project(Level::Standard),
+        "project, id: ids; text: one criterion per line as `Name, weight` (weights add up to 100; up to 10); add `, price` to the one that is scored from the leveled amounts (the lowest bid gets the top score). Blank text means price alone. Changing them clears the scores given",
+        set_criteria,
+    ),
+    CommandSpec::mutate(
+        "bid_package.score",
+        "Score a bid",
+        Tool::Bidding,
+        Access::Project(Level::Standard),
+        "project, id: ids; vendor: company id; scores: {criterion number from 1: 0 to 10} (the price criterion is worked out, not scored)",
+        score,
     ),
     CommandSpec::query(
         "bid_package.level",
@@ -277,6 +294,7 @@ fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         form_items: Vec::new(),
         alternates: Vec::new(),
         bond_required: None,
+        criteria: Vec::new(),
         addenda: Vec::new(),
         acknowledgements: Vec::new(),
         attachments: Vec::new(),
@@ -421,10 +439,17 @@ fn record_bid(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         }
         b.invited.push(vendor);
     }
-    // A new bid from the same company replaces the old one but keeps the files it sent.
-    let files = b.bids.iter().find(|x| x.vendor == vendor).map(|x| x.files.clone()).unwrap_or_default();
+    if let (Some(pct), true, Some(got)) = (b.bond_required, bond.received, bond.amount)
+        && amount.percent(pct).is_some_and(|need| got < need)
+    {
+        return Err(
+            p.bad("bond_amount", format!("is below the {pct} of the bid this package requires ({})", amount.percent(pct).unwrap_or_default()))
+        );
+    }
+    // A new bid from the same company replaces the old one but keeps the files it sent and the scores given.
+    let (files, scores) = b.bids.iter().find(|x| x.vendor == vendor).map(|x| (x.files.clone(), x.scores.clone())).unwrap_or_default();
     b.bids.retain(|x| x.vendor != vendor);
-    b.bids.push(Bid { vendor, amount, received, notes, withdrawn: false, lines, alternates, scope, bond, files });
+    b.bids.push(Bid { vendor, amount, received, notes, withdrawn: false, lines, alternates, scope, bond, scores, files });
     b.updated = ctx.stamp();
     let id = b.id;
     ctx.state.bid_packages.put(b);
@@ -551,13 +576,104 @@ fn level(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
             json!({
                 "vendor": x.vendor, "company": crate::view::vendor_name(v.state, x.vendor), "amount": x.amount, "adjustments": x.adjustments(), "leveled": x.leveled(),
                 "bond_ok": bond_ok, "unacknowledged": b.unacknowledged(x.vendor), "scope": x.scope, "alternates": x.alternates, "lines": x.lines,
+                "scores": x.scores, "weighted": b.weighted(x).map(|t| f64::from(t) / 100.0),
             })
         })
         .collect();
     Ok(json!({
         "package": b.id, "scope_items": b.scope_items, "form_items": b.form_items, "alternates": b.alternates, "bond_required": b.bond_required,
-        "addenda": b.addenda.len(), "rows": rows,
+        "addenda": b.addenda.len(), "criteria": b.criteria, "rows": rows,
     }))
+}
+
+fn set_criteria(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut b = load(ctx, p)?;
+    editable(&b)?;
+    let mut out: Vec<Criterion> = Vec::new();
+    for (n, raw) in p.text_or_empty("text", 2_000)?.lines().enumerate() {
+        let line = raw.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let at = |msg: String| p.bad("text", format!("line {}: {msg}", n + 1));
+        let cells: Vec<&str> = line.split(',').map(str::trim).collect();
+        let name = text::line(cells.first().copied().unwrap_or(""), 80).map_err(|e| at(e.to_string()))?;
+        if name.is_empty() {
+            return Err(at("a criterion needs a name".into()));
+        }
+        let weight: u32 = cells
+            .get(1)
+            .and_then(|w| w.trim_end_matches('%').trim().parse().ok())
+            .filter(|w| (1..=100).contains(w))
+            .ok_or_else(|| at("give a weight from 1 to 100 after the name".into()))?;
+        let price = match cells.get(2) {
+            None | Some(&"") => false,
+            Some(w) if w.eq_ignore_ascii_case("price") => true,
+            Some(other) => return Err(at(format!("`{other}` is not understood; the third part can only be `price`"))),
+        };
+        if out.iter().any(|c| c.name.eq_ignore_ascii_case(&name)) {
+            return Err(at(format!("{name} is listed twice")));
+        }
+        out.push(Criterion { name, weight, price });
+        if out.len() > 10 {
+            return Err(p.bad("text", "lists more than 10 criteria"));
+        }
+    }
+    if !out.is_empty() && out.iter().map(|c| c.weight).sum::<u32>() != 100 {
+        return Err(p.bad("text", format!("weights add up to {}, not 100", out.iter().map(|c| c.weight).sum::<u32>())));
+    }
+    if out.iter().filter(|c| c.price).count() > 1 {
+        return Err(p.bad("text", "only one criterion can be the price"));
+    }
+    b.criteria = out;
+    for bid in &mut b.bids {
+        bid.scores.clear();
+    }
+    b.updated = ctx.stamp();
+    let id = b.id;
+    ctx.state.bid_packages.put(b);
+    Ok(json!({ "id": id }))
+}
+
+fn score(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut b = load(ctx, p)?;
+    editable(&b)?;
+    if b.criteria.is_empty() {
+        return Err(EngineError::conflict("set the scoring criteria first"));
+    }
+    let vendor: Id<Vendor> = p.id("vendor")?;
+    let given = p.object("scores").ok_or_else(|| p.bad("scores", "is required: {criterion number: 0 to 10}"))?;
+    let mut scores: Vec<BidScore> = Vec::new();
+    for (key, v) in given {
+        // A blank box on the form means "not scored yet".
+        if v.as_str().is_some_and(|t| t.trim().is_empty()) {
+            continue;
+        }
+        let number: usize =
+            key.trim().parse().ok().filter(|n| *n >= 1).ok_or_else(|| p.bad("scores", format!("`{key}` is not a criterion number")))?;
+        let Some(c) = b.criteria.get(number - 1) else { return Err(p.bad("scores", format!("there is no criterion {number}"))) };
+        if c.price {
+            return Err(p.bad("scores", format!("{} is worked out from the bids, not scored", c.name)));
+        }
+        let value = v
+            .as_u64()
+            .or_else(|| v.as_str().and_then(|t| t.trim().parse().ok()))
+            .filter(|s| *s <= 10)
+            .ok_or_else(|| p.bad("scores", format!("{}: give a score from 0 to 10", c.name)))?;
+        scores.push(BidScore { criterion: u32::try_from(number - 1).unwrap_or(0), score: u32::try_from(value).unwrap_or(0) });
+    }
+    let Some(bid) = b.bids.iter_mut().find(|x| x.vendor == vendor && !x.withdrawn) else {
+        return Err(EngineError::not_found("that company has no standing bid"));
+    };
+    for s in scores {
+        bid.scores.retain(|x| x.criterion != s.criterion);
+        bid.scores.push(s);
+    }
+    bid.scores.sort_by_key(|s| s.criterion);
+    b.updated = ctx.stamp();
+    let id = b.id;
+    ctx.state.bid_packages.put(b);
+    Ok(json!({ "id": id }))
 }
 
 fn withdraw_bid(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
@@ -588,6 +704,13 @@ fn award(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     super::prequal::check_prequalified(ctx, vendor)?;
     if b.bond_required.is_some() && !bid.bond.received {
         return Err(EngineError::conflict("this package requires a bid bond; record that the company's bond was received first"));
+    }
+    if let (Some(pct), Some(got)) = (b.bond_required, bid.bond.amount)
+        && bid.amount.percent(pct).is_some_and(|need| got < need)
+    {
+        return Err(EngineError::conflict(format!(
+            "the recorded bond is below the {pct} of the bid this package requires; record the corrected bond first"
+        )));
     }
     let mut commitment: Option<Id<Commitment>> = None;
     if p.flag_or("commitment", false)? {

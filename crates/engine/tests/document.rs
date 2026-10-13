@@ -129,3 +129,32 @@ fn folders_move_without_loops_or_clashes() {
     w.err(sup, "folder.update", json!({"project": p, "id": a, "parent": top}));
     w.assert_replay();
 }
+
+#[test]
+fn restricted_documents_are_opened_only_by_named_people() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let sup = w.member(p, "Sue", "Super", "Superintendent");
+    let eng = w.member(p, "Eli", "Engineer", "Project engineer");
+    let reader = w.member(p, "Rae", "Reader", "Read only");
+    let d =
+        w.ok(sup, "document.add", json!({"project": p, "sha256": SHA_A, "name": "salary-bands.pdf", "size": 10, "mime": "application/pdf"}))["id"]
+            .as_u64()
+            .unwrap();
+    // Uploaders can't hand out access to their own file; admins do.
+    w.err(sup, "document.update", json!({"project": p, "id": d, "restricted": true}));
+    w.ok(pm, "document.update", json!({"project": p, "id": d, "restricted": true, "access": [eng.raw()]}));
+    // The uploader, the named people and admins open it; everyone else gets "not found".
+    for who in [sup, eng, pm] {
+        w.ok(who, "document.get", json!({"project": p, "id": d}));
+    }
+    w.err(reader, "document.get", json!({"project": p, "id": d}));
+    assert_eq!(w.ok(reader, "document.list", json!({"project": p})).as_array().unwrap().len(), 0);
+    assert_eq!(w.ok(eng, "document.list", json!({"project": p})).as_array().unwrap().len(), 1);
+    w.err(reader, "document.add_version", json!({"project": p, "id": d, "sha256": SHA_B, "name": "x.pdf", "size": 1}));
+    // Lifting the restriction opens it again.
+    w.ok(pm, "document.update", json!({"project": p, "id": d, "restricted": false}));
+    w.ok(reader, "document.get", json!({"project": p, "id": d}));
+    w.assert_replay();
+}

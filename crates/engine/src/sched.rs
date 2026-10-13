@@ -84,9 +84,27 @@ pub fn days_inclusive(a: Date, b: Date) -> i64 {
     days_inclusive_in(&WorkCalendar::default(), a, b)
 }
 
+/// The project's own calendar, without the days off of the company lists it subscribes to.
+pub fn own_calendar(state: &CompanyState, project: Id<Project>) -> WorkCalendar {
+    state.projects.get(project).map(|p| p.calendar.clone()).filter(WorkCalendar::is_valid).unwrap_or_default()
+}
+
 /// The calendar of a project (the usual week when it has none or the project is unknown).
 pub fn calendar(state: &CompanyState, project: Id<Project>) -> WorkCalendar {
-    state.projects.get(project).map(|p| p.calendar.clone()).filter(WorkCalendar::is_valid).unwrap_or_default()
+    let Some(p) = state.projects.get(project) else { return WorkCalendar::default() };
+    let mut cal = if p.calendar.is_valid() { p.calendar.clone() } else { WorkCalendar::default() };
+    // The company lists the project subscribes to add their days off (the project's own name wins on a shared date).
+    for list in p.holiday_lists.iter().filter_map(|l| state.holiday_lists.get(*l)).filter(|l| l.deleted.is_none()) {
+        for h in &list.holidays {
+            if let Err(at) = cal.holidays.binary_search_by_key(&h.date, |x| x.date) {
+                if cal.holidays.len() >= 2_000 {
+                    break;
+                }
+                cal.holidays.insert(at, h.clone());
+            }
+        }
+    }
+    cal
 }
 
 /// How long a task is, in working days, for working out its links (a milestone counts as one day).
@@ -270,6 +288,9 @@ fn row_of(
             (Constraint::StartNoEarlierThan, Some(d)) => t.start < d,
             (Constraint::MustStartOn, Some(d)) => t.start != d,
             (Constraint::FinishNoLaterThan, Some(d)) => t.finish > d,
+            (Constraint::MustFinishOn, Some(d)) => t.finish != d,
+            (Constraint::StartNoLaterThan, Some(d)) => t.start > d,
+            (Constraint::FinishNoEarlierThan, Some(d)) => t.finish < d,
             _ => false,
         };
     Row {
@@ -337,7 +358,12 @@ fn float_by_task(cal: &WorkCalendar, leaves: &[&ScheduleTask]) -> HashMap<Id<Sch
             }
             // A deadline (or a fixed start) holds the finish back even with nothing after it.
             match (t.constraint, t.constraint_date) {
-                (Constraint::FinishNoLaterThan, Some(d)) => lf = lf.min(d),
+                (Constraint::FinishNoLaterThan, Some(d)) | (Constraint::MustFinishOn, Some(d)) => lf = lf.min(d),
+                (Constraint::StartNoLaterThan, Some(d)) => {
+                    if let Some(f) = shift_in(cal, d, len - 1) {
+                        lf = lf.min(f);
+                    }
+                }
                 (Constraint::MustStartOn, Some(d)) => {
                     if let Some(f) = shift_in(cal, d, len - 1) {
                         lf = lf.min(f);

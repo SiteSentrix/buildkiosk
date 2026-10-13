@@ -10,16 +10,16 @@ use buildkiosk_model::Choice;
 use buildkiosk_model::directory::Vendor;
 use buildkiosk_model::project::Project;
 use buildkiosk_model::schedule::{
-    Assignment, Constraint, Holiday, Link, LinkKind, MAX_ASSIGNMENTS, MAX_HOLIDAYS, MAX_UNITS, ScheduleTask, WorkCalendar,
+    Assignment, Constraint, Holiday, HolidayList, Link, LinkKind, MAX_ASSIGNMENTS, MAX_HOLIDAYS, MAX_UNITS, ScheduleTask, WorkCalendar,
 };
-use buildkiosk_model::{Level, Tool};
+use buildkiosk_model::{Level, Tool, perm};
 use serde_json::{Value, json};
 
 use super::{Access, CommandSpec};
 use crate::ctx::in_project;
 use crate::sched::{self, MAX_DEPTH, MAX_TASKS};
 use crate::view::json;
-use crate::{Ctx, EngineError, Params, Read, Result, View};
+use crate::{Actor, Ctx, EngineError, Params, Read, Result, View};
 
 pub const COMMANDS: &[CommandSpec] = &[
     CommandSpec::mutate(
@@ -29,7 +29,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         Access::Project(Level::Standard),
         concat!(
             "project: project id; ",
-            "name: text; parent?: parent task id (empty for top level); start: YYYY-MM-DD; finish?: YYYY-MM-DD; days?: working days (when finish is blank; default 1); milestone?: bool; percent?: 0-100; predecessors?: text such as `3, 5+2, 7SS, 4FF-1` (task numbers, each with an optional kind FS, SS, FF or SF (default FS) and an optional lag in working days); company?: company id; notes?: text; constraint?: none|snet|mso|fnlt (start no earlier than, must start on, finish no later than); constraint_date?: YYYY-MM-DD (required with a constraint); resources?: text such as `Carpenter 4, Laborer 2` (what the task needs each working day)"
+            "name: text; parent?: parent task id (empty for top level); start: YYYY-MM-DD; finish?: YYYY-MM-DD; days?: working days (when finish is blank; default 1); milestone?: bool; percent?: 0-100; predecessors?: text such as `3, 5+2, 7SS, 4FF-1` (task numbers, each with an optional kind FS, SS, FF or SF (default FS) and an optional lag in working days); company?: company id; notes?: text; constraint?: none|snet|mso|fnlt|mfo|snlt|fnet|alap (start no earlier than, must start on, finish no later than, must finish on, start no later than, finish no earlier than, as late as possible); constraint_date?: YYYY-MM-DD (required with a constraint except alap); resources?: text such as `Carpenter 4, Laborer 2` (what the task needs each working day)"
         ),
         add,
     ),
@@ -98,12 +98,29 @@ pub const COMMANDS: &[CommandSpec] = &[
         import,
     ),
     CommandSpec::mutate(
+        "holiday_list.save",
+        "Save company holiday list",
+        Tool::Schedule,
+        Access::Member,
+        "id?: list id (changes it); name: text; holidays: days off, one per line as `YYYY-MM-DD name` (up to 400). Projects that take the list follow its changes; company admins only",
+        holiday_list_save,
+    ),
+    CommandSpec::mutate(
+        "holiday_list.delete",
+        "Delete company holiday list",
+        Tool::Schedule,
+        Access::Member,
+        "id: list id (projects stop using it; company admins only)",
+        holiday_list_delete,
+    ),
+    CommandSpec::query("holiday_list.list", "List company holiday lists", Tool::Schedule, Access::Member, "(none)", holiday_list_list),
+    CommandSpec::mutate(
         "schedule.calendar_set",
         "Set the project's working days and holidays",
         Tool::Schedule,
         Access::Project(Level::Admin),
         "project: project id; days?: the weekdays worked, such as `mon-fri` or `mon, tue, wed, thu, fri, sat` (at least one); \
-         holidays?: days off, one per line as `YYYY-MM-DD name` (replaces the list; up to 400). Task dates stay as they are: run schedule.recalculate to move tasks that now start too early.",
+         holidays?: days off, one per line as `YYYY-MM-DD name` (replaces the project's own list; up to 400); lists?: [company holiday list ids] whose days off also apply. Task dates stay as they are: run schedule.recalculate to move tasks that now start too early.",
         calendar_set,
     ),
     CommandSpec::mutate(
@@ -288,8 +305,8 @@ fn constraint_of(p: &Params<'_>, current: Option<&ScheduleTask>) -> Result<(Cons
         Some(k) => k,
         None => current.map(|t| t.constraint).unwrap_or_default(),
     };
-    if kind == Constraint::None {
-        if p.present("constraint_date") && !p.present("constraint") {
+    if !kind.needs_date() {
+        if kind == Constraint::None && p.present("constraint_date") && !p.present("constraint") {
             return Err(p.bad("constraint", "is needed with a constraint date (this task has none)"));
         }
         return Ok((kind, None));
@@ -496,6 +513,14 @@ fn recalculate(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
             let (need, fixed) = match (t.constraint, t.constraint_date) {
                 (Constraint::StartNoEarlierThan, Some(d)) => (from_links.into_iter().chain(sched::shift_in(&cal, d, 0)).max(), false),
                 (Constraint::MustStartOn, Some(d)) => (sched::shift_in(&cal, d, 0), true),
+                (Constraint::MustFinishOn, Some(d)) => {
+                    let len = if t.milestone { 1 } else { sched::days_inclusive_in(&cal, t.start, t.finish).max(1) };
+                    (sched::shift_in(&cal, d, -(len - 1)), true)
+                }
+                (Constraint::FinishNoEarlierThan, Some(d)) => {
+                    let len = if t.milestone { 1 } else { sched::days_inclusive_in(&cal, t.start, t.finish).max(1) };
+                    (from_links.into_iter().chain(sched::shift_in(&cal, d, -(len - 1))).max(), false)
+                }
                 _ => (from_links, false),
             };
             let Some(need) = need.filter(|n| if fixed { *n != t.start } else { *n > t.start }) else { continue };
@@ -510,10 +535,37 @@ fn recalculate(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
             changed = true;
         }
         if !changed {
+            push_as_late_as_possible(ctx, project, &cal, &mut moved);
             return Ok(json!({ "moved": moved.len() }));
         }
     }
     Err(EngineError::conflict("the links don't settle; check them for a loop"))
+}
+
+/// Moves each "as late as possible" task later by its float, last tasks first, so nothing after it is delayed.
+fn push_as_late_as_possible(
+    ctx: &mut Ctx<'_>,
+    project: Id<Project>,
+    cal: &buildkiosk_model::schedule::WorkCalendar,
+    moved: &mut HashMap<Id<ScheduleTask>, ()>,
+) {
+    for _ in 0..MAX_TASKS.min(500) {
+        let today = ctx.today();
+        let rows = sched::rows(ctx.state, project, today);
+        let pick = rows
+            .iter()
+            .filter(|r| !r.summary && r.float.is_some_and(|f| f > 0))
+            .filter(|r| ctx.state.schedule_tasks.get(r.id).is_some_and(|t| t.constraint == Constraint::AsLateAsPossible && t.percent < 100))
+            .max_by_key(|r| (r.finish, r.number));
+        let Some((id, float)) = pick.and_then(|r| Some((r.id, r.float?))) else { return };
+        let Some(t) = ctx.state.schedule_tasks.get(id).cloned() else { return };
+        let (Some(start), Some(finish)) = (sched::shift_in(cal, t.start, float), sched::shift_in(cal, t.finish, float)) else { return };
+        ctx.state.schedule_tasks.update(id, |x| {
+            x.start = start;
+            x.finish = finish;
+        });
+        moved.insert(id, ());
+    }
 }
 
 fn baseline(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
@@ -594,6 +646,7 @@ pub(super) fn import_body(ctx: &mut Ctx<'_>, project: Id<Project>, body: &str, p
             v => matches!(v, "1" | "true" | "yes" | "y"),
         };
         let (constraint, constraint_date) = match Constraint::parse(cell(8)).filter(|k| *k != Constraint::None) {
+            Some(k) if !k.needs_date() => (k, None),
             Some(k) => (k, Some(Date::parse(cell(9)).ok_or_else(|| at("constraint date", format!("`{}` is not a date (YYYY-MM-DD)", cell(9))))?)),
             None => (Constraint::None, None),
         };
@@ -735,35 +788,127 @@ fn parse_days(p: &Params<'_>, raw: &str) -> Result<[bool; 7]> {
     Ok(days)
 }
 
+/// Reads days off written one per line as `YYYY-MM-DD name`, sorted, with no date twice.
+fn parse_holidays(p: &Params<'_>, key: &str) -> Result<Vec<Holiday>> {
+    let raw = p.text_or_empty(key, 20_000)?;
+    let mut list: Vec<Holiday> = Vec::new();
+    for line in raw.lines().map(str::trim).filter(|l| !l.is_empty()) {
+        let (date, name) = line.split_once(char::is_whitespace).unwrap_or((line, ""));
+        let date = Date::parse(date).ok_or_else(|| p.bad(key, format!("`{line}`: start each line with a date as YYYY-MM-DD")))?;
+        let name: String = name.trim().chars().take(100).collect();
+        if list.iter().any(|h| h.date == date) {
+            return Err(p.bad(key, format!("{date} is listed twice")));
+        }
+        list.push(Holiday { date, name });
+        if list.len() > MAX_HOLIDAYS {
+            return Err(p.bad(key, format!("lists more than {MAX_HOLIDAYS} days off")));
+        }
+    }
+    list.sort_by_key(|h| h.date);
+    Ok(list)
+}
+
 fn calendar_set(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     let project: Id<Project> = p.id("project")?;
-    let mut cal = sched::calendar(ctx.state, project);
+    let mut cal = sched::own_calendar(ctx.state, project);
     if p.present("days") {
         cal.days = parse_days(p, &p.text_or_empty("days", 200)?)?;
     }
     if p.present("holidays") {
-        let raw = p.text_or_empty("holidays", 20_000)?;
-        let mut list: Vec<Holiday> = Vec::new();
-        for line in raw.lines().map(str::trim).filter(|l| !l.is_empty()) {
-            let (date, name) = line.split_once(char::is_whitespace).unwrap_or((line, ""));
-            let date = Date::parse(date).ok_or_else(|| p.bad("holidays", format!("`{line}`: start each line with a date as YYYY-MM-DD")))?;
-            let name: String = name.trim().chars().take(100).collect();
-            if list.iter().any(|h| h.date == date) {
-                return Err(p.bad("holidays", format!("{date} is listed twice")));
-            }
-            list.push(Holiday { date, name });
-            if list.len() > MAX_HOLIDAYS {
-                return Err(p.bad("holidays", format!("lists more than {MAX_HOLIDAYS} days off")));
-            }
-        }
-        list.sort_by_key(|h| h.date);
-        cal.holidays = list;
+        cal.holidays = parse_holidays(p, "holidays")?;
     }
     if !cal.is_valid() {
         return Err(p.bad("days", "needs at least one working day"));
     }
-    ctx.state.projects.update(project, |x| x.calendar = cal);
+    let lists: Option<Vec<Id<HolidayList>>> = if p.present("lists") {
+        let mut ids = p.ids::<HolidayList>("lists")?;
+        ids.sort();
+        ids.dedup();
+        if ids.len() > 10 {
+            return Err(p.bad("lists", "a project can take at most 10 holiday lists"));
+        }
+        for id in &ids {
+            if !ctx.state.holiday_lists.get(*id).is_some_and(|l| l.deleted.is_none()) {
+                return Err(p.bad("lists", format!("holiday list {id} not found")));
+            }
+        }
+        Some(ids)
+    } else {
+        None
+    };
+    ctx.state.projects.update(project, |x| {
+        x.calendar = cal;
+        if let Some(l) = lists {
+            x.holiday_lists = l;
+        }
+    });
     Ok(json!({ "id": project }))
+}
+
+/// Whether the person keeps company holiday lists: company admins.
+fn need_company_admin(ctx: &Ctx<'_>) -> Result<()> {
+    let ok = match ctx.actor {
+        Actor::System => true,
+        Actor::Person(p) => perm::company_level(ctx.state, p, Tool::CompanyAdmin) == Level::Admin,
+    };
+    if ok { Ok(()) } else { Err(EngineError::forbidden("only company admins keep the company's holiday lists")) }
+}
+
+fn holiday_list_save(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    need_company_admin(ctx)?;
+    let name = p.req_line("name", 100)?;
+    let holidays = parse_holidays(p, "holidays")?;
+    let existing = p.opt_id::<HolidayList>("id")?;
+    if let Some(id) = existing
+        && !ctx.state.holiday_lists.get(id).is_some_and(|l| l.deleted.is_none())
+    {
+        return Err(EngineError::not_found(format!("holiday list {id} not found")));
+    }
+    if ctx.state.holiday_lists.iter().any(|l| l.deleted.is_none() && Some(l.id) != existing && l.name.eq_ignore_ascii_case(&name)) {
+        return Err(p.bad("name", "is already the name of a holiday list"));
+    }
+    let id = match existing {
+        Some(id) => {
+            ctx.state.holiday_lists.update(id, |l| (l.name, l.holidays) = (name, holidays));
+            id
+        }
+        None => {
+            if ctx.state.holiday_lists.iter().filter(|l| l.deleted.is_none()).count() >= 50 {
+                return Err(EngineError::conflict("the company keeps at most 50 holiday lists"));
+            }
+            let id = ctx.state.holiday_lists.alloc();
+            let stamp = ctx.stamp();
+            ctx.state.holiday_lists.put(HolidayList { id, name, holidays, created: stamp, deleted: None });
+            id
+        }
+    };
+    Ok(json!({ "id": id }))
+}
+
+fn holiday_list_delete(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    need_company_admin(ctx)?;
+    let id: Id<HolidayList> = p.id("id")?;
+    if !ctx.state.holiday_lists.get(id).is_some_and(|l| l.deleted.is_none()) {
+        return Err(EngineError::not_found(format!("holiday list {id} not found")));
+    }
+    let stamp = ctx.stamp();
+    ctx.state.holiday_lists.update(id, |l| l.deleted = Some(stamp));
+    let users: Vec<Id<Project>> = ctx.state.projects.iter().filter(|x| x.holiday_lists.contains(&id)).map(|x| x.id).collect();
+    for pid in users {
+        ctx.state.projects.update(pid, |x| x.holiday_lists.retain(|l| *l != id));
+    }
+    Ok(json!({ "id": id }))
+}
+
+/// The company's holiday lists, by name.
+pub fn holiday_lists(state: &buildkiosk_model::CompanyState) -> Vec<&HolidayList> {
+    let mut v: Vec<&HolidayList> = state.holiday_lists.iter().filter(|l| l.deleted.is_none()).collect();
+    v.sort_by_key(|l| l.name.to_lowercase());
+    v
+}
+
+fn holiday_list_list(v: &View<'_>, _p: &Params<'_>) -> Result<Value> {
+    json(&holiday_lists(v.state))
 }
 
 fn resource_limits(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {

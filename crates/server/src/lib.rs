@@ -436,6 +436,7 @@ pub fn router(app: Shared) -> Router {
             .route("/projects/{id}/documents/{did}", get(document_page))
             .route("/projects/{id}/documents/{did}/upload", post(document_upload_version).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
             .route("/projects/{id}/documents/{did}/files/{sha}", get(document_download))
+            .route("/projects/{id}/documents/{did}/view/{sha}", get(document_view))
             .route("/projects/{id}/submittals.csv", get(submittal_csv))
             .route("/projects/{id}/submittals/import", post(submittal_import_file).layer(DefaultBodyLimit::max(1024 * 1024 + 64 * 1024)))
             .route("/projects/{id}/submittals/new", get(submittal_new))
@@ -1649,8 +1650,58 @@ async fn documents_page(State(app): State<Shared>, headers: HeaderMap, Path(id):
     page(&app, &headers, &q, |r, _| buildkiosk_web::documents::page(r, Id::new(id), folder, &text))
 }
 
+/// A version's file of a document the person may open, with its place on disk.
+fn document_version_file(app: &Shared, headers: &HeaderMap, id: u64, did: u64, sha: &str) -> Result<(std::path::PathBuf, FileRef), Box<Response>> {
+    let inner = app.lock();
+    let Some(s) = session(app, &inner, headers) else { return Err(Box::new(redirect("/login"))) };
+    let Some(t) = inner.tenant.as_ref() else { return Err(Box::new(redirect("/setup"))) };
+    let not_found = || Box::new(plain(StatusCode::NOT_FOUND, "Not found"));
+    let state = t.engine.state();
+    let d = state
+        .documents
+        .get(Id::new(did))
+        .filter(|d| d.project == Id::new(id) && d.deleted.is_none() && view::can_see_document(state, Actor::Person(s.person), d))
+        .ok_or_else(not_found)?;
+    let file = d.versions.iter().find(|v| v.file.sha256 == sha).map(|v| v.file.clone()).ok_or_else(not_found)?;
+    let path = t.store.blobs.path(&file.sha256).ok_or_else(not_found)?;
+    Ok((path, file))
+}
+
+/// The document page, with a preview of the current version when it is a PDF or a picture the viewer can draw.
 async fn document_page(State(app): State<Shared>, headers: HeaderMap, Path((id, did)): Path<(u64, u64)>, Query(q): Q) -> Response {
-    page(&app, &headers, &q, |r, _| buildkiosk_web::documents::detail(r, Id::new(id), Id::new(did)))
+    let current = {
+        let inner = app.lock();
+        inner.tenant.as_ref().and_then(|t| t.engine.state().documents.get(Id::new(did))).and_then(|d| d.current().map(|v| v.file.sha256.clone()))
+    };
+    let preview = match current {
+        Some(sha) => match document_version_file(&app, &headers, id, did, &sha) {
+            Ok((path, _)) => {
+                let want = q.get("page").and_then(|p| p.parse::<usize>().ok()).unwrap_or(1).max(1);
+                sheet_info(&app, path, &sha).await.map(|info| buildkiosk_web::documents::Preview {
+                    sha,
+                    pages: info.pages(),
+                    page: want.min(info.pages()),
+                })
+            }
+            Err(_) => None,
+        },
+        None => None,
+    };
+    page(&app, &headers, &q, |r, _| buildkiosk_web::documents::detail(r, Id::new(id), Id::new(did), preview.as_ref()))
+}
+
+/// One page of a document's PDF, or the picture itself, drawn for the page's preview.
+async fn document_view(State(app): State<Shared>, headers: HeaderMap, Path((id, did, sha)): Path<(u64, u64, String)>, Query(q): Q) -> Response {
+    let (path, file) = match document_version_file(&app, &headers, id, did, &sha) {
+        Ok(x) => x,
+        Err(r) => return *r,
+    };
+    let page = q.get("page").and_then(|p| p.parse::<usize>().ok()).unwrap_or(1).max(1);
+    let width = q.get("w").and_then(|w| w.parse::<u32>().ok()).unwrap_or(900);
+    match sheet_picture(&app, path, &file, page - 1, width).await {
+        Some((bytes, kind)) => picture_response(bytes, kind),
+        None => plain(StatusCode::NOT_FOUND, "This file can't be shown"),
+    }
 }
 
 async fn document_download(State(app): State<Shared>, headers: HeaderMap, Path((id, did, sha)): Path<(u64, u64, String)>) -> Response {

@@ -670,13 +670,21 @@ pub fn can_see_folder(state: &CompanyState, actor: Actor, folder: &Folder) -> bo
     false
 }
 
-/// Whether the actor may open a document: its folder must be visible to them.
+/// Whether the actor may open a document: its folder must be visible to them, and a restricted document is
+/// opened only by its uploader, the people listed on it and Documents admins.
 pub fn can_see_document(state: &CompanyState, actor: Actor, doc: &Document) -> bool {
     if level(state, actor, doc.project, Tool::Documents) < Level::Read {
         return false;
     }
-    match doc.folder {
+    let folder_ok = match doc.folder {
         None => true,
         Some(f) => state.folders.get(f).is_some_and(|f| can_see_folder(state, actor, f)),
+    };
+    if !folder_ok {
+        return false;
     }
+    if !doc.restricted || level(state, actor, doc.project, Tool::Documents) == Level::Admin {
+        return true;
+    }
+    actor.person().is_some_and(|p| doc.access.contains(&p) || doc.created.by == Some(p))
 }

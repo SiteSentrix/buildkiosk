@@ -406,7 +406,12 @@ pub fn calendar(req: &Req<'_>, id: Id<Project>) -> Markup {
     if lvl < Level::Read {
         return not_found(req);
     }
-    let cal = sched::calendar(state, id);
+    let cal = sched::own_calendar(state, id);
+    let lists = buildkiosk_engine::cmd::schedule::holiday_lists(state);
+    let company_admin = match req.actor() {
+        buildkiosk_engine::Actor::System => true,
+        buildkiosk_engine::Actor::Person(me) => buildkiosk_engine::model::perm::company_level(state, me, Tool::CompanyAdmin) == Level::Admin,
+    };
     let base = format!("/projects/{id}/schedule");
     let here = format!("{base}/calendar");
     let holidays: String =
@@ -424,13 +429,55 @@ pub fn calendar(req: &Req<'_>, id: Id<Project>) -> Markup {
                     p class="muted small" { "Such as mon-fri, mon-sat, or mon, tue, thu." }
                     (field("Days off", "cal_holidays", false, true, html! { textarea id="cal_holidays" name="holidays" rows="10" { (holidays) } }))
                     p class="muted small" { "One per line: a date as YYYY-MM-DD, then what it is (optional). Task dates don't move when this changes; use Recalculate on the schedule to push tasks that now start too early." }
+                    @if !lists.is_empty() {
+                        div class="field full" {
+                            div class="label" { "Company holiday lists this project takes" }
+                            input type="hidden" name="lists[]" value="";
+                            div class="options" { @for l in &lists { label { input type="checkbox" name="lists[]" value=(l.id) checked[p.holiday_lists.contains(&l.id)]; (l.name) " (" (l.holidays.len()) " days)" } } }
+                        }
+                    }
                     div class="form-actions" { button type="submit" class="btn primary" { "Save calendar" } }
                 }))
             } @else {
-                p { strong { "Weekdays worked: " } (days_text(&cal.days)) }
+                p { strong { "Weekdays worked: " } (days_text(&sched::calendar(state, id).days)) }
                 @if cal.holidays.is_empty() { p class="muted" { "No days off are listed." } }
                 @for h in &cal.holidays { p { (h.date.pretty()) @if !h.name.is_empty() { " · " (h.name) } } }
                 p class="muted" { "Only a Schedule admin can change the calendar." }
+            }
+        }
+        @if !p.holiday_lists.is_empty() {
+            div class="card" {
+                h2 { "Days off from company lists" }
+                @for l in p.holiday_lists.iter().filter_map(|l| state.holiday_lists.get(*l)).filter(|l| l.deleted.is_none()) {
+                    p { strong { (l.name) } ": " (l.holidays.iter().map(|h| format!("{} {}", h.date, h.name).trim().to_string()).collect::<Vec<_>>().join(" · ")) }
+                }
+            }
+        }
+        @if company_admin {
+            div class="card" {
+                h2 { "Company holiday lists" }
+                p class="muted small" { "Shared by every project that takes them. Changing a list changes those projects' calendars; their task dates stay until recalculated." }
+                @for l in &lists {
+                    details class="disclosure" {
+                        summary { (l.name) " · " (l.holidays.len()) " days" }
+                        (command_form(req, "holiday_list.save", &here, &here, html! {
+                            input type="hidden" name="id" value=(l.id);
+                            div class="form-grid" {
+                                (field("Name", &format!("hl_n{}", l.id), true, false, html! { input type="text" id=(format!("hl_n{}", l.id)) name="name" required value=(l.name); }))
+                                (field("Days off", &format!("hl_d{}", l.id), false, true, html! { textarea id=(format!("hl_d{}", l.id)) name="holidays" rows="8" { (l.holidays.iter().map(|h| format!("{} {}\n", h.date, h.name)).collect::<String>()) } }))
+                            }
+                            div class="form-actions" { button type="submit" class="btn primary small" { "Save list" } }
+                        }))
+                        (button_form(req, "holiday_list.delete", &here, &[("id", l.id.to_string())], "Delete list", "small danger"))
+                    }
+                }
+                (command_form(req, "holiday_list.save", &here, &here, html! {
+                    div class="form-grid" {
+                        (field("New list", "hl_new", true, false, html! { input type="text" id="hl_new" name="name" required placeholder="Federal holidays 2027"; }))
+                        (field("Days off", "hl_days", false, true, html! { textarea id="hl_days" name="holidays" rows="6" placeholder="2027-01-01 New Year's Day" {} }))
+                    }
+                    div class="form-actions" { button type="submit" class="btn primary small" { "Add list" } }
+                }))
             }
         }
     };

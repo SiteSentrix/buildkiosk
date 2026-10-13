@@ -1511,3 +1511,47 @@ async fn bidding_package_bids_and_award() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn estimate_form_totals_apply_and_csv() {
+    let dir = temp("estimating");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=P"))).await;
+    let (_, _, budget) = send(&app, get("/projects/1/budget")).await;
+    let code = budget.split("name=\"cost_code\"").nth(1).and_then(|s| s.split("value=\"").nth(1)).unwrap().split('"').next().unwrap().to_string();
+    let (_, _, new) = send(&app, get("/projects/1/estimating/new")).await;
+    assert!(new.contains("lines.0.cost_code") && new.contains("markups.0.name"));
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/do/estimate.create",
+            &ada,
+            format!("_csrf={csrf}&_next=/projects/1/estimating/%7Bid%7D&_back=/projects/1/estimating/new&project=1&name=Schematic&notes=&lines.0.cost_code={code}&lines.0.description=Slab&lines.0.quantity=1000&lines.0.unit=sf&lines.0.unit_cost=8.5&lines.1.cost_code=&lines.1.description=&lines.1.quantity=&lines.1.unit=&lines.1.unit_cost=&markups.0.name=Overhead&markups.0.percent=10"),
+        ),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().starts_with("/projects/1/estimating/1?ok="), "{h:?}");
+    send(&app, post("/do/estimate.finalize", &ada, format!("_csrf={csrf}&project=1&id=1"))).await;
+    let (_, _, detail) = send(&app, get("/projects/1/estimating/1")).await;
+    assert!(
+        detail.contains("8,500.00") && detail.contains("Overhead (10%)") && detail.contains("9,350.00") && detail.contains("Put in the budget"),
+        "{detail}"
+    );
+    send(&app, post("/do/estimate.apply_to_budget", &ada, format!("_csrf={csrf}&project=1&id=1&markup_cost_code="))).await;
+    let (_, _, budget) = send(&app, get("/projects/1/budget")).await;
+    assert!(budget.contains("8,500.00"));
+    let (st, h, csv) = send(&app, get("/projects/1/estimating/1/csv")).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(h.get("content-disposition").is_some() && csv.contains("Total,,,,,9350.00"), "{csv}");
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

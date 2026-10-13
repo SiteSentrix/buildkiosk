@@ -16,6 +16,7 @@ pub mod daily_log;
 pub mod directory;
 pub mod document;
 pub mod drawing;
+pub mod estimate;
 pub mod finance;
 pub mod form;
 pub mod incident;

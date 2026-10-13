@@ -12,6 +12,7 @@ pub mod correspondence;
 pub mod daily_logs;
 pub mod documents;
 pub mod drawings;
+pub mod estimating;
 pub mod finance;
 pub mod forms;
 pub mod icons;

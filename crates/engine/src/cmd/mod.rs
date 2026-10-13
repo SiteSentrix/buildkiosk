@@ -39,6 +39,7 @@ pub mod budget;
 pub mod change;
 pub mod commitment;
 pub mod direct_cost;
+pub mod estimate;
 pub mod invoice;
 pub mod prime;
 
@@ -162,6 +163,7 @@ const MODULES: &[&[CommandSpec]] = &[
     change::COMMANDS,
     commitment::COMMANDS,
     direct_cost::COMMANDS,
+    estimate::COMMANDS,
     invoice::COMMANDS,
     prime::COMMANDS,
     // -- documents

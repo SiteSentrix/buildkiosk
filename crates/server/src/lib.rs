@@ -200,6 +200,11 @@ pub fn router(app: Shared) -> Router {
         .route("/projects/{id}/bidding/new", get(bid_package_new))
         .route("/projects/{id}/bidding/{bid}", get(bid_package_page))
         .route("/projects/{id}/bidding/{bid}/edit", get(bid_package_edit))
+        .route("/projects/{id}/estimating", get(estimating_page))
+        .route("/projects/{id}/estimating/new", get(estimate_new))
+        .route("/projects/{id}/estimating/{eid}", get(estimate_page))
+        .route("/projects/{id}/estimating/{eid}/edit", get(estimate_edit))
+        .route("/projects/{id}/estimating/{eid}/csv", get(estimate_csv))
         .route("/projects/{id}/schedule", get(schedule_page))
         .route("/projects/{id}/schedule.csv", get(schedule_csv))
         .route("/projects/{id}/schedule/{tid}", get(schedule_task_page))
@@ -1352,6 +1357,34 @@ async fn bid_package_page(State(app): State<Shared>, headers: HeaderMap, Path((i
 
 async fn bid_package_edit(State(app): State<Shared>, headers: HeaderMap, Path((id, bid)): Path<(u64, u64)>, Query(q): Q) -> Response {
     page(&app, &headers, &q, |r, _| buildkiosk_web::bidding::form(r, Id::new(id), Some(Id::new(bid))))
+}
+
+async fn estimating_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::estimating::list(r, Id::new(id)))
+}
+
+async fn estimate_new(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::estimating::form(r, Id::new(id), None))
+}
+
+async fn estimate_page(State(app): State<Shared>, headers: HeaderMap, Path((id, eid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::estimating::detail(r, Id::new(id), Id::new(eid)))
+}
+
+async fn estimate_edit(State(app): State<Shared>, headers: HeaderMap, Path((id, eid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::estimating::form(r, Id::new(id), Some(Id::new(eid))))
+}
+
+async fn estimate_csv(State(app): State<Shared>, headers: HeaderMap, Path((id, eid)): Path<(u64, u64)>) -> Response {
+    let inner = app.lock();
+    let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    let req = Req { engine: &t.engine, person: s.person, csrf: "", now: Timestamp::from_millis(now_ms()), flash: None };
+    let Some(csv) = buildkiosk_web::estimating::csv(&req, Id::new(id), Id::new(eid)) else { return plain(StatusCode::NOT_FOUND, "Not found") };
+    let mut res = csv.into_response();
+    res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("text/csv; charset=utf-8"));
+    res.headers_mut().insert("content-disposition", HeaderValue::from_static("attachment; filename=\"estimate.csv\""));
+    res
 }
 
 async fn schedule_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {

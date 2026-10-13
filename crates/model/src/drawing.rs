@@ -27,6 +27,47 @@ choice! {
     }
 }
 
+choice! {
+    /// What a markup draws on a sheet.
+    pub enum MarkupKind {
+        /// A point with a note.
+        Pin = ("pin", "Pin"),
+        /// A box around an area.
+        Rectangle = ("rect", "Box"),
+        /// An arrow from (x, y) to (x2, y2).
+        Arrow = ("arrow", "Arrow"),
+        /// Words placed at (x, y).
+        Text = ("text", "Text"),
+    }
+}
+
+/// Where and how far across a page things are placed: 0 to this, left to right and top to bottom.
+pub const MARKUP_SCALE: u16 = 10_000;
+
+/// A note drawn on one page of one revision. Positions are fractions of the page
+/// (`0..=MARKUP_SCALE`), so they stay right at any zoom.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Markup {
+    /// Counts up within the revision.
+    pub id: u32,
+    /// The page, from 1.
+    pub page: u32,
+    pub kind: MarkupKind,
+    pub x: u16,
+    pub y: u16,
+    /// The far corner of a box, or the arrow's head.
+    #[serde(default)]
+    pub x2: u16,
+    #[serde(default)]
+    pub y2: u16,
+    #[serde(default)]
+    pub text: String,
+    #[serde(default)]
+    pub resolved: bool,
+    pub by: Option<Id<Person>>,
+    pub at: Timestamp,
+}
+
 /// One issue of a sheet. The newest revision is the current one; older ones stay as history.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DrawingRevision {
@@ -45,6 +86,9 @@ pub struct DrawingRevision {
     pub file: Option<FileRef>,
     pub by: Option<Id<Person>>,
     pub at: Timestamp,
+    /// Notes drawn on its pages.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub markups: Vec<Markup>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

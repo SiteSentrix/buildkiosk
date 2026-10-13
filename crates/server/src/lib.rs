@@ -6,6 +6,7 @@
 
 mod auth;
 mod mail;
+mod render;
 mod zip;
 
 use std::collections::HashMap;
@@ -66,6 +67,7 @@ const DRAFT_TTL: Duration = Duration::from_secs(600);
 
 struct Inner {
     drafts: HashMap<String, Draft>,
+    pictures: render::Pictures,
     tenant: Option<Tenant>,
     creds: Credentials,
     limiter: RateLimit,
@@ -102,7 +104,11 @@ impl App {
             }
             None => (None, Credentials::default()),
         };
-        Ok(App { data, inner: Mutex::new(Inner { drafts: HashMap::new(), tenant, creds, limiter: RateLimit::default() }), secure: false })
+        Ok(App {
+            data,
+            inner: Mutex::new(Inner { drafts: HashMap::new(), pictures: render::Pictures::default(), tenant, creds, limiter: RateLimit::default() }),
+            secure: false,
+        })
     }
 
     /// Marks the app as served over HTTPS (behind a TLS-terminating proxy): session and CSRF
@@ -308,6 +314,9 @@ pub fn router(app: Shared) -> Router {
             .route("/projects/{id}/drawings.csv", get(drawings_csv))
             .route("/projects/{id}/drawings/upload", post(drawing_upload_new).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
             .route("/projects/{id}/drawings/upload-set", post(drawing_upload_set).layer(DefaultBodyLimit::max(MAX_BULK + 64 * 1024)))
+            .route("/projects/{id}/drawings/{did}/view", get(drawing_view))
+            .route("/projects/{id}/drawings/{did}/view.png", get(drawing_view_png))
+            .route("/projects/{id}/drawings/{did}/compare.png", get(drawing_compare_png))
             .route("/projects/{id}/drawings/{did}", get(drawing_page))
             .route("/projects/{id}/drawings/{did}/upload", post(drawing_upload_revision).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
             .route("/projects/{id}/drawings/{did}/files/{sha}", get(drawing_download))
@@ -2101,6 +2110,150 @@ async fn drawing_upload_set(State(app): State<Shared>, headers: HeaderMap, Path(
     } else {
         let first: Vec<String> = failed.iter().take(3).cloned().collect();
         redirect(&with_flash(&back, false, &format!("Uploaded {summary}. Not uploaded: {}", first.join("; "))))
+    }
+}
+
+/// The file of a sheet's revision (the current one for an empty label) when the person may see it.
+fn sheet_revision_file(app: &Shared, headers: &HeaderMap, id: u64, did: u64, rev: &str) -> Result<(std::path::PathBuf, FileRef), Box<Response>> {
+    let inner = app.lock();
+    let Some(s) = session(app, &inner, headers) else { return Err(Box::new(redirect("/login"))) };
+    let Some(t) = inner.tenant.as_ref() else { return Err(Box::new(redirect("/setup"))) };
+    let state = t.engine.state();
+    let not_found = || Box::new(plain(StatusCode::NOT_FOUND, "Not found"));
+    if view::level(state, Actor::Person(s.person), Id::new(id), Tool::Drawings) < Level::Read {
+        return Err(not_found());
+    }
+    let d = state.drawings.get(Id::new(did)).filter(|d| d.project == Id::new(id) && d.deleted.is_none()).ok_or_else(not_found)?;
+    let r = if rev.is_empty() { d.revisions.last() } else { d.revisions.iter().find(|r| r.label.eq_ignore_ascii_case(rev)) };
+    let file = r.and_then(|r| r.file.clone()).ok_or_else(not_found)?;
+    let path = t.store.blobs.path(&file.sha256).ok_or_else(not_found)?;
+    Ok((path, file))
+}
+
+/// What a sheet file is (cached by its hash); reads and parses it off the main thread.
+async fn sheet_info(app: &Shared, path: std::path::PathBuf, sha: &str) -> Option<std::sync::Arc<render::Info>> {
+    if let Some(known) = app.lock().pictures.info(sha) {
+        return known;
+    }
+    let found = tokio::task::spawn_blocking(move || std::fs::read(path).ok().and_then(render::info)).await.ok().flatten();
+    let mut inner = app.lock();
+    inner.pictures.set_info(sha, found);
+    inner.pictures.info(sha).flatten()
+}
+
+fn view_from_query(q: &HashMap<String, String>) -> buildkiosk_web::drawings::View {
+    let num = |k: &str| q.get(k).and_then(|v| v.trim().parse::<u32>().ok());
+    let text = |k: &str| q.get(k).map(|v| v.chars().take(50).collect::<String>()).unwrap_or_default();
+    let point = |x: &str, y: &str| match (num(x).and_then(|v| u16::try_from(v).ok()), num(y).and_then(|v| u16::try_from(v).ok())) {
+        (Some(x), Some(y)) if x <= buildkiosk_engine::model::drawing::MARKUP_SCALE && y <= buildkiosk_engine::model::drawing::MARKUP_SCALE => {
+            Some((x, y))
+        }
+        _ => None,
+    };
+    let tool = text("tool");
+    buildkiosk_web::drawings::View {
+        rev: text("rev"),
+        page: num("page").unwrap_or(1).clamp(1, 2_000),
+        width: num("w").unwrap_or(900).clamp(render::MIN_WIDTH, render::MAX_WIDTH),
+        tool: if matches!(tool.as_str(), "pin" | "rect" | "arrow" | "text") { tool } else { String::new() },
+        first: point("x1", "y1"),
+        click: None,
+        compare: text("compare"),
+    }
+}
+
+/// The viewer page. A click on the picture arrives as `at.x` and `at.y` (pixels from the corner of
+/// the picture); they are turned into positions on the page here.
+async fn drawing_view(State(app): State<Shared>, headers: HeaderMap, Path((id, did)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    let mut v = view_from_query(&q);
+    let file = sheet_revision_file(&app, &headers, id, did, &v.rev);
+    let shape = match file {
+        Ok((path, f)) => sheet_info(&app, path, &f.sha256).await.and_then(|info| {
+            let page = usize::try_from(v.page).unwrap_or(1).clamp(1, info.pages());
+            let (w, h) = info.dims.get(page - 1).copied()?;
+            Some(buildkiosk_web::drawings::PageShape { pages: info.pages(), width: w, height: h })
+        }),
+        Err(r) if r.status() != StatusCode::NOT_FOUND => return *r,
+        Err(_) => None,
+    };
+    if let Some(shape) = shape {
+        // Pixels clicked, as a fraction of the picture shown.
+        let shown_h = (v.width as f32 * shape.height / shape.width).round().max(1.0);
+        let scale = f32::from(buildkiosk_engine::model::drawing::MARKUP_SCALE);
+        let at = |k: &str| q.get(k).and_then(|s| s.trim().parse::<f32>().ok()).filter(|n| n.is_finite() && *n >= 0.0);
+        if let (Some(px), Some(py)) = (at("at.x"), at("at.y")) {
+            let nx = (px / v.width as f32 * scale).round().clamp(0.0, scale) as u16;
+            let ny = (py / shown_h * scale).round().clamp(0.0, scale) as u16;
+            let two = matches!(v.tool.as_str(), "rect" | "arrow");
+            if two && v.first.is_none() {
+                v.first = Some((nx, ny));
+            } else {
+                v.click = Some((nx, ny));
+            }
+        }
+    }
+    page(&app, &headers, &q, |r, _| buildkiosk_web::drawings::viewer(r, Id::new(id), Id::new(did), &v, shape))
+}
+
+/// A sheet page as a picture: a PDF page drawn at the width asked for, or the picture itself.
+async fn sheet_picture(
+    app: &Shared,
+    path: std::path::PathBuf,
+    file: &FileRef,
+    page: usize,
+    width: u32,
+) -> Option<(std::sync::Arc<Vec<u8>>, &'static str)> {
+    let info = sheet_info(app, path.clone(), &file.sha256).await?;
+    if info.image {
+        let bytes = tokio::task::spawn_blocking(move || std::fs::read(path)).await.ok()?.ok()?;
+        let kind = sniff_image(&bytes)?;
+        return Some((std::sync::Arc::new(bytes), kind));
+    }
+    if page >= info.pages() {
+        return None;
+    }
+    let width = width.clamp(render::MIN_WIDTH, render::MAX_WIDTH);
+    if let Some(done) = app.lock().pictures.get(&file.sha256, page, width) {
+        return Some((done, "image/png"));
+    }
+    let png = tokio::task::spawn_blocking(move || std::fs::read(path).ok().and_then(|b| render::render_page(b, page, width))).await.ok().flatten()?;
+    Some((app.lock().pictures.put(&file.sha256, page, width, png), "image/png"))
+}
+
+fn picture_response(bytes: std::sync::Arc<Vec<u8>>, kind: &'static str) -> Response {
+    let mut res = Bytes::copy_from_slice(&bytes).into_response();
+    res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static(kind));
+    res.headers_mut().insert("cache-control", HeaderValue::from_static("private, max-age=3600"));
+    res
+}
+
+async fn drawing_view_png(State(app): State<Shared>, headers: HeaderMap, Path((id, did)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    let v = view_from_query(&q);
+    let (path, file) = match sheet_revision_file(&app, &headers, id, did, &v.rev) {
+        Ok(x) => x,
+        Err(r) => return *r,
+    };
+    match sheet_picture(&app, path, &file, usize::try_from(v.page).unwrap_or(1).saturating_sub(1), v.width).await {
+        Some((bytes, kind)) => picture_response(bytes, kind),
+        None => plain(StatusCode::NOT_FOUND, "This sheet can't be shown"),
+    }
+}
+
+/// Two revisions of a page laid over each other.
+async fn drawing_compare_png(State(app): State<Shared>, headers: HeaderMap, Path((id, did)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    let v = view_from_query(&q);
+    let label = |k: &str| q.get(k).map(|s| s.chars().take(50).collect::<String>()).unwrap_or_default();
+    let (a_label, b_label) = (label("a"), label("b"));
+    let (a, b) = match (sheet_revision_file(&app, &headers, id, did, &a_label), sheet_revision_file(&app, &headers, id, did, &b_label)) {
+        (Ok(a), Ok(b)) => (a, b),
+        (Err(r), _) | (_, Err(r)) => return *r,
+    };
+    let page = usize::try_from(v.page).unwrap_or(1).saturating_sub(1);
+    let (pa, pb) = (sheet_picture(&app, a.0, &a.1, page, v.width).await, sheet_picture(&app, b.0, &b.1, page, v.width).await);
+    let (Some((pa, _)), Some((pb, _))) = (pa, pb) else { return plain(StatusCode::NOT_FOUND, "These sheets can't be compared") };
+    match tokio::task::spawn_blocking(move || render::compare(&pa, &pb)).await.ok().flatten() {
+        Some(png) => picture_response(std::sync::Arc::new(png), "image/png"),
+        None => plain(StatusCode::NOT_FOUND, "These sheets can't be compared"),
     }
 }
 

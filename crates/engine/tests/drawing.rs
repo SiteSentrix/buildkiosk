@@ -88,3 +88,57 @@ fn publishing_tells_people_and_items_name_their_sheet() {
     assert_eq!(w.engine.state().punch_items.iter().next().unwrap().drawing_number, "");
     w.assert_replay();
 }
+
+#[test]
+fn markups_on_a_revision() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let eng = w.member(p, "Eli", "Engineer", "Project engineer");
+    let reader = w.member(p, "Rae", "Reader", "Read only");
+    let id = w.ok(pm, "drawing.add", json!({"project": p, "number": "A-101", "revision": "A"}))["id"].as_u64().unwrap();
+    w.ok(pm, "drawing.add_revision", json!({"project": p, "id": id, "revision": "B"}));
+    let rev = |w: &World, label: &str| w.engine.state().drawings.iter().next().unwrap().revisions.iter().find(|r| r.label == label).unwrap().clone();
+
+    let pin = w.ok(eng, "drawing.markup_add", json!({"project": p, "id": id, "kind": "pin", "x": 2500, "y": 4000, "text": "Door swing?"}))["markup"]
+        .as_u64()
+        .unwrap();
+    w.ok(
+        eng,
+        "drawing.markup_add",
+        json!({"project": p, "id": id, "revision": "a", "page": 2, "kind": "rect", "x": 100, "y": 100, "x2": 900, "y2": 700}),
+    );
+    assert_eq!((rev(&w, "B").markups.len(), rev(&w, "A").markups.len()), (1, 1), "the newest revision by default");
+    assert_eq!(rev(&w, "A").markups[0].page, 2);
+
+    for bad in [
+        json!({"kind": "pin", "x": 10001, "y": 0}),
+        json!({"kind": "pin", "y": 5}),
+        json!({"kind": "arrow", "x": 1, "y": 1}),
+        json!({"kind": "text", "x": 1, "y": 1, "text": "  "}),
+        json!({"kind": "squiggle", "x": 1, "y": 1}),
+        json!({"kind": "pin", "x": 1, "y": 1, "revision": "Z"}),
+        json!({"kind": "pin", "x": 1, "y": 1, "page": 0}),
+    ] {
+        let mut params = bad.clone();
+        params["project"] = json!(p);
+        params["id"] = json!(id);
+        w.err(eng, "drawing.markup_add", params);
+    }
+    w.err(reader, "drawing.markup_add", json!({"project": p, "id": id, "kind": "pin", "x": 1, "y": 1}));
+
+    w.ok(pm, "drawing.markup_resolve", json!({"project": p, "id": id, "markup": pin}));
+    assert!(rev(&w, "B").markups[0].resolved);
+    w.ok(pm, "drawing.markup_resolve", json!({"project": p, "id": id, "markup": pin, "resolved": false}));
+    assert!(!rev(&w, "B").markups[0].resolved);
+    w.err(pm, "drawing.markup_resolve", json!({"project": p, "id": id, "markup": 99}));
+
+    // Only the author or an admin removes one.
+    w.err(reader, "drawing.markup_delete", json!({"project": p, "id": id, "markup": pin}));
+    let other = w.ok(pm, "drawing.markup_add", json!({"project": p, "id": id, "kind": "pin", "x": 5, "y": 5}))["markup"].as_u64().unwrap();
+    w.err(eng, "drawing.markup_delete", json!({"project": p, "id": id, "markup": other}));
+    w.ok(eng, "drawing.markup_delete", json!({"project": p, "id": id, "markup": pin}));
+    w.ok(pm, "drawing.markup_delete", json!({"project": p, "id": id, "markup": other}));
+    assert!(rev(&w, "B").markups.is_empty());
+    w.assert_replay();
+}

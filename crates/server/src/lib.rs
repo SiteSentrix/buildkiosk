@@ -176,6 +176,12 @@ pub fn router(app: Shared) -> Router {
         .route("/projects/{id}/photos/{pid}", get(photo_page))
         .route("/projects/{id}/photos/{pid}/image", get(photo_image))
         .route("/projects/{id}/photos/{pid}/download", get(photo_download))
+        .route("/projects/{id}/correspondence", get(correspondence_page))
+        .route("/projects/{id}/correspondence/new", get(correspondence_new))
+        .route("/projects/{id}/correspondence/{cid}", get(correspondence_detail))
+        .route("/projects/{id}/correspondence/{cid}/edit", get(correspondence_edit))
+        .route("/projects/{id}/correspondence/{cid}/upload", post(correspondence_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
+        .route("/projects/{id}/correspondence/{cid}/files/{sha}", get(correspondence_download))
         .route("/projects/{id}/schedule", get(schedule_page))
         .route("/projects/{id}/schedule.csv", get(schedule_csv))
         .route("/projects/{id}/schedule/{tid}", get(schedule_task_page))
@@ -1203,6 +1209,33 @@ async fn photo_upload(State(app): State<Shared>, headers: HeaderMap, Path(id): P
     redirect(&with_flash(&back, true, &note))
 }
 
+async fn correspondence_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    use buildkiosk_engine::model::Choice;
+    let status = q.get("status").and_then(|s| buildkiosk_engine::model::correspondence::CorrespondenceStatus::parse(s));
+    let text = q.get("q").map(|s| s.chars().take(100).collect::<String>()).unwrap_or_default();
+    page(&app, &headers, &q, |r, _| buildkiosk_web::correspondence::list(r, Id::new(id), status, &text))
+}
+
+async fn correspondence_new(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::correspondence::form(r, Id::new(id), None))
+}
+
+async fn correspondence_detail(State(app): State<Shared>, headers: HeaderMap, Path((id, cid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::correspondence::detail(r, Id::new(id), Id::new(cid)))
+}
+
+async fn correspondence_edit(State(app): State<Shared>, headers: HeaderMap, Path((id, cid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::correspondence::form(r, Id::new(id), Some(Id::new(cid))))
+}
+
+async fn correspondence_download(State(app): State<Shared>, headers: HeaderMap, Path((id, cid, sha)): Path<(u64, u64, String)>) -> Response {
+    file_download(app, headers, Kind::CORRESPONDENCE, id, cid, sha).await
+}
+
+async fn correspondence_upload(State(app): State<Shared>, headers: HeaderMap, Path((id, cid)): Path<(u64, u64)>, multipart: Multipart) -> Response {
+    file_upload(app, headers, Kind::CORRESPONDENCE, id, cid, multipart).await
+}
+
 async fn schedule_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
     let show = q.get("show").cloned().unwrap_or_default();
     page(&app, &headers, &q, |r, _| buildkiosk_web::schedule::page(r, Id::new(id), &show))
@@ -1661,6 +1694,7 @@ impl Kind {
     const RFI: Kind = Kind { attach: "rfi.attach", path: "rfis", files: rfi_files };
     const SUBMITTAL: Kind = Kind { attach: "submittal.attach", path: "submittals", files: submittal_files };
     const INSPECTION: Kind = Kind { attach: "inspection.attach", path: "inspections", files: inspection_files };
+    const CORRESPONDENCE: Kind = Kind { attach: "correspondence.attach", path: "correspondence", files: correspondence_files };
     const MEETING: Kind = Kind { attach: "meeting.attach", path: "meetings", files: meeting_files };
     const TRANSMITTAL: Kind = Kind { attach: "transmittal.attach", path: "transmittals", files: transmittal_files };
     const COMMITMENT: Kind = Kind { attach: "commitment.attach", path: "commitments", files: commitment_files };
@@ -1683,6 +1717,14 @@ impl Kind {
     fn files(self, state: &CompanyState, actor: Actor, project: u64, item: u64) -> Option<Vec<FileRef>> {
         (self.files)(state, actor, project, item)
     }
+}
+
+fn correspondence_files(state: &CompanyState, actor: Actor, project: u64, item: u64) -> Option<Vec<FileRef>> {
+    state
+        .correspondence
+        .get(Id::new(item))
+        .filter(|c| c.project == Id::new(project) && buildkiosk_engine::cmd::correspondence::can_see(state, actor, c))
+        .map(|c| c.attachments.clone())
 }
 
 fn meeting_files(state: &CompanyState, actor: Actor, project: u64, item: u64) -> Option<Vec<FileRef>> {

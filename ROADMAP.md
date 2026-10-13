@@ -8,7 +8,7 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 ## Where we are
 | Area | State |
 | --- | --- |
-| Engine (commands, permissions, journal) | company setup, directory, permission templates, projects, project team, cost codes, RFIs, submittals, specification sections, notifications, daily logs, punch list, observations, inspections, budget, commitments, direct costs, change events, commitment change orders, budget changes, prime contract, prime change orders, owner invoices, commitment invoices, folders and documents with versions, drawings with revisions, schedule tasks with links and critical path, transmittals, meetings, tasks, incidents, photos |
+| Engine (commands, permissions, journal) | company setup, directory, permission templates, projects, project team, cost codes, RFIs, submittals, specification sections, notifications, daily logs, punch list, observations, inspections, budget, commitments, direct costs, change events, commitment change orders, budget changes, prime contract, prime change orders, owner invoices, commitment invoices, folders and documents with versions, drawings with revisions, schedule tasks with links and critical path, transmittals, meetings, tasks, incidents, photos, correspondence |
 | Store | journal, snapshots, blobs, credentials on disk |
 | Web UI | schedule (task table with a Gantt chart in inline SVG, critical path, float, baseline, import, CSV); drawings (sheet log with filters, import, revisions, files, CSV); documents (folders, private folders, upload, versions, search, download); budget (rolled up by cost code), commitments (schedule of values), direct costs; inspections (list, checklist, form, templates); observations (same views as the punch list, plus category, date observed, corrective action); punch list (list, detail, form, comments, files, CSV); daily log (list by month, detail, form with crews, equipment, deliveries, visitors); submittals (list, detail, form, reviews, close, resubmit, files); sign-in, first-run setup, projects, project home, team, RFIs (list, detail, new, edit, respond, open, close, reopen, delete, files, history, distribution list, CSV export) |
 | Directory | company directory page: people, companies, permission templates (view), add forms, admin sets passwords |
@@ -21,6 +21,7 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 2. Next tools in the order of `docs/gaps.md` (then the financial remainder; financials still to do: forecasting, budget snapshots).
 
 ## Progress log
+- 2026-10-13: correspondence (draft, send, replies, close, private, files).
 - 2026-10-13: photos (gallery by album, multi-file upload, picture-only validation, inline display of JPEG/PNG/GIF/WebP only).
 - 2026-10-13: incidents (severity, recordable, investigation fields on the shared workflow).
 - 2026-10-13: tasks (the shared punch-list workflow: assignees, review loop, comments, files, CSV).

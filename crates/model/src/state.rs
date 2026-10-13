@@ -10,6 +10,7 @@ use crate::project::{CostCode, Project};
 use crate::rfi::Rfi;
 use crate::table::{Table, TableChange, TableData};
 // -- project management
+use crate::correspondence::Correspondence;
 use crate::document::{Document, Folder};
 use crate::drawing::Drawing;
 use crate::incident::Incident;
@@ -131,6 +132,7 @@ tables! {
     // -- project management
     submittals: Submittal,
     transmittals: Transmittal,
+    correspondence: Correspondence,
     meetings: Meeting,
     tasks: Task,
     spec_sections: SpecSection,

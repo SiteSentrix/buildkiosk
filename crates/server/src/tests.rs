@@ -1273,3 +1273,40 @@ async fn photos_upload_gallery_and_inline_image() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn correspondence_send_reply_and_close() {
+    let dir = temp("correspondence");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=P"))).await;
+    let (_, _, new) = send(&app, get("/projects/1/correspondence/new")).await;
+    assert!(new.contains("Save draft") && new.contains("Reply wanted by"));
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/do/correspondence.create",
+            &ada,
+            format!("_csrf={csrf}&_next=/projects/1/correspondence/%7Bid%7D&_back=/projects/1/correspondence/new&project=1&subject=Notice+of+delay&kind=Notice&date=2026-10-12&reply_by=&private=false&to%5B%5D=1&cc%5B%5D=&body=Steel+is+late"),
+        ),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().starts_with("/projects/1/correspondence/1?ok="), "{h:?}");
+    send(&app, post("/do/correspondence.send", &ada, format!("_csrf={csrf}&project=1&id=1"))).await;
+    send(&app, post("/do/correspondence.reply", &ada, format!("_csrf={csrf}&project=1&id=1&body=Received+with+thanks"))).await;
+    let (_, _, detail) = send(&app, get("/projects/1/correspondence/1")).await;
+    assert!(detail.contains("Received with thanks") && detail.contains("Open") && detail.contains("Close"));
+    send(&app, post("/do/correspondence.close", &ada, format!("_csrf={csrf}&project=1&id=1"))).await;
+    let (_, _, list) = send(&app, get("/projects/1/correspondence?status=closed")).await;
+    assert!(list.contains("Notice of delay"));
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

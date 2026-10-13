@@ -9,6 +9,7 @@
 
 pub mod choice;
 pub mod common;
+pub mod correspondence;
 pub mod daily_log;
 pub mod directory;
 pub mod document;

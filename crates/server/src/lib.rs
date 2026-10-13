@@ -20,6 +20,7 @@ use axum::routing::{get, post};
 use buildkiosk_core::{Id, Timestamp, text};
 use buildkiosk_engine::model::finance::{BudgetChange, ChangeEvent, CommitmentChange, PrimeChange, PrimeContract};
 use buildkiosk_engine::model::finance::{CommitmentInvoice, OwnerInvoice};
+use buildkiosk_engine::model::incident::Incident;
 use buildkiosk_engine::model::observation::Observation;
 use buildkiosk_engine::model::punch::PunchItem;
 use buildkiosk_engine::model::task::Task;
@@ -203,6 +204,7 @@ pub fn router(app: Shared) -> Router {
     let router = work_routes::<PunchItem>(router);
     let router = work_routes::<Observation>(router);
     let router = work_routes::<Task>(router);
+    let router = work_routes::<Incident>(router);
     let router = doc_routes::<ChangeEvent>(router);
     let router = doc_routes::<CommitmentChange>(router);
     let router = doc_routes::<BudgetChange>(router);

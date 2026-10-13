@@ -40,6 +40,14 @@ pub const LOG: &[CommandSpec] = &[
         "project: project id; year?: calendar year (default: this year). Counts by severity, the recordable cases, the hours worked (approved timesheets plus hours set for the year) and the rates per 200,000 hours; only incidents you can see",
         log,
     ),
+    CommandSpec::query(
+        "incident.company_log",
+        "Injury log across projects",
+        Tool::Incidents,
+        Access::Member,
+        "year?: calendar year (default: this year). One line for every project whose incidents you can read (counts, hours, rates per 200,000 hours) and the company's totals; only incidents you can see",
+        company_log,
+    ),
     CommandSpec::mutate(
         "incident.set_hours",
         "Set other hours worked",
@@ -206,6 +214,66 @@ pub fn hours_worked(state: &CompanyState, project: Id<Project>, year: i32) -> (u
         .sum();
     let other = state.projects.get(project).and_then(|p| p.incident_hours.iter().find(|h| h.year == year)).map_or(0, |h| u64::from(h.hours) * 10);
     (timesheets, other)
+}
+
+/// One project's line of the company injury log.
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct ProjectLog {
+    pub project: Id<Project>,
+    pub name: String,
+    pub incidents: u64,
+    pub recordable: u64,
+    pub lost_time: u64,
+    pub fatalities: u64,
+    /// Tenths of an hour.
+    pub hours: u64,
+}
+
+/// The injury log of every project the actor can read incidents on, in name order, and the company's total line.
+pub fn company_injury_log(state: &CompanyState, actor: Actor, year: i32) -> (Vec<ProjectLog>, ProjectLog) {
+    let mut lines: Vec<ProjectLog> = view::projects_for(state, actor)
+        .into_iter()
+        .filter(|p| view::level(state, actor, p.id, Tool::Incidents) >= Level::Read)
+        .map(|p| {
+            let list = incidents_in_year(state, actor, p.id, year);
+            let (sheets, other) = hours_worked(state, p.id, year);
+            ProjectLog {
+                project: p.id,
+                name: p.name.clone(),
+                incidents: list.len() as u64,
+                recordable: list.iter().filter(|i| i.recordable).count() as u64,
+                lost_time: list.iter().filter(|i| i.recordable && i.severity.is_lost_time()).count() as u64,
+                fatalities: list.iter().filter(|i| i.severity == Severity::Fatality).count() as u64,
+                hours: sheets.saturating_add(other),
+            }
+        })
+        .collect();
+    lines.sort_by_key(|l| l.name.to_lowercase());
+    let total = lines.iter().fold(
+        ProjectLog { project: Id::new(0), name: "All projects".into(), incidents: 0, recordable: 0, lost_time: 0, fatalities: 0, hours: 0 },
+        |t, l| ProjectLog {
+            incidents: t.incidents.saturating_add(l.incidents),
+            recordable: t.recordable.saturating_add(l.recordable),
+            lost_time: t.lost_time.saturating_add(l.lost_time),
+            fatalities: t.fatalities.saturating_add(l.fatalities),
+            hours: t.hours.saturating_add(l.hours),
+            ..t
+        },
+    );
+    (lines, total)
+}
+
+fn company_log(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
+    let year = year_param(p, v.today())?;
+    let (lines, total) = company_injury_log(v.state, v.actor, year);
+    let with_rates = |l: &ProjectLog| {
+        json!({
+            "project": l.project, "name": l.name, "incidents": l.incidents, "recordable": l.recordable, "lost_time": l.lost_time,
+            "fatalities": l.fatalities, "hours": l.hours as f64 / 10.0,
+            "recordable_rate": rate(l.recordable, l.hours), "lost_time_rate": rate(l.lost_time, l.hours),
+        })
+    };
+    view::json(&json!({ "year": year, "projects": lines.iter().map(with_rates).collect::<Vec<_>>(), "total": with_rates(&total) }))
 }
 
 fn year_param(p: &Params<'_>, today: Date) -> Result<i32> {

@@ -107,3 +107,26 @@ impl Meeting {
         format!("Meeting #{}", self.number)
     }
 }
+
+/// A meeting set up once and used again: the type, time, place, people and agenda topics of a recurring kind of meeting.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct MeetingTemplate {
+    pub id: Id<MeetingTemplate>,
+    pub project: Id<Project>,
+    pub name: String,
+    #[serde(default)]
+    pub category: String,
+    #[serde(default)]
+    pub time: String,
+    #[serde(default)]
+    pub location: String,
+    #[serde(default)]
+    pub invitees: Vec<Id<Person>>,
+    /// The agenda topics, in order.
+    #[serde(default)]
+    pub agenda: Vec<String>,
+    pub created: Stamp,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deleted: Option<Stamp>,
+}
+record!(MeetingTemplate, "meeting_template", trash, project);

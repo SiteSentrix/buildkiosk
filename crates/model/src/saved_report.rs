@@ -18,6 +18,9 @@ choice! {
         Open = ("open", "Needs action"),
         Overdue = ("overdue", "Past due"),
         Rfis = ("rfis", "Open RFIs"),
+        RfisOverdue = ("rfis_overdue", "Past-due RFIs"),
+        RfiOldest = ("rfi_oldest", "Oldest open RFI (days)"),
+        RfiAge = ("rfi_age", "Average age of open RFIs (days)"),
         Submittals = ("submittals", "Submittals in review"),
         Punch = ("punch", "Open punch items"),
         LateTasks = ("late_tasks", "Late schedule tasks"),
@@ -36,7 +39,15 @@ impl ReportColumn {
 
     /// Whether the column holds a number that adds up across projects.
     pub fn adds_up(self) -> bool {
-        !matches!(self, ReportColumn::Number | ReportColumn::Stage | ReportColumn::Start | ReportColumn::Completion)
+        !matches!(
+            self,
+            ReportColumn::Number
+                | ReportColumn::Stage
+                | ReportColumn::Start
+                | ReportColumn::Completion
+                | ReportColumn::RfiOldest
+                | ReportColumn::RfiAge
+        )
     }
 }
 

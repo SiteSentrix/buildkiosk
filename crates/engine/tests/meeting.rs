@@ -198,3 +198,55 @@ fn an_action_becomes_a_task_and_closing_the_task_finishes_the_action() {
     w.err(pm, "meeting.action_to_task", json!({"project": p, "id": m, "index": 0}));
     w.assert_replay();
 }
+
+#[test]
+fn templates_start_a_meeting_with_its_usual_people_place_and_agenda() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let eng = w.member(p, "Eli", "Engineer", "Project engineer");
+    let reader = w.member(p, "Rae", "Reader", "Read only");
+
+    // A template from typed-in values: the agenda is one topic a line.
+    w.err(reader, "meeting_template.save", json!({"project": p, "name": "Weekly"}));
+    let t = w.ok(
+        pm,
+        "meeting_template.save",
+        json!({"project": p, "name": "Weekly coordination", "category": "Coordination", "time": "9:00 AM", "location": "Site trailer",
+               "invitees": [pm.raw(), eng.raw()], "agenda": "- Look-ahead\n\n* RFIs\nSafety"}),
+    )["id"]
+        .as_u64()
+        .unwrap();
+    let tpl = w.engine.state().meeting_templates.iter().next().unwrap().clone();
+    assert_eq!((tpl.agenda.as_slice(), tpl.invitees.len()), (&["Look-ahead".to_string(), "RFIs".to_string(), "Safety".to_string()][..], 2));
+    // Saving under the same name replaces it.
+    assert_eq!(w.ok(pm, "meeting_template.save", json!({"project": p, "name": "weekly COORDINATION", "location": "Room 2"}))["id"].as_u64(), Some(t));
+    assert_eq!(w.engine.state().meeting_templates.iter().filter(|x| x.deleted.is_none()).count(), 1);
+    w.ok(pm, "meeting_template.save", json!({"project": p, "name": "Weekly coordination", "category": "Coordination", "time": "9:00 AM", "location": "Site trailer", "invitees": [pm.raw(), eng.raw()], "agenda": "Look-ahead\nRFIs"}));
+
+    // A new meeting takes what the form leaves blank from the template; what is typed wins.
+    let m = w.ok(
+        eng,
+        "meeting.create",
+        json!({"project": p, "title": "Week 42", "date": "2026-10-20", "template": t, "location": "Room 5", "category": ""}),
+    )["id"]
+        .as_u64()
+        .unwrap();
+    let made = w.engine.state().meetings.iter().find(|x| x.id.raw() == m).unwrap().clone();
+    assert_eq!((made.category.as_str(), made.time.as_str(), made.location.as_str()), ("Coordination", "9:00 AM", "Room 5"));
+    assert_eq!((made.attendees.len(), made.agenda.iter().map(|a| a.title.as_str()).collect::<Vec<_>>()), (2, vec!["Look-ahead", "RFIs"]));
+    w.err(eng, "meeting.create", json!({"project": p, "title": "x", "date": "2026-10-20", "template": 9999}));
+
+    // A template from an existing meeting; another project's meeting can't be used.
+    let t2 = w.ok(eng, "meeting_template.save", json!({"project": p, "name": "From week 42", "from_meeting": m}))["id"].as_u64().unwrap();
+    assert_eq!(w.engine.state().meeting_templates.iter().find(|x| x.id.raw() == t2).unwrap().agenda.len(), 2);
+    let other = w.project("Other");
+    let foreign = w.ok(w.admin(), "meeting.create", json!({"project": other, "title": "Elsewhere", "date": "2026-10-20"}))["id"].as_u64().unwrap();
+    w.err(eng, "meeting_template.save", json!({"project": p, "name": "Bad", "from_meeting": foreign}));
+    w.err(eng, "meeting.create", json!({"project": other, "title": "x", "date": "2026-10-20", "template": t}));
+    assert_eq!(w.ok(reader, "meeting_template.list", json!({"project": p})).as_array().unwrap().len(), 2);
+    w.ok(eng, "meeting_template.delete", json!({"project": p, "id": t2}));
+    w.err(eng, "meeting_template.delete", json!({"project": p, "id": t2}));
+    w.err(eng, "meeting.create", json!({"project": p, "title": "x", "date": "2026-10-20", "template": t2}));
+    w.assert_replay();
+}

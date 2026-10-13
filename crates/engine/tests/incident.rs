@@ -168,3 +168,47 @@ fn the_injury_log_adds_up_the_year_and_the_rates() {
     w.err(eng, "incident.log", json!({"project": p, "year": "soon"}));
     w.assert_replay();
 }
+
+#[test]
+fn the_injury_log_across_projects_counts_only_what_the_person_may_see() {
+    let mut w = World::new();
+    let admin = w.admin();
+    let a = w.project("Riverside Clinic");
+    let b = w.project("Harbor Office");
+    let c = w.project("Annex");
+    let pm = w.member(a, "Paula", "Manager", "Project manager");
+    let template = buildkiosk_engine::cmd::company::template_named(w.engine.state(), "Project manager").unwrap();
+    w.ok(admin, "member.add", json!({"project": b, "person": pm, "template": template}));
+    let sub = w.member(a, "Sam", "Sub", "Subcontractor");
+    // Riverside: a recordable lost-time case and a near miss; Harbor: a recordable first-aid case; Annex: one pm cannot see.
+    for (project, title, severity, recordable) in [
+        (a, "Fall from ladder", "lost_time", true),
+        (a, "Dropped tool", "near_miss", false),
+        (b, "Cut finger", "first_aid", true),
+        (c, "Elsewhere", "lost_time", true),
+    ] {
+        w.ok(
+            admin,
+            "incident.create",
+            json!({"project": project, "title": title, "severity": severity, "recordable": recordable, "occurred": "2026-10-12"}),
+        );
+    }
+    w.ok(admin, "incident.set_hours", json!({"project": a, "year": 2026, "hours": 100_000}));
+    w.ok(admin, "incident.set_hours", json!({"project": b, "year": 2026, "hours": 50_000}));
+    let log = w.ok(pm, "incident.company_log", json!({"year": 2026}));
+    let names: Vec<&str> = log["projects"].as_array().unwrap().iter().map(|p| p["name"].as_str().unwrap()).collect();
+    assert_eq!(names, ["Harbor Office", "Riverside Clinic"], "Annex is not Paula's");
+    let t = &log["total"];
+    assert_eq!(
+        (t["incidents"].as_u64(), t["recordable"].as_u64(), t["lost_time"].as_u64(), t["hours"].as_f64()),
+        (Some(3), Some(2), Some(1), Some(150_000.0))
+    );
+    // 2 recordable cases in 150,000 hours: 2.67 per 200,000; one lost-time case: 1.33.
+    assert_eq!((t["recordable_rate"].as_str(), t["lost_time_rate"].as_str()), (Some("2.66"), Some("1.33")), "{log}");
+    // The whole company sees all three projects; another year has none.
+    assert_eq!(w.ok(admin, "incident.company_log", json!({"year": 2026}))["total"]["incidents"].as_u64(), Some(4));
+    assert_eq!(w.ok(pm, "incident.company_log", json!({"year": 2025}))["total"]["incidents"].as_u64(), Some(0));
+    // A trade with no access to incidents sees nothing.
+    assert_eq!(w.ok(sub, "incident.company_log", json!({"year": 2026}))["projects"].as_array().unwrap().len(), 0);
+    w.err(pm, "incident.company_log", json!({"year": "soon"}));
+}

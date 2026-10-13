@@ -7,7 +7,7 @@
 use buildkiosk_core::{Date, Id, text};
 use buildkiosk_model::common::FileRef;
 use buildkiosk_model::directory::Person;
-use buildkiosk_model::meeting::{AgendaItem, Attendee, Meeting, MeetingAction, MeetingStatus};
+use buildkiosk_model::meeting::{AgendaItem, Attendee, Meeting, MeetingAction, MeetingStatus, MeetingTemplate};
 use buildkiosk_model::project::Project;
 use buildkiosk_model::task::Task;
 use buildkiosk_model::{Level, Tool};
@@ -25,8 +25,32 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Create meeting",
         Tool::Meetings,
         Access::Project(Level::Standard),
-        "project: project id; title: text; date: YYYY-MM-DD; category?: text; time?: text; location?: text; invitees?: [person ids]; agenda?: [{title, notes?}]; actions?: [{description, assignee?: person id, due?: YYYY-MM-DD, done?: bool}]; minutes?: text",
+        "project: project id; title: text; date: YYYY-MM-DD; category?: text; time?: text; location?: text; template?: meeting template id (fills in the type, time, place, invitees and agenda topics you leave blank); invitees?: [person ids]; agenda?: [{title, notes?}]; actions?: [{description, assignee?: person id, due?: YYYY-MM-DD, done?: bool}]; minutes?: text",
         create,
+    ),
+    CommandSpec::mutate(
+        "meeting_template.save",
+        "Save meeting template",
+        Tool::Meetings,
+        Access::Project(Level::Standard),
+        "project: project id; name: text (a template of the same name is replaced); from_meeting?: meeting id to copy the type, time, place, invitees and agenda topics from; otherwise category?, time?, location?: text, invitees?: [person ids], agenda?: topics, one per line",
+        template_save,
+    ),
+    CommandSpec::mutate(
+        "meeting_template.delete",
+        "Delete meeting template",
+        Tool::Meetings,
+        Access::Project(Level::Standard),
+        "project, id: ids",
+        template_delete,
+    ),
+    CommandSpec::query(
+        "meeting_template.list",
+        "List meeting templates",
+        Tool::Meetings,
+        Access::Project(Level::Read),
+        "project: project id",
+        template_list,
     ),
     CommandSpec::mutate(
         "meeting.update",
@@ -256,6 +280,28 @@ fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         deleted: None,
     };
     apply(ctx, p, &mut m)?;
+    if let Some(t) = p.opt_id::<MeetingTemplate>("template")? {
+        let t = in_project(&ctx.state.meeting_templates, project, t, "meeting template")?;
+        if t.deleted.is_some() {
+            return Err(p.bad("template", format!("meeting template {} not found in this project", t.id)));
+        }
+        // What the form left blank comes from the template.
+        if m.category.is_empty() {
+            m.category = t.category.clone();
+        }
+        if m.time.is_empty() {
+            m.time = t.time.clone();
+        }
+        if m.location.is_empty() {
+            m.location = t.location.clone();
+        }
+        if m.attendees.is_empty() {
+            m.attendees = t.invitees.iter().map(|person| Attendee { person: *person, present: false }).collect();
+        }
+        if m.agenda.is_empty() {
+            m.agenda = t.agenda.iter().map(|title| AgendaItem { title: title.clone(), notes: String::new() }).collect();
+        }
+    }
     if m.title.is_empty() {
         return Err(p.bad("title", "is required"));
     }
@@ -263,6 +309,99 @@ fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     m.id = id;
     ctx.state.meetings.put(m);
     Ok(json!({ "id": id, "number": number }))
+}
+
+fn template_save(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let name = p.req_line("name", text::SHORT)?;
+    let (category, time, location, invitees, agenda): (String, String, String, Vec<Id<Person>>, Vec<String>) =
+        match p.opt_id::<Meeting>("from_meeting")? {
+            Some(mid) => {
+                let m = in_project(&ctx.state.meetings, project, mid, "meeting")?;
+                if m.deleted.is_some() {
+                    return Err(p.bad("from_meeting", format!("meeting {mid} not found in this project")));
+                }
+                (
+                    m.category.clone(),
+                    m.time.clone(),
+                    m.location.clone(),
+                    m.attendees.iter().map(|a| a.person).collect(),
+                    m.agenda.iter().map(|a| a.title.clone()).collect(),
+                )
+            }
+            None => {
+                let mut ids = p.ids::<Person>("invitees")?;
+                ids.sort();
+                ids.dedup();
+                if ids.len() > MAX_ROWS {
+                    return Err(p.bad("invitees", format!("lists more than {MAX_ROWS} people")));
+                }
+                for id in &ids {
+                    ctx.check_person(*id)?;
+                }
+                let topics: Vec<String> = p
+                    .text_or_empty("agenda", text::LONG)?
+                    .lines()
+                    .map(|l| l.trim().trim_start_matches(['-', '*']).trim().to_string())
+                    .filter(|l| !l.is_empty())
+                    .take(MAX_ROWS)
+                    .collect();
+                (p.line_or_empty("category", 100)?, p.line_or_empty("time", 50)?, p.line_or_empty("location", text::SHORT)?, ids, topics)
+            }
+        };
+    let existing =
+        ctx.state.meeting_templates.iter().find(|t| t.project == project && t.deleted.is_none() && t.name.eq_ignore_ascii_case(&name)).map(|t| t.id);
+    if existing.is_none() && ctx.state.meeting_templates.iter().filter(|t| t.project == project && t.deleted.is_none()).count() >= 100 {
+        return Err(EngineError::conflict("a project keeps at most 100 meeting templates"));
+    }
+    let stamp = ctx.stamp();
+    let id = match existing {
+        Some(id) => {
+            ctx.state
+                .meeting_templates
+                .update(id, |t| (t.category, t.time, t.location, t.invitees, t.agenda) = (category, time, location, invitees, agenda));
+            id
+        }
+        None => {
+            let id = ctx.state.meeting_templates.alloc();
+            ctx.state.meeting_templates.put(MeetingTemplate {
+                id,
+                project,
+                name,
+                category,
+                time,
+                location,
+                invitees,
+                agenda,
+                created: stamp,
+                deleted: None,
+            });
+            id
+        }
+    };
+    Ok(json!({ "id": id }))
+}
+
+fn template_delete(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let id: Id<MeetingTemplate> = p.id("id")?;
+    if in_project(&ctx.state.meeting_templates, project, id, "meeting template")?.deleted.is_some() {
+        return Err(EngineError::not_found(format!("meeting template {id} not found in this project")));
+    }
+    let stamp = ctx.stamp();
+    ctx.state.meeting_templates.update(id, |t| t.deleted = Some(stamp));
+    Ok(json!({ "id": id }))
+}
+
+/// The project's meeting templates, by name.
+pub fn templates(state: &buildkiosk_model::CompanyState, project: Id<Project>) -> Vec<&MeetingTemplate> {
+    let mut v: Vec<&MeetingTemplate> = state.meeting_templates.iter().filter(|t| t.project == project && t.deleted.is_none()).collect();
+    v.sort_by_key(|t| t.name.to_lowercase());
+    v
+}
+
+fn template_list(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
+    json(&templates(v.state, p.id("project")?))
 }
 
 fn update(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {

@@ -34,7 +34,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Save company report",
         Tool::CompanyReports,
         Access::Member,
-        "id?: report id (changes your own; without it a new one is made); name: text; columns: list or comma text of number, stage, start, completion, open, overdue, rfis, submittals, punch, late_tasks, revised, committed, cost, projected, variance; stage?: only projects in this stage; sort?: a column to sort by; descending?: bool; shared?: bool (everyone in the company can run it)",
+        "id?: report id (changes your own; without it a new one is made); name: text; columns: list or comma text of number, stage, start, completion, open, overdue, rfis, rfis_overdue, rfi_oldest, rfi_age, submittals, punch, late_tasks, revised, committed, cost, projected, variance; stage?: only projects in this stage; sort?: a column to sort by; descending?: bool; shared?: bool (everyone in the company can run it)",
         save,
     ),
     CommandSpec::mutate(

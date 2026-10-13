@@ -2370,6 +2370,29 @@ async fn action_plan_outline_assign_and_complete() {
         detail.contains("Collect warranties") && detail.contains("Binder") && detail.contains("Mark done") && detail.contains("0 of 2 items done"),
         "{detail}"
     );
+    // A file on the plan itself.
+    let body = format!(
+        "--B\r\nContent-Disposition: form-data; name=\"_csrf\"\r\n\r\n{csrf}\r\n--B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"programme.txt\"\r\nContent-Type: text/plain\r\n\r\nplan-programme\r\n--B--\r\n"
+    );
+    let up = Request::post("/projects/1/action-plans/1/upload")
+        .header("cookie", &ada)
+        .header("content-type", "multipart/form-data; boundary=B")
+        .body(Body::from(body))
+        .unwrap();
+    let (_, h, _) = send(&app, up).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, withfile) = send(&app, get("/projects/1/action-plans/1")).await;
+    let href = withfile
+        .split("href=\"")
+        .filter(|x| x.contains("/files/"))
+        .find(|x| x.contains("programme.txt"))
+        .unwrap()
+        .split('"')
+        .next()
+        .unwrap()
+        .to_string();
+    let (st, _, bytes) = send(&app, get(&href)).await;
+    assert_eq!((st, bytes.as_str()), (StatusCode::OK, "plan-programme"));
     for item in 0..2 {
         send(&app, post("/do/action_plan.set_item", &ada, format!("_csrf={csrf}&project=1&id=1&section=0&item={item}&done=true"))).await;
     }
@@ -2728,6 +2751,16 @@ async fn estimate_form_totals_apply_and_csv() {
     assert!(st == StatusCode::OK && cmp.contains("Compare estimates") && cmp.contains("Difference") && cmp.contains("750.00"), "{cmp}");
     let (_, _, csv) = send(&app, get("/projects/1/estimating/2/csv")).await;
     assert!(csv.contains("Alternate: Polished"), "{csv}");
+    // Save as a template, then start a new estimate from it.
+    let (_, _, one) = send(&app, get("/projects/1/estimating/1")).await;
+    assert!(one.contains("Save as a template"), "{one}");
+    send(&app, post("/do/estimate.template_save", &ada, format!("_csrf={csrf}&project=1&id=1&name=Standard+slab"))).await;
+    let (_, _, newer) = send(&app, get("/projects/1/estimating/new")).await;
+    assert!(newer.contains("Start from a template") && newer.contains("Standard slab"), "{newer}");
+    let (_, h, _) = send(&app, post("/do/estimate.create", &ada, format!("_csrf={csrf}&_next=/projects/1/estimating/%7Bid%7D&project=1&name=From+template&template=1&lines.0.cost_code=&lines.0.description=&lines.0.quantity=&lines.0.unit=&lines.0.unit_cost="))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, made) = send(&app, get("/projects/1/estimating/3")).await;
+    assert!(made.contains("From template") && made.contains("Slab"), "{made}");
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }

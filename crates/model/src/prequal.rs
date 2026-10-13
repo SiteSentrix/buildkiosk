@@ -40,12 +40,25 @@ pub struct PrequalForm {
     pub id: Id<PrequalForm>,
     pub name: String,
     pub sections: Vec<PrequalSection>,
+    /// 1 for the first draft; a change to a questionnaire that companies have answered makes a new version.
+    #[serde(default = "first_version")]
+    pub version: u32,
+    /// The version this one replaced.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub previous: Option<Id<PrequalForm>>,
+    /// The version that replaced this one (companies that answered this one keep their answers on it).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub superseded_by: Option<Id<PrequalForm>>,
     pub created: Stamp,
     pub updated: Stamp,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deleted: Option<Stamp>,
 }
 record!(PrequalForm, "prequal_form", trash);
+
+fn first_version() -> u32 {
+    1
+}
 
 impl PrequalForm {
     /// The points the whole questionnaire is worth.

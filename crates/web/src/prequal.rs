@@ -159,7 +159,7 @@ pub fn forms_page(req: &Req<'_>, edit: Option<Id<PrequalForm>>) -> Markup {
                 table class="data" {
                     thead { tr { th { "Name" } th class="num" { "Sections" } th class="num" { "Questions" } th class="num" { "Points" } th {} } }
                     tbody { @for f in &all { tr {
-                        td { strong { (f.name) } }
+                        td { strong { (f.name) } @if f.version > 1 { " " span class="pill" { "Version " (f.version) } } }
                         td class="num" { (f.sections.len()) }
                         td class="num" { (f.sections.iter().map(|s| s.questions.len()).sum::<usize>()) }
                         td class="num" { (f.possible()) }
@@ -171,7 +171,7 @@ pub fn forms_page(req: &Req<'_>, edit: Option<Id<PrequalForm>>) -> Markup {
         @if admin {
             div class="card" {
                 h2 { (if cur.is_some() { "Edit questionnaire" } else { "New questionnaire" }) }
-                p class="muted small" { "One section per `# Title` line; under it, one question per line as `Question | points` (points default to 10)." }
+                p class="muted small" { "One section per `# Title` line; under it, one question per line as `Question | points` (points default to 10). Changing a questionnaire that companies have already answered saves a new version, so their answers stay with the wording they answered; move a company up to the new version from its page." }
                 (command_form(req, "prequal.form_save", here, here, html! {
                     @if let Some(f) = cur { input type="hidden" name="id" value=(f.id); }
                     (field("Name", "form_name", true, true, html! { input type="text" id="form_name" name="name" required value=(cur.map(|f| f.name.as_str()).unwrap_or_default()); }))
@@ -196,6 +196,25 @@ pub fn forms_page(req: &Req<'_>, edit: Option<Id<PrequalForm>>) -> Markup {
         &[("Prequalification", Some("/prequalification".into())), ("Questionnaires", None)],
         body,
     )
+}
+
+/// The current version of a questionnaire that has been replaced.
+fn latest_version<'a>(
+    state: &'a buildkiosk_engine::model::CompanyState,
+    form: &'a buildkiosk_engine::model::prequal::PrequalForm,
+) -> Option<&'a buildkiosk_engine::model::prequal::PrequalForm> {
+    let mut at = form;
+    let mut moved = false;
+    for _ in 0..100 {
+        match at.superseded_by.and_then(|n| state.prequal_forms.get(n)).filter(|n| n.deleted.is_none()) {
+            Some(n) => {
+                at = n;
+                moved = true;
+            }
+            None => break,
+        }
+    }
+    moved.then_some(at)
 }
 
 /// One company's record: its figures, questionnaire answers and scoring, and files.
@@ -245,6 +264,7 @@ pub fn detail(req: &Req<'_>, vendor: Id<Vendor>) -> Markup {
                     div class="form-grid" {
                         (field("Questionnaire", "qform", false, false, html! { select id="qform" name="form" {
                             @if form.is_none() { option value="" { "Choose one" } }
+                            @if let Some(f) = form.filter(|f| f.superseded_by.is_some()) { option value=(f.id) selected { (f.name) " (version " (f.version) ", replaced)" } }
                             @for f in &all_forms { option value=(f.id) selected[r.form == Some(f.id)] { (f.name) } }
                         } }))
                     }
@@ -253,6 +273,11 @@ pub fn detail(req: &Req<'_>, vendor: Id<Vendor>) -> Markup {
                 }))
             }
             @if let Some(f) = form {
+                @if let Some(newer) = latest_version(state, f) {
+                    p class="notice" { "These answers are to version " (f.version) " of this questionnaire; version " (newer.version) " is current. " @if can_edit {
+                        (button_form(req, "prequal.answer", &here, &[v.clone(), ("form", newer.id.to_string())], "Move to the current version", "small"))
+                        " Answers to questions that did not change come across; points stay only on questions worth the same." } }
+                }
                 @let (earned, possible) = r.points(f, None);
                 p { strong { (earned) " of " (possible) " points" } @if possible > 0 { " (" ((u64::from(earned) * 100 / u64::from(possible))) "%)" } }
                 @if can_edit {

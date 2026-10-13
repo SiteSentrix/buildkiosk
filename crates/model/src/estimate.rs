@@ -178,3 +178,43 @@ impl Estimate {
         Some(EstimateTotals { subtotal, alternates, markups, total })
     }
 }
+
+/// One line of an estimate template: the cost code is kept as its number, since each project has
+/// its own cost code records.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct TemplateLine {
+    pub code: String,
+    pub description: String,
+    pub quantity_milli: i64,
+    #[serde(default)]
+    pub unit: String,
+    pub unit_cost: Money,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct TemplateAlternate {
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    pub code: String,
+    pub amount: Money,
+}
+
+/// An estimate's line structure, markups and alternates kept for the company to start other
+/// estimates from.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct EstimateTemplate {
+    pub id: Id<EstimateTemplate>,
+    pub name: String,
+    #[serde(default)]
+    pub notes: String,
+    pub lines: Vec<TemplateLine>,
+    #[serde(default)]
+    pub markups: Vec<Markup>,
+    #[serde(default)]
+    pub alternates: Vec<TemplateAlternate>,
+    pub created: Stamp,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deleted: Option<Stamp>,
+}
+record!(EstimateTemplate, "estimate_template", trash);

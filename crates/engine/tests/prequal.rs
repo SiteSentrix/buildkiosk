@@ -219,3 +219,52 @@ fn a_company_can_require_prequalification_for_commitments_and_awards() {
     w.ok(admin, "prequal.require", json!({"required": false}));
     w.assert_replay();
 }
+
+#[test]
+fn changing_an_answered_questionnaire_makes_a_new_version() {
+    let mut w = World::new();
+    let admin = w.admin();
+    let (a, b) = (vendor(&mut w, "Keystone Concrete"), vendor(&mut w, "Northline Steel"));
+    let f = w.ok(admin, "prequal.form_save", json!({"name": "Subs", "text": "# Safety\nWritten program? | 20\nEMR? | 10\n"}))["id"].as_u64().unwrap();
+    // Nobody has answered yet, so a change is made in place.
+    let same = w.ok(admin, "prequal.form_save", json!({"id": f, "name": "Subs", "text": "# Safety\nWritten safety program? | 20\nEMR? | 10\n"}));
+    assert_eq!((same["id"].as_u64(), same["new_version"].as_bool()), (Some(f), None));
+    w.ok(admin, "prequal.save", json!({"vendor": a}));
+    w.ok(admin, "prequal.save", json!({"vendor": b}));
+    w.ok(
+        admin,
+        "prequal.answer",
+        json!({"vendor": a, "form": f, "replies": [{"section": 0, "question": 0, "text": "Yes"}, {"section": 0, "question": 1, "text": "0.85"}]}),
+    );
+    w.ok(admin, "prequal.answer", json!({"vendor": b, "form": f}));
+    w.ok(
+        admin,
+        "prequal.grade",
+        json!({"vendor": a, "points": [{"section": 0, "question": 0, "points": 20}, {"section": 0, "question": 1, "points": 10}]}),
+    );
+
+    // Now the first question is reworded and the second is worth more: a new version.
+    let v2 = w.ok(
+        admin,
+        "prequal.form_save",
+        json!({"id": f, "name": "Subs", "text": "# Safety\nWritten safety program and training? | 20\nEMR? | 15\n"}),
+    );
+    let new = v2["id"].as_u64().unwrap();
+    assert_ne!(new, f);
+    assert_eq!((v2["version"].as_u64(), v2["new_version"].as_bool()), (Some(2), Some(true)));
+    let rec = |w: &World, v: u64| w.engine.state().prequalifications.iter().find(|r| r.vendor.raw() == v).unwrap().clone();
+    // The company that answered stays on version 1; the one that hadn't moves up.
+    assert_eq!((rec(&w, a).form.map(|x| x.raw()), rec(&w, a).answers.len()), (Some(f), 2));
+    assert_eq!(rec(&w, b).form.map(|x| x.raw()), Some(new));
+    // Only the current version is listed or editable.
+    assert_eq!(w.ok(admin, "prequal.forms", json!({})).as_array().unwrap().len(), 1);
+    w.err(admin, "prequal.form_save", json!({"id": f, "name": "Subs", "text": "# S\nQ | 5"}));
+    w.err(admin, "prequal.form_delete", json!({"id": f}));
+    // Moving up keeps the unchanged question's answer, and its points only while it is worth the same.
+    w.ok(admin, "prequal.answer", json!({"vendor": a, "form": new}));
+    let r = rec(&w, a);
+    assert_eq!(r.form.map(|x| x.raw()), Some(new));
+    assert_eq!(r.answers.len(), 1);
+    assert_eq!((r.answers[0].question, r.answers[0].text.as_str(), r.answers[0].points), (1, "0.85", None));
+    w.assert_replay();
+}

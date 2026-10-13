@@ -7,6 +7,7 @@
 
 use buildkiosk_core::{Date, Id, text};
 use buildkiosk_model::action_plan::{ActionPlan, PlanApproval, PlanComment, PlanItem, PlanSection, PlanStatus, PlanTemplate};
+use buildkiosk_model::common::FileRef;
 use buildkiosk_model::directory::Person;
 use buildkiosk_model::project::Project;
 use buildkiosk_model::{CompanyState, Level, Tool, perm};
@@ -109,6 +110,22 @@ pub const COMMANDS: &[CommandSpec] = &[
         comment,
     ),
     CommandSpec::mutate(
+        "action_plan.attach",
+        "Attach file to action plan",
+        Tool::ActionPlans,
+        Access::Project(Level::Standard),
+        "project, id: ids; sha256: 64 hex digits; name: file name; size: bytes; mime?: media type (the manager, or anyone with Standard access, until the plan is complete)",
+        attach,
+    ),
+    CommandSpec::mutate(
+        "action_plan.detach",
+        "Remove file from action plan",
+        Tool::ActionPlans,
+        Access::Project(Level::Standard),
+        "project, id: ids; sha256: 64 hex digits",
+        detach,
+    ),
+    CommandSpec::mutate(
         "action_plan.template_save",
         "Save plan as template",
         Tool::ActionPlans,
@@ -129,6 +146,7 @@ pub const COMMANDS: &[CommandSpec] = &[
 ];
 
 const MAX_SECTIONS: usize = 50;
+const MAX_ATTACHMENTS: usize = 50;
 const MAX_ITEMS: usize = 500;
 
 fn load(ctx: &Ctx<'_>, p: &Params<'_>) -> Result<ActionPlan> {
@@ -139,6 +157,48 @@ fn load(ctx: &Ctx<'_>, p: &Params<'_>) -> Result<ActionPlan> {
         return Err(EngineError::not_found(format!("action plan {id} not found in this project")));
     }
     Ok(a.clone())
+}
+
+fn attach(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut a = load(ctx, p)?;
+    if a.status == PlanStatus::Complete {
+        return Err(EngineError::conflict("a completed plan takes no more files; reopen it first"));
+    }
+    let sha256 = p.req_line("sha256", 64)?.to_ascii_lowercase();
+    if sha256.len() != 64 || !sha256.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err(p.bad("sha256", "must be 64 hex digits"));
+    }
+    let name = p.req_line("name", 200)?;
+    let size = p.int("size", 0..=2_000_000_000)?.ok_or_else(|| p.bad("size", "is required"))?;
+    let mime = p.line("mime", 100)?.filter(|x| !x.is_empty()).unwrap_or_else(|| "application/octet-stream".into());
+    if a.attachments.iter().any(|f| f.sha256 == sha256) {
+        return Ok(json!({ "id": a.id }));
+    }
+    if a.attachments.len() >= MAX_ATTACHMENTS {
+        return Err(EngineError::conflict(format!("{} already has {MAX_ATTACHMENTS} files", a.label())));
+    }
+    a.attachments.push(FileRef { sha256, name, size: u64::try_from(size).unwrap_or(0), mime });
+    a.updated = ctx.stamp();
+    let id = a.id;
+    ctx.state.action_plans.put(a);
+    Ok(json!({ "id": id }))
+}
+
+fn detach(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut a = load(ctx, p)?;
+    if a.status == PlanStatus::Complete {
+        return Err(EngineError::conflict("a completed plan keeps its files; reopen it first"));
+    }
+    let sha256 = p.req_line("sha256", 64)?.to_ascii_lowercase();
+    let before = a.attachments.len();
+    a.attachments.retain(|f| f.sha256 != sha256);
+    if a.attachments.len() == before {
+        return Err(EngineError::not_found("that file is not attached to this action plan"));
+    }
+    a.updated = ctx.stamp();
+    let id = a.id;
+    ctx.state.action_plans.put(a);
+    Ok(json!({ "id": id }))
 }
 
 fn is_admin(ctx: &Ctx<'_>, project: Id<Project>) -> bool {
@@ -245,6 +305,7 @@ fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         sections,
         approvers: Vec::new(),
         approvals: Vec::new(),
+        attachments: Vec::new(),
         completed: None,
         created: stamp,
         updated: stamp,

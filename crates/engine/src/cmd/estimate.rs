@@ -2,16 +2,16 @@
 //! put the result into the budget.
 
 use buildkiosk_core::{Id, Money, Percent, text};
-use buildkiosk_model::estimate::{Alternate, Estimate, EstimateLine, EstimateStatus, Markup};
+use buildkiosk_model::estimate::{Alternate, Estimate, EstimateLine, EstimateStatus, EstimateTemplate, Markup, TemplateAlternate, TemplateLine};
 use buildkiosk_model::project::{CostCode, Project};
-use buildkiosk_model::{Choice, Level, Tool};
+use buildkiosk_model::{Choice, CompanyState, Level, Tool, perm};
 use serde_json::{Value, json};
 
 use super::budget::{upsert, usable_code};
 use super::{Access, CommandSpec};
 use crate::ctx::in_project;
-use crate::view::json;
-use crate::{Ctx, EngineError, Params, Read, Result, View};
+use crate::view::{self, json};
+use crate::{Actor, Ctx, EngineError, Params, Read, Result, View};
 
 pub const COMMANDS: &[CommandSpec] = &[
     CommandSpec::mutate(
@@ -19,7 +19,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Create estimate",
         Tool::Estimating,
         Access::Project(Level::Standard),
-        "project: project id; name: text; notes?: text; lines?: [{cost_code: cost code id, description: text, quantity: number (up to 3 decimals), unit?: text, unit_cost: amount}]; markups?: [{name: text, percent: percent of the subtotal}]; alternates?: [{name: text, cost_code: cost code id, amount: amount (negative for a deduct), description?: text, accepted?: bool}] (priced apart from the base estimate; accepted ones are added to the subtotal)",
+        "project: project id; name: text; notes?: text; lines?: [{cost_code: cost code id, description: text, quantity: number (up to 3 decimals), unit?: text, unit_cost: amount}]; markups?: [{name: text, percent: percent of the subtotal}]; alternates?: [{name: text, cost_code: cost code id, amount: amount (negative for a deduct), description?: text, accepted?: bool}] (priced apart from the base estimate; accepted ones are added to the subtotal); template?: estimate template id (used when no lines are given: its lines, markups and alternates, matched to this project's cost codes by number; refused when the project lacks one)",
         create,
     ),
     CommandSpec::mutate(
@@ -54,6 +54,23 @@ pub const COMMANDS: &[CommandSpec] = &[
         "project, id: ids; name?: text (default: the old name with `copy` added). A draft with the same lines, markups and alternates (none accepted), noting which estimate it came from",
         duplicate,
     ),
+    CommandSpec::mutate(
+        "estimate.template_save",
+        "Save estimate as template",
+        Tool::Estimating,
+        Access::Project(Level::Standard),
+        "project, id: ids of the estimate; name: text (a company-wide template of the lines, markups and alternates, with cost codes kept by number; a template of the same name is replaced)",
+        template_save,
+    ),
+    CommandSpec::mutate(
+        "estimate.template_delete",
+        "Delete estimate template",
+        Tool::Estimating,
+        Access::Member,
+        "id: template id (its author or a company admin)",
+        template_delete,
+    ),
+    CommandSpec::query("estimate.template_list", "List estimate templates", Tool::Estimating, Access::Member, "(none)", template_list),
     CommandSpec::query(
         "estimate.compare",
         "Compare two estimates",
@@ -521,10 +538,162 @@ fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     if e.name.is_empty() {
         return Err(p.bad("name", "is required"));
     }
+    if e.lines.is_empty() && p.present("template") {
+        use_template(ctx, p, &mut e)?;
+    }
     let id = ctx.state.estimates.alloc();
     e.id = id;
     ctx.state.estimates.put(e);
     Ok(json!({ "id": id, "number": number }))
+}
+
+/// Fills an empty estimate from a template, finding each cost code by its number in the project.
+fn use_template(ctx: &Ctx<'_>, p: &Params<'_>, e: &mut Estimate) -> Result<()> {
+    let tid: Id<EstimateTemplate> = p.id("template")?;
+    let t = ctx
+        .state
+        .estimate_templates
+        .get(tid)
+        .filter(|t| t.deleted.is_none())
+        .ok_or_else(|| p.bad("template", format!("estimate template {tid} not found")))?;
+    let codes = view::project_cost_codes(ctx.state, e.project);
+    let find = |code: &str| codes.iter().find(|c| c.code == code).map(|c| c.id);
+    let mut missing: Vec<&str> = Vec::new();
+    let wanted = t.lines.iter().map(|l| l.code.as_str()).chain(t.alternates.iter().map(|a| a.code.as_str()));
+    for code in wanted {
+        if find(code).is_none() && !missing.contains(&code) {
+            missing.push(code);
+        }
+    }
+    if !missing.is_empty() {
+        let shown: Vec<&str> = missing.iter().take(10).copied().collect();
+        return Err(EngineError::conflict(format!(
+            "this project has no cost code {}{}; add them to the project first",
+            shown.join(", "),
+            if missing.len() > shown.len() { " and others" } else { "" }
+        )));
+    }
+    for l in &t.lines {
+        let Some(cost_code) = find(&l.code) else { continue };
+        e.lines.push(EstimateLine {
+            cost_code,
+            description: l.description.clone(),
+            quantity_milli: l.quantity_milli,
+            unit: l.unit.clone(),
+            unit_cost: l.unit_cost,
+        });
+    }
+    if e.notes.is_empty() {
+        e.notes = t.notes.clone();
+    }
+    if e.markups.is_empty() {
+        e.markups = t.markups.clone();
+    }
+    if e.alternates.is_empty() {
+        for a in &t.alternates {
+            let Some(cost_code) = find(&a.code) else { continue };
+            e.alternates.push(Alternate { name: a.name.clone(), description: a.description.clone(), cost_code, amount: a.amount, accepted: false });
+        }
+    }
+    Ok(())
+}
+
+fn template_save(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let e = load(ctx, p)?;
+    let name = p.req_line("name", text::SHORT)?;
+    if e.lines.is_empty() {
+        return Err(EngineError::conflict("the estimate has no lines to keep"));
+    }
+    let code_of = |id: Id<CostCode>| ctx.state.cost_codes.get(id).map(|c| c.code.clone()).unwrap_or_default();
+    let lines: Vec<TemplateLine> = e
+        .lines
+        .iter()
+        .map(|l| TemplateLine {
+            code: code_of(l.cost_code),
+            description: l.description.clone(),
+            quantity_milli: l.quantity_milli,
+            unit: l.unit.clone(),
+            unit_cost: l.unit_cost,
+        })
+        .collect();
+    let alternates: Vec<TemplateAlternate> = e
+        .alternates
+        .iter()
+        .map(|a| TemplateAlternate { name: a.name.clone(), description: a.description.clone(), code: code_of(a.cost_code), amount: a.amount })
+        .collect();
+    let stamp = ctx.stamp();
+    let existing = ctx.state.estimate_templates.iter().find(|t| t.deleted.is_none() && t.name.eq_ignore_ascii_case(&name)).map(|t| t.id);
+    let id = match existing {
+        Some(id) => {
+            ctx.state.estimate_templates.update(id, |t| {
+                t.notes = e.notes.clone();
+                t.lines = lines;
+                t.markups = e.markups.clone();
+                t.alternates = alternates;
+            });
+            id
+        }
+        None => {
+            if ctx.state.estimate_templates.iter().filter(|t| t.deleted.is_none()).count() >= 500 {
+                return Err(EngineError::conflict("the company keeps at most 500 estimate templates"));
+            }
+            let id = ctx.state.estimate_templates.alloc();
+            ctx.state.estimate_templates.put(EstimateTemplate {
+                id,
+                name,
+                notes: e.notes.clone(),
+                lines,
+                markups: e.markups.clone(),
+                alternates,
+                created: stamp,
+                deleted: None,
+            });
+            id
+        }
+    };
+    Ok(json!({ "id": id }))
+}
+
+fn template_delete(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let id: Id<EstimateTemplate> = p.id("id")?;
+    let Some(t) = ctx.state.estimate_templates.get(id).filter(|t| t.deleted.is_none()) else {
+        return Err(EngineError::not_found(format!("estimate template {id} not found")));
+    };
+    let admin = match ctx.actor {
+        Actor::System => true,
+        Actor::Person(x) => perm::company_level(ctx.state, x, Tool::CompanyAdmin) == Level::Admin,
+    };
+    if !admin && !(ctx.person().is_some() && t.created.by == ctx.person()) {
+        return Err(EngineError::forbidden("only the template's author or a company admin can delete it"));
+    }
+    let stamp = ctx.stamp();
+    ctx.state.estimate_templates.update(id, |t| t.deleted = Some(stamp));
+    Ok(json!({ "id": id }))
+}
+
+/// Whether the person may look at estimate templates: company admins and anyone who can read estimating on a project.
+pub fn can_read_templates(state: &CompanyState, actor: Actor) -> bool {
+    match actor {
+        Actor::System => true,
+        Actor::Person(p) => {
+            perm::company_level(state, p, Tool::CompanyAdmin) == Level::Admin
+                || perm::visible_projects(state, p).into_iter().any(|id| perm::project_level(state, p, id, Tool::Estimating) >= Level::Read)
+        }
+    }
+}
+
+/// The company's estimate templates, by name.
+pub fn templates(state: &CompanyState) -> Vec<&EstimateTemplate> {
+    let mut v: Vec<&EstimateTemplate> = state.estimate_templates.iter().filter(|t| t.deleted.is_none()).collect();
+    v.sort_by_key(|t| t.name.to_lowercase());
+    v
+}
+
+fn template_list(v: &View<'_>, _p: &Params<'_>) -> Result<Value> {
+    if !can_read_templates(v.state, v.actor) {
+        return Err(EngineError::forbidden("estimate templates need access to estimating on a project"));
+    }
+    json(&templates(v.state))
 }
 
 fn update(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {

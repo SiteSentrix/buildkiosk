@@ -49,7 +49,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Save questionnaire",
         Tool::Prequalification,
         Access::Company(Level::Admin),
-        "id?: questionnaire id (changes it; without it a new one is made); name: text; text: lines, `# Section title` then `Question | points` under it (points default 10); or sections: [{title, questions: [{text, points}]}]",
+        "id?: questionnaire id (changes it; without it a new one is made; when companies have already answered it, the change is saved as a new version so their answers keep their meaning, and companies that have not answered move to it); name: text; text: lines, `# Section title` then `Question | points` under it (points default 10); or sections: [{title, questions: [{text, points}]}]",
         form_save,
     ),
     CommandSpec::mutate(
@@ -66,7 +66,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Record questionnaire answers",
         Tool::Prequalification,
         Access::Company(Level::Standard),
-        "vendor: company id; form?: questionnaire id (choosing a different one clears the answers); replies?: [{section, question: numbers from 0, text}] (the company's answers to questions; blank clears one)",
+        "vendor: company id; form?: questionnaire id (choosing a different one clears the answers, except moving up to a newer version of the same questionnaire, which keeps the answers to questions that are unchanged); replies?: [{section, question: numbers from 0, text}] (the company's answers to questions; blank clears one)",
         answer,
     ),
     CommandSpec::mutate(
@@ -389,13 +389,50 @@ fn form_save(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     }
     let stamp = ctx.stamp();
     let existing = p.opt_id::<PrequalForm>("id")?;
-    if ctx.state.prequal_forms.iter().any(|f| f.deleted.is_none() && Some(f.id) != existing && f.name.eq_ignore_ascii_case(&name)) {
+    if let Some(newer) = existing.and_then(|id| ctx.state.prequal_forms.get(id)).filter(|f| f.deleted.is_none()).and_then(|f| f.superseded_by) {
+        return Err(EngineError::conflict(format!("that version was replaced by questionnaire {newer}; change that one")));
+    }
+    if ctx
+        .state
+        .prequal_forms
+        .iter()
+        .any(|f| f.deleted.is_none() && f.superseded_by.is_none() && Some(f.id) != existing && f.name.eq_ignore_ascii_case(&name))
+    {
         return Err(p.bad("name", "is already used by another questionnaire"));
     }
     let id = match existing {
         Some(id) => {
             if !ctx.state.prequal_forms.get(id).is_some_and(|f| f.deleted.is_none()) {
                 return Err(EngineError::not_found(format!("questionnaire {id} not found")));
+            }
+            let answered = ctx.state.prequalifications.iter().any(|r| r.deleted.is_none() && r.form == Some(id) && !r.answers.is_empty());
+            if answered {
+                // Answers are kept by position, so a change makes a new version and leaves theirs as it was.
+                let version = ctx.state.prequal_forms.get(id).map_or(1, |f| f.version).saturating_add(1);
+                let new = ctx.state.prequal_forms.alloc();
+                ctx.state.prequal_forms.put(PrequalForm {
+                    id: new,
+                    name,
+                    sections,
+                    version,
+                    previous: Some(id),
+                    superseded_by: None,
+                    created: stamp,
+                    updated: stamp,
+                    deleted: None,
+                });
+                ctx.state.prequal_forms.update(id, |f| f.superseded_by = Some(new));
+                let unanswered: Vec<Id<Prequalification>> = ctx
+                    .state
+                    .prequalifications
+                    .iter()
+                    .filter(|r| r.deleted.is_none() && r.form == Some(id) && r.answers.is_empty())
+                    .map(|r| r.id)
+                    .collect();
+                for r in unanswered {
+                    ctx.state.prequalifications.update(r, |r| r.form = Some(new));
+                }
+                return Ok(json!({ "id": new, "version": version, "new_version": true }));
             }
             ctx.state.prequal_forms.update(id, |f| {
                 f.name = name;
@@ -405,11 +442,21 @@ fn form_save(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
             id
         }
         None => {
-            if ctx.state.prequal_forms.iter().filter(|f| f.deleted.is_none()).count() >= MAX_FORMS {
+            if ctx.state.prequal_forms.iter().filter(|f| f.deleted.is_none() && f.superseded_by.is_none()).count() >= MAX_FORMS {
                 return Err(EngineError::conflict(format!("at most {MAX_FORMS} questionnaires")));
             }
             let id = ctx.state.prequal_forms.alloc();
-            ctx.state.prequal_forms.put(PrequalForm { id, name, sections, created: stamp, updated: stamp, deleted: None });
+            ctx.state.prequal_forms.put(PrequalForm {
+                id,
+                name,
+                sections,
+                version: 1,
+                previous: None,
+                superseded_by: None,
+                created: stamp,
+                updated: stamp,
+                deleted: None,
+            });
             id
         }
     };
@@ -429,9 +476,9 @@ fn form_delete(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     Ok(json!({ "id": id }))
 }
 
-/// The questionnaires, by name.
+/// The current version of each questionnaire, by name.
 pub fn forms_list(state: &buildkiosk_model::CompanyState) -> Vec<&PrequalForm> {
-    let mut v: Vec<&PrequalForm> = state.prequal_forms.iter().filter(|f| f.deleted.is_none()).collect();
+    let mut v: Vec<&PrequalForm> = state.prequal_forms.iter().filter(|f| f.deleted.is_none() && f.superseded_by.is_none()).collect();
     v.sort_by_key(|f| f.name.to_lowercase());
     v
 }
@@ -468,6 +515,31 @@ fn set_answer(r: &mut Prequalification, section: u32, question: u32, f: impl FnO
     r.answers.sort_by_key(|a| (a.section, a.question));
 }
 
+/// Whether `newer` is a later version of `older` (found by following `previous` links).
+fn is_later_version(state: &buildkiosk_model::CompanyState, older: Id<PrequalForm>, newer: Id<PrequalForm>) -> bool {
+    let mut at = state.prequal_forms.get(newer).and_then(|f| f.previous);
+    for _ in 0..MAX_FORMS.saturating_mul(2) {
+        match at {
+            Some(id) if id == older => return true,
+            Some(id) => at = state.prequal_forms.get(id).and_then(|f| f.previous),
+            None => return false,
+        }
+    }
+    false
+}
+
+/// The answers whose question is unchanged (same text in the same place); points stay when the question is worth the same.
+fn carry_answers(old: &PrequalForm, new: &PrequalForm, answers: &[PrequalAnswer]) -> Vec<PrequalAnswer> {
+    let question = |f: &PrequalForm, s: u32, q: u32| f.sections.get(s as usize).and_then(|x| x.questions.get(q as usize)).cloned();
+    answers
+        .iter()
+        .filter_map(|a| {
+            let (was, now) = (question(old, a.section, a.question)?, question(new, a.section, a.question)?);
+            (was.text == now.text).then(|| PrequalAnswer { points: a.points.filter(|_| was.max_points == now.max_points), ..a.clone() })
+        })
+        .collect()
+}
+
 fn answer(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     let mut r = record(ctx, p)?;
     if r.status == PrequalStatus::Approved && ctx.company_level(Tool::Prequalification) != Level::Admin {
@@ -478,8 +550,15 @@ fn answer(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
             return Err(EngineError::not_found(format!("questionnaire {f} not found")));
         }
         if r.form != Some(f) {
+            // Moving up to a newer version of the same questionnaire keeps the answers to questions that are unchanged.
+            let from = r.form.and_then(|old| ctx.state.prequal_forms.get(old));
+            let to = ctx.state.prequal_forms.get(f);
+            let same_line = r.form.is_some_and(|old| is_later_version(ctx.state, old, f));
+            match (from, to, same_line) {
+                (Some(old), Some(new), true) => r.answers = carry_answers(old, new, &r.answers),
+                _ => r.answers.clear(),
+            }
             r.form = Some(f);
-            r.answers.clear();
         }
     }
     let form = r.form.and_then(|f| ctx.state.prequal_forms.get(f)).cloned().ok_or_else(|| EngineError::conflict("choose a questionnaire first"))?;

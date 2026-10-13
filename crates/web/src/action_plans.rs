@@ -10,7 +10,7 @@ use maud::{Markup, html};
 
 use crate::icons::tool_icon;
 use crate::layout::{self, Nav, Req, button_form, command_form, empty, field};
-use crate::pages::{not_found, project_for, user_options};
+use crate::pages::{human_size, not_found, project_for, user_options};
 
 fn status_pill(s: PlanStatus) -> Markup {
     let class = match s {
@@ -97,6 +97,7 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, aid: Id<ActionPlan>) -> Markup {
     let me = req.actor().person();
     let manager = lvl == Level::Admin || (me.is_some() && (a.manager == me || a.created.by == me));
     let (done, all) = a.progress();
+    let can_files = lvl >= Level::Standard && a.status != PlanStatus::Complete && req.allowed("action_plan.attach", Some(id));
     let today = req.today();
     let people = user_options(req, id, true);
     let body = html! {
@@ -163,6 +164,22 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, aid: Id<ActionPlan>) -> Markup {
                         p class="muted small" { "Keeps the sections and items for any project to start from, without owners, dates or progress." }
                         div class="form-actions" { button type="submit" class="btn primary small" { "Save template" } }
                     }))
+                }
+            }
+        }
+        div class="card" {
+            h2 { "Files" }
+            @if a.attachments.is_empty() { p class="muted" { "No files attached." } } @else {
+                ul class="plain" { @for f in &a.attachments { li {
+                    a href=(format!("{here}/files/{}", f.sha256)) { (f.name) } " " span class="muted small" { (human_size(f.size)) }
+                    @if can_files { " " (button_form(req, "action_plan.detach", &here, &[("project", id.to_string()), ("id", aid.to_string()), ("sha256", f.sha256.clone())], "Remove", "small danger")) }
+                } } }
+            }
+            @if can_files {
+                form method="post" action=(format!("{here}/upload")) enctype="multipart/form-data" class="stack" {
+                    input type="hidden" name="_csrf" value=(req.csrf);
+                    input type="file" name="file" required aria-label="File to attach";
+                    button type="submit" class="btn small" { "Attach file" }
                 }
             }
         }

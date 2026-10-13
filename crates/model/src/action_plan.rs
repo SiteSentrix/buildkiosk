@@ -3,7 +3,7 @@
 use buildkiosk_core::{Date, Id};
 use serde::{Deserialize, Serialize};
 
-use crate::common::Stamp;
+use crate::common::{FileRef, Stamp};
 use crate::directory::Person;
 use crate::project::Project;
 use crate::{choice, record};
@@ -78,6 +78,9 @@ pub struct ActionPlan {
     /// The latest answer of each approver; any change to the items clears them.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub approvals: Vec<PlanApproval>,
+    /// Files attached to the plan itself (the programme, a site map, a method statement).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub attachments: Vec<FileRef>,
     /// Who marked the plan complete, and when (the sign-off).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub completed: Option<Stamp>,

@@ -23,6 +23,9 @@ pub struct BudgetLine {
     /// date plus this. Without it the budget is assumed to be spent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub forecast_to_complete: Option<Money>,
+    /// How much of the code's work is done, for the percent-complete forecasting method.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub percent_complete: Option<Percent>,
     pub created: Stamp,
     pub updated: Stamp,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -41,6 +44,8 @@ pub struct SnapshotRow {
     pub pending: Money,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub forecast_to_complete: Option<Money>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub percent_complete: Option<Percent>,
 }
 
 /// The budget as it stood on a day, kept to compare with later.
@@ -57,6 +62,67 @@ pub struct BudgetSnapshot {
     pub deleted: Option<Stamp>,
 }
 record!(BudgetSnapshot, "budget_snapshot", trash, project);
+
+choice! {
+    /// A column of the budget table that a budget view can show.
+    pub enum BudgetColumn {
+        Original = ("original", "Original budget"),
+        Changes = ("changes", "Budget changes"),
+        Revised = ("revised", "Revised budget"),
+        Committed = ("committed", "Committed"),
+        Direct = ("direct", "Direct costs"),
+        Cost = ("cost", "Total cost"),
+        Pending = ("pending", "Pending change events"),
+        Remaining = ("remaining", "Remaining"),
+        Percent = ("percent", "Percent complete"),
+        Forecast = ("forecast", "Forecast to complete"),
+        Projected = ("projected", "Projected cost"),
+        Variance = ("variance", "Over / under"),
+    }
+}
+
+choice! {
+    /// How a budget view groups cost codes.
+    #[derive(Default)]
+    pub enum BudgetGroup {
+        #[default]
+        None = ("none", "No grouping"),
+        /// By the first part of the code ("03" of "03-300"), with a subtotal for each.
+        Division = ("division", "By division"),
+    }
+}
+
+/// A saved way of looking at the budget: which columns, and how the cost codes are grouped.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct BudgetView {
+    pub id: Id<BudgetView>,
+    pub project: Id<Project>,
+    pub name: String,
+    pub columns: Vec<BudgetColumn>,
+    #[serde(default)]
+    pub group: BudgetGroup,
+    pub created: Stamp,
+    pub updated: Stamp,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deleted: Option<Stamp>,
+}
+record!(BudgetView, "budget_view", trash, project);
+
+impl BudgetColumn {
+    /// The columns shown when a project has no view chosen.
+    pub const DEFAULT: &'static [BudgetColumn] = &[
+        BudgetColumn::Original,
+        BudgetColumn::Changes,
+        BudgetColumn::Revised,
+        BudgetColumn::Committed,
+        BudgetColumn::Direct,
+        BudgetColumn::Cost,
+        BudgetColumn::Remaining,
+        BudgetColumn::Forecast,
+        BudgetColumn::Projected,
+        BudgetColumn::Variance,
+    ];
+}
 
 choice! {
     #[derive(Default)]
@@ -83,6 +149,40 @@ impl CommitmentStatus {
     pub fn counts(self) -> bool {
         matches!(self, CommitmentStatus::Approved | CommitmentStatus::Complete)
     }
+}
+
+choice! {
+    /// Where a commitment's contract is in being signed.
+    #[derive(Default)]
+    pub enum SignatureStatus {
+        #[default]
+        NotSent = ("not_sent", "Not sent"),
+        /// Out with the other party for signature.
+        Sent = ("sent", "Out for signature"),
+        Signed = ("signed", "Signed"),
+        /// Returned unsigned (the reason is in the note).
+        Declined = ("declined", "Declined"),
+    }
+}
+
+/// The signing of a commitment's contract, recorded by the team (BuildKiosk does not collect signatures itself:
+/// the signed copy is attached as a file).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct ContractSignature {
+    #[serde(default)]
+    pub status: SignatureStatus,
+    /// Who the contract was sent to.
+    #[serde(default)]
+    pub sent_to: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sent_on: Option<Date>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signed_on: Option<Date>,
+    /// Who signed for the other party.
+    #[serde(default)]
+    pub signer: String,
+    #[serde(default)]
+    pub note: String,
 }
 
 /// One line of a schedule of values or a change: an amount against a cost code.
@@ -117,6 +217,8 @@ pub struct Commitment {
     pub approved: Option<Stamp>,
     #[serde(default)]
     pub attachments: Vec<FileRef>,
+    #[serde(default)]
+    pub signature: ContractSignature,
     pub created: Stamp,
     pub updated: Stamp,
     #[serde(default, skip_serializing_if = "Option::is_none")]

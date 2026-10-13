@@ -1,15 +1,15 @@
 //! The project budget: one line per cost code with the original amount, and a computed view that
 //! sets it against commitments and direct costs.
 
-use buildkiosk_core::{Id, Money, text};
-use buildkiosk_model::finance::{BudgetLine, BudgetSnapshot, SnapshotRow};
-use buildkiosk_model::project::{CostCode, Project};
+use buildkiosk_core::{Id, Money, Percent, text};
+use buildkiosk_model::finance::{BudgetColumn, BudgetGroup, BudgetLine, BudgetSnapshot, BudgetView, SnapshotRow};
+use buildkiosk_model::project::{CostCode, ForecastMethod, Project};
 
-use buildkiosk_model::{Level, Tool};
+use buildkiosk_model::{Choice, Level, Tool};
 use serde_json::{Value, json};
 
 use super::{Access, CommandSpec};
-use crate::ctx::in_project;
+use crate::ctx::{Read, in_project};
 use crate::view::{self, BudgetRow};
 use crate::{Ctx, EngineError, Params, Result, View};
 
@@ -35,7 +35,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Import budget",
         Tool::Budget,
         Access::Project(Level::Standard),
-        "project: project id; text: lines of `cost code, amount[, notes]` (comma or tab separated; a first line starting with `code` is skipped); lines for a code that already has a budget line change it",
+        "project: project id; text: lines of `cost code, amount[, notes]` (comma or tab separated), or with a first line naming the columns (`Cost code, Description, Amount, Notes`); lines for a code that already has a budget line change it; add_codes?: bool (also create the cost codes the project doesn't have yet, from the Description column; takes a project admin)",
         import,
     ),
     CommandSpec::mutate(
@@ -45,6 +45,22 @@ pub const COMMANDS: &[CommandSpec] = &[
         Access::Project(Level::Standard),
         "project: project id; cost_code: cost code id; forecast_to_complete?: amount still to spend (not negative; blank removes the forecast and the budget is assumed to be spent)",
         set_forecast,
+    ),
+    CommandSpec::mutate(
+        "budget.set_progress",
+        "Set percent complete",
+        Tool::Budget,
+        Access::Project(Level::Standard),
+        "project: project id; cost_code: cost code id; percent_complete?: percent of the code's work that is done (0 to 100; blank removes it); used by the percent-complete forecasting method",
+        set_progress,
+    ),
+    CommandSpec::mutate(
+        "budget.set_method",
+        "Choose forecasting method",
+        Tool::Budget,
+        Access::Project(Level::Admin),
+        "project: project id; method: budget (a code with no forecast is assumed to spend its budget) | committed (only what is committed or spent, plus pending change events) | progress (cost so far divided by the percent complete)",
+        set_method,
     ),
     CommandSpec::mutate(
         "budget.lock",
@@ -79,6 +95,23 @@ pub const COMMANDS: &[CommandSpec] = &[
         "project: project id; id?: snapshot id (with it, that snapshot's rows)",
         snapshots,
     ),
+    CommandSpec::mutate(
+        "budget.view_save",
+        "Save budget view",
+        Tool::Budget,
+        Access::Project(Level::Standard),
+        "project: project id; id?: view id (changes that view; without it a new one is made); name: text; columns: list or comma-separated text of original, changes, revised, committed, direct, cost, pending, remaining, percent, forecast, projected, variance (shown in the order of the budget table); group?: none|division",
+        view_save,
+    ),
+    CommandSpec::mutate(
+        "budget.view_delete",
+        "Delete budget view",
+        Tool::Budget,
+        Access::Project(Level::Standard),
+        "project: project id; id: view id",
+        view_delete,
+    ),
+    CommandSpec::query("budget.views", "List budget views", Tool::Budget, Access::Project(Level::Read), "project: project id", views),
     CommandSpec::query("budget.get", "Show budget", Tool::Budget, Access::Project(Level::Read), "project: project id", get),
 ];
 
@@ -132,6 +165,7 @@ pub(crate) fn upsert(ctx: &mut Ctx<'_>, project: Id<Project>, code: Id<CostCode>
                 original,
                 notes: notes.unwrap_or_default(),
                 forecast_to_complete: None,
+                percent_complete: None,
                 created: stamp,
                 updated: stamp,
                 deleted: None,
@@ -162,44 +196,105 @@ fn delete_line(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     Ok(json!({ "id": id }))
 }
 
+/// The columns of a budget import: where the code, description, amount and notes are.
+struct ImportColumns {
+    code: usize,
+    description: Option<usize>,
+    amount: usize,
+    notes: Option<usize>,
+}
+
+impl ImportColumns {
+    /// Without a header line: `code, amount, notes`.
+    const PLAIN: ImportColumns = ImportColumns { code: 0, description: None, amount: 1, notes: Some(2) };
+
+    /// Reads a header line such as `Cost code, Description, Original budget, Notes`; `None` when the line isn't one.
+    fn from_header(cells: &[String]) -> Option<std::result::Result<ImportColumns, &'static str>> {
+        let at = |names: &[&str]| cells.iter().position(|c| names.iter().any(|n| c.trim().eq_ignore_ascii_case(n)));
+        let code = at(&["code", "cost code", "cost_code"])?;
+        let amount = at(&["amount", "original", "original budget", "original amount", "budget"]);
+        Some(
+            amount
+                .map(|amount| ImportColumns {
+                    code,
+                    description: at(&["description", "name", "cost code description"]),
+                    amount,
+                    notes: at(&["notes", "note", "comments"]),
+                })
+                .ok_or("the header line needs an amount column (amount, original or budget)"),
+        )
+    }
+}
+
 fn import(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     const MAX_LINES: usize = 5_000;
     let project: Id<Project> = p.id("project")?;
     unlocked(ctx.state, project)?;
-    let body = p.req_text("text", 500_000)?;
+    let body = p.req_text("text", 1_000_000)?;
+    let add_codes = p.flag_or("add_codes", false)?;
+    if add_codes && ctx.level(project, Tool::ProjectAdmin) < Level::Admin {
+        return Err(EngineError::forbidden("adding cost codes takes a project admin"));
+    }
     let codes = view::project_cost_codes(ctx.state, project);
-    let mut parsed: Vec<(Id<CostCode>, Money, String)> = Vec::new();
+    let mut columns = ImportColumns::PLAIN;
+    let mut parsed: Vec<(String, Money, String, String)> = Vec::new();
+    let mut seen_line = false;
     for (n, raw) in body.lines().enumerate() {
         let line = raw.trim();
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
-        let cells: Vec<&str> = if line.contains('\t') { line.split('\t').collect() } else { line.split(',').collect() };
-        let code_text = cells.first().map(|c| c.trim().trim_matches('"')).unwrap_or("");
-        if parsed.is_empty() && code_text.eq_ignore_ascii_case("code") || code_text.eq_ignore_ascii_case("cost code") {
-            continue;
+        let cells: Vec<String> = if line.contains('\t') {
+            line.split('\t').map(|c| c.trim().trim_matches('"').to_string()).collect()
+        } else {
+            super::submittal::csv_cells(line)
+        };
+        if !seen_line {
+            seen_line = true;
+            if let Some(header) = ImportColumns::from_header(&cells) {
+                columns = header.map_err(|e| p.bad("text", e))?;
+                continue;
+            }
         }
+        let cell = |i: usize| cells.get(i).map(String::as_str).unwrap_or("");
         if parsed.len() >= MAX_LINES {
             return Err(p.bad("text", format!("has more than {MAX_LINES} lines")));
         }
-        let code = codes
-            .iter()
-            .find(|c| c.code.eq_ignore_ascii_case(code_text))
-            .ok_or_else(|| p.bad("text", format!("line {}: no cost code `{code_text}` for this project", n + 1)))?;
-        let amount_text = cells.get(1).map(|c| c.trim().trim_matches('"')).unwrap_or("");
-        let money = Money::parse(amount_text).map_err(|e| p.bad("text", format!("line {}: {e}", n + 1)))?;
+        let code_text = text::required_line(cell(columns.code), 50).map_err(|e| p.bad("text", format!("line {}: cost code {e}", n + 1)))?;
+        let money = Money::parse(cell(columns.amount)).map_err(|e| p.bad("text", format!("line {}: {e}", n + 1)))?;
         if money.is_negative() {
             return Err(p.bad("text", format!("line {}: amounts must not be negative", n + 1)));
         }
-        let notes = text::line(cells.get(2).map(|c| c.trim().trim_matches('"')).unwrap_or(""), text::SHORT)
-            .map_err(|e| p.bad("text", format!("line {}: notes {e}", n + 1)))?;
-        parsed.push((code.id, money, notes));
+        let notes =
+            text::line(columns.notes.map(&cell).unwrap_or(""), text::SHORT).map_err(|e| p.bad("text", format!("line {}: notes {e}", n + 1)))?;
+        let description = text::line(columns.description.map(&cell).unwrap_or(""), text::SHORT)
+            .map_err(|e| p.bad("text", format!("line {}: description {e}", n + 1)))?;
+        let known = codes.iter().any(|c| c.code.eq_ignore_ascii_case(&code_text));
+        if !known && !add_codes {
+            return Err(p.bad("text", format!("line {}: no cost code `{code_text}` for this project (tick the box to add new codes)", n + 1)));
+        }
+        if !known && description.is_empty() && !parsed.iter().any(|(c, _, _, d)| c.eq_ignore_ascii_case(&code_text) && !d.is_empty()) {
+            return Err(p.bad("text", format!("line {}: the new cost code `{code_text}` needs a description", n + 1)));
+        }
+        parsed.push((code_text, money, notes, description));
     }
     let count = parsed.len();
-    for (code, money, notes) in parsed {
+    let mut added = 0usize;
+    let stamp = ctx.stamp();
+    for (code_text, money, notes, description) in parsed {
+        let existing = view::project_cost_codes(ctx.state, project).into_iter().find(|c| c.code.eq_ignore_ascii_case(&code_text)).map(|c| c.id);
+        let code = match existing {
+            Some(id) => id,
+            None => {
+                let id = ctx.state.cost_codes.alloc();
+                ctx.state.cost_codes.put(CostCode { id, project: Some(project), code: code_text, description, created: stamp, deleted: None });
+                added += 1;
+                id
+            }
+        };
         upsert(ctx, project, code, money, if notes.is_empty() { None } else { Some(notes) });
     }
-    Ok(json!({ "lines": count }))
+    Ok(json!({ "lines": count, "created": count, "codes_added": added }))
 }
 
 fn row_json(v: &View<'_>, r: &BudgetRow) -> Value {
@@ -218,6 +313,7 @@ fn row_json(v: &View<'_>, r: &BudgetRow) -> Value {
         "pending": r.pending,
         "remaining": r.remaining(),
         "forecast_to_complete": r.forecast_to_complete,
+        "percent_complete": r.percent_complete,
         "projected": r.projected(),
         "variance": r.variance(),
     })
@@ -256,6 +352,114 @@ fn set_forecast(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     Ok(json!({ "id": id }))
 }
 
+const MAX_VIEWS: usize = 50;
+
+fn view_columns(p: &Params<'_>) -> Result<Vec<BudgetColumn>> {
+    let mut wanted = Vec::new();
+    for n in &p.words("columns", 40)? {
+        let c = BudgetColumn::parse(n).ok_or_else(|| p.bad("columns", format!("`{n}` is not a budget column")))?;
+        if !wanted.contains(&c) {
+            wanted.push(c);
+        }
+    }
+    if wanted.is_empty() {
+        return Err(p.bad("columns", "needs at least one column"));
+    }
+    // Always in the order of the table, whatever order they were named in.
+    Ok(BudgetColumn::ALL.iter().copied().filter(|c| wanted.contains(c)).collect())
+}
+
+fn view_save(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let name = p.req_line("name", text::SHORT)?;
+    let columns = view_columns(p)?;
+    let group: BudgetGroup = p.choice("group")?.unwrap_or_default();
+    let stamp = ctx.stamp();
+    let id = match p.opt_id::<BudgetView>("id")? {
+        Some(id) => {
+            let v = in_project(&ctx.state.budget_views, project, id, "budget view")?;
+            if v.deleted.is_some() {
+                return Err(EngineError::not_found(format!("budget view {id} not found in this project")));
+            }
+            id
+        }
+        None => {
+            if ctx.state.budget_views.iter().filter(|v| v.project == project && v.deleted.is_none()).count() >= MAX_VIEWS {
+                return Err(EngineError::conflict(format!("a project keeps at most {MAX_VIEWS} budget views")));
+            }
+            let id = ctx.state.budget_views.alloc();
+            ctx.state.budget_views.put(BudgetView {
+                id,
+                project,
+                name: name.clone(),
+                columns: columns.clone(),
+                group,
+                created: stamp,
+                updated: stamp,
+                deleted: None,
+            });
+            id
+        }
+    };
+    if ctx.state.budget_views.iter().any(|v| v.project == project && v.deleted.is_none() && v.id != id && v.name.eq_ignore_ascii_case(&name)) {
+        return Err(p.bad("name", "is already used by another view"));
+    }
+    ctx.state.budget_views.update(id, |v| {
+        v.name = name;
+        v.columns = columns;
+        v.group = group;
+        v.updated = stamp;
+    });
+    Ok(json!({ "id": id }))
+}
+
+fn view_delete(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let id: Id<BudgetView> = p.id("id")?;
+    in_project(&ctx.state.budget_views, project, id, "budget view")?;
+    let stamp = ctx.stamp();
+    ctx.state.budget_views.update(id, |v| v.deleted = Some(stamp));
+    Ok(json!({ "id": id }))
+}
+
+fn views(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let mut list: Vec<&BudgetView> = v.state.budget_views.iter().filter(|b| b.project == project && b.deleted.is_none()).collect();
+    list.sort_by_key(|b| b.id);
+    view::json(&list)
+}
+
+fn set_progress(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let code: Id<CostCode> = p.id("cost_code")?;
+    usable_code(ctx.state, project, code)?;
+    let percent = match p.percent("percent_complete")? {
+        Some(x) if x.hundredths() < 0 || x > Percent::HUNDRED => return Err(p.bad("percent_complete", "must be between 0 and 100")),
+        other => other,
+    };
+    let found = ctx.state.budget_lines.iter().find(|b| b.project == project && b.cost_code == code && b.deleted.is_none()).map(|b| b.id);
+    let id = match found {
+        Some(id) => id,
+        None => upsert(ctx, project, code, Money::ZERO, None),
+    };
+    let stamp = ctx.stamp();
+    ctx.state.budget_lines.update(id, |b| {
+        b.percent_complete = percent;
+        b.updated = stamp;
+    });
+    Ok(json!({ "id": id }))
+}
+
+fn set_method(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let method: ForecastMethod = p.choice("method")?.ok_or_else(|| p.bad("method", "is required"))?;
+    if !ctx.state.projects.get(project).is_some_and(|x| x.deleted.is_none()) {
+        return Err(EngineError::not_found(format!("project {project} not found")));
+    }
+    ctx.state.projects.update(project, |x| x.forecast_method = method);
+    Ok(json!({ "method": method }))
+}
+
 fn set_locked(ctx: &mut Ctx<'_>, p: &Params<'_>, locked: bool) -> Result<Value> {
     let project: Id<Project> = p.id("project")?;
     let current = ctx.state.projects.get(project).ok_or_else(|| EngineError::not_found(format!("project {project} not found")))?.budget_locked;
@@ -292,6 +496,7 @@ fn snapshot(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
             direct: r.direct,
             pending: r.pending,
             forecast_to_complete: r.forecast_to_complete,
+            percent_complete: r.percent_complete,
         })
         .collect();
     let id = ctx.state.budget_snapshots.alloc();

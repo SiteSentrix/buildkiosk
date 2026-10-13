@@ -13,7 +13,7 @@ use buildkiosk_model::finance::{
     PrimeContract,
 };
 use buildkiosk_model::inspection::Inspection;
-use buildkiosk_model::project::{CostCode, Project};
+use buildkiosk_model::project::{CostCode, ForecastMethod, Project};
 use buildkiosk_model::rfi::{Rfi, RfiStatus};
 use buildkiosk_model::submittal::{Submittal, SubmittalStatus};
 use buildkiosk_model::{CompanyState, Level, Tool, perm};
@@ -163,15 +163,35 @@ pub struct BudgetRow {
     pub pending: Money,
     /// An estimate of the cost still to come (the budget line's forecast).
     pub forecast_to_complete: Option<Money>,
+    /// How much of the code's work is done (for the percent-complete method).
+    pub percent_complete: Option<Percent>,
+    /// How the project projects a code with no forecast.
+    pub method: ForecastMethod,
 }
 
 impl BudgetRow {
-    /// The cost expected at completion: cost to date plus the forecast when there is one, else the
-    /// larger of the revised budget and the cost so far (the budget is assumed to be spent).
+    /// The cost expected at completion. A forecast to complete always wins (cost to date plus the forecast);
+    /// otherwise it depends on the project's method:
+    /// - budget: the larger of the revised budget and the cost so far (the budget is assumed to be spent);
+    /// - committed: the cost so far plus pending change events;
+    /// - progress: the cost so far divided by the percent complete, and the committed method where there is none.
     pub fn projected(&self) -> Money {
-        match self.forecast_to_complete {
-            Some(f) => self.cost().checked_add(f).unwrap_or(Money::ZERO),
-            None => self.revised().max(self.cost()),
+        if let Some(f) = self.forecast_to_complete {
+            return self.cost().checked_add(f).unwrap_or(Money::ZERO);
+        }
+        let committed = || self.cost().checked_add(self.pending).unwrap_or(Money::ZERO);
+        match self.method {
+            ForecastMethod::Budget => self.revised().max(self.cost()),
+            ForecastMethod::Committed => committed(),
+            ForecastMethod::Progress => match self.percent_complete {
+                Some(p) if p.hundredths() > 0 => {
+                    let cost = self.cost().cents();
+                    // Cost so far scaled up by the share done; the result may not be less than the cost so far.
+                    let scaled = i128::from(cost) * i128::from(Percent::HUNDRED.hundredths()) / i128::from(p.hundredths());
+                    i64::try_from(scaled).map(Money::from_cents).unwrap_or(Money::ZERO).max(self.cost())
+                }
+                _ => committed(),
+            },
         }
     }
 
@@ -208,7 +228,7 @@ fn too_big() -> EngineError {
     EngineError::conflict("the amounts are too large to add up")
 }
 
-fn budget_row(rows: &mut std::collections::BTreeMap<Id<CostCode>, BudgetRow>, code: Id<CostCode>) -> &mut BudgetRow {
+fn budget_row(rows: &mut std::collections::BTreeMap<Id<CostCode>, BudgetRow>, code: Id<CostCode>, method: ForecastMethod) -> &mut BudgetRow {
     rows.entry(code).or_insert(BudgetRow {
         cost_code: code,
         budgeted: false,
@@ -218,6 +238,8 @@ fn budget_row(rows: &mut std::collections::BTreeMap<Id<CostCode>, BudgetRow>, co
         direct: Money::ZERO,
         pending: Money::ZERO,
         forecast_to_complete: None,
+        percent_complete: None,
+        method,
     })
 }
 
@@ -225,17 +247,19 @@ fn budget_row(rows: &mut std::collections::BTreeMap<Id<CostCode>, BudgetRow>, co
 /// code that has any of them, in code order.
 pub fn budget_rows(state: &CompanyState, project: Id<Project>) -> Result<Vec<BudgetRow>, EngineError> {
     let mut rows: std::collections::BTreeMap<Id<CostCode>, BudgetRow> = std::collections::BTreeMap::new();
+    let method = state.projects.get(project).map(|p| p.forecast_method).unwrap_or_default();
     for b in state.budget_lines.iter().filter(|b| b.project == project && b.deleted.is_none()) {
-        let r = budget_row(&mut rows, b.cost_code);
+        let r = budget_row(&mut rows, b.cost_code, method);
         r.budgeted = true;
         r.original = r.original.checked_add(b.original).ok_or_else(too_big)?;
+        r.percent_complete = b.percent_complete.or(r.percent_complete);
         if let Some(f) = b.forecast_to_complete {
             r.forecast_to_complete = Some(r.forecast_to_complete.unwrap_or(Money::ZERO).checked_add(f).ok_or_else(too_big)?);
         }
     }
     for c in state.commitments.iter().filter(|c| c.project == project && c.deleted.is_none() && c.status.counts()) {
         for l in &c.lines {
-            let r = budget_row(&mut rows, l.cost_code);
+            let r = budget_row(&mut rows, l.cost_code, method);
             r.committed = r.committed.checked_add(l.amount).ok_or_else(too_big)?;
         }
     }
@@ -245,24 +269,24 @@ pub fn budget_rows(state: &CompanyState, project: Id<Project>) -> Result<Vec<Bud
             continue;
         }
         for l in &c.lines {
-            let r = budget_row(&mut rows, l.cost_code);
+            let r = budget_row(&mut rows, l.cost_code, method);
             r.committed = r.committed.checked_add(l.amount).ok_or_else(too_big)?;
         }
     }
     for c in state.budget_changes.iter().filter(|c| c.project == project && c.deleted.is_none() && c.status == ChangeStatus::Approved) {
         for l in &c.lines {
-            let r = budget_row(&mut rows, l.cost_code);
+            let r = budget_row(&mut rows, l.cost_code, method);
             r.changes = r.changes.checked_add(l.amount).ok_or_else(too_big)?;
         }
     }
     for e in state.change_events.iter().filter(|e| e.project == project && e.deleted.is_none() && e.status == ChangeEventStatus::Open) {
         for l in &e.lines {
-            let r = budget_row(&mut rows, l.cost_code);
+            let r = budget_row(&mut rows, l.cost_code, method);
             r.pending = r.pending.checked_add(l.amount).ok_or_else(too_big)?;
         }
     }
     for d in state.direct_costs.iter().filter(|d| d.project == project && d.deleted.is_none()) {
-        let r = budget_row(&mut rows, d.cost_code);
+        let r = budget_row(&mut rows, d.cost_code, method);
         r.direct = r.direct.checked_add(d.amount).ok_or_else(too_big)?;
     }
     let mut list: Vec<BudgetRow> = rows.into_values().collect();
@@ -271,6 +295,51 @@ pub fn budget_rows(state: &CompanyState, project: Id<Project>) -> Result<Vec<Bud
         code(a.cost_code).cmp(&code(b.cost_code))
     });
     Ok(list)
+}
+
+/// The division of a cost code: the text before its first `-`, `.`, `/` or space ("03" of "03-300"), or the
+/// whole code when it has none.
+pub fn code_division(code: &str) -> &str {
+    let code = code.trim();
+    let end = code.find(['-', '.', '/', ' ']).filter(|&i| i > 0).unwrap_or(code.len());
+    code.get(..end).unwrap_or(code)
+}
+
+/// The amount a budget column shows for a row (`None` where a column has no figure, such as no forecast).
+pub fn column_amount(row: &BudgetRow, column: buildkiosk_model::finance::BudgetColumn) -> Option<Money> {
+    use buildkiosk_model::finance::BudgetColumn as C;
+    match column {
+        C::Original => Some(row.original),
+        C::Changes => Some(row.changes),
+        C::Revised => Some(row.revised()),
+        C::Committed => Some(row.committed),
+        C::Direct => Some(row.direct),
+        C::Cost => Some(row.cost()),
+        C::Pending => Some(row.pending),
+        C::Remaining => Some(row.remaining()),
+        C::Percent => None,
+        C::Forecast => row.forecast_to_complete,
+        C::Projected => Some(row.projected()),
+        C::Variance => Some(row.variance()),
+    }
+}
+
+/// The figure a total or subtotal row shows for a budget column (`None` where a total makes no sense).
+pub fn total_amount(t: &BudgetTotals, column: buildkiosk_model::finance::BudgetColumn) -> Option<Money> {
+    use buildkiosk_model::finance::BudgetColumn as C;
+    match column {
+        C::Original => Some(t.original),
+        C::Changes => Some(t.changes),
+        C::Revised => Some(t.revised()),
+        C::Committed => Some(t.committed),
+        C::Direct => Some(t.direct),
+        C::Cost => Some(t.cost()),
+        C::Pending => Some(t.pending),
+        C::Remaining => Some(t.remaining()),
+        C::Percent | C::Forecast => None,
+        C::Projected => Some(t.projected),
+        C::Variance => Some(t.variance()),
+    }
 }
 
 /// Totals of the budget rows.

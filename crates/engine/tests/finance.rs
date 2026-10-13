@@ -146,3 +146,130 @@ fn commitment_files() {
     w.err(pm, "commitment.attach", json!({"project": p, "id": c, "sha256": SHA, "name": "x", "size": 1}));
     w.assert_replay();
 }
+
+#[test]
+fn signed_contract_workflow() {
+    use buildkiosk_model::finance::SignatureStatus;
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let eng = w.member(p, "Eli", "Engineer", "Project engineer");
+    w.ok(pm, "member.update", json!({"project": p, "person": eng, "overrides": {"commitments": "standard"}}));
+    let concrete = code(&w, "03-300");
+    let sig = |w: &World, c: u64| w.engine.state().commitments.get(buildkiosk_core::Id::new(c)).unwrap().signature.clone();
+    let c = w.ok(eng, "commitment.create", json!({"project": p, "title": "Footings", "lines": [{"cost_code": concrete, "amount": "30000"}]}))["id"]
+        .as_u64()
+        .unwrap();
+    let empty = w.ok(eng, "commitment.create", json!({"project": p, "title": "Empty"}))["id"].as_u64().unwrap();
+
+    // Without the rule, approval doesn't look at the signature.
+    let loose = w.ok(eng, "commitment.create", json!({"project": p, "title": "Loose", "lines": [{"cost_code": concrete, "amount": "1"}]}))["id"]
+        .as_u64()
+        .unwrap();
+    w.ok(pm, "commitment.approve", json!({"project": p, "id": loose}));
+
+    // Turning the rule on is an admin's choice, and then an unsigned contract can't be approved.
+    w.err(eng, "commitment.require_signed", json!({"project": p, "required": true}));
+    w.err(pm, "commitment.require_signed", json!({"project": p}));
+    w.ok(pm, "commitment.require_signed", json!({"project": p, "required": true}));
+    w.err(pm, "commitment.approve", json!({"project": p, "id": c}));
+    w.err(eng, "commitment.send_for_signature", json!({"project": p, "id": empty}));
+
+    // Send it out, take it back, send again, and it comes back declined.
+    w.ok(eng, "commitment.send_for_signature", json!({"project": p, "id": c, "to": "sam@example.com", "on": "2026-10-12"}));
+    let s = sig(&w, c);
+    assert_eq!((s.status, s.sent_to.as_str(), s.sent_on.unwrap().to_string()), (SignatureStatus::Sent, "sam@example.com", "2026-10-12".to_string()));
+    w.err(pm, "commitment.approve", json!({"project": p, "id": c}));
+    w.err(eng, "commitment.send_for_signature", json!({"project": p, "id": c, "on": "tomorrow"}));
+    w.err(eng, "commitment.decline_signature", json!({"project": p, "id": empty}));
+    w.ok(eng, "commitment.decline_signature", json!({"project": p, "id": c, "note": "Wants a longer schedule"}));
+    assert_eq!((sig(&w, c).status, sig(&w, c).note), (SignatureStatus::Declined, "Wants a longer schedule".to_string()));
+    w.ok(eng, "commitment.reset_signature", json!({"project": p, "id": c}));
+    assert_eq!(sig(&w, c).status, SignatureStatus::NotSent);
+    w.err(eng, "commitment.reset_signature", json!({"project": p, "id": c}));
+
+    // Recording the signature: a signer is needed, and it can't pre-date sending.
+    w.ok(eng, "commitment.send_for_signature", json!({"project": p, "id": c, "on": "2026-10-12"}));
+    w.err(eng, "commitment.record_signature", json!({"project": p, "id": c}));
+    w.err(eng, "commitment.record_signature", json!({"project": p, "id": c, "signer": "Sam Sub", "on": "2026-10-01"}));
+    w.ok(eng, "commitment.record_signature", json!({"project": p, "id": c, "signer": "Sam Sub", "on": "2026-10-14", "note": "Wet ink, scanned"}));
+    let s = sig(&w, c);
+    assert_eq!(
+        (s.status, s.signer.as_str(), s.signed_on.unwrap().to_string(), s.sent_on.unwrap().to_string()),
+        (SignatureStatus::Signed, "Sam Sub", "2026-10-14".to_string(), "2026-10-12".to_string())
+    );
+    w.err(eng, "commitment.record_signature", json!({"project": p, "id": c, "signer": "Sam Sub"}));
+    w.err(eng, "commitment.send_for_signature", json!({"project": p, "id": c}));
+    w.err(eng, "commitment.reset_signature", json!({"project": p, "id": c}));
+
+    // Changing the amounts makes the signature void; the contract has to be signed again.
+    w.ok(pm, "commitment.update", json!({"project": p, "id": c, "title": "Footings and piers"}));
+    assert_eq!(sig(&w, c).status, SignatureStatus::Signed, "a new title leaves the signature alone");
+    w.ok(pm, "commitment.update", json!({"project": p, "id": c, "lines": [{"cost_code": concrete, "amount": "32000"}]}));
+    assert_eq!(sig(&w, c).status, SignatureStatus::NotSent);
+    w.err(pm, "commitment.approve", json!({"project": p, "id": c}));
+    w.ok(pm, "commitment.record_signature", json!({"project": p, "id": c, "signer": "Sam Sub"}));
+    w.ok(pm, "commitment.approve", json!({"project": p, "id": c}));
+    assert_eq!(w.engine.state().commitments.get(buildkiosk_core::Id::new(c)).unwrap().status, CommitmentStatus::Approved);
+    // An approved commitment on a project that requires signatures keeps its signature; complete ones are closed.
+    w.err(pm, "commitment.reset_signature", json!({"project": p, "id": c}));
+    w.ok(pm, "commitment.complete", json!({"project": p, "id": c}));
+    w.err(pm, "commitment.record_signature", json!({"project": p, "id": c, "signer": "x"}));
+    // Switching the rule off lets an unsigned one through again.
+    w.ok(pm, "commitment.require_signed", json!({"project": p, "required": false}));
+    let again = w.ok(eng, "commitment.create", json!({"project": p, "title": "Rebar", "lines": [{"cost_code": concrete, "amount": "5000"}]}))["id"]
+        .as_u64()
+        .unwrap();
+    w.ok(pm, "commitment.approve", json!({"project": p, "id": again}));
+    w.assert_replay();
+}
+
+#[test]
+fn budget_import_from_a_spreadsheet_file() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let admin = w.admin();
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let eng = w.member(p, "Eli", "Engineer", "Project engineer");
+    w.ok(pm, "member.update", json!({"project": p, "person": eng, "overrides": {"budget": "standard"}}));
+    let count = |w: &World| w.engine.state().cost_codes.iter().filter(|c| c.project == Some(p) && c.deleted.is_none()).count();
+
+    // A header names the columns, in any order, with quoted cells that hold commas.
+    let text = "Notes,Cost code,Original budget\n\"Concrete, slab and footings\",03-300,\"120,000.00\"\n,05-100,80000\n";
+    let r = w.ok(eng, "budget.import", json!({"project": p, "text": text}));
+    assert_eq!((r["lines"].as_u64(), r["codes_added"].as_u64()), (Some(2), Some(0)));
+    let line = |w: &World, c: &str| {
+        let id = w.engine.state().cost_codes.iter().find(|x| x.code == c).unwrap().id;
+        w.engine.state().budget_lines.iter().find(|b| b.cost_code == id && b.deleted.is_none()).map(|b| (b.original, b.notes.clone()))
+    };
+    assert_eq!(line(&w, "03-300"), Some((money(120_000), "Concrete, slab and footings".to_string())));
+    assert_eq!(line(&w, "05-100").unwrap().0, money(80_000));
+
+    // The old shape still works, tabs too; a header with no amount column is refused.
+    w.ok(eng, "budget.import", json!({"project": p, "text": "03-300\t125000\tRevised"}));
+    assert_eq!(line(&w, "03-300"), Some((money(125_000), "Revised".to_string())));
+    w.err(eng, "budget.import", json!({"project": p, "text": "Cost code,Notes\n03-300,x"}));
+
+    // Codes the project doesn't have: refused unless asked for, and then only by a project admin.
+    let new = "Cost code,Description,Amount\n99-100,Owner allowances,25000\n99-200,,1\n";
+    w.err(eng, "budget.import", json!({"project": p, "text": new}));
+    w.err(eng, "budget.import", json!({"project": p, "text": new, "add_codes": true}));
+    // The second new code has no description, so nothing at all is changed.
+    w.err(admin, "budget.import", json!({"project": p, "text": new, "add_codes": true}));
+    assert_eq!(count(&w), 25);
+    let ok = "Cost code,Description,Amount\n99-100,Owner allowances,25000\n99-100,,5000\n03-300,Ignored for known codes,126000\n";
+    let r = w.ok(admin, "budget.import", json!({"project": p, "text": ok, "add_codes": true}));
+    assert_eq!((r["lines"].as_u64(), r["codes_added"].as_u64()), (Some(3), Some(1)));
+    assert_eq!(count(&w), 26);
+    let added = w.engine.state().cost_codes.iter().find(|c| c.code == "99-100").unwrap().clone();
+    assert_eq!((added.description.as_str(), added.project), ("Owner allowances", Some(p)));
+    assert_eq!(line(&w, "99-100").unwrap().0, money(5_000), "a later line for the same code wins");
+    assert_eq!(line(&w, "03-300").unwrap().0, money(126_000));
+    // The new code is usable like any other, and only on this project.
+    let other = w.project("Harbor Office");
+    w.err(admin, "budget.set_line", json!({"project": other, "cost_code": added.id.raw(), "original": "1"}));
+    // A locked budget refuses the import.
+    w.ok(admin, "budget.lock", json!({"project": p}));
+    w.err(admin, "budget.import", json!({"project": p, "text": ok, "add_codes": true}));
+    w.assert_replay();
+}

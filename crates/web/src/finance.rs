@@ -2,8 +2,8 @@
 
 use buildkiosk_core::{Id, Money};
 use buildkiosk_engine::cmd::commitment::can_edit;
-use buildkiosk_engine::model::finance::{Commitment, CommitmentKind, CommitmentStatus};
-use buildkiosk_engine::model::project::{CostType, Project};
+use buildkiosk_engine::model::finance::{BudgetColumn, BudgetGroup, BudgetView, Commitment, CommitmentKind, CommitmentStatus, SignatureStatus};
+use buildkiosk_engine::model::project::{CostType, ForecastMethod, Project};
 use buildkiosk_engine::model::{Choice, Level, Tool};
 use buildkiosk_engine::{JournalEntry, find_command, view};
 use maud::{Markup, html};
@@ -39,7 +39,57 @@ fn code_options(req: &Req<'_>, project: Id<Project>, selected: Option<Id<buildki
 
 // -- budget
 
-pub fn budget(req: &Req<'_>, id: Id<Project>, compare: Option<Id<buildkiosk_engine::model::finance::BudgetSnapshot>>) -> Markup {
+/// The columns and grouping a budget is shown with: the chosen saved view, else the standard layout (which adds
+/// the percent-complete column when the project forecasts by progress).
+fn budget_layout(
+    state: &buildkiosk_engine::model::CompanyState,
+    id: Id<Project>,
+    chosen: Option<Id<BudgetView>>,
+) -> (Option<&BudgetView>, Vec<BudgetColumn>, BudgetGroup) {
+    let saved = chosen.and_then(|v| state.budget_views.get(v)).filter(|v| v.project == id && v.deleted.is_none());
+    match saved {
+        Some(v) => (Some(v), v.columns.clone(), v.group),
+        None => {
+            let progress = state.projects.get(id).is_some_and(|p| p.forecast_method == ForecastMethod::Progress);
+            let columns = BudgetColumn::DEFAULT
+                .iter()
+                .copied()
+                .flat_map(|c| if progress && c == BudgetColumn::Remaining { vec![c, BudgetColumn::Percent] } else { vec![c] })
+                .collect();
+            (None, columns, BudgetGroup::None)
+        }
+    }
+}
+
+/// One cell of the budget table.
+fn budget_cell(row: &view::BudgetRow, column: BudgetColumn) -> Markup {
+    match column {
+        BudgetColumn::Percent => html! { td class="num" { @if let Some(x) = row.percent_complete { (x) "%" } @else { span class="muted" { "—" } } } },
+        BudgetColumn::Forecast => {
+            html! { td class="num" { @if let Some(x) = row.forecast_to_complete { (x) } @else { span class="muted" { "—" } } } }
+        }
+        BudgetColumn::Remaining | BudgetColumn::Variance => {
+            html! { td class="num" { (amount(view::column_amount(row, column).unwrap_or_default())) } }
+        }
+        _ => html! { td class="num" { (view::column_amount(row, column).unwrap_or_default()) } },
+    }
+}
+
+/// One cell of a total or subtotal row (blank where a total makes no sense).
+fn total_cell(t: &view::BudgetTotals, column: BudgetColumn) -> Markup {
+    match view::total_amount(t, column) {
+        Some(m) if matches!(column, BudgetColumn::Remaining | BudgetColumn::Variance) => html! { td class="num" { (amount(m)) } },
+        Some(m) => html! { td class="num" { (m) } },
+        None => html! { td {} },
+    }
+}
+
+pub fn budget(
+    req: &Req<'_>,
+    id: Id<Project>,
+    compare: Option<Id<buildkiosk_engine::model::finance::BudgetSnapshot>>,
+    chosen: Option<Id<BudgetView>>,
+) -> Markup {
     let Some(p) = project_for(req, id) else { return not_found(req) };
     let state = req.engine.state();
     if view::level(state, req.actor(), id, Tool::Budget) < Level::Read {
@@ -55,6 +105,11 @@ pub fn budget(req: &Req<'_>, id: Id<Project>, compare: Option<Id<buildkiosk_engi
     let mut snapshots: Vec<_> = state.budget_snapshots.iter().filter(|s| s.project == id && s.deleted.is_none()).collect();
     snapshots.sort_by_key(|s| std::cmp::Reverse(s.id));
     let compared = compare.and_then(|c| snapshots.iter().copied().find(|s| s.id == c));
+    let (current, columns, group) = budget_layout(state, id, chosen);
+    let mut saved_views: Vec<&BudgetView> = state.budget_views.iter().filter(|v| v.project == id && v.deleted.is_none()).collect();
+    saved_views.sort_by_key(|v| v.id);
+    let can_views = req.allowed("budget.view_save", Some(id));
+    let method = p.forecast_method;
     let line_of = |code| state.budget_lines.iter().find(|b| b.project == id && b.cost_code == code && b.deleted.is_none()).map(|b| b.id);
     let body = html! {
         div class="page-head" {
@@ -77,33 +132,49 @@ pub fn budget(req: &Req<'_>, id: Id<Project>, compare: Option<Id<buildkiosk_engi
             }
         }
         @if locked { div class="flash ok" role="status" { "The original budget is locked. Change it with a budget change; forecasts can still be edited." } }
+        @if !saved_views.is_empty() || can_views {
+            div class="tabs" {
+                a href=(here.clone()) class=(if current.is_none() { "active" } else { "" }) { "Standard" }
+                @for v in &saved_views { a href=(format!("{here}?view={}", v.id)) class=(if current.is_some_and(|c| c.id == v.id) { "active" } else { "" }) { (v.name) } }
+            }
+        }
         @if rows.is_empty() {
             div class="card" { (empty(tool_icon(Tool::Budget), "No budget yet", "Add a line for a cost code, or import a list below.")) }
         } @else {
             div class="table-wrap" {
                 table class="data" {
-                    thead { tr { th { "Cost code" } th class="num" { "Original" } th class="num" { "Changes" } th class="num" { "Revised" } th class="num" { "Committed" } th class="num" { "Direct" } th class="num" { "Total cost" } th class="num" { "Remaining" } th class="num" { "Forecast to complete" } th class="num" { "Projected cost" } th class="num" { "Over / under" } @if can_edit { th {} } } }
-                    tbody {
-                        @for r in &rows {
-                            @let code = state.cost_codes.get(r.cost_code);
-                            tr {
-                                td { strong { (code.map(|c| c.code.as_str()).unwrap_or("?")) } " " (code.map(|c| c.description.as_str()).unwrap_or("")) @if !r.budgeted { " " span class="tag" { "No budget line" } } }
-                                td class="num" { (r.original) }
-                                td class="num" { (r.changes) }
-                                td class="num" { (r.revised()) }
-                                td class="num" { (r.committed) }
-                                td class="num" { (r.direct) }
-                                td class="num" { (r.cost()) }
-                                td class="num" { (amount(r.remaining())) }
-                                td class="num" { @if let Some(x) = r.forecast_to_complete { (x) } @else { span class="muted" { "—" } } }
-                                td class="num" { (r.projected()) }
-                                td class="num" { (amount(r.variance())) }
-                                @if can_edit { td class="right" { @if let Some(l) = line_of(r.cost_code) { (button_form(req, "budget.delete_line", &here, &[("project", id.to_string()), ("id", l.to_string())], "Remove", "small danger")) } } }
+                    thead { tr { th { "Cost code" } @for c in &columns { th class="num" { (c.label()) } } @if can_edit { th {} } } }
+                    @let groups: Vec<(Option<String>, Vec<&view::BudgetRow>)> = {
+                        let code_of = |r: &view::BudgetRow| state.cost_codes.get(r.cost_code).map(|c| c.code.clone()).unwrap_or_default();
+                        let mut out: Vec<(Option<String>, Vec<&view::BudgetRow>)> = Vec::new();
+                        for r in &rows {
+                            let key = (group == BudgetGroup::Division).then(|| view::code_division(&code_of(r)).to_string());
+                            match out.last_mut() {
+                                Some((k, list)) if *k == key => list.push(r),
+                                _ => out.push((key, vec![r])),
+                            }
+                        }
+                        out
+                    };
+                    @for (key, list) in &groups {
+                        tbody {
+                            @if let Some(k) = key { tr class="group-row" { th colspan=(columns.len() + 1 + usize::from(can_edit)) { "Division " (k) } } }
+                            @for r in list {
+                                @let code = state.cost_codes.get(r.cost_code);
+                                tr {
+                                    td { strong { (code.map(|c| c.code.as_str()).unwrap_or("?")) } " " (code.map(|c| c.description.as_str()).unwrap_or("")) @if !r.budgeted { " " span class="tag" { "No budget line" } } }
+                                    @for c in &columns { (budget_cell(r, *c)) }
+                                    @if can_edit { td class="right" { @if let Some(l) = line_of(r.cost_code) { (button_form(req, "budget.delete_line", &here, &[("project", id.to_string()), ("id", l.to_string())], "Remove", "small danger")) } } }
+                                }
+                            }
+                            @if key.is_some() {
+                                @let sub: Vec<view::BudgetRow> = list.iter().map(|r| (*r).clone()).collect();
+                                @if let Ok(t) = view::budget_totals(&sub) { tr class="subtotal" { td { "Subtotal" } @for c in &columns { (total_cell(&t, *c)) } @if can_edit { td {} } } }
                             }
                         }
                     }
                     @if let Some(t) = totals {
-                        tfoot { tr { td { "Total" } td class="num" { (t.original) } td class="num" { (t.changes) } td class="num" { (t.revised()) } td class="num" { (t.committed) } td class="num" { (t.direct) } td class="num" { (t.cost()) } td class="num" { (amount(t.remaining())) } td {} td class="num" { (t.projected) } td class="num" { (amount(t.variance())) } @if can_edit { td {} } } }
+                        tfoot { tr { td { "Total" } @for c in &columns { (total_cell(&t, *c)) } @if can_edit { td {} } } }
                     }
                 }
             }
@@ -111,7 +182,11 @@ pub fn budget(req: &Req<'_>, id: Id<Project>, compare: Option<Id<buildkiosk_engi
         @if can_forecast {
             div class="card" {
                 h2 { "Forecast the cost still to come" }
-                p class="muted small" { "With a forecast, the projected cost is the cost to date plus the forecast. Without one the budget is assumed to be spent. Leave the amount blank to remove a forecast." }
+                p class="muted small" { "With a forecast, the projected cost is the cost to date plus the forecast. Leave the amount blank to remove a forecast. A code with no forecast is projected by the project's method: " strong { (method.label()) } " (" (match method {
+                    ForecastMethod::Budget => "the budget is assumed to be spent",
+                    ForecastMethod::Committed => "only what is committed or spent, plus pending change events",
+                    ForecastMethod::Progress => "cost so far divided by the percent complete, or the committed cost where none is entered",
+                }) ")." }
                 (command_form(req, "budget.set_forecast", &here, &here, html! {
                     input type="hidden" name="project" value=(id);
                     div class="form-grid" {
@@ -119,6 +194,53 @@ pub fn budget(req: &Req<'_>, id: Id<Project>, compare: Option<Id<buildkiosk_engi
                         (field("Forecast to complete", "fc_amount", false, false, html! { input type="text" id="fc_amount" name="forecast_to_complete" inputmode="decimal" placeholder="0.00"; }))
                     }
                     div class="form-actions" { button type="submit" class="btn primary" { "Save forecast" } }
+                }))
+                @if method == ForecastMethod::Progress {
+                    h3 { "Percent complete" }
+                    p class="muted small" { "How much of a code's work is done. Leave blank to remove it." }
+                    (command_form(req, "budget.set_progress", &here, &here, html! {
+                        input type="hidden" name="project" value=(id);
+                        div class="form-grid" {
+                            (field("Cost code", "pc_code", true, false, html! { select id="pc_code" name="cost_code" required { (code_options(req, id, None, false)) } }))
+                            (field("Percent complete", "pc_amount", false, false, html! { input type="text" id="pc_amount" name="percent_complete" inputmode="decimal" placeholder="0"; }))
+                        }
+                        div class="form-actions" { button type="submit" class="btn primary" { "Save percent complete" } }
+                    }))
+                }
+                @if req.allowed("budget.set_method", Some(id)) {
+                    h3 { "Forecasting method" }
+                    (command_form(req, "budget.set_method", &here, &here, html! {
+                        input type="hidden" name="project" value=(id);
+                        div class="form-grid" {
+                            (field("Method", "fc_method", true, false, html! { select id="fc_method" name="method" { @for m in ForecastMethod::ALL { option value=(m.key()) selected[*m == method] { (m.label()) } } } }))
+                        }
+                        div class="form-actions" { button type="submit" class="btn" { "Use this method" } }
+                    }))
+                }
+            }
+        }
+        @if can_views {
+            div class="card" {
+                h2 { "Budget views" }
+                p class="muted small" { "A view keeps the columns you want to see and whether cost codes are grouped by division. It changes the table above and the CSV export, nothing else." }
+                @if !saved_views.is_empty() {
+                    ul class="plain" {
+                        @for v in &saved_views {
+                            li { a href=(format!("{here}?view={}", v.id)) { strong { (v.name) } } " · " (v.columns.len()) " columns" @if v.group == BudgetGroup::Division { ", by division" } " " (button_form(req, "budget.view_delete", &here, &[("project", id.to_string()), ("id", v.id.to_string())], "Delete", "small danger")) }
+                        }
+                    }
+                }
+                (command_form(req, "budget.view_save", &here, &here, html! {
+                    input type="hidden" name="project" value=(id);
+                    @if let Some(v) = current { input type="hidden" name="id" value=(v.id); }
+                    div class="form-grid" {
+                        (field("Name", "bv_name", true, false, html! { input type="text" id="bv_name" name="name" required value=[current.map(|v| v.name.as_str())] placeholder="Cash position"; }))
+                        (field("Grouping", "bv_group", false, false, html! { select id="bv_group" name="group" { @for g in BudgetGroup::ALL { option value=(g.key()) selected[*g == group] { (g.label()) } } } }))
+                    }
+                    fieldset { legend { "Columns" }
+                        div class="options" { @for c in BudgetColumn::ALL { label { input type="checkbox" name="columns[]" value=(c.key()) checked[columns.contains(c)]; (c.label()) } } }
+                    }
+                    div class="form-actions" { button type="submit" class="btn primary" { (if current.is_some() { "Save changes to this view" } else { "Save as a new view" }) } }
                 }))
             }
         }
@@ -156,7 +278,7 @@ pub fn budget(req: &Req<'_>, id: Id<Project>, compare: Option<Id<buildkiosk_engi
                     table class="data" {
                         thead { tr { th { "Cost code" } th class="num" { "Revised then" } th class="num" { "Revised now" } th class="num" { "Cost then" } th class="num" { "Cost now" } th class="num" { "Projected then" } th class="num" { "Projected now" } th class="num" { "Projected change" } } }
                         tbody {
-                            @for (code, then, now) in compare_rows(&s.rows, &rows) {
+                            @for (code, then, now) in compare_rows(&s.rows, &rows, method) {
                                 @let c = state.cost_codes.get(code);
                                 tr {
                                     td { strong { (c.map(|c| c.code.as_str()).unwrap_or("?")) } " " (c.map(|c| c.description.as_str()).unwrap_or("")) }
@@ -200,6 +322,20 @@ pub fn budget(req: &Req<'_>, id: Id<Project>, compare: Option<Id<buildkiosk_engi
             }
             div class="card" {
                 details class="disclosure" {
+                    summary { "Import a budget from a file" }
+                    p class="muted small" { "A spreadsheet saved as CSV. Put the column names on the first line: Cost code, Amount (or Original budget), and optionally Description and Notes, in any order. Without a first line of names, the columns are code, amount, notes. A code that already has a line changes it. Up to 1 MB." }
+                    form method="post" action=(format!("{here}/import-file")) enctype="multipart/form-data" {
+                        input type="hidden" name="_csrf" value=(req.csrf);
+                        (field("Budget file", "budget_file", true, true, html! { input type="file" id="budget_file" name="file" accept=".csv,text/csv,text/plain" required; }))
+                        @if req.allowed("cost_code.create", Some(id)) {
+                            label class="check" { input type="checkbox" name="add_codes" value="true"; " Add the cost codes this project doesn't have yet (they take their names from the Description column)" }
+                        }
+                        div class="form-actions" { button type="submit" class="btn primary" { "Import file" } }
+                    }
+                }
+            }
+            div class="card" {
+                details class="disclosure" {
                     summary { "Import a budget" }
                     p class="muted small" { "One line per cost code: code, amount, notes (optional), separated by commas or tabs. Codes must already be in the project's cost code list." }
                     (command_form(req, "budget.import", &here, &here, html! {
@@ -218,6 +354,7 @@ pub fn budget(req: &Req<'_>, id: Id<Project>, compare: Option<Id<buildkiosk_engi
 fn compare_rows(
     then: &[buildkiosk_engine::model::finance::SnapshotRow],
     now: &[view::BudgetRow],
+    method: ForecastMethod,
 ) -> Vec<(Id<buildkiosk_engine::model::project::CostCode>, view::BudgetRow, view::BudgetRow)> {
     let blank = |code| view::BudgetRow {
         cost_code: code,
@@ -228,6 +365,8 @@ fn compare_rows(
         direct: buildkiosk_core::Money::ZERO,
         pending: buildkiosk_core::Money::ZERO,
         forecast_to_complete: None,
+        percent_complete: None,
+        method,
     };
     let mut codes: Vec<_> = then.iter().map(|r| r.cost_code).chain(now.iter().map(|r| r.cost_code)).collect();
     codes.sort();
@@ -244,6 +383,8 @@ fn compare_rows(
                 direct: r.direct,
                 pending: r.pending,
                 forecast_to_complete: r.forecast_to_complete,
+                percent_complete: r.percent_complete,
+                method,
             });
             let new = now.iter().find(|r| r.cost_code == c).cloned();
             (c, old.unwrap_or_else(|| blank(c)), new.unwrap_or_else(|| blank(c)))
@@ -251,33 +392,28 @@ fn compare_rows(
         .collect()
 }
 
-pub fn budget_csv(req: &Req<'_>, id: Id<Project>) -> Option<String> {
+pub fn budget_csv(req: &Req<'_>, id: Id<Project>, chosen: Option<Id<BudgetView>>) -> Option<String> {
     project_for(req, id)?;
     let state = req.engine.state();
     if view::level(state, req.actor(), id, Tool::Budget) < Level::Read {
         return None;
     }
     let rows = view::budget_rows(state, id).ok()?;
-    let mut out = String::from(
-        "Cost code,Description,Original,Changes,Revised,Committed,Direct,Total cost,Pending,Remaining,Forecast to complete,Projected cost,Over / under\r\n",
-    );
+    // The chosen view's columns, in table order; with none, every column (the full export).
+    let columns: Vec<BudgetColumn> = match chosen.and_then(|v| state.budget_views.get(v)).filter(|v| v.project == id && v.deleted.is_none()) {
+        Some(v) => v.columns.clone(),
+        None => BudgetColumn::ALL.to_vec(),
+    };
+    let mut out = format!("Cost code,Description,{}\r\n", columns.iter().map(|c| layout::csv_cell(c.label())).collect::<Vec<_>>().join(","));
     for r in &rows {
         let code = state.cost_codes.get(r.cost_code);
-        let cells = [
-            code.map(|c| c.code.clone()).unwrap_or_default(),
-            code.map(|c| c.description.clone()).unwrap_or_default(),
-            r.original.plain(),
-            r.changes.plain(),
-            r.revised().plain(),
-            r.committed.plain(),
-            r.direct.plain(),
-            r.cost().plain(),
-            r.pending.plain(),
-            r.remaining().plain(),
-            r.forecast_to_complete.map(|f| f.plain()).unwrap_or_default(),
-            r.projected().plain(),
-            r.variance().plain(),
-        ];
+        let mut cells = vec![code.map(|c| c.code.clone()).unwrap_or_default(), code.map(|c| c.description.clone()).unwrap_or_default()];
+        for c in &columns {
+            cells.push(match c {
+                BudgetColumn::Percent => r.percent_complete.map(|p| p.plain()).unwrap_or_default(),
+                _ => view::column_amount(r, *c).map(|m| m.plain()).unwrap_or_default(),
+            });
+        }
         out.push_str(&cells.iter().map(|c| layout::csv_cell(c)).collect::<Vec<_>>().join(","));
         out.push_str("\r\n");
     }
@@ -285,6 +421,16 @@ pub fn budget_csv(req: &Req<'_>, id: Id<Project>) -> Option<String> {
 }
 
 // -- commitments
+
+fn signature_pill(s: SignatureStatus) -> Markup {
+    let class = match s {
+        SignatureStatus::NotSent => "grey",
+        SignatureStatus::Sent => "amber",
+        SignatureStatus::Signed => "green",
+        SignatureStatus::Declined => "red",
+    };
+    html! { span class=(format!("pill {class}")) { (s.label()) } }
+}
 
 fn status_pill(s: CommitmentStatus) -> Markup {
     let class = match s {
@@ -344,12 +490,23 @@ pub fn commitments(req: &Req<'_>, id: Id<Project>, filter: &CommitmentFilter) ->
             input type="search" name="q" value=(filter.q) placeholder="Search title or number" aria-label="Search commitments";
             button type="submit" class="btn small" { (Icon::Search.svg()) "Filter" }
         }
+        @if req.allowed("commitment.require_signed", Some(id)) {
+            div class="card" {
+                @let required = p.require_signed_contracts;
+                p { "Signed contracts: " strong { (if required { "required before a commitment is approved" } else { "not required" }) } }
+                (command_form(req, "commitment.require_signed", &base, &base, html! {
+                    input type="hidden" name="project" value=(id);
+                    input type="hidden" name="required" value=(if required { "false" } else { "true" });
+                    div class="form-actions" { button type="submit" class="btn small" { (if required { "Stop requiring signatures" } else { "Require a signed contract before approval" }) } }
+                }))
+            }
+        }
         @if shown.is_empty() {
             div class="card" { (empty(tool_icon(Tool::Commitments), "No commitments here", if all.is_empty() { "Create a subcontract or purchase order to start tracking committed cost." } else { "No commitment matches these filters." })) }
         } @else {
             div class="table-wrap" {
                 table class="data" {
-                    thead { tr { th { "#" } th { "Title" } th { "Company" } th { "Type" } th { "Status" } th class="num" { "Total" } } }
+                    thead { tr { th { "#" } th { "Title" } th { "Company" } th { "Type" } th { "Status" } th { "Contract" } th class="num" { "Total" } } }
                     tbody {
                         @for c in &shown {
                             tr {
@@ -358,6 +515,7 @@ pub fn commitments(req: &Req<'_>, id: Id<Project>, filter: &CommitmentFilter) ->
                                 td { @if let Some(v) = c.vendor { (view::vendor_name(state, v)) } }
                                 td { (c.kind.label()) }
                                 td { (status_pill(c.status)) }
+                                td { @if c.signature.status != SignatureStatus::NotSent || p.require_signed_contracts { (signature_pill(c.signature.status)) } }
                                 td class="num" { @if let Some(t) = c.total() { (t) } }
                             }
                         }
@@ -416,6 +574,63 @@ pub fn commitment(req: &Req<'_>, id: Id<Project>, cid: Id<Commitment>, history: 
                 } }
             }
             @if !c.status.counts() { p class="muted small" { "Only approved and complete commitments count as committed cost in the budget." } }
+        }
+        @let sig = &c.signature;
+        @let can_sign = !matches!(c.status, CommitmentStatus::Complete | CommitmentStatus::Void) && req.allowed("commitment.send_for_signature", Some(id));
+        @if sig.status != SignatureStatus::NotSent || can_sign || p.require_signed_contracts {
+            div class="card" {
+                div class="card-head" { h2 { "Contract signature" } (signature_pill(sig.status)) }
+                @if p.require_signed_contracts && sig.status != SignatureStatus::Signed && c.status == CommitmentStatus::Draft {
+                    p class="muted small" { "This project needs a signed contract before a commitment can be approved." }
+                }
+                @if sig.status != SignatureStatus::NotSent {
+                    dl class="facts" {
+                        @if let Some(d) = sig.sent_on { dt { "Sent" } dd { (d.pretty()) @if !sig.sent_to.is_empty() { " to " (sig.sent_to) } } }
+                        @if let Some(d) = sig.signed_on { dt { "Signed" } dd { (d.pretty()) @if !sig.signer.is_empty() { " by " (sig.signer) } } }
+                        @if !sig.note.is_empty() { dt { "Note" } dd { (sig.note) } }
+                    }
+                }
+                @if sig.status == SignatureStatus::Signed { p class="muted small" { "Attach the signed copy under Files if you haven't." } }
+                @if can_sign {
+                    @if sig.status != SignatureStatus::Signed {
+                        @if sig.status != SignatureStatus::Sent {
+                            (command_form(req, "commitment.send_for_signature", &here, &here, html! {
+                                input type="hidden" name="project" value=(id); input type="hidden" name="id" value=(c.id);
+                                div class="form-grid" {
+                                    (field("Sent to", "sig_to", false, false, html! { input type="text" id="sig_to" name="to" placeholder="Name or email"; }))
+                                    (field("Date sent", "sig_on", false, false, html! { input type="date" id="sig_on" name="on"; }))
+                                }
+                                div class="form-actions" { button type="submit" class="btn" { "Mark as sent for signature" } }
+                            }))
+                        }
+                        details class="disclosure" {
+                            summary { "Record the signed contract" }
+                            (command_form(req, "commitment.record_signature", &here, &here, html! {
+                                input type="hidden" name="project" value=(id); input type="hidden" name="id" value=(c.id);
+                                div class="form-grid" {
+                                    (field("Signed by", "sig_by", true, false, html! { input type="text" id="sig_by" name="signer" required placeholder="Who signed for the other party"; }))
+                                    (field("Date signed", "sig_when", false, false, html! { input type="date" id="sig_when" name="on"; }))
+                                    (field("Note", "sig_note", false, true, html! { input type="text" id="sig_note" name="note"; }))
+                                }
+                                div class="form-actions" { button type="submit" class="btn primary" { "Record signature" } }
+                            }))
+                        }
+                    }
+                    @if sig.status == SignatureStatus::Sent {
+                        details class="disclosure" {
+                            summary { "It came back unsigned" }
+                            (command_form(req, "commitment.decline_signature", &here, &here, html! {
+                                input type="hidden" name="project" value=(id); input type="hidden" name="id" value=(c.id);
+                                (field("Why", "sig_why", false, true, html! { input type="text" id="sig_why" name="note"; }))
+                                div class="form-actions" { button type="submit" class="btn" { "Record as declined" } }
+                            }))
+                        }
+                    }
+                    @if sig.status != SignatureStatus::NotSent && (sig.status != SignatureStatus::Signed || admin) {
+                        (button_form(req, "commitment.reset_signature", &here, &ids, if sig.status == SignatureStatus::Signed { "Clear the signature" } else { "Take back" }, "small"))
+                    }
+                }
+            }
         }
         @if c.status.counts() && view::level(state, req.actor(), id, Tool::Invoicing) >= Level::Read {
             @if let Ok(b) = view::commitment_billing(state, c) {

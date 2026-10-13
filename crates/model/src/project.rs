@@ -61,6 +61,12 @@ pub struct Project {
     /// The original budget is locked: only budget changes alter it.
     #[serde(default)]
     pub budget_locked: bool,
+    /// How the projected cost is worked out where a cost code has no forecast to complete.
+    #[serde(default)]
+    pub forecast_method: ForecastMethod,
+    /// A commitment can only be approved once its contract is recorded as signed.
+    #[serde(default)]
+    pub require_signed_contracts: bool,
     /// The days work is done on, for the schedule.
     #[serde(default)]
     pub calendar: crate::schedule::WorkCalendar,
@@ -82,6 +88,20 @@ impl Project {
     /// "2026-014 Riverside Clinic", or just the name.
     pub fn display_name(&self) -> String {
         if self.number.is_empty() { self.name.clone() } else { format!("{} {}", self.number, self.name) }
+    }
+}
+
+choice! {
+    /// How a project estimates the cost at completion of a cost code that has no forecast of its own.
+    #[derive(Default)]
+    pub enum ForecastMethod {
+        /// The budget is assumed to be spent (never less than the cost so far).
+        #[default]
+        Budget = ("budget", "Budget"),
+        /// Only what is committed or spent, plus pending change events: money not yet committed is not assumed spent.
+        Committed = ("committed", "Committed cost"),
+        /// Cost so far divided by the percent complete entered for the code; without one, the committed method.
+        Progress = ("progress", "Percent complete"),
     }
 }
 

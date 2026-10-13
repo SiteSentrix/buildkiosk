@@ -105,6 +105,22 @@ pub fn auth_page(title: &str, error: Option<&str>, body: Markup) -> Markup {
     }
 }
 
+/// A page for printing: no navigation, just the content and a link back.
+pub fn print_page(title: &str, back: &str, body: Markup) -> Markup {
+    html! {
+        (DOCTYPE)
+        html lang="en" {
+            head { (head(title)) }
+            body class="print-body" {
+                main class="sheet" {
+                    p class="no-print" { a href=(back) { "← Back" } " · use the browser's Print command (Ctrl+P) to print or save as PDF" }
+                    (body)
+                }
+            }
+        }
+    }
+}
+
 fn initials(name: &str) -> String {
     name.split_whitespace().filter_map(|w| w.chars().next()).take(2).collect::<String>().to_uppercase()
 }

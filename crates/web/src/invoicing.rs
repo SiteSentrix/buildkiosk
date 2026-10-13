@@ -223,6 +223,8 @@ pub fn detail<T: InvoicePage>(req: &Req<'_>, id: Id<Project>, iid: Id<T>, histor
                 div class="sub" { "Period ending " (i.period_end().pretty()) " · " (i.parent_link(req)) @if let Some(d) = i.paid_on() { " · paid " (d.pretty()) } }
             }
             div class="actions" {
+                a class="btn" href=(format!("{here}/print")) { "Print view" }
+                a class="btn" href=(format!("{here}/csv")) { "Export CSV" }
                 @if status == InvoiceStatus::Draft && can_edit(state, req.actor(), i) { (button_form(req, &cmd::<T>("submit"), &here, &ids, "Submit", "primary")) }
                 @if status == InvoiceStatus::Submitted && admin { (button_form(req, &cmd::<T>("approve"), &here, &ids, "Approve", "primary")) (button_form(req, &cmd::<T>("reopen"), &here, &ids, "Back to draft", "")) }
                 @if status == InvoiceStatus::Approved && admin { (button_form(req, &cmd::<T>("pay"), &here, &ids, "Record payment", "primary")) }
@@ -270,4 +272,85 @@ pub fn detail<T: InvoicePage>(req: &Req<'_>, id: Id<Project>, iid: Id<T>, histor
         }
     };
     layout::app(req, &name, T::nav(id), &crumbs::<T>(p, Some(&name)), body)
+}
+
+/// A printable payment application: the schedule of values with this period's work, the amount due
+/// and blank lines for signatures.
+pub fn print<T: InvoicePage>(req: &Req<'_>, id: Id<Project>, iid: Id<T>) -> Markup {
+    let Some(p) = project_for(req, id) else { return not_found(req) };
+    let state = req.engine.state();
+    let Some(i) = T::table(state).get(iid).filter(|i| i.project() == id && can_see(state, req.actor(), *i)) else { return not_found(req) };
+    let Ok(s) = i.summary(state) else { return not_found(req) };
+    let company = state.company().map(|c| c.name.clone()).unwrap_or_default();
+    let back = format!("/projects/{id}/{}/{}", T::PATH, i.id());
+    let title = format!("Invoice #{}", i.number());
+    let body = html! {
+        h1 { (title) }
+        p { strong { (company) } br; "Project: " (p.name) @if !p.number.is_empty() { " (" (p.number) ")" } br; (T::PARENT_LABEL) ": " (i.parent_link(req)) br; "Period ending " (i.period_end().pretty()) br; "Status: " (i.status().label()) @if let Some(d) = i.paid_on() { ", paid " (d.pretty()) } }
+        table class="data print-table" {
+            thead { tr { th { "Item" } th class="num" { "Scheduled value" } th class="num" { "Billed before" } th class="num" { "This period" } th class="num" { "To date" } th class="num" { "%" } th class="num" { "Balance to finish" } } }
+            tbody { @for r in &s.rows {
+                tr {
+                    td { (r.row.description) " " span class="muted" { (state.cost_codes.get(r.row.cost_code).map(|c| c.code.clone()).unwrap_or_default()) } }
+                    td class="num" { (r.row.scheduled) } td class="num" { (r.previous) } td class="num" { (r.this_period) } td class="num" { (r.to_date()) }
+                    td class="num" { @if let Some(x) = r.to_date().ratio(r.row.scheduled) { (x) } } td class="num" { (r.balance()) }
+                }
+            } }
+            tfoot { tr { td { "Total" } td class="num" { (s.scheduled) } td class="num" { (s.previous) } td class="num" { (s.this_period) } td class="num" { (s.to_date) } td {} td class="num" { (s.scheduled.checked_sub(s.to_date).unwrap_or_default()) } } }
+        }
+        dl class="facts" {
+            dt { "Work completed this period" } dd { (s.this_period) }
+            dt { "Retainage withheld (" (s.retainage_rate) ")" } dd { "−" (s.retainage_this) }
+            dt { strong { "Amount due this invoice" } } dd { strong { (s.net_due) } }
+            dt { "Retainage held to date" } dd { (s.retainage_to_date) }
+        }
+        @if !i.notes().is_empty() { p { (i.notes()) } }
+        div class="signatures" {
+            div { div class="line" {} "Submitted by" }
+            div { div class="line" {} "Approved by" }
+            div { div class="line" {} "Date" }
+        }
+    };
+    layout::print_page(&title, &back, body)
+}
+
+/// The invoice's lines and totals as CSV.
+pub fn csv<T: InvoicePage>(req: &Req<'_>, id: Id<Project>, iid: Id<T>) -> Option<String> {
+    project_for(req, id)?;
+    let state = req.engine.state();
+    let i = T::table(state).get(iid).filter(|i| i.project() == id && can_see(state, req.actor(), *i))?;
+    let s = i.summary(state).ok()?;
+    let mut out = String::from("Item,Cost code,Scheduled value,Billed before,This period,To date,Balance to finish\r\n");
+    for r in &s.rows {
+        let cells = [
+            r.row.description.clone(),
+            state.cost_codes.get(r.row.cost_code).map(|c| c.code.clone()).unwrap_or_default(),
+            r.row.scheduled.plain(),
+            r.previous.plain(),
+            r.this_period.plain(),
+            r.to_date().plain(),
+            r.balance().plain(),
+        ];
+        out.push_str(&cells.iter().map(|c| layout::csv_cell(c)).collect::<Vec<_>>().join(","));
+        out.push_str("\r\n");
+    }
+    let total = [
+        "Total".to_string(),
+        String::new(),
+        s.scheduled.plain(),
+        s.previous.plain(),
+        s.this_period.plain(),
+        s.to_date.plain(),
+        s.scheduled.checked_sub(s.to_date).unwrap_or_default().plain(),
+    ];
+    out.push_str(&total.iter().map(|c| layout::csv_cell(c)).collect::<Vec<_>>().join(","));
+    out.push_str("\r\n");
+    for (label, value) in [
+        ("Retainage withheld this invoice", s.retainage_this.plain()),
+        ("Amount due this invoice", s.net_due.plain()),
+        ("Retainage held to date", s.retainage_to_date.plain()),
+    ] {
+        out.push_str(&format!("{},,,,,,{}\r\n", layout::csv_cell(label), value));
+    }
+    Some(out)
 }

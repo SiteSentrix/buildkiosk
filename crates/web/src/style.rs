@@ -215,6 +215,12 @@ a.stat:hover{border-color:var(--primary)}
 .gantt .diamond.critical{fill:var(--danger)}
 .gantt .today{stroke:var(--accent);stroke-width:2;stroke-dasharray:4 3;vector-effect:non-scaling-stroke}
 .gantt td.d1{padding-left:32px}.gantt td.d2{padding-left:50px}.gantt td.d3{padding-left:68px}.gantt td.d4{padding-left:86px}.gantt td.d5{padding-left:104px}.gantt td.d6{padding-left:122px}.gantt td.d7{padding-left:140px}.gantt td.d8{padding-left:158px}
+.sheet{max-width:900px;margin:24px auto;padding:0 16px}
+.print-body{background:#fff;color:#000}
+.print-table th,.print-table td{padding:6px 8px}
+.signatures{display:flex;gap:32px;margin-top:56px}
+.signatures>div{flex:1;font-size:13px}
+.signatures .line{border-bottom:1px solid currentColor;height:28px;margin-bottom:4px}
 .auth-wrap{min-height:100vh;display:grid;place-items:center;padding:24px}
 .auth-card{width:100%;max-width:420px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:28px}
 .auth-card .brand{color:var(--text);margin-bottom:18px}

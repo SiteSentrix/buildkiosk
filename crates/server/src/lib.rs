@@ -138,6 +138,8 @@ pub fn router(app: Shared) -> Router {
         .route("/projects/{id}/commitments/save", post(commitment_save_new))
         .route("/projects/{id}/commitments/{cid}", get(commitment_detail))
         .route("/projects/{id}/commitments/{cid}/edit", get(commitment_edit))
+        .route("/projects/{id}/commitments/{cid}/upload", post(commitment_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
+        .route("/projects/{id}/commitments/{cid}/files/{sha}", get(commitment_download))
         .route("/projects/{id}/commitments/{cid}/save", post(commitment_save))
         .route("/projects/{id}/inspections", get(inspection_list))
         .route("/projects/{id}/inspections.csv", get(inspection_csv))
@@ -765,6 +767,14 @@ async fn commitment_detail(State(app): State<Shared>, headers: HeaderMap, Path((
     })
 }
 
+async fn commitment_download(State(app): State<Shared>, headers: HeaderMap, Path((id, cid, sha)): Path<(u64, u64, String)>) -> Response {
+    file_download(app, headers, Kind::COMMITMENT, id, cid, sha).await
+}
+
+async fn commitment_upload(State(app): State<Shared>, headers: HeaderMap, Path((id, cid)): Path<(u64, u64)>, multipart: Multipart) -> Response {
+    file_upload(app, headers, Kind::COMMITMENT, id, cid, multipart).await
+}
+
 async fn commitment_edit(State(app): State<Shared>, headers: HeaderMap, Path((id, cid)): Path<(u64, u64)>, Query(q): Q) -> Response {
     page(&app, &headers, &q, |r, _| buildkiosk_web::finance::commitment_form(r, Id::new(id), Some(Id::new(cid))))
 }
@@ -817,6 +827,24 @@ async fn invoice_detail<T: InvoicePage>(State(app): State<Shared>, headers: Head
     page(&app, &headers, &q, |r, t| invoicing::detail::<T>(r, Id::new(id), Id::new(iid), &t.store.history(T::TABLE, iid).unwrap_or_default()))
 }
 
+async fn invoice_print<T: InvoicePage>(State(app): State<Shared>, headers: HeaderMap, Path((id, iid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| invoicing::print::<T>(r, Id::new(id), Id::new(iid)))
+}
+
+async fn invoice_csv<T: InvoicePage>(State(app): State<Shared>, headers: HeaderMap, Path((id, iid)): Path<(u64, u64)>) -> Response {
+    let inner = app.lock();
+    let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    let req = Req { engine: &t.engine, person: s.person, csrf: "", now: Timestamp::from_millis(now_ms()), flash: None };
+    let Some(csv) = invoicing::csv::<T>(&req, Id::new(id), Id::new(iid)) else { return plain(StatusCode::NOT_FOUND, "Not found") };
+    let mut res = csv.into_response();
+    res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("text/csv; charset=utf-8"));
+    if let Ok(v) = HeaderValue::from_str(&format!("attachment; filename=\"{}-{iid}.csv\"", T::PATH)) {
+        res.headers_mut().insert("content-disposition", v);
+    }
+    res
+}
+
 /// Saves the amounts typed on a draft invoice (`amount.<row key>`), its period and its notes.
 async fn invoice_save<T: InvoicePage>(State(app): State<Shared>, headers: HeaderMap, Path((id, iid)): Path<(u64, u64)>, body: Bytes) -> Response {
     let form = parse_form(&body);
@@ -842,6 +870,8 @@ fn invoice_routes<T: InvoicePage>(router: Router<Shared>) -> Router<Shared> {
         .route(&base, get(invoice_list::<T>))
         .route(&format!("{base}/{{iid}}"), get(invoice_detail::<T>))
         .route(&format!("{base}/{{iid}}/save"), post(invoice_save::<T>))
+        .route(&format!("{base}/{{iid}}/print"), get(invoice_print::<T>))
+        .route(&format!("{base}/{{iid}}/csv"), get(invoice_csv::<T>))
 }
 
 async fn notifications(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Response {
@@ -1397,6 +1427,7 @@ impl Kind {
     const RFI: Kind = Kind { attach: "rfi.attach", path: "rfis", files: rfi_files };
     const SUBMITTAL: Kind = Kind { attach: "submittal.attach", path: "submittals", files: submittal_files };
     const INSPECTION: Kind = Kind { attach: "inspection.attach", path: "inspections", files: inspection_files };
+    const COMMITMENT: Kind = Kind { attach: "commitment.attach", path: "commitments", files: commitment_files };
     const DRAWING: Kind = Kind { attach: "drawing.add_revision", path: "drawings", files: drawing_files };
     const DOCUMENT: Kind = Kind { attach: "document.add_version", path: "documents", files: document_files };
 
@@ -1416,6 +1447,14 @@ impl Kind {
     fn files(self, state: &CompanyState, actor: Actor, project: u64, item: u64) -> Option<Vec<FileRef>> {
         (self.files)(state, actor, project, item)
     }
+}
+
+fn commitment_files(state: &CompanyState, actor: Actor, project: u64, item: u64) -> Option<Vec<FileRef>> {
+    state
+        .commitments
+        .get(Id::new(item))
+        .filter(|c| c.project == Id::new(project) && view::can_see_commitment(state, actor, c))
+        .map(|c| c.attachments.clone())
 }
 
 fn drawing_files(state: &CompanyState, actor: Actor, project: u64, item: u64) -> Option<Vec<FileRef>> {

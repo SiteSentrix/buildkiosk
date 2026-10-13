@@ -1973,6 +1973,26 @@ async fn correspondence_send_reply_and_close() {
     send(&app, post("/do/correspondence.close", &ada, format!("_csrf={csrf}&project=1&id=1"))).await;
     let (_, _, list) = send(&app, get("/projects/1/correspondence?status=closed")).await;
     assert!(list.contains("Notice of delay"));
+    // Types give each kind its own numbering; the letter print and the incoming forms work.
+    send(&app, post("/do/correspondence_type.save", &ada, format!("_csrf={csrf}&project=1&name=Notice&prefix=ntc"))).await;
+    let (_, _, types) = send(&app, get("/projects/1/correspondence/types")).await;
+    assert!(types.contains("NTC") && types.contains("New type"), "{types}");
+    let (_, _, new) = send(&app, get("/projects/1/correspondence/new")).await;
+    assert!(new.contains("Notice (NTC)"), "{new}");
+    send(
+        &app,
+        post("/do/correspondence.create", &ada, format!("_csrf={csrf}&project=1&subject=Second&kind=Notice&date=2026-10-13&to%5B%5D=1&body=Hello")),
+    )
+    .await;
+    let (_, _, list) = send(&app, get("/projects/1/correspondence")).await;
+    assert!(list.contains("NTC-001"), "{list}");
+    let (st, _, letter) = send(&app, get("/projects/1/correspondence/2/letter.pdf")).await;
+    assert_eq!(st, StatusCode::OK, "{letter}");
+    let (_, _, inc) = send(&app, get("/projects/1/correspondence/incoming")).await;
+    assert!(inc.contains("Paste an email") && inc.contains("Type it in"), "{inc}");
+    send(&app, post("/do/correspondence.file_incoming", &ada, format!("_csrf={csrf}&project=1&subject=Price+change&from_name=Sam+Supplier&from_email=&kind=Notice&date=2026-10-13&to%5B%5D=&to%5B%5D=1&body=Up"))).await;
+    let (_, _, detail) = send(&app, get("/projects/1/correspondence/3")).await;
+    assert!(detail.contains("Sam Supplier") && detail.contains("outside the company"), "{detail}");
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }

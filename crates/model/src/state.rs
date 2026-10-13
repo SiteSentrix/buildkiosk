@@ -12,7 +12,7 @@ use crate::table::{Table, TableChange, TableData};
 // -- project management
 use crate::action_plan::{ActionPlan, PlanTemplate};
 use crate::bidding::BidPackage;
-use crate::correspondence::Correspondence;
+use crate::correspondence::{Correspondence, CorrespondenceType};
 use crate::document::{Document, Folder};
 use crate::drawing::Drawing;
 use crate::estimate::{Assembly, CatalogItem, Estimate};
@@ -143,6 +143,7 @@ tables! {
     submittals: Submittal,
     transmittals: Transmittal,
     correspondence: Correspondence,
+    correspondence_types: CorrespondenceType,
     meetings: Meeting,
     form_templates: FormTemplate,
     form_schedules: FormSchedule,

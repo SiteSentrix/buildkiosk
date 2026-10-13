@@ -5,7 +5,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::common::{FileRef, Stamp};
 use crate::directory::Person;
+use crate::document::Document;
 use crate::project::Project;
+use crate::rfi::Rfi;
 use crate::{choice, record};
 
 choice! {
@@ -57,6 +59,21 @@ pub struct Correspondence {
     /// Only the author, the recipients and admins see a private item.
     #[serde(default)]
     pub private: bool,
+    /// The configured type it was filed under, and its number within that type.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub type_id: Option<Id<CorrespondenceType>>,
+    #[serde(default)]
+    pub type_number: u32,
+    /// "LTR-003": the type's prefix and number; empty when the project has no configured types.
+    #[serde(default)]
+    pub reference: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub rfis: Vec<Id<Rfi>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub documents: Vec<Id<Document>>,
+    /// Set for a message that came from outside the company and was filed here.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub incoming: Option<Sender>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sent: Option<Stamp>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -70,6 +87,28 @@ record!(Correspondence, "correspondence", trash, project);
 
 impl Correspondence {
     pub fn label(&self) -> String {
-        format!("Correspondence #{}", self.number)
+        if self.reference.is_empty() { format!("Correspondence #{}", self.number) } else { self.reference.clone() }
     }
 }
+
+/// Who an incoming message is from, when they are not in the directory.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Sender {
+    pub name: String,
+    #[serde(default)]
+    pub email: String,
+}
+
+/// A kind of correspondence a project has configured, with its own numbering ("Letter", "LTR").
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CorrespondenceType {
+    pub id: Id<CorrespondenceType>,
+    pub project: Id<Project>,
+    pub name: String,
+    /// Starts the reference: LTR-001, LTR-002…
+    pub prefix: String,
+    pub created: Stamp,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deleted: Option<Stamp>,
+}
+record!(CorrespondenceType, "correspondence_type", trash, project);

@@ -337,6 +337,9 @@ pub fn router(app: Shared) -> Router {
             .route("/projects/{id}/photos/{pid}/download", get(photo_download))
             .route("/projects/{id}/correspondence", get(correspondence_page))
             .route("/projects/{id}/correspondence/new", get(correspondence_new))
+            .route("/projects/{id}/correspondence/types", get(correspondence_types))
+            .route("/projects/{id}/correspondence/types/{tid}", get(correspondence_type_edit))
+            .route("/projects/{id}/correspondence/incoming", get(correspondence_incoming))
             .route("/projects/{id}/correspondence/{cid}", get(correspondence_detail))
             .route("/projects/{id}/correspondence/{cid}/edit", get(correspondence_edit))
             .route("/projects/{id}/correspondence/{cid}/upload", post(correspondence_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
@@ -491,6 +494,12 @@ pub fn router(app: Shared) -> Router {
                 "/projects/{id}/correspondence/{cid}/pdf",
                 get(|s: State<Shared>, h: HeaderMap, Path((id, x)): Path<(u64, u64)>| async move {
                     pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::correspondence(r, Id::new(id), Id::new(x)))
+                }),
+            )
+            .route(
+                "/projects/{id}/correspondence/{cid}/letter.pdf",
+                get(|s: State<Shared>, h: HeaderMap, Path((id, x)): Path<(u64, u64)>| async move {
+                    pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::correspondence_letter(r, Id::new(id), Id::new(x)))
                 }),
             )
             .route(
@@ -2147,6 +2156,18 @@ async fn correspondence_page(State(app): State<Shared>, headers: HeaderMap, Path
     let status = q.get("status").and_then(|s| buildkiosk_engine::model::correspondence::CorrespondenceStatus::parse(s));
     let text = q.get("q").map(|s| s.chars().take(100).collect::<String>()).unwrap_or_default();
     page(&app, &headers, &q, |r, _| buildkiosk_web::correspondence::list(r, Id::new(id), status, &text))
+}
+
+async fn correspondence_types(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::correspondence::types_page(r, Id::new(id), None))
+}
+
+async fn correspondence_type_edit(State(app): State<Shared>, headers: HeaderMap, Path((id, tid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::correspondence::types_page(r, Id::new(id), Some(Id::new(tid))))
+}
+
+async fn correspondence_incoming(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::correspondence::incoming_page(r, Id::new(id)))
 }
 
 async fn correspondence_new(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {

@@ -122,6 +122,16 @@ pub fn create(dir: &str) -> Result<(), String> {
             "spec.import",
             json!({"project": pid, "text": "05 12 00, Structural steel framing\n08 41 13, Aluminum storefront\n23 74 00, Packaged rooftop units"}),
         )?;
+        let folder = exec(&mut t, pm, "folder.create", json!({"project": pid, "name": "Meeting minutes"}))?;
+        exec(&mut t, pm, "folder.create", json!({"project": pid, "name": "Bids", "private": true, "access": [person(2)]}))?;
+        let note = b"Kickoff meeting\n\nAttendees: owner, architect, general contractor.\nAction: confirm the long-lead steel order.\n";
+        let (sha256, size) = t.store.blobs.put(note).map_err(|e| e.to_string())?;
+        exec(
+            &mut t,
+            pm,
+            "document.add",
+            json!({"project": pid, "folder": id_of(&folder, "id")?, "title": "Kickoff meeting notes", "sha256": sha256, "name": "kickoff-notes.txt", "size": size, "mime": "text/plain"}),
+        )?;
         let eng = Actor::Person(Id::new(person(2)));
         let log = exec(
             &mut t,

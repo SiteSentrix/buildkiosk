@@ -7,6 +7,7 @@
 #![forbid(unsafe_code)]
 
 pub mod daily_logs;
+pub mod documents;
 pub mod finance;
 pub mod icons;
 pub mod inbox;

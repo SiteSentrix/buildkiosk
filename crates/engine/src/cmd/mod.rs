@@ -32,6 +32,7 @@ pub mod invoice;
 pub mod prime;
 
 // -- documents
+pub mod document;
 
 // -- collaboration
 
@@ -128,6 +129,8 @@ const MODULES: &[&[CommandSpec]] = &[
     punch::COMMANDS,
     // -- field
     daily_log::COMMANDS,
+    // -- documents
+    document::COMMANDS,
     // -- financials
     budget::COMMANDS,
     change::COMMANDS,

@@ -109,8 +109,8 @@ time, finished end to end (engine, tests, pages) before the next.
   HTML with plain forms and are served with `Content-Security-Policy: script-src 'none'`. Interactive pieces that
   truly need client code (Gantt dragging, offline field mode) will be Rust compiled to WASM on top of the same
   engine: **never break wasm** (`cargo xtask wasm` builds L0–L5 and the viewer for `wasm32-unknown-unknown`).
-  - **The one exception so far (owner decision, 2026-10-13): the browser sheet viewer** (`crates/viewer`, Rust to
-    WebAssembly, built by `cargo xtask viewer`). A browser can't start a module without a script, so
+  - **The one exception so far (owner decision, 2026-10-13): the browser module** (`crates/viewer`, Rust to
+    WebAssembly, built by `cargo xtask viewer`): the sheet viewer and dragging bars on the schedule chart. A browser can't start a module without a script, so
     `wasm-bindgen` generates the loader at build time; nothing is handwritten or committed (the output goes to the
     gitignored `crates/server/assets/viewer` and is embedded into the server when it is compiled). Only the viewer
     page's policy allows scripts (`script-src 'self' 'wasm-unsafe-eval'`, `connect-src 'self'`; no inline scripts,

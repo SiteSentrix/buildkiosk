@@ -1,4 +1,5 @@
-//! The sheet viewer that runs in the browser, built as WebAssembly (`cargo xtask viewer`).
+//! The parts of the app that run in the browser, built as WebAssembly (`cargo xtask viewer`): the sheet viewer
+//! and dragging on the schedule chart.
 //!
 //! It improves the server-drawn viewer page: when this module loads and can draw the sheet, the
 //! page shows a canvas that pans and zooms smoothly (the PDF page is drawn here, by the same
@@ -9,6 +10,7 @@
 
 pub mod diff;
 mod dom;
+pub mod gantt;
 pub mod geom;
 pub mod shapes;
 pub mod sheet;

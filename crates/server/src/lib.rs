@@ -328,6 +328,21 @@ pub fn router(app: Shared) -> Router {
                     page(&s.0, &h, &q, |r, _| buildkiosk_web::schedule::lookahead(r, Id::new(id), weeks, from))
                 }),
             )
+            .route(
+                "/projects/{id}/schedule/resources",
+                get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, Query(q): Q| async move {
+                    let weeks = q.get("weeks").and_then(|w| w.trim().parse::<i64>().ok()).unwrap_or(8);
+                    let from = q.get("from").and_then(|f| buildkiosk_core::Date::parse(f.trim()));
+                    page(&s.0, &h, &q, |r, _| buildkiosk_web::schedule::resources(r, Id::new(id), weeks, from))
+                }),
+            )
+            .route(
+                "/projects/{id}/schedule/import-xml",
+                post(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, m: Multipart| async move {
+                    import_file(s.0, h, id, "schedule", "schedule.import_xml", "task", ("8 MB", "Microsoft Project XML file"), m).await
+                })
+                .layer(DefaultBodyLimit::max(8 * 1024 * 1024 + 64 * 1024)),
+            )
             .route("/projects/{id}/schedule/{tid}", get(schedule_task_page))
             .route("/projects/{id}/drawings", get(drawings_page))
             .route("/projects/{id}/drawings.csv", get(drawings_csv))
@@ -426,6 +441,14 @@ pub fn router(app: Shared) -> Router {
                 "/projects/{id}/forms/{rid}/pdf",
                 get(|s: State<Shared>, h: HeaderMap, Path((id, x)): Path<(u64, u64)>| async move {
                     pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::form_record(r, Id::new(id), Id::new(x)))
+                }),
+            )
+            .route(
+                "/projects/{id}/schedule/lookahead.pdf",
+                get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, Query(q): Q| async move {
+                    let weeks = q.get("weeks").and_then(|w| w.trim().parse::<i64>().ok()).unwrap_or(3);
+                    let from = q.get("from").and_then(|f| buildkiosk_core::Date::parse(f.trim()));
+                    pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::lookahead(r, Id::new(id), weeks, from))
                 }),
             )
             .route(
@@ -1972,7 +1995,13 @@ async fn estimate_csv(State(app): State<Shared>, headers: HeaderMap, Path((id, e
 
 async fn schedule_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
     let show = q.get("show").cloned().unwrap_or_default();
-    page(&app, &headers, &q, |r, _| buildkiosk_web::schedule::page(r, Id::new(id), &show))
+    // Dragging bars needs the browser module; its page may run it (and nothing else).
+    let drag = viewer_assets::START_JS.is_some();
+    let mut res = page(&app, &headers, &q, |r, _| buildkiosk_web::schedule::page(r, Id::new(id), &show, drag));
+    if drag && res.status() == StatusCode::OK {
+        res.headers_mut().insert("content-security-policy", HeaderValue::from_static(VIEWER_CSP));
+    }
+    res
 }
 
 async fn schedule_task_page(State(app): State<Shared>, headers: HeaderMap, Path((id, tid)): Path<(u64, u64)>, Query(q): Q) -> Response {
@@ -2362,26 +2391,36 @@ async fn specifications(State(app): State<Shared>, headers: HeaderMap, Path(id):
 
 /// Imports a register from an uploaded CSV file (up to 1 MB).
 async fn submittal_import_file(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, multipart: Multipart) -> Response {
-    import_file(app, headers, id, "submittals", "submittal.import", "submittals", multipart).await
+    import_file(app, headers, id, "submittals", "submittal.import", "submittals", ("1 MB", "CSV file"), multipart).await
 }
 
 async fn work_import_file<T: WorkPage>(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, multipart: Multipart) -> Response {
-    import_file(app, headers, id, T::PATH, &format!("{}.import", T::PREFIX), T::NOUN, multipart).await
+    import_file(app, headers, id, T::PATH, &format!("{}.import", T::PREFIX), T::NOUN, ("1 MB", "CSV file"), multipart).await
 }
 
 /// Runs an import command on an uploaded CSV file (a multipart form with `_csrf` and `file`).
-async fn import_file(app: Shared, headers: HeaderMap, id: u64, path: &str, command: &str, noun: &str, mut multipart: Multipart) -> Response {
+#[allow(clippy::too_many_arguments)]
+async fn import_file(
+    app: Shared,
+    headers: HeaderMap,
+    id: u64,
+    path: &str,
+    command: &str,
+    noun: &str,
+    (limit, what): (&str, &str),
+    mut multipart: Multipart,
+) -> Response {
     let back = format!("/projects/{id}/{path}");
-    let too_big = "The upload failed or the file is larger than 1 MB.";
+    let too_big = format!("The upload failed or the file is larger than {limit}.");
     let (mut token, mut file) = (String::new(), None);
     loop {
         let field = match multipart.next_field().await {
             Ok(Some(f)) => f,
             Ok(None) => break,
-            Err(_) => return redirect(&with_flash(&back, false, too_big)),
+            Err(_) => return redirect(&with_flash(&back, false, &too_big)),
         };
         let name = field.name().unwrap_or("").to_string();
-        let Ok(bytes) = field.bytes().await else { return redirect(&with_flash(&back, false, too_big)) };
+        let Ok(bytes) = field.bytes().await else { return redirect(&with_flash(&back, false, &too_big)) };
         match name.as_str() {
             "_csrf" => token = String::from_utf8_lossy(&bytes).into_owned(),
             "file" if file.is_none() => file = Some(bytes),
@@ -2393,9 +2432,9 @@ async fn import_file(app: Shared, headers: HeaderMap, id: u64, path: &str, comma
     if !auth::csrf_ok(app.secret(), &s.cookie, &token) {
         return plain(StatusCode::FORBIDDEN, "The form expired. Go back, reload the page and try again.");
     }
-    let Some(bytes) = file.filter(|b| !b.is_empty()) else { return redirect(&with_flash(&back, false, "Choose a CSV file to import.")) };
+    let Some(bytes) = file.filter(|b| !b.is_empty()) else { return redirect(&with_flash(&back, false, &format!("Choose a {what} to import."))) };
     let Ok(text) = String::from_utf8(bytes.to_vec()) else {
-        return redirect(&with_flash(&back, false, "The file isn't text. Save it as CSV (UTF-8) and try again."));
+        return redirect(&with_flash(&back, false, &format!("The file isn't text. Save it as a {what} (UTF-8) and try again.")));
     };
     let text = text.trim_start_matches('\u{feff}');
     match inner.run(Actor::Person(s.person), command, &json!({"project": id, "text": text})) {

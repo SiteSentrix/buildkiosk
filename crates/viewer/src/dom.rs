@@ -185,7 +185,7 @@ fn with(shared: &Shared, f: impl FnOnce(&mut Viewer)) {
     }
 }
 
-fn ok<T>(r: Result<T, JsValue>) {
+pub(crate) fn ok<T>(r: Result<T, JsValue>) {
     let _ = r;
 }
 
@@ -198,7 +198,7 @@ fn js(e: JsValue) -> String {
     e.as_string().unwrap_or_else(|| "The browser refused.".to_string())
 }
 
-fn listen<E: JsCast + 'static>(target: &EventTarget, name: &str, mut f: impl FnMut(E) + 'static) {
+pub(crate) fn listen<E: JsCast + 'static>(target: &EventTarget, name: &str, mut f: impl FnMut(E) + 'static) {
     let cb = Closure::<dyn FnMut(Event)>::new(move |e: Event| {
         if let Ok(e) = e.dyn_into::<E>() {
             f(e);
@@ -233,6 +233,10 @@ pub fn start() {
     std::panic::set_hook(Box::new(|info| web_sys::console::error_1(&JsValue::from_str(&info.to_string()))));
     let Some(window) = web_sys::window() else { return };
     let Some(document) = window.document() else { return };
+    // The schedule chart: bars that can be dragged.
+    if let Ok(Some(chart)) = document.query_selector("#wasm-gantt") {
+        crate::gantt::start(document.clone(), chart);
+    }
     let Ok(Some(root)) = document.query_selector("#wasm-viewer") else { return };
     wasm_bindgen_futures::spawn_local(async move {
         if let Err(e) = run(window, document, root).await {

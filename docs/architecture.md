@@ -92,6 +92,12 @@ second point), and uses only exact IEEE operations (add, subtract, multiply, div
 journal gives the same numbers on every machine. Scales and measurements are per revision and page, because a
 revision may be redrawn at another size.
 
+**Dragging on the schedule chart.** The same module makes the bars of the schedule chart draggable
+(`crates/viewer/src/gantt.rs`) on the schedule page, which carries the module's policy like the viewer page does. A
+drag only works out how many whole days the pointer moved; it fills the page's hidden form and posts `schedule.move`
+(move the task, or change its finish), and the engine lands the new dates on working days of the project calendar. A
+page without the module has the same chart without dragging.
+
 Build: `cargo xtask viewer` (needs `cargo install wasm-bindgen-cli --version <the version in Cargo.lock> --locked`)
 writes `crates/server/assets/viewer/{start.js,viewer.js,viewer_bg.wasm}`; then compile the server. `build.rs` embeds
 the three files when all exist. The module is about 5 MB (not compressed on the wire yet). Its policy is set on the

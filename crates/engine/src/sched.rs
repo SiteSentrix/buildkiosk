@@ -6,7 +6,7 @@ use buildkiosk_core::{Date, Id};
 use buildkiosk_model::CompanyState;
 use buildkiosk_model::choice::Choice;
 use buildkiosk_model::project::Project;
-use buildkiosk_model::schedule::{Link, LinkKind, ScheduleTask, WorkCalendar};
+use buildkiosk_model::schedule::{Constraint, Link, LinkKind, ScheduleTask, WorkCalendar};
 use serde::Serialize;
 
 /// Summary tasks nest at most this deep.
@@ -176,6 +176,11 @@ pub struct Row {
     pub late: bool,
     /// Starts before a predecessor allows.
     pub conflict: bool,
+    /// The constraint's key (`snet`, `mso`, `fnlt`; empty for none) and its date.
+    pub constraint: String,
+    pub constraint_date: Option<Date>,
+    /// The task's dates break its constraint.
+    pub broken: bool,
     /// Days the finish has moved from the baseline (positive is later).
     pub slip: Option<i64>,
 }
@@ -260,6 +265,13 @@ fn row_of(
 ) -> Row {
     let float = if summary { None } else { floats.get(&t.id).copied() };
     let conflict = !summary && earliest_by_links(cal, t, by_id).is_some_and(|e| t.start < e);
+    let broken = !summary
+        && match (t.constraint, t.constraint_date) {
+            (Constraint::StartNoEarlierThan, Some(d)) => t.start < d,
+            (Constraint::MustStartOn, Some(d)) => t.start != d,
+            (Constraint::FinishNoLaterThan, Some(d)) => t.finish > d,
+            _ => false,
+        };
     Row {
         id: t.id,
         number: t.number,
@@ -275,6 +287,9 @@ fn row_of(
         critical: float.is_some_and(|f| f <= 0),
         late: t.finish < today && t.percent < 100,
         conflict,
+        constraint: if t.constraint == Constraint::None { String::new() } else { t.constraint.key().to_string() },
+        constraint_date: t.constraint_date.filter(|_| t.constraint != Constraint::None),
+        broken,
         slip: t.baseline_finish.map(|b| b.days_until(t.finish)),
     }
 }
@@ -320,6 +335,16 @@ fn float_by_task(cal: &WorkCalendar, leaves: &[&ScheduleTask]) -> HashMap<Id<Sch
                     lf = lf.min(cand);
                 }
             }
+            // A deadline (or a fixed start) holds the finish back even with nothing after it.
+            match (t.constraint, t.constraint_date) {
+                (Constraint::FinishNoLaterThan, Some(d)) => lf = lf.min(d),
+                (Constraint::MustStartOn, Some(d)) => {
+                    if let Some(f) = shift_in(cal, d, len - 1) {
+                        lf = lf.min(f);
+                    }
+                }
+                _ => {}
+            }
             late_finish.insert(t.id, lf);
         }
     }
@@ -349,4 +374,75 @@ pub fn reaches(state: &CompanyState, from: Id<ScheduleTask>, target: Id<Schedule
         }
     }
     false
+}
+
+/// How much of one resource is needed in a week, against what the project has.
+#[derive(Clone, Debug, Serialize)]
+pub struct Load {
+    pub name: String,
+    /// The limit the project set (none when it set none).
+    pub limit: Option<u32>,
+    /// For each week, the most needed on any one working day.
+    pub peaks: Vec<u32>,
+    /// Weeks whose peak is over the limit.
+    pub over: Vec<bool>,
+}
+
+/// The resources the unfinished tasks need, week by week from `from`: on each working day, the sum of what
+/// every task under way that day needs, and the highest of those in the week.
+pub fn loading(state: &CompanyState, project: Id<Project>, from: Date, weeks: i64) -> Vec<Load> {
+    let cal = calendar(state, project);
+    let weeks = weeks.clamp(1, 26);
+    let leaves: Vec<&ScheduleTask> = {
+        let all = live(state, project);
+        let parents: std::collections::HashSet<Id<ScheduleTask>> = all.iter().filter_map(|t| t.parent).collect();
+        all.into_iter().filter(|t| !parents.contains(&t.id) && t.percent < 100 && !t.resources.is_empty()).collect()
+    };
+    let limits: Vec<(String, u32)> =
+        state.projects.get(project).map(|p| p.resource_limits.iter().map(|a| (a.name.clone(), a.units)).collect()).unwrap_or_default();
+    // Resources by lower-case name, keeping the first spelling.
+    let mut names: Vec<(String, String)> = Vec::new();
+    for n in leaves.iter().flat_map(|t| t.resources.iter().map(|a| a.name.as_str())).chain(limits.iter().map(|(n, _)| n.as_str())) {
+        if !names.iter().any(|(k, _)| *k == n.to_lowercase()) {
+            names.push((n.to_lowercase(), n.to_string()));
+        }
+    }
+    names.sort();
+    let n_weeks = usize::try_from(weeks).unwrap_or(0);
+    let mut out: Vec<Load> = names
+        .iter()
+        .map(|(k, n)| Load {
+            name: n.clone(),
+            limit: limits.iter().find(|(l, _)| l.to_lowercase() == *k).map(|(_, u)| *u),
+            peaks: vec![0; n_weeks],
+            over: vec![false; n_weeks],
+        })
+        .collect();
+    for w in 0..n_weeks {
+        for day in 0..7 {
+            let Some(d) = from.add_days(i64::try_from(w * 7 + day).unwrap_or(0)) else { continue };
+            if !cal.is_working(d) {
+                continue;
+            }
+            let mut total: HashMap<String, u32> = HashMap::new();
+            for t in leaves.iter().filter(|t| t.start <= d && t.finish >= d) {
+                for a in &t.resources {
+                    let e = total.entry(a.name.to_lowercase()).or_default();
+                    *e = e.saturating_add(a.units);
+                }
+            }
+            for load in &mut out {
+                let units = total.get(&load.name.to_lowercase()).copied().unwrap_or(0);
+                if let Some(peak) = load.peaks.get_mut(w) {
+                    *peak = (*peak).max(units);
+                }
+            }
+        }
+    }
+    for load in &mut out {
+        if let Some(limit) = load.limit {
+            load.over = load.peaks.iter().map(|p| *p > limit).collect();
+        }
+    }
+    out
 }

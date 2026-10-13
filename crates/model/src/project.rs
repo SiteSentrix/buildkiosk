@@ -64,6 +64,9 @@ pub struct Project {
     /// The days work is done on, for the schedule.
     #[serde(default)]
     pub calendar: crate::schedule::WorkCalendar,
+    /// How many of each kind of resource the project can have working on one day ("Carpenter", 6).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub resource_limits: Vec<crate::schedule::Assignment>,
     pub created: Stamp,
     pub updated: Stamp,
     #[serde(default, skip_serializing_if = "Option::is_none")]

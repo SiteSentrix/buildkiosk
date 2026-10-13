@@ -24,6 +24,33 @@ choice! {
     }
 }
 
+choice! {
+    /// A date a task is held to, besides its links.
+    #[derive(Default)]
+    pub enum Constraint {
+        /// Start as early as the links allow.
+        #[default]
+        None = ("none", "As soon as possible"),
+        /// Never start before the date.
+        StartNoEarlierThan = ("snet", "Start no earlier than"),
+        /// Start on the date, whatever the links say.
+        MustStartOn = ("mso", "Must start on"),
+        /// A deadline: finish on or before the date.
+        FinishNoLaterThan = ("fnlt", "Finish no later than"),
+    }
+}
+
+/// A crew or kind of worker a task needs: "Carpenter", 4 of them each working day.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Assignment {
+    pub name: String,
+    pub units: u32,
+}
+
+/// Most resources one task names, and most of one kind.
+pub const MAX_ASSIGNMENTS: usize = 20;
+pub const MAX_UNITS: u32 = 10_000;
+
 /// A link to a predecessor: what it holds the task to depends on the `kind`, plus `lag` working
 /// days (negative for an overlap).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -110,6 +137,14 @@ pub struct ScheduleTask {
     pub company: Option<Id<Vendor>>,
     #[serde(default)]
     pub notes: String,
+    #[serde(default)]
+    pub constraint: Constraint,
+    /// The date of the constraint (none for "as soon as possible").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub constraint_date: Option<Date>,
+    /// What the task needs each working day.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub resources: Vec<Assignment>,
     /// The dates when the baseline was saved.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub baseline_start: Option<Date>,

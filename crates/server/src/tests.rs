@@ -1332,6 +1332,7 @@ async fn schedule_page_gantt_and_csv() {
     let (st, _, page) = send(&app, get("/projects/1/schedule")).await;
     assert_eq!(st, StatusCode::OK);
     assert!(page.contains("Excavate") && page.contains("Foundations") && page.contains("class=\"bar critical\""), "{page}");
+    assert!(page.contains("id=\"daysoff\"") && page.contains("class=\"dayoff\"") && page.contains("<use href=\"#daysoff\">"), "days off are shaded");
     let (_, _, edit) = send(&app, get("/projects/1/schedule/2")).await;
     assert!(edit.contains("Edit task") && edit.contains("value=\"1\""));
     let (_, _, crit) = send(&app, get("/projects/1/schedule?show=late")).await;
@@ -1339,6 +1340,35 @@ async fn schedule_page_gantt_and_csv() {
     let (st, h, csv) = send(&app, get("/projects/1/schedule.csv")).await;
     assert_eq!(st, StatusCode::OK);
     assert!(h.get("content-disposition").is_some() && csv.contains("Foundations,2026-10-15,2026-10-20,4"), "{csv}");
+
+    // Dragging bars needs the browser module; only a build that carries it offers it, with its own page policy.
+    let (_, ph, drag) = send(&app, get("/projects/1/schedule")).await;
+    let csp = ph.get("content-security-policy").and_then(|v| v.to_str().ok()).unwrap_or_default();
+    if viewer_assets::START_JS.is_some() {
+        assert!(
+            drag.contains("id=\"wasm-gantt\"")
+                && drag.contains("data-task=\"1\"")
+                && drag.contains("name=\"finish_shift\"")
+                && drag.contains("class=\"handle\""),
+            "{drag}"
+        );
+        assert!(csp.contains("script-src 'self' 'wasm-unsafe-eval'"), "{csp}");
+    } else {
+        assert!(!drag.contains("wasm-gantt") && csp.contains("script-src 'none'"), "{csp}");
+    }
+    // Moving a task through the form the chart posts.
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/do/schedule.move",
+            &session,
+            format!("_csrf={csrf}&project=1&id=1&shift=7&_next=%2Fprojects%2F1%2Fschedule&_back=%2Fprojects%2F1%2Fschedule"),
+        ),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, moved) = send(&app, get("/projects/1/schedule.csv")).await;
+    assert!(moved.contains("Excavate,2026-10-19,2026-10-21"), "{moved}");
 
     // The working calendar: set by the form, shown on its page, used by the dates.
     let (st, _, cal) = send(&app, get("/projects/1/schedule/calendar")).await;
@@ -1370,6 +1400,47 @@ async fn schedule_page_gantt_and_csv() {
     send(&app, post("/do/schedule.update", &session, format!("_csrf={csrf}&project=1&id=2&predecessors=1SS%2B1"))).await;
     let (_, _, edit) = send(&app, get("/projects/1/schedule/2")).await;
     assert!(edit.contains("value=\"1SS+1\"") && edit.contains("start to start"), "{edit}");
+    // A constraint it breaks is flagged; resources show on the loading page, with a limit.
+    send(
+        &app,
+        post(
+            "/do/schedule.update",
+            &session,
+            format!("_csrf={csrf}&project=1&id=1&constraint=fnlt&constraint_date=2026-10-13&resources=Carpenter+4%2C+Laborer+2"),
+        ),
+    )
+    .await;
+    let (_, _, flagged) = send(&app, get("/projects/1/schedule")).await;
+    assert!(flagged.contains(">Constraint<") && flagged.contains("Break a constraint"), "{flagged}");
+    let (_, _, task) = send(&app, get("/projects/1/schedule/1")).await;
+    assert!(task.contains("name=\"constraint_date\" value=\"2026-10-13\"") && task.contains("value=\"Carpenter 4, Laborer 2\""), "{task}");
+    send(&app, post("/do/schedule.resource_limits", &session, format!("_csrf={csrf}&project=1&text=Carpenter+3"))).await;
+    let (st, _, res) = send(&app, get("/projects/1/schedule/resources?weeks=4&from=2026-10-12")).await;
+    assert!(st == StatusCode::OK && res.contains("Carpenter") && res.contains("class=\"right over\"") && res.contains("Save limits"), "{res}");
+    // A project-planning XML file, uploaded.
+    let xml = r#"<Project xmlns="http://schemas.microsoft.com/project"><Tasks><Task><UID>1</UID><Name>Imported pour</Name><OutlineLevel>1</OutlineLevel><Start>2026-11-02T08:00:00</Start><Finish>2026-11-03T17:00:00</Finish></Task></Tasks></Project>"#;
+    let multipart = |fields: &[(&str, &str)], file: &str| {
+        let mut body = String::new();
+        for (k, v) in fields {
+            body.push_str(&format!("--B\r\nContent-Disposition: form-data; name=\"{k}\"\r\n\r\n{v}\r\n"));
+        }
+        body.push_str(&format!(
+            "--B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"plan.xml\"\r\nContent-Type: text/xml\r\n\r\n{file}\r\n--B--\r\n"
+        ));
+        Request::post("/projects/1/schedule/import-xml")
+            .header("cookie", &session)
+            .header("content-type", "multipart/form-data; boundary=B")
+            .body(Body::from(body))
+            .unwrap()
+    };
+    let (_, h, _) = send(&app, multipart(&[("_csrf", &csrf)], xml)).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok=Imported%201%20task"), "{h:?}");
+    let (_, h, _) = send(&app, multipart(&[("_csrf", &csrf)], "not a project file")).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("error="), "{h:?}");
+    let (st, _, _) = send(&app, multipart(&[("_csrf", "wrong")], xml)).await;
+    assert_eq!(st, StatusCode::FORBIDDEN);
+    let (_, _, after) = send(&app, get("/projects/1/schedule")).await;
+    assert!(after.contains("Imported pour"), "{after}");
     let (st, _, ahead) = send(&app, get("/projects/1/schedule/lookahead?weeks=2&from=2026-10-12")).await;
     assert!(st == StatusCode::OK && ahead.contains("Week 1") && ahead.contains("Excavate") && ahead.contains("Foundations"), "{ahead}");
     drop(app);
@@ -2140,6 +2211,7 @@ async fn pdf_downloads_for_documents_and_lists() {
         ("/projects/1/rfis/1/pdf", "rfi-1.pdf"),
         ("/projects/1/tasks.pdf", "tasks.pdf"),
         ("/projects/1/schedule.pdf", "schedule.pdf"),
+        ("/projects/1/schedule/lookahead.pdf?weeks=2&from=2026-10-12", "look-ahead.pdf"),
         ("/projects/1/budget.pdf", "budget.pdf"),
         ("/projects/1/reports.pdf", "project-report.pdf"),
         ("/projects/1/drawings.pdf", "drawing-log.pdf"),

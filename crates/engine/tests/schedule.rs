@@ -265,3 +265,186 @@ fn imported_links_carry_kinds() {
     assert_eq!(kinds(3), vec![("ff", -1), ("fs", 0)]);
     w.assert_replay();
 }
+
+#[test]
+fn constraints_hold_tasks_to_dates() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let reader = w.member(p, "Rae", "Reader", "Read only");
+    w.ok(pm, "schedule.add", json!({"project": p, "name": "Demo", "start": "2026-10-12", "days": 2}));
+    // Follows 1 (so could start Wed 14) but not before the 19th.
+    w.ok(pm, "schedule.add", json!({"project": p, "name": "Framing", "start": "2026-10-14", "days": 2, "predecessors": "1", "constraint": "snet", "constraint_date": "2026-10-19"}));
+    // Must start Wed 21 whatever else.
+    w.ok(
+        pm,
+        "schedule.add",
+        json!({"project": p, "name": "Crane day", "start": "2026-10-12", "days": 2, "constraint": "mso", "constraint_date": "2026-10-21"}),
+    );
+    // A deadline the dates already miss.
+    w.ok(
+        pm,
+        "schedule.add",
+        json!({"project": p, "name": "Permit", "start": "2026-10-12", "days": 3, "constraint": "fnlt", "constraint_date": "2026-10-13"}),
+    );
+    for bad in [
+        json!({"constraint": "snet"}),
+        json!({"constraint": "sometime", "constraint_date": "2026-10-19"}),
+        json!({"constraint": "mso", "constraint_date": "next week"}),
+    ] {
+        let mut params = json!({"project": p, "name": "Bad", "start": "2026-10-12"});
+        for (k, v) in bad.as_object().unwrap() {
+            params[k] = v.clone();
+        }
+        w.err(pm, "schedule.add", params);
+    }
+    w.err(reader, "schedule.update", json!({"project": p, "id": 2, "constraint": "none"}));
+
+    let list = w.ok(reader, "schedule.list", json!({"project": p}));
+    let broken = |l: &Value, n| row(l, n)["broken"].as_bool().unwrap();
+    assert_eq!([2, 3, 4].map(|n| broken(&list, n)), [true, true, true]);
+    assert_eq!((row(&list, 2)["constraint"].as_str(), row(&list, 2)["constraint_date"].as_str()), (Some("snet"), Some("2026-10-19")));
+    assert_eq!((row(&list, 4)["float"].as_i64(), row(&list, 4)["critical"].as_bool()), (Some(-1), Some(true)), "a missed deadline is negative float");
+    assert!(!broken(&list, 1));
+
+    // Recalculate moves the floor and the fixed start, and leaves the deadline alone.
+    assert_eq!(w.ok(pm, "schedule.recalculate", json!({"project": p}))["moved"], 2);
+    let list = w.ok(pm, "schedule.list", json!({"project": p}));
+    let span = |n| (row(&list, n)["start"].as_str().unwrap().to_string(), row(&list, n)["finish"].as_str().unwrap().to_string());
+    assert_eq!(span(2), ("2026-10-19".into(), "2026-10-20".into()));
+    assert_eq!(span(3), ("2026-10-21".into(), "2026-10-22".into()));
+    assert_eq!(span(4), ("2026-10-12".into(), "2026-10-14".into()));
+    assert_eq!([2, 3, 4].map(|n| broken(&list, n)), [false, false, true]);
+
+    // Changing one: a date alone keeps the kind; "none" clears both.
+    w.ok(pm, "schedule.update", json!({"project": p, "id": 4, "constraint_date": "2026-10-14"}));
+    assert!(!broken(&w.ok(pm, "schedule.list", json!({"project": p})), 4));
+    w.err(pm, "schedule.update", json!({"project": p, "id": 1, "constraint_date": "2026-10-14"}));
+    w.ok(pm, "schedule.update", json!({"project": p, "id": 4, "constraint": "none"}));
+    let t = w.ok(pm, "schedule.get", json!({"project": p, "id": 4}));
+    assert!(t["constraint_date"].is_null() && t["constraint"] == "none", "{t}");
+    w.assert_replay();
+}
+
+#[test]
+fn resources_and_loading() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let reader = w.member(p, "Rae", "Reader", "Read only");
+    w.ok(pm, "schedule.add", json!({"project": p, "name": "Framing", "start": "2026-10-12", "days": 3, "resources": "Carpenter 4, Laborer 2"}));
+    w.ok(pm, "schedule.add", json!({"project": p, "name": "Blocking", "start": "2026-10-13", "days": 2, "resources": "Carpenter 3"}));
+    w.ok(pm, "schedule.add", json!({"project": p, "name": "Trim", "start": "2026-10-19", "days": 1, "resources": "carpenter 2, CARPENTER 3"}));
+    w.ok(
+        pm,
+        "schedule.add",
+        json!({"project": p, "name": "Done work", "start": "2026-10-12", "days": 3, "percent": 100, "resources": "Carpenter 50"}),
+    );
+    for bad in ["Carpenter 0", "Carpenter 99999", "4", "a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u"] {
+        w.err(pm, "schedule.add", json!({"project": p, "name": "Bad", "start": "2026-10-12", "resources": bad}));
+    }
+    assert_eq!(
+        w.ok(pm, "schedule.get", json!({"project": p, "id": 3}))["resources"],
+        json!([{"name": "carpenter", "units": 5}]),
+        "the same name adds up, in the first spelling"
+    );
+
+    let load = w.ok(reader, "schedule.loading", json!({"project": p, "from": "2026-10-12", "weeks": 2}));
+    assert_eq!(load[0]["name"], "Carpenter");
+    assert_eq!((load[0]["peaks"].clone(), load[0]["limit"].clone()), (json!([7, 5]), json!(null)), "finished work needs nothing");
+    assert_eq!(load[1]["peaks"], json!([2, 0]));
+
+    w.err(reader, "schedule.resource_limits", json!({"project": p, "text": "Carpenter 6"}));
+    w.err(pm, "schedule.resource_limits", json!({"project": p, "text": "Carpenter 0"}));
+    w.ok(pm, "schedule.resource_limits", json!({"project": p, "text": "Carpenter 6\nElectrician 2"}));
+    let load = w.ok(reader, "schedule.loading", json!({"project": p, "from": "2026-10-12", "weeks": 2}));
+    assert_eq!(load.as_array().unwrap().len(), 3, "a limit with no work yet still shows");
+    assert_eq!((load[0]["limit"].clone(), load[0]["over"].clone()), (json!(6), json!([true, false])));
+    assert_eq!(load[1]["name"], "Electrician");
+    w.err(reader, "schedule.loading", json!({"project": p, "weeks": 27}));
+    // Editing a task's resources replaces them.
+    w.ok(pm, "schedule.update", json!({"project": p, "id": 2, "resources": ""}));
+    assert_eq!(w.ok(reader, "schedule.loading", json!({"project": p, "from": "2026-10-12", "weeks": 1}))[0]["peaks"], json!([4]));
+    w.assert_replay();
+}
+
+#[test]
+fn importing_a_project_planning_xml_file() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let reader = w.member(p, "Rae", "Reader", "Read only");
+    let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<Project xmlns="http://schemas.microsoft.com/project"><Tasks>
+<Task><UID>0</UID><Name>Whole project</Name><OutlineLevel>0</OutlineLevel></Task>
+<Task><UID>10</UID><Name>Site work, phase 1</Name><OutlineLevel>1</OutlineLevel><Start>2026-10-12T08:00:00</Start><Finish>2026-10-16T17:00:00</Finish></Task>
+<Task><UID>11</UID><Name>Clear</Name><OutlineLevel>2</OutlineLevel><Start>2026-10-12T08:00:00</Start><Finish>2026-10-13T17:00:00</Finish><PercentComplete>40</PercentComplete></Task>
+<Task><UID>12</UID><Name>Grade</Name><OutlineLevel>2</OutlineLevel><Start>2026-10-14T08:00:00</Start><Finish>2026-10-16T17:00:00</Finish>
+ <PredecessorLink><PredecessorUID>11</PredecessorUID><Type>3</Type><LinkLag>4800</LinkLag></PredecessorLink>
+ <ConstraintType>4</ConstraintType><ConstraintDate>2026-10-14T08:00:00</ConstraintDate></Task>
+<Task><UID>13</UID><Name>Site ready</Name><OutlineLevel>1</OutlineLevel><Milestone>1</Milestone><Start>2026-10-19T08:00:00</Start><Finish>2026-10-19T08:00:00</Finish>
+ <PredecessorLink><PredecessorUID>12</PredecessorUID><Type>1</Type><LinkLag>0</LinkLag></PredecessorLink></Task>
+<Task><UID>14</UID><Name>Undated</Name></Task>
+</Tasks></Project>"#;
+    w.err(reader, "schedule.import_xml", json!({"project": p, "text": xml}));
+    w.err(pm, "schedule.import_xml", json!({"project": p, "text": "<Project/>"}));
+    w.err(pm, "schedule.import_xml", json!({"project": p, "text": "plain text"}));
+    let out = w.ok(pm, "schedule.import_xml", json!({"project": p, "text": xml}));
+    assert_eq!((out["added"].as_u64(), out["skipped"].as_u64()), (Some(4), Some(1)));
+
+    let list = w.ok(pm, "schedule.list", json!({"project": p}));
+    assert_eq!(list.as_array().unwrap().len(), 4);
+    assert_eq!(
+        (row(&list, 1)["summary"].as_bool(), row(&list, 2)["depth"].as_u64(), row(&list, 3)["depth"].as_u64()),
+        (Some(true), Some(1), Some(1))
+    );
+    assert_eq!(
+        (row(&list, 2)["percent"].as_u64(), row(&list, 4)["milestone"].as_bool(), row(&list, 4)["depth"].as_u64()),
+        (Some(40), Some(true), Some(0))
+    );
+    let grade = w.ok(pm, "schedule.get", json!({"project": p, "id": 3}));
+    assert_eq!((grade["predecessors"][0]["kind"].as_str(), grade["predecessors"][0]["lag"].as_i64()), (Some("ss"), Some(1)));
+    assert_eq!((grade["constraint"].as_str(), grade["constraint_date"].as_str()), (Some("snet"), Some("2026-10-14")));
+    // The text import takes the same extra columns.
+    w.ok(pm, "schedule.import", json!({"project": p, "text": "x, Pour, 2026-10-20, 2026-10-21, 0, , , no, mso, 2026-10-20"}));
+    assert_eq!(w.ok(pm, "schedule.get", json!({"project": p, "id": 5}))["constraint"], "mso");
+    w.err(pm, "schedule.import", json!({"project": p, "text": "y, Bad, 2026-10-20, 2026-10-21, 0, , , no, mso, soon"}));
+    w.assert_replay();
+}
+
+#[test]
+fn moving_and_resizing_tasks() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let reader = w.member(p, "Rae", "Reader", "Read only");
+    w.ok(pm, "schedule.calendar_set", json!({"project": p, "holidays": "2026-10-19 Plant shutdown"}));
+    let parent = w.ok(pm, "schedule.add", json!({"project": p, "name": "Phase", "start": "2026-10-12", "days": 1}))["id"].as_u64().unwrap();
+    // Wed 14 to Fri 16: three working days.
+    w.ok(pm, "schedule.add", json!({"project": p, "name": "Slab", "start": "2026-10-14", "days": 3, "parent": parent}));
+    w.ok(pm, "schedule.add", json!({"project": p, "name": "Inspect", "start": "2026-10-14", "milestone": true, "parent": parent}));
+    let get = |w: &mut World, id: u64| {
+        let t = w.ok(pm, "schedule.get", json!({"project": p, "id": id}));
+        (t["start"].as_str().unwrap().to_string(), t["finish"].as_str().unwrap().to_string())
+    };
+    w.err(reader, "schedule.move", json!({"project": p, "id": 2, "shift": 1}));
+    w.err(pm, "schedule.move", json!({"project": p, "id": parent, "shift": 1}));
+    w.err(pm, "schedule.move", json!({"project": p, "id": 2}));
+    w.err(pm, "schedule.move", json!({"project": p, "id": 2, "shift": 1, "finish_shift": 1}));
+    w.err(pm, "schedule.move", json!({"project": p, "id": 2, "shift": 99999}));
+    w.err(pm, "schedule.move", json!({"project": p, "id": 3, "finish_shift": 1}));
+
+    // Two days later is Fri 16: three working days from there is Fri 16, Tue 20 and Wed 21 (Mon 19 is off).
+    assert_eq!(w.ok(pm, "schedule.move", json!({"project": p, "id": 2, "shift": 2}))["finish"], "2026-10-21");
+    assert_eq!(get(&mut w, 2), ("2026-10-16".into(), "2026-10-21".into()));
+    // A move onto a weekend lands on the next working day forward, or the previous one back.
+    w.ok(pm, "schedule.move", json!({"project": p, "id": 3, "shift": 3}));
+    assert_eq!(get(&mut w, 3).0, "2026-10-20", "Sat 17 snaps on past the weekend and the holiday");
+    w.ok(pm, "schedule.move", json!({"project": p, "id": 3, "shift": -3}));
+    assert_eq!(get(&mut w, 3).0, "2026-10-16", "Sun 18 snaps back to Friday");
+    // Resizing only moves the finish.
+    w.ok(pm, "schedule.move", json!({"project": p, "id": 2, "finish_shift": 1}));
+    assert_eq!(get(&mut w, 2), ("2026-10-16".into(), "2026-10-22".into()));
+    w.err(pm, "schedule.move", json!({"project": p, "id": 2, "finish_shift": -20}));
+    w.assert_replay();
+}

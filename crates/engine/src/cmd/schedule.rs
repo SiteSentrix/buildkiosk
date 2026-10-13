@@ -6,9 +6,12 @@
 use std::collections::HashMap;
 
 use buildkiosk_core::{Date, Id, text};
+use buildkiosk_model::Choice;
 use buildkiosk_model::directory::Vendor;
 use buildkiosk_model::project::Project;
-use buildkiosk_model::schedule::{Holiday, Link, LinkKind, MAX_HOLIDAYS, ScheduleTask, WorkCalendar};
+use buildkiosk_model::schedule::{
+    Assignment, Constraint, Holiday, Link, LinkKind, MAX_ASSIGNMENTS, MAX_HOLIDAYS, MAX_UNITS, ScheduleTask, WorkCalendar,
+};
 use buildkiosk_model::{Level, Tool};
 use serde_json::{Value, json};
 
@@ -26,7 +29,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         Access::Project(Level::Standard),
         concat!(
             "project: project id; ",
-            "name: text; parent?: parent task id (empty for top level); start: YYYY-MM-DD; finish?: YYYY-MM-DD; days?: working days (when finish is blank; default 1); milestone?: bool; percent?: 0-100; predecessors?: text such as `3, 5+2, 7SS, 4FF-1` (task numbers, each with an optional kind FS, SS, FF or SF (default FS) and an optional lag in working days); company?: company id; notes?: text"
+            "name: text; parent?: parent task id (empty for top level); start: YYYY-MM-DD; finish?: YYYY-MM-DD; days?: working days (when finish is blank; default 1); milestone?: bool; percent?: 0-100; predecessors?: text such as `3, 5+2, 7SS, 4FF-1` (task numbers, each with an optional kind FS, SS, FF or SF (default FS) and an optional lag in working days); company?: company id; notes?: text; constraint?: none|snet|mso|fnlt (start no earlier than, must start on, finish no later than); constraint_date?: YYYY-MM-DD (required with a constraint); resources?: text such as `Carpenter 4, Laborer 2` (what the task needs each working day)"
         ),
         add,
     ),
@@ -37,6 +40,14 @@ pub const COMMANDS: &[CommandSpec] = &[
         Access::Project(Level::Standard),
         "project: project id; id: task id; any of the fields of schedule.add",
         update,
+    ),
+    CommandSpec::mutate(
+        "schedule.move",
+        "Move or resize a task",
+        Tool::Schedule,
+        Access::Project(Level::Standard),
+        "project: project id; id: task id; shift?: calendar days to move the whole task by (negative for earlier; it keeps its length in working days and lands on a working day); finish_shift?: calendar days to move only the finish by (a longer or shorter task). One of the two is required. Summary tasks follow their children and can't be moved.",
+        move_task,
     ),
     CommandSpec::mutate(
         "schedule.progress",
@@ -83,7 +94,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Import schedule",
         Tool::Schedule,
         Access::Project(Level::Standard),
-        "project: project id; text: lines of `id, name, start, finish, percent, predecessors, parent` (comma or tab separated; predecessors separated by ; and may carry a lag such as 4+2; ids are the file's own and are renumbered)",
+        "project: project id; text: lines of `id, name, start, finish, percent, predecessors, parent[, milestone, constraint, constraint date]` (comma or tab separated; predecessors separated by ; and may carry a kind and lag such as 4SS+2; ids are the file's own and are renumbered)",
         import,
     ),
     CommandSpec::mutate(
@@ -94,6 +105,22 @@ pub const COMMANDS: &[CommandSpec] = &[
         "project: project id; days?: the weekdays worked, such as `mon-fri` or `mon, tue, wed, thu, fri, sat` (at least one); \
          holidays?: days off, one per line as `YYYY-MM-DD name` (replaces the list; up to 400). Task dates stay as they are: run schedule.recalculate to move tasks that now start too early.",
         calendar_set,
+    ),
+    CommandSpec::mutate(
+        "schedule.resource_limits",
+        "Set how many of each resource the project has",
+        Tool::Schedule,
+        Access::Project(Level::Admin),
+        "project: project id; text: one per line or separated by commas, such as `Carpenter 6, Laborer 10` (replaces the list; empty clears it)",
+        resource_limits,
+    ),
+    CommandSpec::query(
+        "schedule.loading",
+        "Resource loading by week",
+        Tool::Schedule,
+        Access::Project(Level::Read),
+        "project: project id; weeks?: 1-26 (default 8); from?: YYYY-MM-DD (default today) (for each resource and week: the most needed on any one working day, against the limit)",
+        loading,
     ),
     CommandSpec::query(
         "schedule.calendar",
@@ -228,6 +255,55 @@ fn dates(cal: &WorkCalendar, p: &Params<'_>, current: Option<&ScheduleTask>) -> 
     Ok((start, finish, milestone))
 }
 
+/// `Carpenter 4, Laborer 2` → what is needed each working day; a name alone means one, and a name
+/// written twice adds up.
+fn parse_resources(p: &Params<'_>, key: &str, raw: &str) -> Result<Vec<Assignment>> {
+    let mut out: Vec<Assignment> = Vec::new();
+    for part in raw.split([',', ';', '\n']).map(str::trim).filter(|s| !s.is_empty()) {
+        let (name, units) = match part.rsplit_once(char::is_whitespace) {
+            Some((n, u)) if u.bytes().all(|b| b.is_ascii_digit()) && !u.is_empty() => {
+                (n.trim(), u.parse::<u32>().map_err(|_| p.bad(key, format!("`{part}`: the number is too large")))?)
+            }
+            _ => (part, 1),
+        };
+        let name: String = name.chars().take(50).collect();
+        if name.is_empty() || name.bytes().all(|b| b.is_ascii_digit()) || units == 0 || units > MAX_UNITS {
+            return Err(p.bad(key, format!("`{part}`: a name and a number from 1 to {MAX_UNITS}")));
+        }
+        match out.iter_mut().find(|a| a.name.eq_ignore_ascii_case(&name)) {
+            Some(a) => a.units = a.units.saturating_add(units).min(MAX_UNITS),
+            None => out.push(Assignment { name, units }),
+        }
+        if out.len() > MAX_ASSIGNMENTS {
+            return Err(p.bad(key, format!("lists more than {MAX_ASSIGNMENTS} resources")));
+        }
+    }
+    Ok(out)
+}
+
+/// The constraint asked for (or the task's own when the parameters leave it alone): a kind and, unless
+/// it is "as soon as possible", its date.
+fn constraint_of(p: &Params<'_>, current: Option<&ScheduleTask>) -> Result<(Constraint, Option<Date>)> {
+    let kind = match p.choice::<Constraint>("constraint")? {
+        Some(k) => k,
+        None => current.map(|t| t.constraint).unwrap_or_default(),
+    };
+    if kind == Constraint::None {
+        if p.present("constraint_date") && !p.present("constraint") {
+            return Err(p.bad("constraint", "is needed with a constraint date (this task has none)"));
+        }
+        return Ok((kind, None));
+    }
+    let date = match p.date("constraint_date")? {
+        Some(d) => Some(d),
+        None => current.and_then(|t| t.constraint_date),
+    };
+    match date {
+        Some(d) => Ok((kind, Some(d))),
+        None => Err(p.bad("constraint_date", format!("is required for `{}`", kind.label()))),
+    }
+}
+
 fn percent(p: &Params<'_>) -> Result<Option<u8>> {
     Ok(p.int("percent", 0..=100)?.and_then(|v| u8::try_from(v).ok()))
 }
@@ -256,6 +332,8 @@ fn add(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     } else {
         Vec::new()
     };
+    let (constraint, constraint_date) = constraint_of(p, None)?;
+    let resources = if p.present("resources") { parse_resources(p, "resources", &p.text_or_empty("resources", 1_000)?)? } else { Vec::new() };
     let id = ctx.state.schedule_tasks.alloc();
     let number = next_number(ctx, project);
     let stamp = ctx.stamp();
@@ -272,6 +350,9 @@ fn add(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         predecessors,
         company: company(ctx, p)?.flatten(),
         notes: p.text_or_empty("notes", text::LONG)?,
+        constraint,
+        constraint_date,
+        resources,
         baseline_start: None,
         baseline_finish: None,
         created: stamp,
@@ -307,9 +388,64 @@ fn update(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     if p.present("notes") {
         t.notes = p.text_or_empty("notes", text::LONG)?;
     }
+    if p.present("constraint") || p.present("constraint_date") {
+        (t.constraint, t.constraint_date) = constraint_of(p, Some(&t))?;
+    }
+    if p.present("resources") {
+        t.resources = parse_resources(p, "resources", &p.text_or_empty("resources", 1_000)?)?;
+    }
     t.updated = ctx.stamp();
     ctx.state.schedule_tasks.put(t);
     Ok(json!({ "id": id }))
+}
+
+fn move_task(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let id: Id<ScheduleTask> = p.id("id")?;
+    let mut t = live_task(ctx, project, id)?;
+    if ctx.state.schedule_tasks.iter().any(|x| x.project == project && x.deleted.is_none() && x.parent == Some(id)) {
+        return Err(EngineError::conflict("a summary task follows its tasks; move those instead"));
+    }
+    let cal = sched::calendar(ctx.state, project);
+    // The nearest working day at or after (or before) a date.
+    let snap = |d: Date, dir: i64| -> Option<Date> {
+        let mut d = d;
+        for _ in 0..1_000 {
+            if cal.is_working(d) {
+                return Some(d);
+            }
+            d = d.add_days(dir)?;
+        }
+        None
+    };
+    let (shift, finish_shift) = (p.int("shift", -3_650..=3_650)?, p.int("finish_shift", -3_650..=3_650)?);
+    let far = || p.bad("shift", "runs past the supported dates");
+    match (shift, finish_shift) {
+        (Some(by), None) => {
+            let len = if t.milestone { 1 } else { sched::days_inclusive_in(&cal, t.start, t.finish).max(1) };
+            let start = snap(t.start.add_days(by).ok_or_else(far)?, if by < 0 { -1 } else { 1 }).ok_or_else(far)?;
+            t.finish = if t.milestone { start } else { sched::shift_in(&cal, start, len - 1).ok_or_else(far)? };
+            t.start = start;
+        }
+        (None, Some(by)) => {
+            if t.milestone {
+                return Err(p.bad("finish_shift", "a milestone has no length; move it instead"));
+            }
+            let finish = snap(t.finish.add_days(by).ok_or_else(far)?, if by < 0 { -1 } else { 1 }).ok_or_else(far)?;
+            if finish < t.start {
+                return Err(p.bad("finish_shift", "would finish the task before it starts"));
+            }
+            t.finish = finish;
+        }
+        _ => return Err(p.bad("shift", "give shift (to move the task) or finish_shift (to change its length), not both")),
+    }
+    if t.start.days_until(t.finish) > 3_650 {
+        return Err(p.bad("finish_shift", "makes the task longer than ten years"));
+    }
+    let (start, finish) = (t.start, t.finish);
+    t.updated = ctx.stamp();
+    ctx.state.schedule_tasks.put(t);
+    Ok(json!({ "id": id, "start": start, "finish": finish }))
 }
 
 fn progress(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
@@ -355,8 +491,14 @@ fn recalculate(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         let by_id: HashMap<Id<ScheduleTask>, &ScheduleTask> = tasks.iter().map(|t| (t.id, t)).collect();
         let mut changed = false;
         for t in &tasks {
-            let need = sched::earliest_by_links(&cal, t, &by_id);
-            let Some(need) = need.filter(|n| *n > t.start) else { continue };
+            let from_links = sched::earliest_by_links(&cal, t, &by_id);
+            // The constraint decides the start: a floor, or a fixed day.
+            let (need, fixed) = match (t.constraint, t.constraint_date) {
+                (Constraint::StartNoEarlierThan, Some(d)) => (from_links.into_iter().chain(sched::shift_in(&cal, d, 0)).max(), false),
+                (Constraint::MustStartOn, Some(d)) => (sched::shift_in(&cal, d, 0), true),
+                _ => (from_links, false),
+            };
+            let Some(need) = need.filter(|n| if fixed { *n != t.start } else { *n > t.start }) else { continue };
             let len = if t.milestone { 1 } else { sched::days_inclusive_in(&cal, t.start, t.finish).max(1) };
             let Some(finish) = sched::shift_in(&cal, need, len - 1) else { continue };
             let finish = if t.milestone { need } else { finish };
@@ -389,7 +531,16 @@ fn baseline(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
 fn import(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     let project: Id<Project> = p.id("project")?;
     let body = p.req_text("text", 1_000_000)?;
+    import_body(ctx, project, &body, p)
+}
+
+/// Adds the tasks in `body`: lines of `id, name, start, finish, percent, predecessors, parent`, then optionally
+/// `milestone` (yes/no), `constraint` (snet, mso, fnlt) and its date. Also used by the project-file import.
+pub(super) fn import_body(ctx: &mut Ctx<'_>, project: Id<Project>, body: &str, p: &Params<'_>) -> Result<Value> {
     struct Pending {
+        milestone: bool,
+        constraint: Constraint,
+        constraint_date: Option<Date>,
         file_id: String,
         name: String,
         start: Date,
@@ -429,7 +580,18 @@ fn import(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         } else {
             cell(4).trim_end_matches('%').parse::<u8>().ok().filter(|v| *v <= 100).ok_or_else(|| at("percent", "must be 0 to 100".into()))?
         };
+        let milestone = match cell(7).to_ascii_lowercase().as_str() {
+            "" => start == finish && name.to_lowercase().contains("milestone"),
+            v => matches!(v, "1" | "true" | "yes" | "y"),
+        };
+        let (constraint, constraint_date) = match Constraint::parse(cell(8)).filter(|k| *k != Constraint::None) {
+            Some(k) => (k, Some(Date::parse(cell(9)).ok_or_else(|| at("constraint date", format!("`{}` is not a date (YYYY-MM-DD)", cell(9))))?)),
+            None => (Constraint::None, None),
+        };
         rows.push(Pending {
+            milestone,
+            constraint,
+            constraint_date,
             file_id: cell(0).to_string(),
             name,
             start,
@@ -461,11 +623,14 @@ fn import(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
             parent: None,
             start: r.start,
             finish: r.finish,
-            milestone: r.start == r.finish && r.name.to_lowercase().contains("milestone"),
+            milestone: r.milestone,
             percent: r.percent,
             predecessors: Vec::new(),
             company: None,
             notes: String::new(),
+            constraint: r.constraint,
+            constraint_date: r.constraint_date,
+            resources: Vec::new(),
             baseline_start: None,
             baseline_finish: None,
             created: stamp,
@@ -590,6 +755,24 @@ fn calendar_set(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     }
     ctx.state.projects.update(project, |x| x.calendar = cal);
     Ok(json!({ "id": project }))
+}
+
+fn resource_limits(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    if ctx.state.projects.get(project).is_none() {
+        return Err(EngineError::not_found("project not found"));
+    }
+    let limits = parse_resources(p, "text", &p.text_or_empty("text", 1_000)?)?;
+    ctx.state.projects.update(project, |x| x.resource_limits = limits);
+    Ok(json!({ "id": project }))
+}
+
+fn loading(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    in_project_exists(v, project)?;
+    let weeks = p.int("weeks", 1..=26)?.unwrap_or(8);
+    let from = p.date("from")?.unwrap_or_else(|| v.today());
+    json(&sched::loading(v.state, project, from, weeks))
 }
 
 fn calendar_get(v: &View<'_>, p: &Params<'_>) -> Result<Value> {

@@ -9,6 +9,7 @@ use buildkiosk_model::common::FileRef;
 use buildkiosk_model::directory::Person;
 use buildkiosk_model::meeting::{AgendaItem, Attendee, Meeting, MeetingAction, MeetingStatus};
 use buildkiosk_model::project::Project;
+use buildkiosk_model::task::Task;
 use buildkiosk_model::{Level, Tool};
 use serde_json::{Value, json};
 
@@ -42,6 +43,30 @@ pub const COMMANDS: &[CommandSpec] = &[
         Access::Project(Level::Standard),
         "project, id: ids (notifies the attendees and the people with actions)",
         issue,
+    ),
+    CommandSpec::mutate(
+        "meeting.repeat",
+        "Repeat meeting",
+        Tool::Meetings,
+        Access::Project(Level::Standard),
+        "project, id: ids (the meeting to repeat); every: weekly|biweekly|monthly; count: how many more to schedule (1 to 26). Each has the same title, type, time, place, invitees and agenda topics (without notes), on the following dates",
+        repeat,
+    ),
+    CommandSpec::mutate(
+        "meeting.carry_actions",
+        "Carry open actions forward",
+        Tool::Meetings,
+        Access::Project(Level::Standard),
+        "project, id: ids (the meeting that takes them); from?: meeting id (default: the latest earlier meeting of the same type, else the latest earlier one). The open actions are added here and marked as carried forward there",
+        carry_actions,
+    ),
+    CommandSpec::mutate(
+        "meeting.action_to_task",
+        "Make a task from an action",
+        Tool::Meetings,
+        Access::Project(Level::Standard),
+        "project, id: ids; index: action number (from 0). Creates a task for the same work, assignee and due date that names this meeting (needs Standard access to Tasks); closing the task marks the action done",
+        action_to_task,
     ),
     CommandSpec::mutate("meeting.reopen", "Reopen minutes", Tool::Meetings, Access::Project(Level::Admin), "project, id: ids", reopen),
     CommandSpec::mutate(
@@ -188,7 +213,18 @@ fn apply(ctx: &Ctx<'_>, p: &Params<'_>, m: &mut Meeting) -> Result<()> {
                 ctx.check_person(a)?;
             }
             let due: Option<Date> = r.date("due")?;
-            out.push(MeetingAction { description, assignee, due, done: r.flag_or("done", false)? });
+            // A form posts only what it shows, so what it can't (carried, task, source) stays with the row that
+            // had the same place and words.
+            let kept = m.actions.get(out.len()).filter(|old| old.description == description);
+            out.push(MeetingAction {
+                description,
+                assignee,
+                due,
+                done: r.flag_or("done", false)?,
+                carried: kept.is_some_and(|k| k.carried),
+                task: kept.and_then(|k| k.task),
+                from_meeting: kept.and_then(|k| k.from_meeting),
+            });
         }
         m.actions = out;
     }
@@ -259,7 +295,7 @@ fn issue(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     let mut audience: Vec<Id<Person>> = m.attendees.iter().map(|a| a.person).collect();
     let (project, l) = (m.project, link(&m));
     let text = format!("Minutes of {} are out: {}", m.label(), m.title);
-    let assigned: Vec<Id<Person>> = m.actions.iter().filter(|a| !a.done).filter_map(|a| a.assignee).collect();
+    let assigned: Vec<Id<Person>> = m.actions.iter().filter(|a| a.is_open()).filter_map(|a| a.assignee).collect();
     let id = m.id;
     ctx.state.meetings.put(m);
     audience.retain(|x| !assigned.contains(x));
@@ -361,6 +397,148 @@ fn restore(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     }
     ctx.state.meetings.update(id, |m| m.deleted = None);
     Ok(json!({ "id": id }))
+}
+
+const MAX_SERIES: i64 = 26;
+
+fn repeat(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let source = load(ctx, p)?;
+    let every = p.line("every", 20)?.ok_or_else(|| p.bad("every", "is required"))?;
+    let count = p.int("count", 1..=MAX_SERIES)?.ok_or_else(|| p.bad("count", "is required"))?;
+    let step = |k: i64| -> Option<Date> {
+        match every.to_ascii_lowercase().as_str() {
+            "weekly" => source.date.add_days(7 * k),
+            "biweekly" => source.date.add_days(14 * k),
+            "monthly" => source.date.add_months(i32::try_from(k).ok()?),
+            _ => None,
+        }
+    };
+    if step(1).is_none() {
+        return Err(p.bad("every", "must be weekly, biweekly or monthly (and stay inside the supported dates)"));
+    }
+    let mut made = Vec::new();
+    for k in 1..=count {
+        let date = step(k).ok_or_else(|| p.bad("count", "runs past the supported dates"))?;
+        let number = ctx.state.meetings.iter().filter(|m| m.project == source.project).map(|m| m.number).max().unwrap_or(0).saturating_add(1);
+        let stamp = ctx.stamp();
+        let id = ctx.state.meetings.alloc();
+        ctx.state.meetings.put(Meeting {
+            id,
+            project: source.project,
+            number,
+            title: source.title.clone(),
+            category: source.category.clone(),
+            date,
+            time: source.time.clone(),
+            location: source.location.clone(),
+            status: MeetingStatus::Scheduled,
+            attendees: source.attendees.iter().map(|a| Attendee { person: a.person, present: false }).collect(),
+            agenda: source.agenda.iter().map(|a| AgendaItem { title: a.title.clone(), notes: String::new() }).collect(),
+            actions: Vec::new(),
+            minutes: String::new(),
+            attachments: Vec::new(),
+            issued: None,
+            created: stamp,
+            updated: stamp,
+            deleted: None,
+        });
+        made.push(id);
+    }
+    Ok(json!({ "ids": made }))
+}
+
+fn carry_actions(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut target = load(ctx, p)?;
+    if !can_edit(ctx, &target) {
+        return Err(EngineError::forbidden(format!("you can't change {}", target.label())));
+    }
+    let from: Id<Meeting> = match p.opt_id::<Meeting>("from")? {
+        Some(f) => f,
+        None => {
+            // The latest earlier meeting of the same type, else the latest earlier one at all.
+            let earlier = |m: &&Meeting| {
+                m.project == target.project && m.deleted.is_none() && m.id != target.id && (m.date, m.number) < (target.date, target.number)
+            };
+            let mut all: Vec<&Meeting> = ctx.state.meetings.iter().filter(earlier).collect();
+            all.sort_by_key(|m| (m.date, m.number));
+            all.iter()
+                .rev()
+                .find(|m| m.category == target.category)
+                .or_else(|| all.last())
+                .map(|m| m.id)
+                .ok_or_else(|| EngineError::not_found("there is no earlier meeting to carry actions from"))?
+        }
+    };
+    if from == target.id {
+        return Err(p.bad("from", "is this meeting"));
+    }
+    let mut source = in_project(&ctx.state.meetings, target.project, from, "meeting")?.clone();
+    if source.deleted.is_some() {
+        return Err(EngineError::not_found(format!("meeting {from} not found in this project")));
+    }
+    let mut carried = 0usize;
+    for a in source.actions.iter_mut().filter(|a| a.is_open()) {
+        if target.actions.len() >= MAX_ROWS {
+            return Err(EngineError::conflict(format!("{} would have more than {MAX_ROWS} actions", target.label())));
+        }
+        target.actions.push(MeetingAction { done: false, carried: false, from_meeting: Some(from), ..a.clone() });
+        a.carried = true;
+        carried += 1;
+    }
+    if carried > 0 {
+        let stamp = ctx.stamp();
+        source.updated = stamp;
+        target.updated = stamp;
+        ctx.state.meetings.put(source);
+        ctx.state.meetings.put(target);
+    }
+    Ok(json!({ "carried": carried }))
+}
+
+fn action_to_task(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    use crate::workitem::WorkItem;
+    let mut m = load(ctx, p)?;
+    let index = usize::try_from(p.int("index", 0..=1_000)?.ok_or_else(|| p.bad("index", "is required"))?).unwrap_or(usize::MAX);
+    let me = ctx.person();
+    let allowed = is_admin(ctx, m.project) || is_author(ctx, &m) || m.actions.get(index).is_some_and(|a| a.assignee.is_some() && a.assignee == me);
+    let Some(action) = m.actions.get(index).cloned() else {
+        return Err(EngineError::not_found(format!("{} has no action {index}", m.label())));
+    };
+    if !allowed {
+        return Err(EngineError::forbidden("only the person it is assigned to, the author or an admin can make a task from an action"));
+    }
+    if ctx.level(m.project, Tool::Tasks) < Level::Standard {
+        return Err(EngineError::forbidden("making a task needs Standard access to Tasks"));
+    }
+    if action.task.is_some() {
+        return Err(EngineError::conflict("this action already has a task"));
+    }
+    if action.done {
+        return Err(EngineError::conflict("this action is done"));
+    }
+    let mut task = <Task as WorkItem>::blank(ctx, m.project);
+    task.title = action.description.clone();
+    task.kind = "Meeting action".into();
+    task.assignees = action.assignee.into_iter().collect();
+    task.due = action.due;
+    task.meeting = Some(m.id);
+    task.recompute_ball_in_court();
+    let assignees = task.assignees.clone();
+    let task_id = crate::workitem::insert(ctx, task);
+    if let Some(a) = m.actions.get_mut(index) {
+        a.task = Some(task_id);
+    }
+    m.updated = ctx.stamp();
+    let (project, label) = (m.project, m.label());
+    ctx.state.meetings.put(m);
+    notify(
+        ctx,
+        &assignees,
+        project,
+        &format!("A task was made from an action in {label}: {}", action.description),
+        &format!("/projects/{project}/tasks/{task_id}"),
+    );
+    Ok(json!({ "task": task_id }))
 }
 
 /// The meetings of a project, newest first.

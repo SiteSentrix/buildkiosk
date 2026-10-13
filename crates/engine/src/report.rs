@@ -95,8 +95,8 @@ pub fn project_summary(state: &CompanyState, actor: Actor, project: Id<Project>,
     }
     if readable(state, actor, project, Tool::Meetings) {
         let m: Vec<_> = state.meetings.iter().filter(|m| m.project == project && m.deleted.is_none()).collect();
-        let open = m.iter().flat_map(|m| m.actions.iter()).filter(|a| !a.done).count();
-        let overdue = m.iter().flat_map(|m| m.actions.iter()).filter(|a| !a.done && a.due.is_some_and(|d| d < today)).count();
+        let open = m.iter().flat_map(|m| m.actions.iter()).filter(|a| a.is_open()).count();
+        let overdue = m.iter().flat_map(|m| m.actions.iter()).filter(|a| a.is_open() && a.due.is_some_and(|d| d < today)).count();
         out.push(row("Meeting action items", "meetings", m.iter().map(|m| m.actions.len()).sum(), open, overdue));
     }
     if readable(state, actor, project, Tool::Transmittals) {
@@ -227,7 +227,7 @@ pub fn waiting_on(state: &CompanyState, actor: Actor, project: Id<Project>, me: 
     }
     if readable(state, actor, project, Tool::Meetings) {
         for m in state.meetings.iter().filter(|m| m.project == project && m.deleted.is_none()) {
-            for a in m.actions.iter().filter(|a| !a.done && a.assignee == Some(me)) {
+            for a in m.actions.iter().filter(|a| a.is_open() && a.assignee == Some(me)) {
                 out.push(Todo {
                     project,
                     label: format!("{} action", m.label()),

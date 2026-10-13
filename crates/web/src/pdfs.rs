@@ -810,3 +810,36 @@ pub fn injury_log(req: &Req<'_>, id: Id<Project>, year: Option<i32>) -> Option<P
     ));
     Some((file_name(&format!("injury log {year}")), render(&doc)))
 }
+
+/// A sheet to pass round the room: who was invited, with a line to sign, and blank lines for the rest.
+pub fn meeting_signin(req: &Req<'_>, id: Id<Project>, mid: Id<buildkiosk_engine::model::meeting::Meeting>) -> Option<Pdf> {
+    let state = req.engine.state();
+    let p = project_of(req, id, Tool::Meetings)?;
+    let m = state.meetings.get(mid).filter(|m| m.project == id && m.deleted.is_none())?;
+    let (mut doc, _) = start(
+        req,
+        p,
+        format!("Sign-in: {}", m.title),
+        &format!(
+            "{}{}{}",
+            m.date.pretty(),
+            if m.time.is_empty() { String::new() } else { format!(" · {}", m.time) },
+            if m.location.is_empty() { String::new() } else { format!(" · {}", m.location) }
+        ),
+    );
+    let mut rows: Vec<Vec<String>> = m
+        .attendees
+        .iter()
+        .map(|a| {
+            let who = state.people.get(a.person);
+            let company = who.and_then(|w| w.vendor).map(|v| view::vendor_name(state, v)).unwrap_or_default();
+            vec![view::person_name(state, a.person), company, String::new()]
+        })
+        .collect();
+    // Room for people who weren't invited.
+    for _ in 0..8 {
+        rows.push(vec![String::new(); 3]);
+    }
+    doc.blocks.push(table(&["Name", "Company", "Signature"], &[3.5, 3.0, 4.0], &[], rows));
+    Some((file_name(&format!("sign-in {}", m.label())), render(&doc)))
+}

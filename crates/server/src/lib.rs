@@ -454,6 +454,12 @@ pub fn router(app: Shared) -> Router {
                 }),
             )
             .route(
+                "/projects/{id}/meetings/{mid}/signin.pdf",
+                get(|s: State<Shared>, h: HeaderMap, Path((id, x)): Path<(u64, u64)>| async move {
+                    pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::meeting_signin(r, Id::new(id), Id::new(x)))
+                }),
+            )
+            .route(
                 "/projects/{id}/transmittals/{tid}/pdf",
                 get(|s: State<Shared>, h: HeaderMap, Path((id, x)): Path<(u64, u64)>| async move {
                     pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::transmittal(r, Id::new(id), Id::new(x)))

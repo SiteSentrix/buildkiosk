@@ -64,3 +64,137 @@ fn plan_hold_issue_and_follow_up() {
     w.err(pm, "meeting.get", json!({"project": other, "id": m}));
     w.assert_replay();
 }
+
+fn meeting(w: &World, id: u64) -> buildkiosk_model::meeting::Meeting {
+    w.engine.state().meetings.get(buildkiosk_core::Id::new(id)).unwrap().clone()
+}
+
+#[test]
+fn a_meeting_can_be_repeated_on_a_schedule() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let arch = w.member(p, "Ann", "Architect", "Owner / design team");
+    let reader = w.member(p, "Rae", "Reader", "Read only");
+    let m = w
+        .ok(
+            pm,
+            "meeting.create",
+            json!({"project": p, "title": "OAC", "date": "2026-10-31", "category": "OAC", "time": "10:00", "location": "Trailer", "invitees": [arch.raw()],
+                   "agenda": [{"title": "Schedule", "notes": "Last week's notes"}], "actions": [{"description": "Send RFI log"}], "minutes": "Done."}),
+        )["id"]
+        .as_u64()
+        .unwrap();
+    w.err(reader, "meeting.repeat", json!({"project": p, "id": m, "every": "weekly", "count": 2}));
+    w.err(pm, "meeting.repeat", json!({"project": p, "id": m, "every": "daily", "count": 2}));
+    w.err(pm, "meeting.repeat", json!({"project": p, "id": m, "every": "weekly"}));
+    w.err(pm, "meeting.repeat", json!({"project": p, "id": m, "every": "weekly", "count": 0}));
+    w.err(pm, "meeting.repeat", json!({"project": p, "id": m, "every": "weekly", "count": 27}));
+    assert_eq!(w.engine.state().meetings.iter().count(), 1, "a refused repeat makes nothing");
+
+    let r = w.ok(pm, "meeting.repeat", json!({"project": p, "id": m, "every": "weekly", "count": 3}));
+    let ids: Vec<u64> = r["ids"].as_array().unwrap().iter().map(|i| i.as_u64().unwrap()).collect();
+    let dates: Vec<String> = ids.iter().map(|i| meeting(&w, *i).date.to_string()).collect();
+    assert_eq!(dates, ["2026-11-07", "2026-11-14", "2026-11-21"]);
+    let copy = meeting(&w, ids[0]);
+    assert_eq!(
+        (copy.title.as_str(), copy.category.as_str(), copy.time.as_str(), copy.location.as_str(), copy.number),
+        ("OAC", "OAC", "10:00", "Trailer", 2)
+    );
+    assert_eq!(
+        (copy.attendees.len(), copy.attendees[0].present, copy.agenda[0].title.as_str(), copy.agenda[0].notes.as_str()),
+        (1, false, "Schedule", "")
+    );
+    assert!(copy.actions.is_empty() && copy.minutes.is_empty() && copy.status == buildkiosk_model::meeting::MeetingStatus::Scheduled);
+    // Monthly keeps the day, or the end of a shorter month.
+    let months = w.ok(pm, "meeting.repeat", json!({"project": p, "id": m, "every": "monthly", "count": 2}));
+    let dates: Vec<String> = months["ids"].as_array().unwrap().iter().map(|i| meeting(&w, i.as_u64().unwrap()).date.to_string()).collect();
+    assert_eq!(dates, ["2026-11-30", "2026-12-31"]);
+    w.assert_replay();
+}
+
+#[test]
+fn open_actions_carry_forward_without_being_counted_twice() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let arch = w.member(p, "Ann", "Architect", "Owner / design team");
+    let first = w
+        .ok(
+            pm,
+            "meeting.create",
+            json!({"project": p, "title": "OAC 1", "date": "2026-10-13", "category": "OAC",
+                   "actions": [{"description": "Order hardware", "assignee": arch.raw(), "due": "2026-10-20"}, {"description": "Done already", "done": true}, {"description": "Revise schedule"}]}),
+        )["id"]
+        .as_u64()
+        .unwrap();
+    let other_kind = w.ok(
+        pm,
+        "meeting.create",
+        json!({"project": p, "title": "Safety", "date": "2026-10-14", "category": "Safety", "actions": [{"description": "Toolbox talk"}]}),
+    )["id"]
+        .as_u64()
+        .unwrap();
+    let second = w.ok(pm, "meeting.create", json!({"project": p, "title": "OAC 2", "date": "2026-10-20", "category": "OAC"}))["id"].as_u64().unwrap();
+
+    w.err(arch, "meeting.carry_actions", json!({"project": p, "id": second}));
+    w.err(pm, "meeting.carry_actions", json!({"project": p, "id": first}));
+    w.err(pm, "meeting.carry_actions", json!({"project": p, "id": second, "from": second}));
+    // By default it takes the latest earlier meeting of the same type, skipping the safety meeting in between.
+    let r = w.ok(pm, "meeting.carry_actions", json!({"project": p, "id": second}));
+    assert_eq!(r["carried"], 2);
+    let (a, b) = (meeting(&w, first), meeting(&w, second));
+    assert_eq!(b.actions.iter().map(|x| x.description.as_str()).collect::<Vec<_>>(), ["Order hardware", "Revise schedule"]);
+    assert_eq!(
+        (b.actions[0].assignee, b.actions[0].due.map(|d| d.to_string()), b.actions[0].from_meeting.map(|m| m.raw())),
+        (Some(arch), Some("2026-10-20".to_string()), Some(first))
+    );
+    assert_eq!((a.actions[0].carried, a.actions[1].carried, a.actions[2].carried), (true, false, true), "the done one stays where it was");
+    // The same action is never carried twice, and the old copy no longer counts as open.
+    assert_eq!(w.ok(pm, "meeting.carry_actions", json!({"project": p, "id": second}))["carried"], 0);
+    assert_eq!(b.actions.len(), 2);
+    let summary = w.ok(pm, "report.summary", json!({"project": p}));
+    let row = summary.to_string();
+    let open = summary.as_array().and_then(|rows| rows.iter().find(|r| r["tool"] == "Meeting action items")).map(|r| r["open"].clone());
+    assert_eq!(open, Some(json!(3)), "two carried to OAC 2 and the safety one: {row}");
+    // An explicit source works too.
+    let r = w.ok(pm, "meeting.carry_actions", json!({"project": p, "id": second, "from": other_kind}));
+    assert_eq!(r["carried"], 1);
+    // Editing a meeting through the form keeps what the form can't show.
+    w.ok(pm, "meeting.update", json!({"project": p, "id": first, "actions": [{"description": "Order hardware", "assignee": arch.raw(), "due": "2026-10-20"}, {"description": "Done already", "done": true}, {"description": "Revise schedule"}]}));
+    assert!(meeting(&w, first).actions[0].carried, "an edit that leaves the text alone keeps it carried");
+    w.assert_replay();
+}
+
+#[test]
+fn an_action_becomes_a_task_and_closing_the_task_finishes_the_action() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let arch = w.member(p, "Ann", "Architect", "Owner / design team");
+    let reader = w.member(p, "Rae", "Reader", "Read only");
+    let m = w
+        .ok(pm, "meeting.create", json!({"project": p, "title": "OAC", "date": "2026-10-13", "actions": [{"description": "Order hardware", "assignee": arch.raw(), "due": "2026-10-20"}, {"description": "Nothing yet"}]}))["id"]
+        .as_u64()
+        .unwrap();
+    w.err(reader, "meeting.action_to_task", json!({"project": p, "id": m, "index": 0}));
+    w.err(pm, "meeting.action_to_task", json!({"project": p, "id": m, "index": 9}));
+    let r = w.ok(pm, "meeting.action_to_task", json!({"project": p, "id": m, "index": 0}));
+    let task = w.engine.state().tasks.get(buildkiosk_core::Id::new(r["task"].as_u64().unwrap())).unwrap().clone();
+    assert_eq!(
+        (task.title.as_str(), task.assignees.clone(), task.due.map(|d| d.to_string()), task.meeting.map(|x| x.raw())),
+        ("Order hardware", vec![arch], Some("2026-10-20".to_string()), Some(m))
+    );
+    assert_eq!(meeting(&w, m).actions[0].task, Some(task.id));
+    w.err(pm, "meeting.action_to_task", json!({"project": p, "id": m, "index": 0}));
+    // The edit form (which knows nothing of the link) doesn't lose it.
+    w.ok(pm, "meeting.update", json!({"project": p, "id": m, "actions": [{"description": "Order hardware", "assignee": arch.raw(), "due": "2026-10-20"}, {"description": "Nothing yet"}]}));
+    assert_eq!(meeting(&w, m).actions[0].task, Some(task.id));
+    // Closing the task finishes the action.
+    assert!(!meeting(&w, m).actions[0].done);
+    w.ok(pm, "task.close", json!({"project": p, "id": task.id.raw()}));
+    assert!(meeting(&w, m).actions[0].done);
+    assert!(!meeting(&w, m).actions[1].done);
+    w.err(pm, "meeting.action_to_task", json!({"project": p, "id": m, "index": 0}));
+    w.assert_replay();
+}

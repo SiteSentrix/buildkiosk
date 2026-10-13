@@ -55,7 +55,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Respond to RFI",
         Tool::Rfis,
         Access::Project(Level::Standard),
-        "project, id: ids; body: text; official?: bool (manager or RFI admin)",
+        "project, id: ids; body: text; official?: bool (manager or RFI admin); attachments?: [{sha256, name, size, mime?}] (up to 10 uploaded files)",
         respond,
     ),
     CommandSpec::mutate(
@@ -346,7 +346,12 @@ fn respond(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         }
     }
     let rid = rfi.responses.iter().map(|r| r.id).max().unwrap_or(0).saturating_add(1);
-    rfi.responses.push(RfiResponse { id: rid, by: me, at: ctx.at, body: p.req_text("body", text::LONG)?, official, attachments: Vec::new() });
+    let files = p.items("attachments")?;
+    if files.len() > 10 {
+        return Err(p.bad("attachments", "can hold at most 10 files"));
+    }
+    let attachments = files.iter().map(super::submittal::file_ref).collect::<Result<Vec<_>>>()?;
+    rfi.responses.push(RfiResponse { id: rid, by: me, at: ctx.at, body: p.req_text("body", text::LONG)?, official, attachments });
     rfi.recompute_ball_in_court();
     rfi.updated = ctx.stamp();
     let id = rfi.id;

@@ -78,6 +78,22 @@ pub fn home(req: &Req<'_>) -> Markup {
         div class="page-head" {
             div { h1 { "Projects" } div class="sub" { (projects.len()) " project" @if projects.len() != 1 { "s" } } }
         }
+        @if projects.len() > 1 {
+            div class="card" {
+                h2 { "Portfolio" }
+                div class="table-wrap" { table class="data" {
+                    thead { tr { th { "Project" } th { "Stage" } th class="num" { "Needs action" } th class="num" { "Past due" } th class="num" { "Revised budget" } th class="num" { "Projected over / under" } } }
+                    tbody { @for r in buildkiosk_engine::report::portfolio(state, actor, req.today()) { tr {
+                        td { a href=(format!("/projects/{}", r.project)) { (r.name) } @if !r.number.is_empty() { " " span class="muted small" { (r.number) } } }
+                        td { (r.stage) }
+                        td class="num" { (r.open) }
+                        td class="num" { @if r.overdue > 0 { span class="overdue" { (r.overdue) } } @else { (r.overdue) } }
+                        td class="num" { @if let Some(x) = r.revised { (x) } @else { span class="muted" { "—" } } }
+                        td class="num" { @if let Some(x) = r.variance { span class=(if x.is_negative() { "overdue" } else { "" }) { (x) } } @else { span class="muted" { "—" } } }
+                    } } }
+                } }
+            }
+        }
         @if projects.is_empty() {
             div class="card" { (empty(Icon::Building, "No projects yet", "Projects you are part of appear here.")) }
         } @else {

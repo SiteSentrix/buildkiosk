@@ -21,6 +21,14 @@ pub const COMMANDS: &[CommandSpec] = &[
         summary,
     ),
     CommandSpec::query(
+        "report.portfolio",
+        "Portfolio report",
+        Tool::CompanyReports,
+        Access::Member,
+        "(no parameters) every project you can open with its open and past-due counts and, where you can read the budget, the revised budget and projected over or under",
+        portfolio,
+    ),
+    CommandSpec::query(
         "report.waiting_on_me",
         "Waiting on me",
         Tool::Reports,
@@ -39,4 +47,8 @@ fn waiting(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
     let project: Id<Project> = p.id("project")?;
     let Some(me) = v.person() else { return json(&Vec::<report::Todo>::new()) };
     json(&report::waiting_on(v.state, v.actor, project, me))
+}
+
+fn portfolio(v: &View<'_>, _p: &Params<'_>) -> Result<Value> {
+    json(&report::portfolio(v.state, v.actor, v.today()))
 }

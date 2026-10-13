@@ -21,6 +21,7 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 2. Next tools in the order of `docs/gaps.md` (then the financial remainder; financials still to do: forecasting, budget snapshots).
 
 ## Progress log
+- 2026-10-13: portfolio table on the Projects page and `report.portfolio`.
 - 2026-10-13: project report across tools (open and past-due counts) and a "waiting on me" list on the project home; `report.summary` and `report.waiting_on_me` queries.
 - 2026-10-13: timesheets (hours by day and cost code, weekly submit, approve and send back, CSV).
 - 2026-10-13: forms (project-defined templates, typed questions, fill-in records, required answers, submit).

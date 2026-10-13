@@ -103,6 +103,7 @@ code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font
 .table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow-x:auto}
 table.data{width:100%;border-collapse:collapse;font-size:14px}
 table.data th{text-align:left;font-weight:650;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding:10px 14px;border-bottom:1px solid var(--border);background:var(--surface-2);white-space:nowrap}
+table.data tr.group-row th{text-transform:none;font-size:14px;letter-spacing:0;color:var(--text);background:var(--surface-2);border-top:1px solid var(--border)}
 table.data td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:top}
 table.data tr:last-child td{border-bottom:0}
 table.data tbody tr:hover td{background:var(--surface-2)}

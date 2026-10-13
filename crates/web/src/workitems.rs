@@ -170,12 +170,117 @@ fn priority_tag(p: Priority) -> Markup {
     html! { span class=(class) { (p.label()) } }
 }
 
+/// How a list is divided into sections.
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+pub enum Group {
+    #[default]
+    None,
+    Location,
+    Assignee,
+    Kind,
+    Status,
+}
+
+impl Group {
+    pub fn parse(s: &str) -> Group {
+        match s {
+            "location" => Group::Location,
+            "assignee" => Group::Assignee,
+            "kind" => Group::Kind,
+            "status" => Group::Status,
+            _ => Group::None,
+        }
+    }
+
+    pub fn key(self) -> &'static str {
+        match self {
+            Group::None => "",
+            Group::Location => "location",
+            Group::Assignee => "assignee",
+            Group::Kind => "kind",
+            Group::Status => "status",
+        }
+    }
+}
+
 /// Filters of the list, from the query string.
 #[derive(Default)]
 pub struct Filter {
     pub status: Option<WorkStatus>,
     pub q: String,
     pub mine: bool,
+    /// Only items assigned to this person (a person id).
+    pub assignee: Option<u64>,
+    /// Only items at exactly this location, of exactly this type (case ignored); empty for any.
+    pub location: String,
+    pub kind: String,
+    pub group: Group,
+}
+
+impl Filter {
+    /// The query string that reproduces this filter (for links that keep it).
+    pub fn query(&self) -> String {
+        let mut parts: Vec<String> = Vec::new();
+        let enc =
+            |s: &str| s.bytes().map(|b| if b.is_ascii_alphanumeric() { (b as char).to_string() } else { format!("%{b:02X}") }).collect::<String>();
+        if let Some(s) = self.status {
+            parts.push(format!("status={}", s.key()));
+        }
+        if !self.q.is_empty() {
+            parts.push(format!("q={}", enc(&self.q)));
+        }
+        if self.mine {
+            parts.push("mine=1".into());
+        }
+        if let Some(a) = self.assignee {
+            parts.push(format!("assignee={a}"));
+        }
+        if !self.location.is_empty() {
+            parts.push(format!("location={}", enc(&self.location)));
+        }
+        if !self.kind.is_empty() {
+            parts.push(format!("kind={}", enc(&self.kind)));
+        }
+        if self.group != Group::None {
+            parts.push(format!("group={}", self.group.key()));
+        }
+        parts.join("&")
+    }
+}
+
+/// The items the filter lets through, in number order.
+pub fn filtered<'a, T: WorkPage>(req: &Req<'_>, all: &[&'a T], filter: &Filter) -> Vec<&'a T> {
+    let q = filter.q.to_lowercase();
+    all.iter()
+        .copied()
+        .filter(|i| filter.status.is_none_or(|s| i.status == s))
+        .filter(|i| !filter.mine || i.ball_in_court.contains(&req.person))
+        .filter(|i| filter.assignee.is_none_or(|a| i.assignees.iter().any(|x| x.raw() == a)))
+        .filter(|i| filter.location.is_empty() || i.location.eq_ignore_ascii_case(&filter.location))
+        .filter(|i| filter.kind.is_empty() || i.kind.eq_ignore_ascii_case(&filter.kind))
+        .filter(|i| q.is_empty() || i.title.to_lowercase().contains(&q) || i.location.to_lowercase().contains(&q) || i.number.to_string() == q)
+        .collect()
+}
+
+/// The items split into titled sections (one section with no title when not grouping). Sections
+/// are in alphabetical order; an item with several assignees appears under each.
+pub fn sections<'a, T: WorkPage>(req: &Req<'_>, shown: &[&'a T], group: Group) -> Vec<(String, Vec<&'a T>)> {
+    let state = req.engine.state();
+    let mut map: std::collections::BTreeMap<String, Vec<&'a T>> = std::collections::BTreeMap::new();
+    for i in shown {
+        let keys: Vec<String> = match group {
+            Group::None => vec![String::new()],
+            Group::Location => vec![if i.location.is_empty() { "No location".into() } else { i.location.clone() }],
+            Group::Kind => vec![if i.kind.is_empty() { format!("No {}", T::KIND_LABEL.to_lowercase()) } else { i.kind.clone() }],
+            Group::Status => vec![i.status.label().to_string()],
+            Group::Assignee if i.assignees.is_empty() => vec!["Unassigned".into()],
+            Group::Assignee => i.assignees.iter().map(|a| view::person_name(state, *a)).collect(),
+        };
+        for k in keys {
+            map.entry(k).or_default().push(i);
+        }
+    }
+    map.into_iter().collect()
 }
 
 fn crumbs<'a, T: WorkPage>(p: &'a Project, last: Option<(&'a str, String)>) -> Vec<(&'a str, Option<String>)> {
@@ -202,28 +307,44 @@ pub fn list<T: WorkPage>(req: &Req<'_>, id: Id<Project>, filter: &Filter) -> Mar
     }
     let all = items_for::<T>(state, req.actor(), id);
     let count = |s: WorkStatus| all.iter().filter(|x| x.status == s).count();
-    let q = filter.q.to_lowercase();
     let today = req.today();
-    let shown: Vec<&T> = all
-        .iter()
-        .copied()
-        .filter(|i| filter.status.is_none_or(|s| i.status == s))
-        .filter(|i| !filter.mine || i.ball_in_court.contains(&req.person))
-        .filter(|i| q.is_empty() || i.title.to_lowercase().contains(&q) || i.location.to_lowercase().contains(&q) || i.number.to_string() == q)
-        .collect();
+    let shown = filtered::<T>(req, &all, filter);
     let base = format!("/projects/{id}/{}", T::PATH);
+    // Tabs keep the other filters; only the status changes.
+    let rest = Filter {
+        status: None,
+        q: filter.q.clone(),
+        mine: false,
+        assignee: filter.assignee,
+        location: filter.location.clone(),
+        kind: filter.kind.clone(),
+        group: filter.group,
+    };
     let tab = |label: &str, status: Option<WorkStatus>, n: usize| {
-        let href = match status {
-            Some(s) => format!("{base}?status={}", s.key()),
-            None => base.clone(),
-        };
+        let q =
+            Filter { status, ..Filter { q: rest.q.clone(), location: rest.location.clone(), kind: rest.kind.clone(), ..Filter::default() } }.query();
+        let extra = [rest.assignee.map(|a| format!("assignee={a}")), (rest.group != Group::None).then(|| format!("group={}", rest.group.key()))];
+        let q = std::iter::once(q).chain(extra.into_iter().flatten()).filter(|x| !x.is_empty()).collect::<Vec<_>>().join("&");
+        let href = if q.is_empty() { base.clone() } else { format!("{base}?{q}") };
         html! { a href=(href) class=(if filter.status == status && !filter.mine { "active" } else { "" }) { (label) span class="count" { (n) } } }
     };
+    let mut locations: Vec<&str> = all.iter().map(|i| i.location.as_str()).filter(|l| !l.is_empty()).collect();
+    locations.sort_by_key(|l| l.to_lowercase());
+    locations.dedup_by_key(|l| l.to_lowercase());
+    let mut kinds: Vec<&str> = all.iter().map(|i| i.kind.as_str()).filter(|l| !l.is_empty()).collect();
+    kinds.sort_by_key(|l| l.to_lowercase());
+    kinds.dedup_by_key(|l| l.to_lowercase());
+    let mut people: Vec<_> = all.iter().flat_map(|i| i.assignees.iter().copied()).collect();
+    people.sort_by_key(|p| view::person_name(state, *p).to_lowercase());
+    people.dedup();
+    let query = filter.query();
+    let with_query = |path: String| if query.is_empty() { path } else { format!("{path}?{query}") };
+    let sections = sections::<T>(req, &shown, filter.group);
     let body = html! {
         div class="page-head" {
             div { h1 { (T::TITLE) } div class="sub" { (T::SUBTITLE) } }
             div class="actions" {
-                a class="btn" href=(format!("{base}.pdf")) { "PDF" }
+                a class="btn" href=(with_query(format!("{base}.pdf"))) { "PDF" }
                 a class="btn" href=(format!("{base}.csv")) { (Icon::Download.svg()) "Export CSV" }
                 @if req.allowed(&cmd::<T>("create"), Some(id)) { a class="btn primary" href=(format!("{base}/new")) { (Icon::Plus.svg()) (T::ADD) } }
             }
@@ -237,6 +358,16 @@ pub fn list<T: WorkPage>(req: &Req<'_>, id: Id<Project>, filter: &Filter) -> Mar
         form method="get" action=(base) class="filters" {
             @if let Some(s) = filter.status { input type="hidden" name="status" value=(s.key()); }
             input type="search" name="q" value=(filter.q) placeholder="Search title, location or number" aria-label=(format!("Search {}", T::TITLE.to_lowercase()));
+            select name="assignee" aria-label="Assigned to" { option value="" { "Anyone" } @for a in &people { option value=(a) selected[filter.assignee == Some(a.raw())] { (view::person_name(state, *a)) } } }
+            select name="location" aria-label="Location" { option value="" { "Any location" } @for l in &locations { option value=(l) selected[filter.location.eq_ignore_ascii_case(l)] { (l) } } }
+            select name="kind" aria-label=(T::KIND_LABEL) { option value="" { "Any " (T::KIND_LABEL.to_lowercase()) } @for k in &kinds { option value=(k) selected[filter.kind.eq_ignore_ascii_case(k)] { (k) } } }
+            select name="group" aria-label="Group by" {
+                option value="" selected[filter.group == Group::None] { "No grouping" }
+                option value="location" selected[filter.group == Group::Location] { "Group by location" }
+                option value="assignee" selected[filter.group == Group::Assignee] { "Group by assignee" }
+                option value="kind" selected[filter.group == Group::Kind] { "Group by " (T::KIND_LABEL.to_lowercase()) }
+                option value="status" selected[filter.group == Group::Status] { "Group by status" }
+            }
             label class="check" { input type="checkbox" name="mine" value="1" checked[filter.mine]; "Waiting on me" }
             button type="submit" class="btn small" { (Icon::Search.svg()) "Filter" }
         }
@@ -246,19 +377,41 @@ pub fn list<T: WorkPage>(req: &Req<'_>, id: Id<Project>, filter: &Filter) -> Mar
             div class="table-wrap" {
                 table class="data" {
                     thead { tr { th { "#" } th { "Title" } th { "Location" } th { "Priority" } th { "Status" } th { "Ball in court" } th { "Due" } } }
-                    tbody {
-                        @for i in &shown {
-                            tr {
-                                td class="nowrap" { (i.number) }
-                                td { a class="row-link" href=(format!("{base}/{}", i.id())) { (i.title) } }
-                                td { (i.location) }
-                                td { (priority_tag(i.priority)) }
-                                td { (status_pill(i.status)) }
-                                td { (view::people_names(state, &i.ball_in_court)) }
-                                td class="nowrap" { @if let Some(d) = i.due { span class=(if i.is_overdue(today) { "overdue" } else { "" }) { (d.pretty()) } } }
+                    @for (title, items) in &sections {
+                        tbody {
+                            @if filter.group != Group::None { tr class="group-row" { th colspan="7" { (title) " " span class="muted" { "(" (items.len()) ")" } } } }
+                            @for i in items {
+                                tr {
+                                    td class="nowrap" { (i.number) }
+                                    td { a class="row-link" href=(format!("{base}/{}", i.id())) { (i.title) } }
+                                    td { (i.location) }
+                                    td { (priority_tag(i.priority)) }
+                                    td { (status_pill(i.status)) }
+                                    td { (view::people_names(state, &i.ball_in_court)) }
+                                    td class="nowrap" { @if let Some(d) = i.due { span class=(if i.is_overdue(today) { "overdue" } else { "" }) { (d.pretty()) } } }
+                                }
                             }
                         }
                     }
+                }
+            }
+        }
+        @if req.allowed(&cmd::<T>("import"), Some(id)) {
+            div class="card" {
+                details class="disclosure" {
+                    summary { "Import from CSV" }
+                    p class="muted small" { "One per line: title, location, " (T::KIND_LABEL.to_lowercase()) ", priority (low, medium, high, urgent), due date (YYYY-MM-DD), assignees (email addresses separated by semicolons). A header line starting with title is skipped. Nothing is added unless every line is good." }
+                    form method="post" action=(format!("{base}/import")) enctype="multipart/form-data" class="stack" {
+                        input type="hidden" name="_csrf" value=(req.csrf);
+                        (field("CSV file", "import_file", true, true, html! { input type="file" id="import_file" name="file" accept=".csv,text/csv,text/plain" required; }))
+                        div class="form-actions" { button type="submit" class="btn primary" { "Import file" } }
+                    }
+                    p class="muted small" { "Or paste the lines:" }
+                    (command_form(req, &cmd::<T>("import"), &base, &base, html! {
+                        input type="hidden" name="project" value=(id);
+                        (field("CSV text", "import_text", true, true, html! { textarea id="import_text" name="text" required placeholder="title,location,kind,priority,due,assignees" {} }))
+                        div class="form-actions" { button type="submit" class="btn primary" { "Import" } }
+                    }))
                 }
             }
         }

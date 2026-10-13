@@ -534,7 +534,7 @@ fn get(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
 }
 
 /// Splits one CSV line into cells ("quoted, cells" and "" escapes are understood).
-fn csv_cells(line: &str) -> Vec<String> {
+pub(crate) fn csv_cells(line: &str) -> Vec<String> {
     let mut cells = Vec::new();
     let mut cur = String::new();
     let mut quoted = false;

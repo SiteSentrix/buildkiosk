@@ -72,3 +72,29 @@ fn files_listing_and_isolation() {
     w.ok(w.admin(), "punch.restore", json!({"project": p, "id": id}));
     w.assert_replay();
 }
+
+#[test]
+fn bulk_import_is_all_or_nothing() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let sub = w.member(p, "Sam", "Sub", "Subcontractor");
+    let reader = w.member(p, "Rae", "Reader", "Read only");
+    let email = w.engine.state().people.get(sub).unwrap().email.clone().unwrap();
+    let text = format!(
+        "title,location,kind,priority,due,assignees\nCracked tile,Lobby,Tile,high,2026-12-01,{email}\n\"Door, sticking\",Level 2,Doors,,,\n# comment\n"
+    );
+    let out = w.ok(pm, "punch.import", json!({"project": p, "text": text}));
+    assert_eq!(out["created"], 2);
+    let items: Vec<_> = w.engine.state().punch_items.iter().cloned().collect();
+    assert_eq!((items[0].number, items[1].number), (1, 2));
+    assert_eq!(items[0].assignees, vec![sub]);
+    assert_eq!(items[1].title, "Door, sticking");
+    for bad in ["Good\nBad,,,sideways", "X,,,,not-a-date", "X,,,,,nobody@nowhere.test", ",Lobby"] {
+        w.err(pm, "punch.import", json!({"project": p, "text": bad}));
+    }
+    assert_eq!(w.engine.state().punch_items.iter().count(), 2, "a bad line adds nothing");
+    w.err(reader, "punch.import", json!({"project": p, "text": "Y"}));
+    w.ok(pm, "task.import", json!({"project": p, "text": "Order rebar"}));
+    w.assert_replay();
+}

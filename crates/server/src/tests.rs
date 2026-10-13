@@ -531,6 +531,35 @@ async fn punch_list_in_the_browser_flow() {
     assert_eq!((st, body.as_str()), (StatusCode::OK, "JPG"));
     let (_, _, csv) = send(&app, get("/projects/1/punch-list.csv")).await;
     assert!(csv.contains("Touch up paint"));
+
+    // Bulk import from a file, then filter, group and print the list.
+    let import = |token: &str, csv: &str| {
+        let body = format!(
+            "--B\r\nContent-Disposition: form-data; name=\"_csrf\"\r\n\r\n{token}\r\n--B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"walk.csv\"\r\nContent-Type: text/csv\r\n\r\n{csv}\r\n--B--\r\n"
+        );
+        Request::post("/projects/1/punch-list/import")
+            .header("cookie", &ada)
+            .header("content-type", "multipart/form-data; boundary=B")
+            .body(Body::from(body))
+            .unwrap()
+    };
+    let (st, ..) = send(&app, import("bad", "title\nX")).await;
+    assert_eq!(st, StatusCode::FORBIDDEN);
+    let (_, h, _) = send(&app, import(&csrf, "title,location,kind,priority,due,assignees\nCracked tile,Lobby,Tile,high,2026-12-01,ada@example.com\nLoose handrail,Stair 2,Carpentry,,,\nTouch-up,Lobby,Paint,low,,")).await;
+    let loc = h.get(LOCATION).unwrap().to_str().unwrap().to_string();
+    assert!(loc.contains("ok=") && loc.contains("Imported%203"), "{loc}");
+    let (_, h, _) = send(&app, import(&csrf, "title\nGood\nBad,Here,,sideways")).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("error="), "one bad line adds nothing");
+    let (_, _, all) = send(&app, get("/projects/1/punch-list")).await;
+    assert!(!all.contains(">Good<"));
+    let (_, _, by_loc) = send(&app, get("/projects/1/punch-list?group=location")).await;
+    assert!(by_loc.contains("group-row") && by_loc.contains("Lobby") && by_loc.contains("Stair 2"));
+    let (_, _, lobby) = send(&app, get("/projects/1/punch-list?location=lobby")).await;
+    assert!(lobby.contains("Cracked tile") && !lobby.contains("Loose handrail"));
+    let (_, _, mine) = send(&app, get("/projects/1/punch-list?assignee=1")).await;
+    assert!(mine.contains("Cracked tile") && !mine.contains("Touch-up"));
+    let (st, h, pdf) = send(&app, get("/projects/1/punch-list.pdf?group=location&location=Lobby")).await;
+    assert!(st == StatusCode::OK && pdf.starts_with("%PDF") && h.get(CONTENT_TYPE).unwrap() == "application/pdf");
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }

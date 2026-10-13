@@ -13,7 +13,7 @@ templates, layouts) — re-derive that from public documentation instead (see Cl
 **Scope (owner decision, 2026-10-12): Procore's tools only, for now.** Build the tools Procore offers, in the order of
 [`docs/gaps.md`](docs/gaps.md), with our own look and wording. Every BuildKiosk-only feature is parked (badge
 printing and scan kiosk, field clock, equipment rentals, receipts, AI assistants, blockchain, AR/VR, drones, IoT,
-digital twin, carbon/ESG, third-party integrations…): don't build or plan them until the owner un-parks them. The
+digital twin, carbon/ESG, third-party integrations, hosting BuildKiosk for other companies (design kept in `docs/hosting.md`)…): don't build or plan them until the owner un-parks them. The
 predecessor app stays a reference only for how it did the tools both products share. Keep it simple: one tool at a
 time, finished end to end (engine, tests, pages) before the next.
 

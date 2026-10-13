@@ -1,6 +1,6 @@
 # Hosting BuildKiosk for other companies
 
-Status: design, 2026-10-13. Nothing here is built yet. Owner direction: BuildKiosk will be offered as a hosted service
+Status: PARKED by the owner, 2026-10-13 (the plan is support, training and setup for self-hosted installs; hosting may come back if customers ask). Kept as a design only; nothing here is built. Owner direction: BuildKiosk will be offered as a hosted service
 to companies that want it, as one way to fund the project. The self-hosted single-company server stays as it is and
 stays the default; hosting is an extra mode of the same binary.
 

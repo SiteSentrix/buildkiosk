@@ -68,6 +68,7 @@ pub enum Nav {
     Reports(Id<Project>),
     ActionPlans(Id<Project>),
     Bidding(Id<Project>),
+    Estimating(Id<Project>),
     Drawings(Id<Project>),
     Schedule(Id<Project>),
     DailyLogs(Id<Project>),
@@ -175,7 +176,8 @@ pub fn app(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Option<String>
         | Nav::Timesheets(p)
         | Nav::Reports(p)
         | Nav::ActionPlans(p)
-        | Nav::Bidding(p) => state.projects.get(p),
+        | Nav::Bidding(p)
+        | Nav::Estimating(p) => state.projects.get(p),
     };
     html! {
         (DOCTYPE)
@@ -238,6 +240,9 @@ pub fn app(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Option<String>
                                     @if view::level(state, req.actor(), p.id, tool) >= buildkiosk_engine::model::Level::Read {
                                         a href=(format!("/projects/{}/{path}", p.id)) class=(if current { "active" } else { "" }) { (tool_icon(tool).svg()) (label) }
                                     }
+                                }
+                                @if view::level(state, req.actor(), p.id, Tool::Estimating) >= buildkiosk_engine::model::Level::Read {
+                                    a href=(format!("/projects/{}/estimating", p.id)) class=(if matches!(nav, Nav::Estimating(_)) { "active" } else { "" }) { (tool_icon(Tool::Estimating).svg()) "Estimating" }
                                 }
                                 @if view::level(state, req.actor(), p.id, Tool::Bidding) >= buildkiosk_engine::model::Level::Read {
                                     a href=(format!("/projects/{}/bidding", p.id)) class=(if matches!(nav, Nav::Bidding(_)) { "active" } else { "" }) { (tool_icon(Tool::Bidding).svg()) "Bidding" }

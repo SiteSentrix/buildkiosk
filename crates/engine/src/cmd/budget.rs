@@ -107,7 +107,7 @@ fn amount(p: &Params<'_>, key: &str) -> Result<Money> {
 }
 
 /// Creates or changes the project's line for `code`.
-fn upsert(ctx: &mut Ctx<'_>, project: Id<Project>, code: Id<CostCode>, original: Money, notes: Option<String>) -> Id<BudgetLine> {
+pub(crate) fn upsert(ctx: &mut Ctx<'_>, project: Id<Project>, code: Id<CostCode>, original: Money, notes: Option<String>) -> Id<BudgetLine> {
     let existing = ctx.state.budget_lines.iter().find(|b| b.project == project && b.cost_code == code && b.deleted.is_none()).map(|b| b.id);
     let stamp = ctx.stamp();
     match existing {

@@ -15,6 +15,7 @@ use crate::bidding::BidPackage;
 use crate::correspondence::Correspondence;
 use crate::document::{Document, Folder};
 use crate::drawing::Drawing;
+use crate::estimate::Estimate;
 use crate::form::{FormRecord, FormTemplate};
 use crate::incident::Incident;
 use crate::meeting::Meeting;
@@ -169,6 +170,7 @@ tables! {
     owner_invoices: OwnerInvoice,
     commitment_invoices: CommitmentInvoice,
     bid_packages: BidPackage,
+    estimates: Estimate,
 
     // -- documents
     folders: Folder,

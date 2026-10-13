@@ -6,17 +6,17 @@
 //! line (a leading `-` or `*` is dropped) is an item of the section above it.
 
 use buildkiosk_core::{Date, Id, text};
-use buildkiosk_model::action_plan::{ActionPlan, PlanItem, PlanSection, PlanStatus};
+use buildkiosk_model::action_plan::{ActionPlan, PlanApproval, PlanComment, PlanItem, PlanSection, PlanStatus, PlanTemplate};
 use buildkiosk_model::directory::Person;
 use buildkiosk_model::project::Project;
-use buildkiosk_model::{Level, Tool};
+use buildkiosk_model::{CompanyState, Level, Tool, perm};
 use serde_json::{Value, json};
 
 use super::notification::notify;
 use super::{Access, CommandSpec};
 use crate::ctx::in_project;
-use crate::view::json;
-use crate::{Ctx, EngineError, Params, Read, Result, View};
+use crate::view::{self, json};
+use crate::{Actor, Ctx, EngineError, Params, Read, Result, View};
 
 pub const COMMANDS: &[CommandSpec] = &[
     CommandSpec::mutate(
@@ -24,7 +24,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Create action plan",
         Tool::ActionPlans,
         Access::Project(Level::Standard),
-        "project: project id; title: text; description?: text; manager?: person id (default you); outline?: text (`# Section` lines, then one item per line)",
+        "project: project id; title: text; description?: text; manager?: person id (default you); outline?: text (`# Section` lines, then one item per line); template?: plan template id (used when no outline is given)",
         create,
     ),
     CommandSpec::mutate(
@@ -84,6 +84,47 @@ pub const COMMANDS: &[CommandSpec] = &[
         "project: project id; status?: draft|active|complete; q?: text; deleted?: bool (admins)",
         list,
     ),
+    CommandSpec::mutate(
+        "action_plan.set_approvers",
+        "Set plan approvers",
+        Tool::ActionPlans,
+        Access::Project(Level::Standard),
+        "project, id: ids; approvers: person ids (the manager or an admin; empty means no approval is needed; people taken off lose their answer)",
+        set_approvers,
+    ),
+    CommandSpec::mutate(
+        "action_plan.approve",
+        "Approve or decline action plan",
+        Tool::ActionPlans,
+        Access::Project(Level::Read),
+        "project, id: ids; approved?: bool (default true); note?: text (only a named approver; the plan cannot start until all approve)",
+        approve,
+    ),
+    CommandSpec::mutate(
+        "action_plan.comment",
+        "Comment on plan item",
+        Tool::ActionPlans,
+        Access::Project(Level::Read),
+        "project, id: ids; section, item: numbers from 0; text: remark (the item's owner, the manager, or anyone with Standard access)",
+        comment,
+    ),
+    CommandSpec::mutate(
+        "action_plan.template_save",
+        "Save plan as template",
+        Tool::ActionPlans,
+        Access::Project(Level::Standard),
+        "project, id: ids of the plan; name: text (a company-wide template of the sections and items, without owners, dates or progress; a template of the same name is replaced)",
+        template_save,
+    ),
+    CommandSpec::mutate(
+        "action_plan.template_delete",
+        "Delete plan template",
+        Tool::ActionPlans,
+        Access::Member,
+        "id: template id (its author or a company admin)",
+        template_delete,
+    ),
+    CommandSpec::query("action_plan.template_list", "List plan templates", Tool::ActionPlans, Access::Member, "(none)", template_list),
     CommandSpec::query("action_plan.get", "Show action plan", Tool::ActionPlans, Access::Project(Level::Read), "project, id: ids", get),
 ];
 
@@ -138,7 +179,7 @@ fn parse_outline(p: &Params<'_>, raw: &str) -> Result<Vec<PlanSection>> {
                 return Err(p.bad("outline", format!("has more than {MAX_ITEMS} items")));
             }
             if let Some(s) = out.last_mut() {
-                s.items.push(PlanItem { text: item, assignee: None, due: None, done: false, note: String::new() });
+                s.items.push(PlanItem { text: item, assignee: None, due: None, done: false, note: String::new(), comments: Vec::new() });
             }
         }
         if out.len() > MAX_SECTIONS {
@@ -162,6 +203,11 @@ fn merge(old: &[PlanSection], mut new: Vec<PlanSection>) -> Vec<PlanSection> {
     new
 }
 
+/// The wording of every section and item, which is what an approver agreed to.
+fn shape(sections: &[PlanSection]) -> Vec<(&str, Vec<&str>)> {
+    sections.iter().map(|s| (s.title.as_str(), s.items.iter().map(|i| i.text.as_str()).collect())).collect()
+}
+
 fn manager(ctx: &Ctx<'_>, p: &Params<'_>) -> Result<Option<Id<Person>>> {
     let m: Option<Id<Person>> = p.opt_id("manager")?;
     if let Some(m) = m {
@@ -173,7 +219,19 @@ fn manager(ctx: &Ctx<'_>, p: &Params<'_>) -> Result<Option<Id<Person>>> {
 fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     let project: Id<Project> = p.id("project")?;
     let number = ctx.state.action_plans.iter().filter(|a| a.project == project).map(|a| a.number).max().unwrap_or(0).saturating_add(1);
-    let sections = if p.present("outline") { parse_outline(p, &p.text_or_empty("outline", text::LONG)?)? } else { Vec::new() };
+    let sections = if p.present("outline") {
+        parse_outline(p, &p.text_or_empty("outline", text::LONG)?)?
+    } else if let Some(t) = p.opt_id::<PlanTemplate>("template")? {
+        let t = ctx
+            .state
+            .plan_templates
+            .get(t)
+            .filter(|t| t.deleted.is_none())
+            .ok_or_else(|| p.bad("template", format!("plan template {t} not found")))?;
+        t.sections.clone()
+    } else {
+        Vec::new()
+    };
     let id = ctx.state.action_plans.alloc();
     let stamp = ctx.stamp();
     ctx.state.action_plans.put(ActionPlan {
@@ -185,6 +243,9 @@ fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         status: PlanStatus::Draft,
         manager: manager(ctx, p)?.or(ctx.person()),
         sections,
+        approvers: Vec::new(),
+        approvals: Vec::new(),
+        completed: None,
         created: stamp,
         updated: stamp,
         deleted: None,
@@ -211,7 +272,11 @@ fn update(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     }
     if p.present("outline") {
         let new = parse_outline(p, &p.text_or_empty("outline", text::LONG)?)?;
+        let changed = shape(&a.sections) != shape(&new);
         a.sections = merge(&a.sections, new);
+        if changed {
+            a.approvals.clear();
+        }
     }
     a.updated = ctx.stamp();
     let id = a.id;
@@ -278,6 +343,10 @@ fn activate(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     if a.progress().1 == 0 {
         return Err(EngineError::conflict("add at least one item first"));
     }
+    if !a.approved() {
+        let waiting = a.approvers.iter().filter(|x| !a.approvals.iter().any(|y| y.person == **x && y.approved)).count();
+        return Err(EngineError::conflict(format!("{waiting} approver(s) have not approved {} yet", a.label())));
+    }
     a.status = PlanStatus::Active;
     a.updated = ctx.stamp();
     let mut people: Vec<Id<Person>> = a.sections.iter().flat_map(|s| s.items.iter()).filter_map(|i| i.assignee).collect();
@@ -303,6 +372,7 @@ fn complete(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         return Err(EngineError::conflict(format!("{} of {all} items are still open", all - done)));
     }
     a.status = PlanStatus::Complete;
+    a.completed = Some(ctx.stamp());
     a.updated = ctx.stamp();
     let id = a.id;
     ctx.state.action_plans.put(a);
@@ -318,6 +388,7 @@ fn reopen(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         return Err(EngineError::conflict(format!("{} is not complete", a.label())));
     }
     a.status = PlanStatus::Active;
+    a.completed = None;
     a.updated = ctx.stamp();
     let id = a.id;
     ctx.state.action_plans.put(a);
@@ -343,6 +414,169 @@ fn restore(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     }
     ctx.state.action_plans.update(id, |x| x.deleted = None);
     Ok(json!({ "id": id }))
+}
+
+fn set_approvers(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut a = load(ctx, p)?;
+    if !is_manager(ctx, &a) {
+        return Err(EngineError::forbidden("only the manager or an admin can name approvers"));
+    }
+    if a.status == PlanStatus::Complete {
+        return Err(EngineError::conflict(format!("{} is complete; reopen it to change it", a.label())));
+    }
+    let mut who: Vec<Id<Person>> = p.ids("approvers")?;
+    who.sort();
+    who.dedup();
+    if who.len() > 20 {
+        return Err(p.bad("approvers", "names more than 20 people"));
+    }
+    for w in &who {
+        ctx.check_person(*w)?;
+    }
+    let added: Vec<Id<Person>> = who.iter().copied().filter(|w| !a.approvers.contains(w)).collect();
+    a.approvals.retain(|x| who.contains(&x.person));
+    a.approvers = who;
+    a.updated = ctx.stamp();
+    let (project, l, t, id) = (a.project, link(&a), format!("You are asked to approve {}: {}", a.label(), a.title), a.id);
+    ctx.state.action_plans.put(a);
+    notify(ctx, &added, project, &t, &l);
+    Ok(json!({ "id": id }))
+}
+
+fn approve(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut a = load(ctx, p)?;
+    let Some(me) = ctx.person().filter(|m| a.approvers.contains(m)) else {
+        return Err(EngineError::forbidden("only a named approver can answer"));
+    };
+    if a.status == PlanStatus::Complete {
+        return Err(EngineError::conflict(format!("{} is complete", a.label())));
+    }
+    let approved = p.flag("approved")?.unwrap_or(true);
+    let note = p.line_or_empty("note", text::SHORT)?;
+    let stamp = ctx.stamp();
+    a.approvals.retain(|x| x.person != me);
+    a.approvals.push(PlanApproval { person: me, approved, note, stamp });
+    a.updated = stamp;
+    let (project, l, id) = (a.project, link(&a), a.id);
+    let t = format!("{} {} {}: {}", view::person_name(ctx.state, me), if approved { "approved" } else { "declined" }, a.label(), a.title);
+    let to: Vec<Id<Person>> = a.manager.into_iter().collect();
+    ctx.state.action_plans.put(a);
+    notify(ctx, &to, project, &t, &l);
+    Ok(json!({ "id": id, "approved": approved }))
+}
+
+fn comment(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut a = load(ctx, p)?;
+    let si = usize::try_from(p.int("section", 0..=1_000)?.ok_or_else(|| p.bad("section", "is required"))?).unwrap_or(usize::MAX);
+    let ii = usize::try_from(p.int("item", 0..=10_000)?.ok_or_else(|| p.bad("item", "is required"))?).unwrap_or(usize::MAX);
+    let body = p.req_text("text", text::SHORT)?;
+    let manager = is_manager(ctx, &a);
+    let standard = ctx.level(a.project, Tool::ActionPlans) >= Level::Standard;
+    let me = ctx.person();
+    let stamp = ctx.stamp();
+    let label = a.label();
+    let Some(item) = a.sections.get_mut(si).and_then(|s| s.items.get_mut(ii)) else {
+        return Err(EngineError::not_found(format!("{label} has no such item")));
+    };
+    if !(manager || standard || (item.assignee.is_some() && item.assignee == me)) {
+        return Err(EngineError::forbidden("only the item's owner, the manager or people with Standard access can comment"));
+    }
+    if item.comments.len() >= 200 {
+        return Err(EngineError::conflict("the item has 200 comments already"));
+    }
+    item.comments.push(PlanComment { text: body, stamp });
+    let (owner, text_item) = (item.assignee, item.text.clone());
+    a.updated = stamp;
+    let (project, l, id) = (a.project, link(&a), a.id);
+    let mut to: Vec<Id<Person>> = owner.into_iter().chain(a.manager).filter(|x| Some(*x) != me).collect();
+    to.sort();
+    to.dedup();
+    let t = format!("New comment on \"{text_item}\" in {label}");
+    ctx.state.action_plans.put(a);
+    notify(ctx, &to, project, &t, &l);
+    Ok(json!({ "id": id }))
+}
+
+/// Whether the person may look at plan templates: company admins and anyone who can read action plans on a project.
+pub fn can_read_templates(state: &CompanyState, actor: Actor) -> bool {
+    match actor {
+        Actor::System => true,
+        Actor::Person(p) => {
+            perm::company_level(state, p, Tool::CompanyAdmin) == Level::Admin
+                || perm::visible_projects(state, p).into_iter().any(|id| perm::project_level(state, p, id, Tool::ActionPlans) >= Level::Read)
+        }
+    }
+}
+
+fn template_save(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let a = load(ctx, p)?;
+    let name = p.req_line("name", text::SHORT)?;
+    let sections: Vec<PlanSection> = a
+        .sections
+        .iter()
+        .map(|s| PlanSection {
+            title: s.title.clone(),
+            items: s
+                .items
+                .iter()
+                .map(|i| PlanItem { text: i.text.clone(), assignee: None, due: None, done: false, note: String::new(), comments: Vec::new() })
+                .collect(),
+        })
+        .collect();
+    if sections.is_empty() {
+        return Err(EngineError::conflict("the plan has no items to keep"));
+    }
+    let stamp = ctx.stamp();
+    let existing = ctx.state.plan_templates.iter().find(|t| t.deleted.is_none() && t.name.eq_ignore_ascii_case(&name)).map(|t| t.id);
+    let id = match existing {
+        Some(id) => {
+            ctx.state.plan_templates.update(id, |t| {
+                t.description = a.description.clone();
+                t.sections = sections;
+            });
+            id
+        }
+        None => {
+            if ctx.state.plan_templates.iter().filter(|t| t.deleted.is_none()).count() >= 500 {
+                return Err(EngineError::conflict("the company keeps at most 500 plan templates"));
+            }
+            let id = ctx.state.plan_templates.alloc();
+            ctx.state.plan_templates.put(PlanTemplate { id, name, description: a.description.clone(), sections, created: stamp, deleted: None });
+            id
+        }
+    };
+    Ok(json!({ "id": id }))
+}
+
+fn template_delete(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let id: Id<PlanTemplate> = p.id("id")?;
+    let Some(t) = ctx.state.plan_templates.get(id).filter(|t| t.deleted.is_none()) else {
+        return Err(EngineError::not_found(format!("plan template {id} not found")));
+    };
+    let admin = match ctx.actor {
+        Actor::System => true,
+        Actor::Person(x) => perm::company_level(ctx.state, x, Tool::CompanyAdmin) == Level::Admin,
+    };
+    if !admin && !(ctx.person().is_some() && t.created.by == ctx.person()) {
+        return Err(EngineError::forbidden("only the template's author or a company admin can delete it"));
+    }
+    let stamp = ctx.stamp();
+    ctx.state.plan_templates.update(id, |t| t.deleted = Some(stamp));
+    Ok(json!({ "id": id }))
+}
+
+/// The company's plan templates, by name.
+pub fn templates(state: &CompanyState) -> Vec<&PlanTemplate> {
+    let mut v: Vec<&PlanTemplate> = state.plan_templates.iter().filter(|t| t.deleted.is_none()).collect();
+    v.sort_by_key(|a| a.name.to_lowercase());
+    v
+}
+
+fn template_list(v: &View<'_>, _p: &Params<'_>) -> Result<Value> {
+    if !can_read_templates(v.state, v.actor) {
+        return Err(EngineError::forbidden("plan templates need access to action plans on a project"));
+    }
+    json(&templates(v.state))
 }
 
 /// The project's plans, newest first.

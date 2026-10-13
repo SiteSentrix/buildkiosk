@@ -41,6 +41,7 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 - 2026-10-13: estimating (priced lines by cost code, markups, issue, put in the budget, CSV).
 - 2026-10-13: bidding (bid packages, invited companies, recorded bids, leveling against the budget, award with a draft commitment).
 - 2026-10-13: action plans (outline of sections and items, owners and dates, start, tick off, complete).
+- 2026-10-13: action plans, more: approvers who must approve before a plan starts, comments on items, sign-off, company plan templates.
 - 2026-10-13: portfolio table on the Projects page and `report.portfolio`.
 - 2026-10-13: project report across tools (open and past-due counts) and a "waiting on me" list on the project home; `report.summary` and `report.waiting_on_me` queries.
 - 2026-10-13: timesheets (hours by day and cost code, weekly submit, approve and send back, CSV).

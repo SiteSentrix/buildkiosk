@@ -596,6 +596,37 @@ pub fn action_plan(req: &Req<'_>, id: Id<Project>, aid: Id<buildkiosk_engine::mo
             })
             .collect();
         doc.blocks.push(table(&["", "Item", "Owner", "Due", "Note"], &[0.6, 4.5, 2.0, 1.5, 3.0], &[], rows));
+        for i in s.items.iter().filter(|i| !i.comments.is_empty()) {
+            for c in &i.comments {
+                doc.blocks.push(Block::Paragraph(format!(
+                    "{} ({}, {}): {}",
+                    i.text,
+                    person(state, c.stamp.by),
+                    c.stamp.at.date_at(state.utc_offset()),
+                    c.text
+                )));
+            }
+        }
+    }
+    if !a.approvers.is_empty() {
+        doc.blocks.push(Block::Heading("Approval".into()));
+        let rows = a
+            .approvers
+            .iter()
+            .map(|who| match a.approvals.iter().find(|x| x.person == *who) {
+                Some(x) => vec![
+                    person(state, Some(*who)),
+                    if x.approved { "Approved".into() } else { "Declined".into() },
+                    x.stamp.at.date_at(state.utc_offset()).to_string(),
+                    x.note.clone(),
+                ],
+                None => vec![person(state, Some(*who)), "Waiting".into(), String::new(), String::new()],
+            })
+            .collect();
+        doc.blocks.push(table(&["Approver", "Answer", "Date", "Note"], &[3.0, 2.0, 2.0, 4.0], &[], rows));
+    }
+    if let Some(c) = a.completed {
+        doc.blocks.push(Block::Paragraph(format!("Signed off by {} on {}.", person(state, c.by), c.at.date_at(state.utc_offset()))));
     }
     Some((file_name(&a.label()), render(&doc)))
 }

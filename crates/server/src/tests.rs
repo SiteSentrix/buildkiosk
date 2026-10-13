@@ -1035,3 +1035,35 @@ async fn schedule_page_gantt_and_csv() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn budget_forecast_snapshot_compare_and_lock() {
+    let dir = temp("forecast");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=P"))).await;
+    send(&app, post("/do/budget.import", &ada, format!("_csrf={csrf}&project=1&text=03-300%2C100000"))).await;
+    let (_, _, budget) = send(&app, get("/projects/1/budget")).await;
+    let code = budget.split("name=\"cost_code\"").nth(1).and_then(|s| s.split("value=\"").nth(1)).unwrap().split('"').next().unwrap().to_string();
+    send(&app, post("/do/budget.set_forecast", &ada, format!("_csrf={csrf}&project=1&cost_code={code}&forecast_to_complete=130000"))).await;
+    send(&app, post("/do/budget.snapshot", &ada, format!("_csrf={csrf}&project=1&name=Kickoff&note="))).await;
+    send(&app, post("/do/budget.set_forecast", &ada, format!("_csrf={csrf}&project=1&cost_code={code}&forecast_to_complete=90000"))).await;
+    let (_, _, budget) = send(&app, get("/projects/1/budget?compare=1")).await;
+    assert!(budget.contains("Projected overrun") || budget.contains("Projected cost"), "{budget}");
+    assert!(budget.contains("Now compared with") && budget.contains("Kickoff") && budget.contains("130,000.00"), "{budget}");
+    send(&app, post("/do/budget.lock", &ada, format!("_csrf={csrf}&project=1"))).await;
+    let (_, _, budget) = send(&app, get("/projects/1/budget")).await;
+    assert!(budget.contains("The original budget is locked") && !budget.contains("Set a budget line"));
+    let (_, _, csv) = send(&app, get("/projects/1/budget.csv")).await;
+    assert!(csv.contains("Forecast to complete"), "{csv}");
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

@@ -164,6 +164,7 @@ fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         owner: None,
         rfi_due_days: None,
         active: true,
+        budget_locked: false,
         created: stamp,
         updated: stamp,
         deleted: None,

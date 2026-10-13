@@ -161,9 +161,25 @@ pub struct BudgetRow {
     pub direct: Money,
     /// The estimates of open change events: possible cost not yet committed.
     pub pending: Money,
+    /// An estimate of the cost still to come (the budget line's forecast).
+    pub forecast_to_complete: Option<Money>,
 }
 
 impl BudgetRow {
+    /// The cost expected at completion: cost to date plus the forecast when there is one, else the
+    /// larger of the revised budget and the cost so far (the budget is assumed to be spent).
+    pub fn projected(&self) -> Money {
+        match self.forecast_to_complete {
+            Some(f) => self.cost().checked_add(f).unwrap_or(Money::ZERO),
+            None => self.revised().max(self.cost()),
+        }
+    }
+
+    /// Revised budget less projected cost: negative means a projected overrun.
+    pub fn variance(&self) -> Money {
+        self.revised().checked_sub(self.projected()).unwrap_or(Money::ZERO)
+    }
+
     /// Committed plus direct costs.
     pub fn cost(&self) -> Money {
         self.committed.checked_add(self.direct).unwrap_or(Money::ZERO)
@@ -201,6 +217,7 @@ fn budget_row(rows: &mut std::collections::BTreeMap<Id<CostCode>, BudgetRow>, co
         committed: Money::ZERO,
         direct: Money::ZERO,
         pending: Money::ZERO,
+        forecast_to_complete: None,
     })
 }
 
@@ -212,6 +229,9 @@ pub fn budget_rows(state: &CompanyState, project: Id<Project>) -> Result<Vec<Bud
         let r = budget_row(&mut rows, b.cost_code);
         r.budgeted = true;
         r.original = r.original.checked_add(b.original).ok_or_else(too_big)?;
+        if let Some(f) = b.forecast_to_complete {
+            r.forecast_to_complete = Some(r.forecast_to_complete.unwrap_or(Money::ZERO).checked_add(f).ok_or_else(too_big)?);
+        }
     }
     for c in state.commitments.iter().filter(|c| c.project == project && c.deleted.is_none() && c.status.counts()) {
         for l in &c.lines {
@@ -261,9 +281,15 @@ pub struct BudgetTotals {
     pub committed: Money,
     pub direct: Money,
     pub pending: Money,
+    pub projected: Money,
 }
 
 impl BudgetTotals {
+    /// Revised budget less projected cost.
+    pub fn variance(&self) -> Money {
+        self.revised().checked_sub(self.projected).unwrap_or(Money::ZERO)
+    }
+
     pub fn revised(&self) -> Money {
         self.original.checked_add(self.changes).unwrap_or(Money::ZERO)
     }
@@ -285,6 +311,7 @@ pub fn budget_totals(rows: &[BudgetRow]) -> Result<BudgetTotals, EngineError> {
         committed: sum(|r| r.committed)?,
         direct: sum(|r| r.direct)?,
         pending: sum(|r| r.pending)?,
+        projected: sum(|r| r.projected())?,
     })
 }
 

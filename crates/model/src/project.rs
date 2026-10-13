@@ -55,6 +55,9 @@ pub struct Project {
     pub rfi_due_days: Option<u32>,
     #[serde(default = "yes")]
     pub active: bool,
+    /// The original budget is locked: only budget changes alter it.
+    #[serde(default)]
+    pub budget_locked: bool,
     pub created: Stamp,
     pub updated: Stamp,
     #[serde(default, skip_serializing_if = "Option::is_none")]

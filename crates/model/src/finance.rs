@@ -19,12 +19,44 @@ pub struct BudgetLine {
     pub original: Money,
     #[serde(default)]
     pub notes: String,
+    /// The cost still to come, when someone has estimated it; the projected cost is then the cost to
+    /// date plus this. Without it the budget is assumed to be spent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub forecast_to_complete: Option<Money>,
     pub created: Stamp,
     pub updated: Stamp,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deleted: Option<Stamp>,
 }
 record!(BudgetLine, "budget_line", trash, project);
+
+/// One cost code's figures when a snapshot was taken.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SnapshotRow {
+    pub cost_code: Id<CostCode>,
+    pub original: Money,
+    pub changes: Money,
+    pub committed: Money,
+    pub direct: Money,
+    pub pending: Money,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub forecast_to_complete: Option<Money>,
+}
+
+/// The budget as it stood on a day, kept to compare with later.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct BudgetSnapshot {
+    pub id: Id<BudgetSnapshot>,
+    pub project: Id<Project>,
+    pub name: String,
+    #[serde(default)]
+    pub note: String,
+    pub rows: Vec<SnapshotRow>,
+    pub created: Stamp,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deleted: Option<Stamp>,
+}
+record!(BudgetSnapshot, "budget_snapshot", trash, project);
 
 choice! {
     #[derive(Default)]

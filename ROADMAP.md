@@ -21,6 +21,7 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 2. Next tools in the order of `docs/gaps.md` (then the financial remainder; financials still to do: forecasting, budget snapshots).
 
 ## Progress log
+- 2026-10-13: budget forecasting (forecast to complete, projected cost, over/under), budget snapshots with a compare view, locking of the original budget.
 - 2026-10-13: schedule: tasks in working days, summary tasks, finish-to-start links with lag, critical path and float, recalculate, baseline, import, Gantt chart (SVG, no JavaScript), CSV.
 - 2026-10-13: drawings: sheet log with discipline and area, revisions with files, log import, CSV.
 - 2026-10-13: documents: folders (private folders with a people list), files with a version history, search, upload and download pages.

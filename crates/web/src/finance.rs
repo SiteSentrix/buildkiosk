@@ -39,7 +39,7 @@ fn code_options(req: &Req<'_>, project: Id<Project>, selected: Option<Id<buildki
 
 // -- budget
 
-pub fn budget(req: &Req<'_>, id: Id<Project>) -> Markup {
+pub fn budget(req: &Req<'_>, id: Id<Project>, compare: Option<Id<buildkiosk_engine::model::finance::BudgetSnapshot>>) -> Markup {
     let Some(p) = project_for(req, id) else { return not_found(req) };
     let state = req.engine.state();
     if view::level(state, req.actor(), id, Tool::Budget) < Level::Read {
@@ -48,7 +48,13 @@ pub fn budget(req: &Req<'_>, id: Id<Project>) -> Markup {
     let rows = view::budget_rows(state, id).unwrap_or_default();
     let totals = view::budget_totals(&rows).ok();
     let here = format!("/projects/{id}/budget");
-    let can_edit = req.allowed("budget.set_line", Some(id));
+    let locked = p.budget_locked;
+    let can_forecast = req.allowed("budget.set_forecast", Some(id));
+    let can_edit = req.allowed("budget.set_line", Some(id)) && !locked;
+    let can_lock = req.allowed("budget.lock", Some(id));
+    let mut snapshots: Vec<_> = state.budget_snapshots.iter().filter(|s| s.project == id && s.deleted.is_none()).collect();
+    snapshots.sort_by_key(|s| std::cmp::Reverse(s.id));
+    let compared = compare.and_then(|c| snapshots.iter().copied().find(|s| s.id == c));
     let line_of = |code| state.budget_lines.iter().find(|b| b.project == id && b.cost_code == code && b.deleted.is_none()).map(|b| b.id);
     let body = html! {
         div class="page-head" {
@@ -64,15 +70,18 @@ pub fn budget(req: &Req<'_>, id: Id<Project>) -> Markup {
                 div class="stat" { div class="label" { "Committed" } div class="value" { (t.committed) } }
                 div class="stat" { div class="label" { "Direct costs" } div class="value" { (t.direct) } }
                 div class=(if t.remaining().is_negative() { "stat alert" } else { "stat good" }) { div class="label" { "Remaining" } div class="value" { (t.remaining()) } }
+                div class="stat" { div class="label" { "Projected cost" } div class="value" { (t.projected) } }
+                div class=(if t.variance().is_negative() { "stat alert" } else { "stat good" }) { div class="label" { (if t.variance().is_negative() { "Projected overrun" } else { "Projected under budget" }) } div class="value" { (if t.variance().is_negative() { buildkiosk_core::Money::ZERO.checked_sub(t.variance()).unwrap_or(buildkiosk_core::Money::ZERO) } else { t.variance() }) } }
                 @if !t.pending.is_zero() { a class="stat" href=(format!("/projects/{id}/change-events")) { div class="label" { "Pending change events" } div class="value" { (t.pending) } } }
             }
         }
+        @if locked { div class="flash ok" role="status" { "The original budget is locked. Change it with a budget change; forecasts can still be edited." } }
         @if rows.is_empty() {
             div class="card" { (empty(tool_icon(Tool::Budget), "No budget yet", "Add a line for a cost code, or import a list below.")) }
         } @else {
             div class="table-wrap" {
                 table class="data" {
-                    thead { tr { th { "Cost code" } th class="num" { "Original" } th class="num" { "Changes" } th class="num" { "Revised" } th class="num" { "Committed" } th class="num" { "Direct" } th class="num" { "Total cost" } th class="num" { "Remaining" } @if can_edit { th {} } } }
+                    thead { tr { th { "Cost code" } th class="num" { "Original" } th class="num" { "Changes" } th class="num" { "Revised" } th class="num" { "Committed" } th class="num" { "Direct" } th class="num" { "Total cost" } th class="num" { "Remaining" } th class="num" { "Forecast to complete" } th class="num" { "Projected cost" } th class="num" { "Over / under" } @if can_edit { th {} } } }
                     tbody {
                         @for r in &rows {
                             @let code = state.cost_codes.get(r.cost_code);
@@ -85,13 +94,92 @@ pub fn budget(req: &Req<'_>, id: Id<Project>) -> Markup {
                                 td class="num" { (r.direct) }
                                 td class="num" { (r.cost()) }
                                 td class="num" { (amount(r.remaining())) }
+                                td class="num" { @if let Some(x) = r.forecast_to_complete { (x) } @else { span class="muted" { "—" } } }
+                                td class="num" { (r.projected()) }
+                                td class="num" { (amount(r.variance())) }
                                 @if can_edit { td class="right" { @if let Some(l) = line_of(r.cost_code) { (button_form(req, "budget.delete_line", &here, &[("project", id.to_string()), ("id", l.to_string())], "Remove", "small danger")) } } }
                             }
                         }
                     }
                     @if let Some(t) = totals {
-                        tfoot { tr { td { "Total" } td class="num" { (t.original) } td class="num" { (t.changes) } td class="num" { (t.revised()) } td class="num" { (t.committed) } td class="num" { (t.direct) } td class="num" { (t.cost()) } td class="num" { (amount(t.remaining())) } @if can_edit { td {} } } }
+                        tfoot { tr { td { "Total" } td class="num" { (t.original) } td class="num" { (t.changes) } td class="num" { (t.revised()) } td class="num" { (t.committed) } td class="num" { (t.direct) } td class="num" { (t.cost()) } td class="num" { (amount(t.remaining())) } td {} td class="num" { (t.projected) } td class="num" { (amount(t.variance())) } @if can_edit { td {} } } }
                     }
+                }
+            }
+        }
+        @if can_forecast {
+            div class="card" {
+                h2 { "Forecast the cost still to come" }
+                p class="muted small" { "With a forecast, the projected cost is the cost to date plus the forecast. Without one the budget is assumed to be spent. Leave the amount blank to remove a forecast." }
+                (command_form(req, "budget.set_forecast", &here, &here, html! {
+                    input type="hidden" name="project" value=(id);
+                    div class="form-grid" {
+                        (field("Cost code", "fc_code", true, false, html! { select id="fc_code" name="cost_code" required { (code_options(req, id, None, false)) } }))
+                        (field("Forecast to complete", "fc_amount", false, false, html! { input type="text" id="fc_amount" name="forecast_to_complete" inputmode="decimal" placeholder="0.00"; }))
+                    }
+                    div class="form-actions" { button type="submit" class="btn primary" { "Save forecast" } }
+                }))
+            }
+        }
+        @if req.allowed("budget.snapshot", Some(id)) || !snapshots.is_empty() {
+            div class="card" {
+                h2 { "Snapshots" }
+                @if snapshots.is_empty() { p class="muted" { "No snapshots yet. A snapshot keeps today's figures so the budget can be compared with them later." } } @else {
+                    ul class="plain" {
+                        @for s in &snapshots {
+                            li {
+                                strong { (s.name) } " · " (req.when(s.created.at))
+                                @if !s.note.is_empty() { " · " (s.note) }
+                                " " a href=(format!("{here}?compare={}#compare", s.id)) { "Compare with now" }
+                                @if req.allowed("budget.delete_snapshot", Some(id)) { " " (button_form(req, "budget.delete_snapshot", &here, &[("project", id.to_string()), ("id", s.id.to_string())], "Delete", "small danger")) }
+                            }
+                        }
+                    }
+                }
+                @if req.allowed("budget.snapshot", Some(id)) {
+                    (command_form(req, "budget.snapshot", &here, &here, html! {
+                        input type="hidden" name="project" value=(id);
+                        div class="form-grid" {
+                            (field("Name", "snap_name", true, false, html! { input type="text" id="snap_name" name="name" required placeholder="Start of construction"; }))
+                            (field("Note", "snap_note", false, false, html! { input type="text" id="snap_note" name="note"; }))
+                        }
+                        div class="form-actions" { button type="submit" class="btn" { "Save snapshot" } }
+                    }))
+                }
+            }
+        }
+        @if let Some(s) = compared {
+            div class="card" id="compare" {
+                h2 { "Now compared with “" (s.name) "”" }
+                div class="table-wrap" {
+                    table class="data" {
+                        thead { tr { th { "Cost code" } th class="num" { "Revised then" } th class="num" { "Revised now" } th class="num" { "Cost then" } th class="num" { "Cost now" } th class="num" { "Projected then" } th class="num" { "Projected now" } th class="num" { "Projected change" } } }
+                        tbody {
+                            @for (code, then, now) in compare_rows(&s.rows, &rows) {
+                                @let c = state.cost_codes.get(code);
+                                tr {
+                                    td { strong { (c.map(|c| c.code.as_str()).unwrap_or("?")) } " " (c.map(|c| c.description.as_str()).unwrap_or("")) }
+                                    td class="num" { (then.revised()) } td class="num" { (now.revised()) }
+                                    td class="num" { (then.cost()) } td class="num" { (now.cost()) }
+                                    td class="num" { (then.projected()) } td class="num" { (now.projected()) }
+                                    td class="num" { (amount(then.projected().checked_sub(now.projected()).unwrap_or(buildkiosk_core::Money::ZERO))) }
+                                }
+                            }
+                        }
+                    }
+                }
+                p class="muted small" { "Projected change is shown as a gain when projected cost fell, and as a loss (red) when it rose." }
+            }
+        }
+        @if can_lock {
+            div class="card" {
+                h2 { "Original budget" }
+                @if locked {
+                    p { "Locked: lines can't be edited, added or imported." }
+                    (button_form(req, "budget.unlock", &here, &[("project", id.to_string())], "Unlock the budget", "small"))
+                } @else {
+                    p { "Locking the original budget makes budget changes the only way to alter it." }
+                    (button_form(req, "budget.lock", &here, &[("project", id.to_string())], "Lock the budget", "small"))
                 }
             }
         }
@@ -125,6 +213,43 @@ pub fn budget(req: &Req<'_>, id: Id<Project>) -> Markup {
     layout::app(req, "Budget", Nav::Budget(id), &crumbs(p, "Budget", None).into_iter().take(2).chain([("Budget", None)]).collect::<Vec<_>>(), body)
 }
 
+/// Each cost code in a snapshot or in the current budget, with its figures then and now.
+fn compare_rows(
+    then: &[buildkiosk_engine::model::finance::SnapshotRow],
+    now: &[view::BudgetRow],
+) -> Vec<(Id<buildkiosk_engine::model::project::CostCode>, view::BudgetRow, view::BudgetRow)> {
+    let blank = |code| view::BudgetRow {
+        cost_code: code,
+        budgeted: false,
+        original: buildkiosk_core::Money::ZERO,
+        changes: buildkiosk_core::Money::ZERO,
+        committed: buildkiosk_core::Money::ZERO,
+        direct: buildkiosk_core::Money::ZERO,
+        pending: buildkiosk_core::Money::ZERO,
+        forecast_to_complete: None,
+    };
+    let mut codes: Vec<_> = then.iter().map(|r| r.cost_code).chain(now.iter().map(|r| r.cost_code)).collect();
+    codes.sort();
+    codes.dedup();
+    codes
+        .into_iter()
+        .map(|c| {
+            let old = then.iter().find(|r| r.cost_code == c).map(|r| view::BudgetRow {
+                cost_code: c,
+                budgeted: true,
+                original: r.original,
+                changes: r.changes,
+                committed: r.committed,
+                direct: r.direct,
+                pending: r.pending,
+                forecast_to_complete: r.forecast_to_complete,
+            });
+            let new = now.iter().find(|r| r.cost_code == c).cloned();
+            (c, old.unwrap_or_else(|| blank(c)), new.unwrap_or_else(|| blank(c)))
+        })
+        .collect()
+}
+
 pub fn budget_csv(req: &Req<'_>, id: Id<Project>) -> Option<String> {
     project_for(req, id)?;
     let state = req.engine.state();
@@ -132,7 +257,9 @@ pub fn budget_csv(req: &Req<'_>, id: Id<Project>) -> Option<String> {
         return None;
     }
     let rows = view::budget_rows(state, id).ok()?;
-    let mut out = String::from("Cost code,Description,Original,Changes,Revised,Committed,Direct,Total cost,Pending,Remaining\r\n");
+    let mut out = String::from(
+        "Cost code,Description,Original,Changes,Revised,Committed,Direct,Total cost,Pending,Remaining,Forecast to complete,Projected cost,Over / under\r\n",
+    );
     for r in &rows {
         let code = state.cost_codes.get(r.cost_code);
         let cells = [
@@ -146,6 +273,9 @@ pub fn budget_csv(req: &Req<'_>, id: Id<Project>) -> Option<String> {
             r.cost().plain(),
             r.pending.plain(),
             r.remaining().plain(),
+            r.forecast_to_complete.map(|f| f.plain()).unwrap_or_default(),
+            r.projected().plain(),
+            r.variance().plain(),
         ];
         out.push_str(&cells.iter().map(|c| layout::csv_cell(c)).collect::<Vec<_>>().join(","));
         out.push_str("\r\n");

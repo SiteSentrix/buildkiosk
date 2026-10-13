@@ -2111,8 +2111,24 @@ async fn action_plan_outline_assign_and_complete() {
     assert!(h.get(LOCATION).unwrap().to_str().unwrap().starts_with("/projects/1/action-plans/1?ok="), "{h:?}");
     send(&app, post("/do/action_plan.set_item", &ada, format!("_csrf={csrf}&project=1&id=1&section=0&item=0&assignee=1&due=2026-11-15&note=Binder")))
         .await;
+    send(&app, post("/do/action_plan.set_approvers", &ada, format!("_csrf={csrf}&project=1&id=1&approvers%5B%5D=&approvers%5B%5D=1"))).await;
     send(&app, post("/do/action_plan.activate", &ada, format!("_csrf={csrf}&project=1&id=1"))).await;
+    let (_, _, waiting) = send(&app, get("/projects/1/action-plans/1")).await;
+    assert!(waiting.contains("Waiting") && waiting.contains("Choose approvers") && waiting.contains("Start the plan"), "{waiting}");
+    send(&app, post("/do/action_plan.approve", &ada, format!("_csrf={csrf}&project=1&id=1&note=Looks+right&approved=true"))).await;
+    send(&app, post("/do/action_plan.activate", &ada, format!("_csrf={csrf}&project=1&id=1"))).await;
+    send(&app, post("/do/action_plan.comment", &ada, format!("_csrf={csrf}&project=1&id=1&section=0&item=0&text=Binder+is+in+the+trailer"))).await;
+    send(&app, post("/do/action_plan.template_save", &ada, format!("_csrf={csrf}&project=1&id=1&name=Closeout+basics"))).await;
+    let (_, _, newer) = send(&app, get("/projects/1/action-plans/new")).await;
+    assert!(newer.contains("Closeout basics") && newer.contains("Start from a template"), "{newer}");
     let (_, _, detail) = send(&app, get("/projects/1/action-plans/1")).await;
+    assert!(
+        detail.contains("Approved")
+            && detail.contains("Looks right")
+            && detail.contains("Comments (1)")
+            && detail.contains("Binder is in the trailer"),
+        "{detail}"
+    );
     assert!(
         detail.contains("Collect warranties") && detail.contains("Binder") && detail.contains("Mark done") && detail.contains("0 of 2 items done"),
         "{detail}"
@@ -2123,6 +2139,10 @@ async fn action_plan_outline_assign_and_complete() {
     send(&app, post("/do/action_plan.complete", &ada, format!("_csrf={csrf}&project=1&id=1"))).await;
     let (_, _, list) = send(&app, get("/projects/1/action-plans?status=complete")).await;
     assert!(list.contains("Closeout") && list.contains("2 of 2 items"), "{list}");
+    let (_, _, done) = send(&app, get("/projects/1/action-plans/1")).await;
+    assert!(done.contains("Signed off"), "{done}");
+    let (st, _, pdf) = send(&app, get("/projects/1/action-plans/1/pdf")).await;
+    assert_eq!(st, StatusCode::OK, "{pdf}");
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }

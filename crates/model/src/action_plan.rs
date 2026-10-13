@@ -30,6 +30,25 @@ pub struct PlanItem {
     pub done: bool,
     #[serde(default)]
     pub note: String,
+    /// Remarks people made on the item, oldest first.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub comments: Vec<PlanComment>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PlanComment {
+    pub text: String,
+    pub stamp: Stamp,
+}
+
+/// An approver's answer on a plan.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PlanApproval {
+    pub person: Id<Person>,
+    pub approved: bool,
+    #[serde(default)]
+    pub note: String,
+    pub stamp: Stamp,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -53,6 +72,15 @@ pub struct ActionPlan {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub manager: Option<Id<Person>>,
     pub sections: Vec<PlanSection>,
+    /// People who must approve the plan before it starts (none: no approval is needed).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub approvers: Vec<Id<Person>>,
+    /// The latest answer of each approver; any change to the items clears them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub approvals: Vec<PlanApproval>,
+    /// Who marked the plan complete, and when (the sign-off).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub completed: Option<Stamp>,
     pub created: Stamp,
     pub updated: Stamp,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -60,9 +88,28 @@ pub struct ActionPlan {
 }
 record!(ActionPlan, "action_plan", trash, project);
 
+/// A plan's sections kept without owners, dates or progress, to start other plans from.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PlanTemplate {
+    pub id: Id<PlanTemplate>,
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    pub sections: Vec<PlanSection>,
+    pub created: Stamp,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deleted: Option<Stamp>,
+}
+record!(PlanTemplate, "plan_template", trash);
+
 impl ActionPlan {
     pub fn label(&self) -> String {
         format!("Action plan #{}", self.number)
+    }
+
+    /// Whether every named approver has approved the plan as it stands.
+    pub fn approved(&self) -> bool {
+        self.approvers.iter().all(|a| self.approvals.iter().any(|x| x.person == *a && x.approved))
     }
 
     /// (items done, items in all).

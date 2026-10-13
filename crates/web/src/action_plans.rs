@@ -1,7 +1,7 @@
 //! Action plan pages: list, the plan with its items, and the form.
 
 use buildkiosk_core::Id;
-use buildkiosk_engine::cmd::action_plan::visible;
+use buildkiosk_engine::cmd::action_plan::{can_read_templates, templates, visible};
 use buildkiosk_engine::model::action_plan::{ActionPlan, PlanStatus};
 use buildkiosk_engine::model::project::Project;
 use buildkiosk_engine::model::{Choice, Level, Tool};
@@ -112,6 +112,60 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, aid: Id<ActionPlan>) -> Markup {
             }
         }
         @if !a.description.is_empty() { div class="card" { p class="prose" { (a.description) } } }
+        @if let Some(c) = a.completed { div class="card" { p { span class="pill green" { "Signed off" } " by " (c.by.map(|x| view::person_name(state, x)).unwrap_or_else(|| "the system".into())) " on " (c.at.date_at(state.utc_offset()).to_string()) } } }
+        @if !a.approvers.is_empty() || (manager && a.status != PlanStatus::Complete) {
+            div class="card" {
+                h2 { "Approval" }
+                @if a.approvers.is_empty() { p class="muted" { "No approvers named; the plan can start without approval." } } @else {
+                    table class="data" {
+                        thead { tr { th { "Approver" } th { "Answer" } th { "Note" } } }
+                        tbody { @for who in &a.approvers { @let ans = a.approvals.iter().find(|x| x.person == *who); tr {
+                            td { (view::person_name(state, *who)) }
+                            td { @match ans { Some(x) if x.approved => { span class="pill green" { "Approved" } " " span class="muted small" { (x.stamp.at.date_at(state.utc_offset()).to_string()) } } Some(x) => { span class="pill red" { "Declined" } " " span class="muted small" { (x.stamp.at.date_at(state.utc_offset()).to_string()) } } None => { span class="pill" { "Waiting" } } } }
+                            td { (ans.map(|x| x.note.as_str()).unwrap_or_default()) }
+                        } } }
+                    }
+                }
+                @if me.is_some_and(|m| a.approvers.contains(&m)) && a.status != PlanStatus::Complete {
+                    (command_form(req, "action_plan.approve", &here, &here, html! {
+                        input type="hidden" name="project" value=(id);
+                        input type="hidden" name="id" value=(aid);
+                        div class="form-grid" { (field("Note", "ap_note", false, true, html! { input type="text" id="ap_note" name="note"; })) }
+                        div class="form-actions" {
+                            button type="submit" name="approved" value="false" class="btn" { "Decline" }
+                            button type="submit" name="approved" value="true" class="btn primary" { "Approve" }
+                        }
+                    }))
+                }
+                @if manager && a.status != PlanStatus::Complete {
+                    details class="disclosure" {
+                        summary { "Choose approvers" }
+                        (command_form(req, "action_plan.set_approvers", &here, &here, html! {
+                            input type="hidden" name="project" value=(id);
+                            input type="hidden" name="id" value=(aid);
+                            input type="hidden" name="approvers[]" value="";
+                            div class="options" { @for x in &people { label { input type="checkbox" name="approvers[]" value=(x.id) checked[a.approvers.contains(&x.id)]; (x.name()) } } }
+                            p class="muted small" { "The plan cannot start until every approver has approved. Changing the wording of items clears the answers." }
+                            div class="form-actions" { button type="submit" class="btn primary small" { "Save approvers" } }
+                        }))
+                    }
+                }
+            }
+        }
+        @if lvl >= Level::Standard && !a.sections.is_empty() && req.allowed("action_plan.template_save", Some(id)) {
+            div class="card" {
+                details class="disclosure" {
+                    summary { "Save as a template" }
+                    (command_form(req, "action_plan.template_save", &here, &here, html! {
+                        input type="hidden" name="project" value=(id);
+                        input type="hidden" name="id" value=(aid);
+                        div class="form-grid" { (field("Template name", "tpl_name", true, false, html! { input type="text" id="tpl_name" name="name" required value=(a.title); })) }
+                        p class="muted small" { "Keeps the sections and items for any project to start from, without owners, dates or progress." }
+                        div class="form-actions" { button type="submit" class="btn primary small" { "Save template" } }
+                    }))
+                }
+            }
+        }
         @if a.sections.is_empty() { div class="card" { (empty(tool_icon(Tool::ActionPlans), "No items", "Edit the plan to add sections and items.")) } }
         @for (si, s) in a.sections.iter().enumerate() {
             div class="card" {
@@ -119,7 +173,24 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, aid: Id<ActionPlan>) -> Markup {
                 table class="data" {
                     thead { tr { th { "Item" } th { "Owner" } th { "Due" } th { "Done" } @if manager { th {} } } }
                     tbody { @for (ii, i) in s.items.iter().enumerate() { tr {
-                        td { span class=(if i.done { "muted" } else { "" }) { (i.text) } @if !i.note.is_empty() { br; span class="muted small" { (i.note) } } }
+                        td { span class=(if i.done { "muted" } else { "" }) { (i.text) } @if !i.note.is_empty() { br; span class="muted small" { (i.note) } }
+                            @if !i.comments.is_empty() || (a.status != PlanStatus::Complete && (manager || lvl >= Level::Standard || (i.assignee.is_some() && i.assignee == me))) {
+                                details class="disclosure" {
+                                    summary { "Comments (" (i.comments.len()) ")" }
+                                    @for c in &i.comments { p class="small" { strong { (c.stamp.by.map(|x| view::person_name(state, x)).unwrap_or_default()) } " " span class="muted" { (c.stamp.at.date_at(state.utc_offset()).to_string()) } br; (c.text) } }
+                                    @if a.status != PlanStatus::Complete && (manager || lvl >= Level::Standard || (i.assignee.is_some() && i.assignee == me)) {
+                                        (command_form(req, "action_plan.comment", &here, &here, html! {
+                                            input type="hidden" name="project" value=(id);
+                                            input type="hidden" name="id" value=(aid);
+                                            input type="hidden" name="section" value=(si);
+                                            input type="hidden" name="item" value=(ii);
+                                            input type="text" name="text" required aria-label="Comment" placeholder="Add a comment";
+                                            button type="submit" class="btn small" { "Post" }
+                                        }))
+                                    }
+                                }
+                            }
+                        }
                         td { (i.assignee.map(|x| view::person_name(state, x)).unwrap_or_default()) }
                         td class="nowrap" { @if let Some(d) = i.due { @if d < today && !i.done { span class="overdue" { (d.to_string()) } } @else { (d.to_string()) } } }
                         td {
@@ -190,6 +261,12 @@ pub fn form(req: &Req<'_>, id: Id<Project>, current: Option<Id<ActionPlan>>) -> 
                     (field("Title", "title", true, false, html! { input type="text" id="title" name="title" required value=(cur.map(|a| a.title.as_str()).unwrap_or_default()); }))
                     (field("Manager", "manager", false, false, html! { select id="manager" name="manager" { @for x in &people { option value=(x.id) selected[manager == Some(x.id)] { (x.name()) } } } }))
                     (field("Description", "description", false, true, html! { textarea id="description" name="description" class="short" { (cur.map(|a| a.description.as_str()).unwrap_or_default()) } }))
+                    @if cur.is_none() && can_read_templates(state, req.actor()) && !templates(state).is_empty() {
+                        (field("Start from a template", "template", false, false, html! { select id="template" name="template" {
+                            option value="" { "Blank (use the outline below)" }
+                            @for t in templates(state) { option value=(t.id) { (t.name) } }
+                        } }))
+                    }
                     (field("Sections and items", "outline", false, true, html! { textarea id="outline" name="outline" rows="12" placeholder="# Documents\n- Collect warranties\n- Record drawings\n# Site\n- Final clean" { (cur.map(outline_of).unwrap_or_default()) } }))
                 }
                 p class="muted small" { "A line starting with # begins a section; every other line is an item. Assign owners and dates on the plan page. Editing the outline keeps the owner, date, note and done state of items whose wording and section are unchanged." }

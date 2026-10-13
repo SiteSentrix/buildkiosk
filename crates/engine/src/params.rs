@@ -160,6 +160,32 @@ impl<'a> Params<'a> {
         Ok(out)
     }
 
+    /// A list of short words: an array of text, or one text separated by commas. Blank items are dropped and
+    /// no more than `max` are read.
+    pub fn words(&self, key: &str, max: usize) -> Result<Vec<String>, EngineError> {
+        let mut out = Vec::new();
+        let mut push = |s: &str| {
+            let s = s.trim();
+            if !s.is_empty() && s.len() <= 80 && out.len() < max {
+                out.push(s.to_string());
+            }
+        };
+        match self.get(key) {
+            None => {}
+            Some(Value::Array(items)) => {
+                for v in items.iter().take(max.saturating_mul(2)) {
+                    match v {
+                        Value::String(s) => push(s),
+                        _ => return Err(self.bad(key, "must be a list of text")),
+                    }
+                }
+            }
+            Some(Value::String(s)) => s.split(',').take(max.saturating_mul(2)).for_each(&mut push),
+            Some(_) => return Err(self.bad(key, "must be a list of text")),
+        }
+        Ok(out)
+    }
+
     /// A date as `YYYY-MM-DD`; `None` when absent or blank.
     pub fn date(&self, key: &str) -> Result<Option<Date>, EngineError> {
         let Some(s) = self.line(key, 40)? else { return Ok(None) };

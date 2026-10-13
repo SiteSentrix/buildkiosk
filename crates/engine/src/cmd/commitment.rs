@@ -11,7 +11,7 @@
 
 use buildkiosk_core::{Id, text};
 use buildkiosk_model::directory::Vendor;
-use buildkiosk_model::finance::{Commitment, CommitmentKind, CommitmentLine, CommitmentStatus, InvoiceStatus};
+use buildkiosk_model::finance::{Commitment, CommitmentKind, CommitmentLine, CommitmentStatus, InvoiceStatus, SignatureStatus};
 use buildkiosk_model::project::{CostCode, Project};
 use buildkiosk_model::{Level, Tool};
 use serde_json::{Value, json};
@@ -47,6 +47,46 @@ pub const COMMANDS: &[CommandSpec] = &[
         Access::Project(Level::Admin),
         "project, id: ids (the commitment needs at least one line)",
         approve,
+    ),
+    CommandSpec::mutate(
+        "commitment.send_for_signature",
+        "Send contract for signature",
+        Tool::Commitments,
+        Access::Project(Level::Standard),
+        "project, id: ids; to?: who the contract went to (a name or email); on?: date sent (default today). The commitment needs a line and can't be complete or void",
+        send_for_signature,
+    ),
+    CommandSpec::mutate(
+        "commitment.record_signature",
+        "Record signed contract",
+        Tool::Commitments,
+        Access::Project(Level::Standard),
+        "project, id: ids; signer: who signed for the other party; on?: date signed (default today); note?: text. Attach the signed copy as a file",
+        record_signature,
+    ),
+    CommandSpec::mutate(
+        "commitment.decline_signature",
+        "Record declined contract",
+        Tool::Commitments,
+        Access::Project(Level::Standard),
+        "project, id: ids; note?: why it came back unsigned (only while it is out for signature)",
+        decline_signature,
+    ),
+    CommandSpec::mutate(
+        "commitment.reset_signature",
+        "Clear signature status",
+        Tool::Commitments,
+        Access::Project(Level::Standard),
+        "project, id: ids (back to not sent; clearing a signed contract takes a commitments admin)",
+        reset_signature,
+    ),
+    CommandSpec::mutate(
+        "commitment.require_signed",
+        "Require signed contracts",
+        Tool::Commitments,
+        Access::Project(Level::Admin),
+        "project: project id; required: bool (when on, a commitment can only be approved once its contract is recorded as signed)",
+        require_signed,
     ),
     CommandSpec::mutate("commitment.complete", "Complete commitment", Tool::Commitments, Access::Project(Level::Admin), "project, id: ids", complete),
     CommandSpec::mutate("commitment.void", "Void commitment", Tool::Commitments, Access::Project(Level::Admin), "project, id: ids", void),
@@ -126,6 +166,8 @@ fn read_lines(ctx: &Ctx<'_>, p: &Params<'_>, project: Id<Project>) -> Result<Vec
 }
 
 fn apply_fields(ctx: &Ctx<'_>, p: &Params<'_>, c: &mut Commitment, creating: bool) -> Result<()> {
+    // A contract signed or sent out no longer matches if its amounts, retainage or company change.
+    let signed_terms = (c.vendor, c.retainage, c.lines.clone());
     if creating || p.present("title") {
         c.title = p.req_line("title", text::SHORT)?;
     }
@@ -154,6 +196,12 @@ fn apply_fields(ctx: &Ctx<'_>, p: &Params<'_>, c: &mut Commitment, creating: boo
             return Err(p.bad("lines", "the amounts are too large to add up"));
         }
     }
+    if !creating
+        && (c.vendor, c.retainage, &c.lines) != (signed_terms.0, signed_terms.1, &signed_terms.2)
+        && c.signature.status != SignatureStatus::NotSent
+    {
+        c.signature = Default::default();
+    }
     Ok(())
 }
 
@@ -174,6 +222,7 @@ fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         retainage: None,
         approved: None,
         attachments: Vec::new(),
+        signature: Default::default(),
         created: stamp,
         updated: stamp,
         deleted: None,
@@ -222,7 +271,113 @@ fn approve(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     if c.lines.is_empty() {
         return Err(EngineError::conflict(format!("add at least one line to {} before approving it", c.label())));
     }
+    if ctx.state.projects.get(c.project).is_some_and(|x| x.require_signed_contracts) && c.signature.status != SignatureStatus::Signed {
+        return Err(EngineError::conflict(format!(
+            "this project needs a signed contract before {} is approved; record the signature first",
+            c.label()
+        )));
+    }
     Ok(set_status(ctx, c, CommitmentStatus::Approved))
+}
+
+/// A commitment whose contract can still be sent or signed: not complete, not void.
+fn open_for_signature(c: &Commitment) -> Result<()> {
+    if matches!(c.status, CommitmentStatus::Complete | CommitmentStatus::Void) {
+        return Err(EngineError::conflict(format!("{} is {}; its signature can't change", c.label(), c.status)));
+    }
+    Ok(())
+}
+
+fn set_signature(ctx: &mut Ctx<'_>, mut c: Commitment, signature: buildkiosk_model::finance::ContractSignature) -> Value {
+    c.signature = signature;
+    c.updated = ctx.stamp();
+    let (id, status) = (c.id, c.signature.status);
+    ctx.state.commitments.put(c);
+    json!({ "id": id, "signature": status })
+}
+
+fn send_for_signature(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let c = load(ctx, p)?;
+    open_for_signature(&c)?;
+    if c.lines.is_empty() {
+        return Err(EngineError::conflict(format!("add at least one line to {} before sending it for signature", c.label())));
+    }
+    if c.signature.status == SignatureStatus::Signed {
+        return Err(EngineError::conflict(format!("the contract for {} is already signed", c.label())));
+    }
+    let sig = buildkiosk_model::finance::ContractSignature {
+        status: SignatureStatus::Sent,
+        sent_to: p.line_or_empty("to", text::SHORT)?,
+        sent_on: Some(p.date("on")?.unwrap_or_else(|| ctx.today())),
+        ..Default::default()
+    };
+    Ok(set_signature(ctx, c, sig))
+}
+
+fn record_signature(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let c = load(ctx, p)?;
+    open_for_signature(&c)?;
+    if c.lines.is_empty() {
+        return Err(EngineError::conflict(format!("{} has no lines to sign for", c.label())));
+    }
+    if c.signature.status == SignatureStatus::Signed {
+        return Err(EngineError::conflict(format!("the contract for {} is already recorded as signed", c.label())));
+    }
+    let signer = p.req_line("signer", text::SHORT)?;
+    let signed_on = p.date("on")?.unwrap_or_else(|| ctx.today());
+    if c.signature.sent_on.is_some_and(|sent| signed_on < sent) {
+        return Err(p.bad("on", "can't be before the day the contract was sent"));
+    }
+    let sig = buildkiosk_model::finance::ContractSignature {
+        status: SignatureStatus::Signed,
+        signed_on: Some(signed_on),
+        signer,
+        note: p.line_or_empty("note", text::SHORT)?,
+        ..c.signature.clone()
+    };
+    Ok(set_signature(ctx, c, sig))
+}
+
+fn decline_signature(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let c = load(ctx, p)?;
+    if c.signature.status != SignatureStatus::Sent {
+        return Err(EngineError::conflict(format!("the contract for {} is not out for signature", c.label())));
+    }
+    let sig = buildkiosk_model::finance::ContractSignature {
+        status: SignatureStatus::Declined,
+        note: p.line_or_empty("note", text::SHORT)?,
+        ..c.signature.clone()
+    };
+    Ok(set_signature(ctx, c, sig))
+}
+
+fn reset_signature(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let c = load(ctx, p)?;
+    open_for_signature(&c)?;
+    match c.signature.status {
+        SignatureStatus::NotSent => return Err(EngineError::conflict(format!("the contract for {} has not been sent", c.label()))),
+        SignatureStatus::Signed if !is_admin(ctx, c.project) => {
+            return Err(EngineError::forbidden("only commitments admins can clear a signed contract"));
+        }
+        _ => {}
+    }
+    if c.status == CommitmentStatus::Approved
+        && c.signature.status == SignatureStatus::Signed
+        && ctx.state.projects.get(c.project).is_some_and(|x| x.require_signed_contracts)
+    {
+        return Err(EngineError::conflict("this project requires signed contracts, so an approved commitment keeps its signature"));
+    }
+    Ok(set_signature(ctx, c, Default::default()))
+}
+
+fn require_signed(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let required = p.flag("required")?.ok_or_else(|| p.bad("required", "is required"))?;
+    if !ctx.state.projects.get(project).is_some_and(|x| x.deleted.is_none()) {
+        return Err(EngineError::not_found(format!("project {project} not found")));
+    }
+    ctx.state.projects.update(project, |x| x.require_signed_contracts = required);
+    Ok(json!({ "required": required }))
 }
 
 fn complete(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {

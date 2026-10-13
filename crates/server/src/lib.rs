@@ -339,9 +339,16 @@ pub fn router(app: Shared) -> Router {
             .route(
                 "/projects/{id}/schedule/import-xml",
                 post(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, m: Multipart| async move {
-                    import_file(s.0, h, id, "schedule", "schedule.import_xml", "task", ("8 MB", "Microsoft Project XML file"), m).await
+                    import_file(s.0, h, id, "schedule", "schedule.import_xml", "task", ("8 MB", "Microsoft Project XML file"), &[], m).await
                 })
                 .layer(DefaultBodyLimit::max(8 * 1024 * 1024 + 64 * 1024)),
+            )
+            .route(
+                "/projects/{id}/budget/import-file",
+                post(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, m: Multipart| async move {
+                    import_file(s.0, h, id, "budget", "budget.import", "budget line", ("1 MB", "CSV file"), &["add_codes"], m).await
+                })
+                .layer(DefaultBodyLimit::max(1024 * 1024 + 64 * 1024)),
             )
             .route("/projects/{id}/schedule/{tid}", get(schedule_task_page))
             .route("/projects/{id}/drawings", get(drawings_page))
@@ -1163,17 +1170,24 @@ async fn inspection_answers(State(app): State<Shared>, headers: HeaderMap, Path(
 
 async fn budget_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
     page(&app, &headers, &q, |r, _| {
-        buildkiosk_web::finance::budget(r, Id::new(id), q.get("compare").and_then(|c| c.parse::<u64>().ok()).map(Id::new))
+        buildkiosk_web::finance::budget(
+            r,
+            Id::new(id),
+            q.get("compare").and_then(|c| c.parse::<u64>().ok()).map(Id::new),
+            q.get("view").and_then(|c| c.parse::<u64>().ok()).map(Id::new),
+        )
     })
 }
 
-async fn budget_csv(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>) -> Response {
+async fn budget_csv(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
     let inner = app.lock();
     let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
     let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
     let csrf = auth::csrf_token(app.secret(), &s.cookie);
     let req = Req { engine: &t.engine, person: s.person, csrf: &csrf, now: Timestamp::from_millis(now_ms()), flash: None };
-    let Some(csv) = buildkiosk_web::finance::budget_csv(&req, Id::new(id)) else { return plain(StatusCode::NOT_FOUND, "Not found") };
+    let Some(csv) = buildkiosk_web::finance::budget_csv(&req, Id::new(id), q.get("view").and_then(|c| c.parse::<u64>().ok()).map(Id::new)) else {
+        return plain(StatusCode::NOT_FOUND, "Not found");
+    };
     let mut res = csv.into_response();
     res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("text/csv; charset=utf-8"));
     res.headers_mut().insert("content-disposition", HeaderValue::from_static("attachment; filename=\"budget.csv\""));
@@ -2391,11 +2405,11 @@ async fn specifications(State(app): State<Shared>, headers: HeaderMap, Path(id):
 
 /// Imports a register from an uploaded CSV file (up to 1 MB).
 async fn submittal_import_file(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, multipart: Multipart) -> Response {
-    import_file(app, headers, id, "submittals", "submittal.import", "submittals", ("1 MB", "CSV file"), multipart).await
+    import_file(app, headers, id, "submittals", "submittal.import", "submittals", ("1 MB", "CSV file"), &[], multipart).await
 }
 
 async fn work_import_file<T: WorkPage>(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, multipart: Multipart) -> Response {
-    import_file(app, headers, id, T::PATH, &format!("{}.import", T::PREFIX), T::NOUN, ("1 MB", "CSV file"), multipart).await
+    import_file(app, headers, id, T::PATH, &format!("{}.import", T::PREFIX), T::NOUN, ("1 MB", "CSV file"), &[], multipart).await
 }
 
 /// Runs an import command on an uploaded CSV file (a multipart form with `_csrf` and `file`).
@@ -2408,11 +2422,13 @@ async fn import_file(
     command: &str,
     noun: &str,
     (limit, what): (&str, &str),
+    extra: &[&str],
     mut multipart: Multipart,
 ) -> Response {
     let back = format!("/projects/{id}/{path}");
     let too_big = format!("The upload failed or the file is larger than {limit}.");
     let (mut token, mut file) = (String::new(), None);
+    let mut params = serde_json::Map::new();
     loop {
         let field = match multipart.next_field().await {
             Ok(Some(f)) => f,
@@ -2424,6 +2440,10 @@ async fn import_file(
         match name.as_str() {
             "_csrf" => token = String::from_utf8_lossy(&bytes).into_owned(),
             "file" if file.is_none() => file = Some(bytes),
+            // Plain form fields the command takes besides the file (such as a tick box).
+            other if extra.contains(&other) => {
+                params.insert(other.to_string(), Value::String(String::from_utf8_lossy(&bytes).chars().take(100).collect()));
+            }
             _ => {}
         }
     }
@@ -2437,10 +2457,18 @@ async fn import_file(
         return redirect(&with_flash(&back, false, &format!("The file isn't text. Save it as a {what} (UTF-8) and try again.")));
     };
     let text = text.trim_start_matches('\u{feff}');
-    match inner.run(Actor::Person(s.person), command, &json!({"project": id, "text": text})) {
+    params.insert("project".into(), json!(id));
+    params.insert("text".into(), json!(text));
+    match inner.run(Actor::Person(s.person), command, &Value::Object(params)) {
         Ok(v) => {
             let n = v.get("created").and_then(Value::as_u64).unwrap_or(0);
-            redirect(&with_flash(&back, true, &format!("Imported {n} {noun}{}.", if noun.ends_with('s') { "" } else { "s" })))
+            let codes = v
+                .get("codes_added")
+                .and_then(Value::as_u64)
+                .filter(|c| *c > 0)
+                .map(|c| format!(" Added {c} cost code{}.", if c == 1 { "" } else { "s" }))
+                .unwrap_or_default();
+            redirect(&with_flash(&back, true, &format!("Imported {n} {noun}{}.{codes}", if noun.ends_with('s') { "" } else { "s" })))
         }
         Err(e) => redirect(&with_flash(&back, false, &e.to_string())),
     }

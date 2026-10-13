@@ -355,7 +355,7 @@ pub fn budget(req: &Req<'_>, id: Id<Project>) -> Option<Pdf> {
         &[1, 2, 3, 4, 5, 6],
         body,
     ));
-    doc.blocks.push(Block::Paragraph("Cost to date is committed cost plus direct costs. Projected is cost to date plus any forecast to complete, or the revised budget when there is no forecast. A negative over / under is a projected overrun.".into()));
+    doc.blocks.push(Block::Paragraph("Cost to date is committed cost plus direct costs. Projected is cost to date plus any forecast to complete; where there is none it follows the project's forecasting method (by default the revised budget is assumed to be spent). A negative over / under is a projected overrun.".into()));
     Some(("budget.pdf".into(), render(&doc)))
 }
 

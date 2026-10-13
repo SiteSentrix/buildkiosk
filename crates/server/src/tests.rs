@@ -843,6 +843,104 @@ async fn budget_commitments_and_direct_costs_in_the_browser_flow() {
     assert!(csv.starts_with("Cost code,") && csv.contains("03-300") && h.get("content-disposition").is_some());
     let (_, _, list) = send(&app, get("/projects/1/commitments?status=approved")).await;
     assert!(list.contains("Footings") && list.contains("30,000.50"));
+
+    // A budget file upload, with a cost code the project doesn't have yet.
+    let upload = |fields: &[(&str, &str)], file: &str| {
+        let mut body = String::new();
+        for (k, v) in fields {
+            body.push_str(&format!("--B\r\nContent-Disposition: form-data; name=\"{k}\"\r\n\r\n{v}\r\n"));
+        }
+        body.push_str(&format!(
+            "--B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"budget.csv\"\r\nContent-Type: text/csv\r\n\r\n{file}\r\n--B--\r\n"
+        ));
+        Request::post("/projects/1/budget/import-file")
+            .header("cookie", &ada)
+            .header("content-type", "multipart/form-data; boundary=B")
+            .body(Body::from(body))
+            .unwrap()
+    };
+    let sheet = "Cost code,Description,Amount\n99-100,Owner allowances,\"25,000\"\n03-300,,121000\n";
+    let (_, h, _) = send(&app, upload(&[("_csrf", &csrf)], sheet)).await;
+    let to = h.get(LOCATION).unwrap().to_str().unwrap().to_string();
+    assert!(to.contains("error=") && to.contains("99-100"), "a new code is refused unless asked for: {to}");
+    let (_, h, _) = send(&app, upload(&[("_csrf", &csrf), ("add_codes", "true")], sheet)).await;
+    let to = h.get(LOCATION).unwrap().to_str().unwrap().to_string();
+    assert!(to.contains("ok=Imported%202%20budget%20lines.%20Added%201%20cost%20code"), "{to}");
+    let (_, _, csv) = send(&app, get("/projects/1/budget.csv")).await;
+    assert!(csv.contains("99-100,Owner allowances,25000.00") && csv.contains("03-300,Cast-in-place concrete,121000.00"), "{csv}");
+    let (st, _, _) = send(&app, upload(&[("_csrf", "wrong")], sheet)).await;
+    assert_eq!(st, StatusCode::FORBIDDEN);
+
+    // Signed contracts: a project can require one before approval; the card on the commitment records it.
+    let (_, _, detail) = send(&app, get("/projects/1/commitments/1")).await;
+    assert!(detail.contains("Contract signature"), "{detail}");
+    let (_, _, list) = send(&app, get("/projects/1/commitments")).await;
+    assert!(list.contains("Require a signed contract before approval"), "{list}");
+    send(&app, post("/do/commitment.require_signed", &ada, format!("_csrf={csrf}&_next=/projects/1/commitments&project=1&required=true"))).await;
+    let (_, _, list) = send(&app, get("/projects/1/commitments")).await;
+    assert!(list.contains("Stop requiring signatures"), "{list}");
+    send(
+        &app,
+        post("/projects/1/commitments/save", &ada, format!("_csrf={csrf}&title=Piers&kind=subcontract&vendor=&description=&lines.0.cost_code={concrete}&lines.0.description=Piers&lines.0.amount=9000&lines.1.cost_code=&lines.1.amount=")),
+    )
+    .await;
+    let (_, h, _) = send(&app, post("/do/commitment.approve", &ada, format!("_csrf={csrf}&_next=/projects/1/commitments/2&project=1&id=2"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("error="), "an unsigned contract can't be approved: {h:?}");
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/do/commitment.send_for_signature",
+            &ada,
+            format!("_csrf={csrf}&_next=/projects/1/commitments/2&project=1&id=2&to=sam%40example.com&on="),
+        ),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, detail) = send(&app, get("/projects/1/commitments/2")).await;
+    assert!(detail.contains("Out for signature") && detail.contains("sam@example.com") && detail.contains("Record signature"), "{detail}");
+    send(
+        &app,
+        post(
+            "/do/commitment.record_signature",
+            &ada,
+            format!("_csrf={csrf}&_next=/projects/1/commitments/2&project=1&id=2&signer=Sam+Sub&on=&note="),
+        ),
+    )
+    .await;
+    let (_, _, detail) = send(&app, get("/projects/1/commitments/2")).await;
+    assert!(detail.contains("Signed") && detail.contains("Sam Sub"), "{detail}");
+    let (_, h, _) = send(&app, post("/do/commitment.approve", &ada, format!("_csrf={csrf}&_next=/projects/1/commitments/2&project=1&id=2"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+
+    // A saved budget view: chosen columns, grouped by division, and the same columns in the CSV.
+    assert!(budget.contains("Budget views") && budget.contains("columns[]"));
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/do/budget.view_save",
+            &ada,
+            format!("_csrf={csrf}&_next=/projects/1/budget&project=1&name=Cash&group=division&columns[]=original&columns[]=projected"),
+        ),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, plain) = send(&app, get("/projects/1/budget")).await;
+    assert!(plain.contains("href=\"/projects/1/budget?view=1\"") && plain.contains(">Cash<"), "{plain}");
+    let (_, _, viewed) = send(&app, get("/projects/1/budget?view=1")).await;
+    assert!(viewed.contains("Division 03") && viewed.contains("Division 05") && viewed.contains("Subtotal"), "{viewed}");
+    assert!(viewed.contains("Projected cost") && !viewed.contains("Committed</th>"), "{viewed}");
+    let (_, _, csv) = send(&app, get("/projects/1/budget.csv?view=1")).await;
+    assert!(csv.starts_with("Cost code,Description,Original budget,Projected cost\r\n"), "{csv}");
+    // Forecasting by committed cost: the 05-100 line (nothing spent) stops being assumed spent.
+    let (_, h, _) =
+        send(&app, post("/do/budget.set_method", &ada, format!("_csrf={csrf}&_next=/projects/1/budget&project=1&method=committed"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, budget) = send(&app, get("/projects/1/budget")).await;
+    assert!(budget.contains("only what is committed or spent") && budget.contains("40,250.75"), "{budget}");
+    let (_, _, gone) = send(&app, post("/do/budget.view_delete", &ada, format!("_csrf={csrf}&_next=/projects/1/budget&project=1&id=1"))).await;
+    let _ = gone;
+    let (_, _, back) = send(&app, get("/projects/1/budget?view=1")).await;
+    assert!(!back.contains("Division 03"), "a deleted view falls back to the standard table");
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }

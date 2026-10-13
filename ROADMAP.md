@@ -17,9 +17,10 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 | Not yet | file attachments, submittals and every other tool |
 
 ## Upcoming
-2. Next tools in the order of `docs/gaps.md` (then the financial remainder; financials still to do: forecasting, budget snapshots).
+2. Next tools in the order of `docs/gaps.md` (item 8 onward; the financial remainder is listed under item 7).
 
 ## Progress log
+- 2026-10-13: Financials: configurable budget views (columns, grouping by division), a forecasting method per project (budget, committed cost, percent complete), a signed-contract workflow on commitments with an optional approval rule, and budget import from an uploaded CSV file that can add the missing cost codes.
 - 2026-10-13: a refused save sends the person back to the form with what they typed (kept on the server for ten minutes, never passwords).
 - 2026-10-13: PDF export (own writer, no dependency) for RFIs, submittals, daily logs, meetings, transmittals, correspondence, estimates, bid leveling, action plans, forms, invoices, budget, drawing log, schedule, project report and work-item lists.
 - 2026-10-13: My account page: change your own password, create and revoke API tokens.

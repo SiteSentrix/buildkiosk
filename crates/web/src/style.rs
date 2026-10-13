@@ -123,6 +123,7 @@ button.chip{font:inherit;font-size:13px;cursor:pointer}
 .swatch.red{background:#dc1e1e}.swatch.blue{background:#1e5adc}.swatch.gray{background:#bebebe}
 .notice:empty{display:none}
 .notice{padding:8px 12px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border)}
+table.data tr.subtotal td{font-weight:600;border-top:1px solid var(--border)}
 table.data tr.group-row th{text-transform:none;font-size:14px;letter-spacing:0;color:var(--text);background:var(--surface-2);border-top:1px solid var(--border)}
 table.data td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:top}
 table.data tr:last-child td{border-bottom:0}

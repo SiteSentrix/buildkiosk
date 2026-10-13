@@ -287,6 +287,7 @@ fn award(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
             retainage: None,
             approved: None,
             attachments: Vec::new(),
+            signature: Default::default(),
             created: stamp,
             updated: stamp,
             deleted: None,

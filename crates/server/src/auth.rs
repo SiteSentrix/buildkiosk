@@ -72,8 +72,10 @@ pub fn cookie_value<'a>(header: &'a str, name: &str) -> Option<&'a str> {
     header.split(';').filter_map(|c| c.trim().split_once('=')).find(|(k, _)| *k == name).map(|(_, v)| v)
 }
 
-pub fn set_cookie(name: &str, value: &str, max_age_s: i64) -> String {
-    format!("{name}={value}; Path=/; HttpOnly; SameSite=Lax; Max-Age={max_age_s}")
+/// A `Set-Cookie` value. `secure` adds the `Secure` attribute (for serving over HTTPS).
+pub fn set_cookie(name: &str, value: &str, max_age_s: i64, secure: bool) -> String {
+    let secure = if secure { "; Secure" } else { "" };
+    format!("{name}={value}; Path=/; HttpOnly; SameSite=Lax; Max-Age={max_age_s}{secure}")
 }
 
 /// Limits sign-in attempts: `MAX` per key within `WINDOW`.

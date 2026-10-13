@@ -868,3 +868,17 @@ async fn commitment_invoices_in_the_browser_flow() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn secure_mode_marks_cookies_and_sends_hsts() {
+    for secure in [false, true] {
+        let dir = temp(if secure { "secure" } else { "plain" });
+        let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap().with_secure_cookies(secure));
+        let (_, h, _) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+        let set: Vec<&str> = h.get_all(SET_COOKIE).iter().filter_map(|v| v.to_str().ok()).collect();
+        assert!(!set.is_empty());
+        assert!(set.iter().all(|c| c.contains("; Secure") == secure), "{set:?}");
+        assert_eq!(h.contains_key("strict-transport-security"), secure);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

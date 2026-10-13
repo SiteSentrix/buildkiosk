@@ -96,6 +96,14 @@ pub const COMMANDS: &[CommandSpec] = &[
         snapshots,
     ),
     CommandSpec::mutate(
+        "budget.view_default",
+        "Choose my default budget view",
+        Tool::Budget,
+        Access::Project(Level::Read),
+        "project: project id; id?: budget view id to open by default for you (leave it out to go back to the standard layout)",
+        view_default,
+    ),
+    CommandSpec::mutate(
         "budget.view_save",
         "Save budget view",
         Tool::Budget,
@@ -369,6 +377,27 @@ fn view_columns(p: &Params<'_>) -> Result<Vec<BudgetColumn>> {
     Ok(BudgetColumn::ALL.iter().copied().filter(|c| wanted.contains(c)).collect())
 }
 
+fn view_default(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let me = ctx.person().ok_or_else(|| EngineError::forbidden("a default view belongs to a person"))?;
+    let chosen: Option<Id<BudgetView>> = p.opt_id("id")?;
+    if let Some(id) = chosen {
+        let v = in_project(&ctx.state.budget_views, project, id, "budget view")?;
+        if v.deleted.is_some() {
+            return Err(EngineError::not_found(format!("budget view {id} not found in this project")));
+        }
+    }
+    let all: Vec<Id<BudgetView>> =
+        ctx.state.budget_views.iter().filter(|v| v.project == project && v.default_for.contains(&me)).map(|v| v.id).collect();
+    for id in all {
+        ctx.state.budget_views.update(id, |v| v.default_for.retain(|x| *x != me));
+    }
+    if let Some(id) = chosen {
+        ctx.state.budget_views.update(id, |v| v.default_for.push(me));
+    }
+    Ok(json!({ "default": chosen }))
+}
+
 fn view_save(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     let project: Id<Project> = p.id("project")?;
     let name = p.req_line("name", text::SHORT)?;
@@ -394,6 +423,7 @@ fn view_save(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
                 name: name.clone(),
                 columns: columns.clone(),
                 group,
+                default_for: Vec::new(),
                 created: stamp,
                 updated: stamp,
                 deleted: None,

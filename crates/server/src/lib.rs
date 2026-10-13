@@ -95,6 +95,8 @@ struct BackupPlan {
     dir: PathBuf,
     every_secs: u64,
     keep: usize,
+    /// A second place every finished backup is copied to (another disk or a mounted share).
+    copy_to: Option<PathBuf>,
 }
 
 type Shared = Arc<App>;
@@ -139,7 +141,19 @@ impl App {
             return Err("backups need an interval of at least one hour and to keep at least one".into());
         }
         std::fs::create_dir_all(&dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
-        self.backups = Some(BackupPlan { dir, every_secs: every_hours.saturating_mul(3600), keep });
+        self.backups = Some(BackupPlan { dir, every_secs: every_hours.saturating_mul(3600), keep, copy_to: None });
+        Ok(self)
+    }
+
+    /// Also copies every finished backup to `dir` (another disk, or a share mounted from another machine), keeping
+    /// as many there as are kept in the backup folder. Needs `with_backups` first.
+    pub fn with_backup_copy(mut self, dir: PathBuf) -> Result<App, String> {
+        let Some(plan) = self.backups.as_mut() else { return Err("a second copy needs --backup-dir".into()) };
+        if dir.starts_with(self.data.root()) || dir.starts_with(&plan.dir) || plan.dir.starts_with(&dir) {
+            return Err("the second copy's folder can't be inside the data directory or the backup folder, or hold them".into());
+        }
+        std::fs::create_dir_all(&dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
+        plan.copy_to = Some(dir);
         Ok(self)
     }
 
@@ -216,392 +230,390 @@ impl Inner {
 // -- routing
 
 pub fn router(app: Shared) -> Router {
-    let router =
-        Router::new()
-            .route("/", get(home))
-            .route("/login", get(login_page).post(login_post))
-            .route("/logout", post(logout))
-            .route("/setup", get(setup_page).post(setup_post))
-            .route("/directory", get(directory))
-            .route("/prequalification", get(prequalification_page))
-            .route("/prequalification/forms", get(prequal_forms_page))
-            .route("/prequalification/{vendor}", get(prequal_detail_page))
-            .route("/prequalification/{vendor}/upload", post(prequal_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
-            .route("/prequalification/{vendor}/files/{sha}", get(prequal_download))
-            .route("/my-tasks", get(my_tasks_page))
-            .route("/reports", get(company_reports_page))
-            .route("/reports.csv", get(company_reports_csv))
-            .route(
-                "/reports.pdf",
-                get(|s: State<Shared>, h: HeaderMap, Query(q): Q| async move {
-                    let report = q.get("report").and_then(|r| r.parse::<u64>().ok()).map(Id::new);
-                    pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::company_report(r, report))
-                }),
-            )
-            .route("/directory/people/{id}", get(person_edit))
-            .route("/directory/templates/{id}", get(template_edit))
-            .route("/directory/companies/{id}", get(vendor_edit))
-            .route("/people/{id}/password", post(set_password))
-            .route("/account", get(account_page))
-            .route("/account/password", post(account_password))
-            .route("/account/token", post(account_token))
-            .route("/account/token/revoke", post(account_token_revoke))
-            .route("/account/email", post(account_email))
-            .route("/admin/email", get(mail_settings).post(mail_settings_save))
-            .route("/admin/email/test", post(mail_test))
-            .route("/admin/email/clear", post(mail_clear))
-            .route("/projects/{id}", get(project_home))
-            .route("/settings", get(company_settings))
-            .route("/projects/{id}/settings", get(project_settings))
-            .route("/projects/{id}/team", get(team))
-            .route("/projects/{id}/team/{person}", get(member_access))
-            .route("/projects/{id}/rfis", get(rfi_list))
-            .route("/projects/{id}/rfis/new", get(rfi_new))
-            .route("/projects/{id}/submittals", get(submittal_list))
-            .route("/notifications", get(notifications))
-            .route("/projects/{id}/budget", get(budget_page))
-            .route("/projects/{id}/budget.csv", get(budget_csv))
-            .route("/projects/{id}/direct-costs", get(direct_costs_page))
-            .route("/projects/{id}/commitments", get(commitment_list))
-            .route("/projects/{id}/commitments/new", get(commitment_new))
-            .route("/projects/{id}/commitments/save", post(commitment_save_new))
-            .route("/projects/{id}/commitments/{cid}", get(commitment_detail))
-            .route("/projects/{id}/commitments/{cid}/edit", get(commitment_edit))
-            .route("/projects/{id}/commitments/{cid}/upload", post(commitment_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
-            .route("/projects/{id}/commitments/{cid}/files/{sha}", get(commitment_download))
-            .route("/projects/{id}/commitments/{cid}/save", post(commitment_save))
-            .route("/projects/{id}/inspections", get(inspection_list))
-            .route("/projects/{id}/inspections.csv", get(inspection_csv))
-            .route("/projects/{id}/inspections/new", get(inspection_new))
-            .route("/projects/{id}/inspections/templates", get(inspection_templates))
-            .route("/projects/{id}/inspections/{iid}", get(inspection_detail))
-            .route("/projects/{id}/inspections/{iid}/edit", get(inspection_edit))
-            .route(
-                "/projects/{id}/inspections/{iid}/pdf",
-                get(|s: State<Shared>, h: HeaderMap, Path((id, x)): Path<(u64, u64)>| async move {
-                    pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::inspection(r, Id::new(id), Id::new(x)))
-                }),
-            )
-            .route("/projects/{id}/inspections/{iid}/answers", post(inspection_answers))
-            .route("/projects/{id}/inspections/{iid}/line-file", post(inspection_line_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
-            .route("/projects/{id}/inspections/{iid}/files/{sha}", get(inspection_file))
-            .route("/projects/{id}/inspections/{iid}/upload", post(inspection_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
-            .route("/projects/{id}/daily-logs", get(daily_log_list))
-            .route("/projects/{id}/daily-logs/new", get(daily_log_new))
-            .route(
-                "/projects/{id}/daily-logs/week",
-                get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, Query(q): Q| async move {
-                    page(&s.0, &h, &q, |r, _| buildkiosk_web::daily_logs::week(r, Id::new(id), week_day(&q, r)))
-                }),
-            )
-            .route(
-                "/projects/{id}/daily-logs/week/pdf",
-                get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, Query(q): Q| async move {
-                    pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::daily_log_week(r, Id::new(id), week_day(&q, r)))
-                }),
-            )
-            .route("/projects/{id}/daily-logs/save", post(daily_log_save_new))
-            .route("/projects/{id}/daily-logs/{lid}", get(daily_log_detail))
-            .route("/projects/{id}/daily-logs/{lid}/edit", get(daily_log_edit))
-            .route(
-                "/projects/{id}/daily-logs/{lid}/files/{sha}",
-                get(|s: State<Shared>, h: HeaderMap, Path((id, lid, sha)): Path<(u64, u64, String)>| async move {
-                    file_download(s.0, h, Kind::DAILY_LOG, id, lid, sha).await
-                }),
-            )
-            .route(
-                "/projects/{id}/daily-logs/{lid}/upload",
-                post(|s: State<Shared>, h: HeaderMap, Path((id, lid)): Path<(u64, u64)>, m: Multipart| async move {
-                    file_upload(s.0, h, Kind::DAILY_LOG, id, lid, m).await
-                })
-                .layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)),
-            )
-            .route("/projects/{id}/daily-logs/{lid}/save", post(daily_log_save))
-            .route("/projects/{id}/specifications", get(specifications))
-            .route("/projects/{id}/transmittals", get(transmittals_page))
-            .route("/projects/{id}/transmittals/new", get(transmittal_new))
-            .route("/projects/{id}/transmittals/{tid}", get(transmittal_page))
-            .route("/projects/{id}/transmittals/{tid}/edit", get(transmittal_edit))
-            .route("/projects/{id}/transmittals/{tid}/upload", post(transmittal_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
-            .route("/projects/{id}/transmittals/{tid}/files/{sha}", get(transmittal_download))
-            .route("/projects/{id}/meetings", get(meetings_page))
-            .route("/projects/{id}/meetings/new", get(meeting_new))
-            .route("/projects/{id}/meetings/{mid}", get(meeting_page))
-            .route("/projects/{id}/meetings/{mid}/edit", get(meeting_edit))
-            .route("/projects/{id}/meetings/{mid}/upload", post(meeting_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
-            .route("/projects/{id}/meetings/{mid}/files/{sha}", get(meeting_download))
-            .route("/projects/{id}/photos", get(photos_page))
-            .route("/projects/{id}/photos/slideshow", get(photos_slideshow))
-            .route("/projects/{id}/photos/album.zip", get(photos_zip))
-            .route("/projects/{id}/photos/upload", post(photo_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
-            .route("/projects/{id}/photos/{pid}", get(photo_page))
-            .route("/projects/{id}/photos/{pid}/image", get(photo_image))
-            .route("/projects/{id}/photos/{pid}/thumb", get(photo_thumb))
-            .route("/projects/{id}/photos/{pid}/download", get(photo_download))
-            .route("/projects/{id}/correspondence", get(correspondence_page))
-            .route("/projects/{id}/correspondence/new", get(correspondence_new))
-            .route("/projects/{id}/correspondence/types", get(correspondence_types))
-            .route("/projects/{id}/correspondence/types/{tid}", get(correspondence_type_edit))
-            .route("/projects/{id}/correspondence/incoming", get(correspondence_incoming))
-            .route("/projects/{id}/correspondence/{cid}", get(correspondence_detail))
-            .route("/projects/{id}/correspondence/{cid}/edit", get(correspondence_edit))
-            .route("/projects/{id}/correspondence/{cid}/upload", post(correspondence_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
-            .route("/projects/{id}/correspondence/{cid}/files/{sha}", get(correspondence_download))
-            .route("/projects/{id}/forms", get(forms_page))
-            .route("/projects/{id}/forms/templates", get(form_templates_page))
-            .route("/projects/{id}/forms/report", get(forms_report_page))
-            .route("/projects/{id}/forms/report.csv", get(forms_report_csv))
-            .route("/projects/{id}/forms/templates/{tid}", get(form_template_edit))
-            .route("/projects/{id}/forms/{rid}", get(form_page))
-            .route("/projects/{id}/forms/{rid}/upload", post(form_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
-            .route("/projects/{id}/forms/{rid}/files/{sha}", get(form_download))
-            .route("/projects/{id}/timesheets", get(timesheets_page))
-            .route("/projects/{id}/timesheets.csv", get(timesheets_csv))
-            .route("/projects/{id}/timesheets/cost", get(timesheets_cost))
-            .route("/projects/{id}/timesheets/cost.csv", get(timesheets_cost_csv))
-            .route("/projects/{id}/reports", get(reports_page))
-            .route("/projects/{id}/reports.csv", get(reports_csv))
-            .route("/projects/{id}/action-plans", get(action_plans_page))
-            .route("/projects/{id}/action-plans/new", get(action_plan_new))
-            .route("/projects/{id}/action-plans/{aid}", get(action_plan_page))
-            .route("/projects/{id}/action-plans/{aid}/edit", get(action_plan_edit))
-            .route("/projects/{id}/bidding", get(bidding_page))
-            .route("/projects/{id}/bidding/new", get(bid_package_new))
-            .route("/projects/{id}/bidding/{bid}", get(bid_package_page))
-            .route("/projects/{id}/bidding/{bid}/edit", get(bid_package_edit))
-            .route("/projects/{id}/bidding/{bid}/upload", post(bid_package_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
-            .route("/projects/{id}/bidding/{bid}/files/{sha}", get(bid_package_download))
-            .route("/projects/{id}/estimating", get(estimating_page))
-            .route("/projects/{id}/estimating/new", get(estimate_new))
-            .route("/projects/{id}/estimating/compare", get(estimate_compare))
-            .route("/catalog", get(catalog_page))
-            .route("/projects/{id}/estimating/{eid}", get(estimate_page))
-            .route("/projects/{id}/estimating/{eid}/edit", get(estimate_edit))
-            .route("/projects/{id}/estimating/{eid}/csv", get(estimate_csv))
-            .route("/projects/{id}/schedule", get(schedule_page))
-            .route("/projects/{id}/schedule.csv", get(schedule_csv))
-            .route("/projects/{id}/schedule.xml", get(schedule_xml))
-            .route(
-                "/projects/{id}/schedule/calendar",
-                get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, Query(q): Q| async move {
-                    page(&s.0, &h, &q, |r, _| buildkiosk_web::schedule::calendar(r, Id::new(id)))
-                }),
-            )
-            .route(
-                "/projects/{id}/schedule/lookahead",
-                get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, Query(q): Q| async move {
-                    let weeks = q.get("weeks").and_then(|w| w.trim().parse::<i64>().ok()).unwrap_or(3);
-                    let from = q.get("from").and_then(|f| buildkiosk_core::Date::parse(f.trim()));
-                    page(&s.0, &h, &q, |r, _| buildkiosk_web::schedule::lookahead(r, Id::new(id), weeks, from))
-                }),
-            )
-            .route(
-                "/projects/{id}/schedule/resources",
-                get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, Query(q): Q| async move {
-                    let weeks = q.get("weeks").and_then(|w| w.trim().parse::<i64>().ok()).unwrap_or(8);
-                    let from = q.get("from").and_then(|f| buildkiosk_core::Date::parse(f.trim()));
-                    page(&s.0, &h, &q, |r, _| buildkiosk_web::schedule::resources(r, Id::new(id), weeks, from))
-                }),
-            )
-            .route(
-                "/projects/{id}/schedule/import-xml",
-                post(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, m: Multipart| async move {
-                    import_file(s.0, h, id, "schedule", "schedule.import_xml", "task", ("8 MB", "Microsoft Project XML file"), &[], m).await
-                })
-                .layer(DefaultBodyLimit::max(8 * 1024 * 1024 + 64 * 1024)),
-            )
-            .route(
-                "/projects/{id}/budget/import-file",
-                post(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, m: Multipart| async move {
-                    import_file(s.0, h, id, "budget", "budget.import", "budget line", ("1 MB", "CSV file"), &["add_codes"], m).await
-                })
-                .layer(DefaultBodyLimit::max(1024 * 1024 + 64 * 1024)),
-            )
-            .route("/projects/{id}/schedule/{tid}", get(schedule_task_page))
-            .route("/projects/{id}/drawings", get(drawings_page))
-            .route("/projects/{id}/drawings.csv", get(drawings_csv))
-            .route("/projects/{id}/drawings/upload", post(drawing_upload_new).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
-            .route("/projects/{id}/drawings/upload-set", post(drawing_upload_set).layer(DefaultBodyLimit::max(MAX_BULK + 64 * 1024)))
-            .route("/projects/{id}/drawings/{did}/view", get(drawing_view))
-            .route("/projects/{id}/drawings/{did}/view.png", get(drawing_view_png))
-            .route("/projects/{id}/drawings/{did}/compare.png", get(drawing_compare_png))
-            .route("/projects/{id}/drawings/{did}", get(drawing_page))
-            .route("/projects/{id}/drawings/{did}/upload", post(drawing_upload_revision).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
-            .route("/projects/{id}/drawings/{did}/files/{sha}", get(drawing_download))
-            .route("/projects/{id}/documents", get(documents_page))
-            .route("/projects/{id}/documents/upload", post(document_upload_new).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
-            .route("/projects/{id}/documents/upload-many", post(document_upload_many).layer(DefaultBodyLimit::max(MAX_BULK + 64 * 1024)))
-            .route("/projects/{id}/documents/zip", get(documents_zip))
-            .route("/projects/{id}/documents/trash", get(documents_trash))
-            .route("/projects/{id}/documents/{did}", get(document_page))
-            .route("/projects/{id}/documents/{did}/upload", post(document_upload_version).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
-            .route("/projects/{id}/documents/{did}/files/{sha}", get(document_download))
-            .route("/projects/{id}/documents/{did}/view/{sha}", get(document_view))
-            .route("/projects/{id}/submittals.csv", get(submittal_csv))
-            .route("/projects/{id}/submittals/import", post(submittal_import_file).layer(DefaultBodyLimit::max(1024 * 1024 + 64 * 1024)))
-            .route("/projects/{id}/submittals/new", get(submittal_new))
-            .route(
-                "/projects/{id}/submittals/log",
-                get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, Query(q): Q| async move {
-                    page(&s.0, &h, &q, |r, _| buildkiosk_web::submittals::log(r, Id::new(id)))
-                }),
-            )
-            .route(
-                "/projects/{id}/submittals/log/pdf",
-                get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>| async move {
-                    pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::submittal_log(r, Id::new(id)))
-                }),
-            )
-            .route("/projects/{id}/submittals/{sid}/review", post(submittal_review).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
-            .route("/projects/{id}/submittals/{sid}", get(submittal_detail))
-            .route("/projects/{id}/submittals/{sid}/edit", get(submittal_edit))
-            .route("/projects/{id}/submittals/{sid}/files/{sha}", get(submittal_file))
-            .route("/projects/{id}/submittals/{sid}/upload", post(submittal_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
-            .route("/projects/{id}/rfis.csv", get(rfi_csv))
-            .route(
-                "/projects/{id}/rfis/{rid}/pdf",
-                get(|s: State<Shared>, h: HeaderMap, Path((id, rid)): Path<(u64, u64)>| async move {
-                    pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::rfi(r, Id::new(id), Id::new(rid)))
-                }),
-            )
-            .route(
-                "/projects/{id}/submittals/{sid}/pdf",
-                get(|s: State<Shared>, h: HeaderMap, Path((id, x)): Path<(u64, u64)>| async move {
-                    pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::submittal(r, Id::new(id), Id::new(x)))
-                }),
-            )
-            .route(
-                "/projects/{id}/daily-logs/{lid}/pdf",
-                get(|s: State<Shared>, h: HeaderMap, Path((id, x)): Path<(u64, u64)>| async move {
-                    pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::daily_log(r, Id::new(id), Id::new(x)))
-                }),
-            )
-            .route(
-                "/projects/{id}/meetings/{mid}/pdf",
-                get(|s: State<Shared>, h: HeaderMap, Path((id, x)): Path<(u64, u64)>| async move {
-                    pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::meeting(r, Id::new(id), Id::new(x)))
-                }),
-            )
-            .route(
-                "/projects/{id}/meetings/{mid}/signin.pdf",
-                get(|s: State<Shared>, h: HeaderMap, Path((id, x)): Path<(u64, u64)>| async move {
-                    pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::meeting_signin(r, Id::new(id), Id::new(x)))
-                }),
-            )
-            .route(
-                "/projects/{id}/transmittals/{tid}/pdf",
-                get(|s: State<Shared>, h: HeaderMap, Path((id, x)): Path<(u64, u64)>| async move {
-                    pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::transmittal(r, Id::new(id), Id::new(x)))
-                }),
-            )
-            .route(
-                "/projects/{id}/correspondence/{cid}/pdf",
-                get(|s: State<Shared>, h: HeaderMap, Path((id, x)): Path<(u64, u64)>| async move {
-                    pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::correspondence(r, Id::new(id), Id::new(x)))
-                }),
-            )
-            .route(
-                "/projects/{id}/correspondence/{cid}/letter.pdf",
-                get(|s: State<Shared>, h: HeaderMap, Path((id, x)): Path<(u64, u64)>| async move {
-                    pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::correspondence_letter(r, Id::new(id), Id::new(x)))
-                }),
-            )
-            .route(
-                "/projects/{id}/estimating/{eid}/pdf",
-                get(|s: State<Shared>, h: HeaderMap, Path((id, x)): Path<(u64, u64)>| async move {
-                    pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::estimate(r, Id::new(id), Id::new(x)))
-                }),
-            )
-            .route(
-                "/projects/{id}/bidding/{bid}/pdf",
-                get(|s: State<Shared>, h: HeaderMap, Path((id, x)): Path<(u64, u64)>| async move {
-                    pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::bid_package(r, Id::new(id), Id::new(x)))
-                }),
-            )
-            .route(
-                "/projects/{id}/action-plans/{aid}/pdf",
-                get(|s: State<Shared>, h: HeaderMap, Path((id, x)): Path<(u64, u64)>| async move {
-                    pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::action_plan(r, Id::new(id), Id::new(x)))
-                }),
-            )
-            .route(
-                "/projects/{id}/forms/{rid}/pdf",
-                get(|s: State<Shared>, h: HeaderMap, Path((id, x)): Path<(u64, u64)>| async move {
-                    pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::form_record(r, Id::new(id), Id::new(x)))
-                }),
-            )
-            .route(
-                "/projects/{id}/schedule/lookahead.pdf",
-                get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, Query(q): Q| async move {
-                    let weeks = q.get("weeks").and_then(|w| w.trim().parse::<i64>().ok()).unwrap_or(3);
-                    let from = q.get("from").and_then(|f| buildkiosk_core::Date::parse(f.trim()));
-                    pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::lookahead(r, Id::new(id), weeks, from))
-                }),
-            )
-            .route(
-                "/projects/{id}/incidents/{iid}/pdf",
-                get(|s: State<Shared>, h: HeaderMap, Path((id, x)): Path<(u64, u64)>| async move {
-                    pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::incident(r, Id::new(id), Id::new(x)))
-                }),
-            )
-            .route(
-                "/projects/{id}/incidents/log.pdf",
-                get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, Query(q): Q| async move {
-                    let year = q.get("year").and_then(|y| y.trim().parse::<i32>().ok());
-                    pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::injury_log(r, Id::new(id), year))
-                }),
-            )
-            .route(
-                "/projects/{id}/incidents/log",
-                get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, Query(q): Q| async move {
-                    let year = q.get("year").and_then(|y| y.trim().parse::<i32>().ok());
-                    page(&s.0, &h, &q, |r, _| workitems::injury_log(r, Id::new(id), year))
-                }),
-            )
-            .route("/projects/{id}/incidents/log.csv", get(injury_log_csv))
-            .route(
-                "/projects/{id}/budget.pdf",
-                get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>| async move {
-                    pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::budget(r, Id::new(id)))
-                }),
-            )
-            .route(
-                "/projects/{id}/drawings.pdf",
-                get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>| async move {
-                    pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::drawings(r, Id::new(id)))
-                }),
-            )
-            .route(
-                "/projects/{id}/schedule.pdf",
-                get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>| async move {
-                    pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::schedule(r, Id::new(id)))
-                }),
-            )
-            .route(
-                "/projects/{id}/reports.pdf",
-                get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>| async move {
-                    pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::project_report(r, Id::new(id)))
-                }),
-            )
-            .route("/projects/{id}/rfis/{rid}", get(rfi_detail))
-            .route("/projects/{id}/rfis/{rid}/files/{sha}", get(rfi_file))
-            .route("/projects/{id}/rfis/{rid}/upload", post(rfi_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
-            .route("/projects/{id}/rfis/{rid}/respond", post(rfi_respond).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
-            .route("/projects/{id}/rfis/{rid}/edit", get(rfi_edit))
-            .route("/do/{command}", post(do_command))
-            .route("/mcp", post(mcp_http))
-            .route("/api/v1/commands/{id}", post(api_command))
-            .route("/static/app.css", get(css))
-            .route("/static/favicon.svg", get(favicon))
-            .route(
-                "/static/viewer/start.js",
-                get(|h: HeaderMap| async move { embedded(&h, viewer_assets::START_JS, "text/javascript; charset=utf-8") }),
-            )
-            .route(
-                "/static/viewer/viewer.js",
-                get(|h: HeaderMap| async move { embedded(&h, viewer_assets::VIEWER_JS, "text/javascript; charset=utf-8") }),
-            )
-            .route("/static/viewer/viewer_bg.wasm", get(|h: HeaderMap| async move { embedded(&h, viewer_assets::VIEWER_WASM, "application/wasm") }));
+    let router = Router::new()
+        .route("/", get(home))
+        .route("/login", get(login_page).post(login_post))
+        .route("/logout", post(logout))
+        .route("/setup", get(setup_page).post(setup_post))
+        .route("/directory", get(directory))
+        .route("/prequalification", get(prequalification_page))
+        .route("/prequalification/forms", get(prequal_forms_page))
+        .route("/prequalification/{vendor}", get(prequal_detail_page))
+        .route("/prequalification/{vendor}/upload", post(prequal_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
+        .route("/prequalification/{vendor}/files/{sha}", get(prequal_download))
+        .route("/my-tasks", get(my_tasks_page))
+        .route("/reports", get(company_reports_page))
+        .route("/reports.csv", get(company_reports_csv))
+        .route(
+            "/reports.pdf",
+            get(|s: State<Shared>, h: HeaderMap, Query(q): Q| async move {
+                let report = q.get("report").and_then(|r| r.parse::<u64>().ok()).map(Id::new);
+                pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::company_report(r, report))
+            }),
+        )
+        .route("/directory/people/{id}", get(person_edit))
+        .route("/directory/templates/{id}", get(template_edit))
+        .route("/directory/companies/{id}", get(vendor_edit))
+        .route("/people/{id}/password", post(set_password))
+        .route("/account", get(account_page))
+        .route("/account/password", post(account_password))
+        .route("/account/token", post(account_token))
+        .route("/account/token/revoke", post(account_token_revoke))
+        .route("/account/email", post(account_email))
+        .route("/admin/backups", get(backups_page))
+        .route("/admin/backups/run", post(backups_run))
+        .route("/admin/email", get(mail_settings).post(mail_settings_save))
+        .route("/admin/email/test", post(mail_test))
+        .route("/admin/email/clear", post(mail_clear))
+        .route("/projects/{id}", get(project_home))
+        .route("/settings", get(company_settings))
+        .route("/projects/{id}/settings", get(project_settings))
+        .route("/projects/{id}/team", get(team))
+        .route("/projects/{id}/team/{person}", get(member_access))
+        .route("/projects/{id}/rfis", get(rfi_list))
+        .route("/projects/{id}/rfis/new", get(rfi_new))
+        .route("/projects/{id}/submittals", get(submittal_list))
+        .route("/notifications", get(notifications))
+        .route("/projects/{id}/budget", get(budget_page))
+        .route("/projects/{id}/budget.csv", get(budget_csv))
+        .route("/projects/{id}/direct-costs", get(direct_costs_page))
+        .route("/projects/{id}/commitments", get(commitment_list))
+        .route("/projects/{id}/commitments/new", get(commitment_new))
+        .route("/projects/{id}/commitments/save", post(commitment_save_new))
+        .route("/projects/{id}/commitments/{cid}", get(commitment_detail))
+        .route("/projects/{id}/commitments/{cid}/edit", get(commitment_edit))
+        .route("/projects/{id}/commitments/{cid}/upload", post(commitment_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
+        .route("/projects/{id}/commitments/{cid}/files/{sha}", get(commitment_download))
+        .route("/projects/{id}/commitments/{cid}/save", post(commitment_save))
+        .route("/projects/{id}/inspections", get(inspection_list))
+        .route("/projects/{id}/inspections.csv", get(inspection_csv))
+        .route("/projects/{id}/inspections/new", get(inspection_new))
+        .route("/projects/{id}/inspections/templates", get(inspection_templates))
+        .route("/projects/{id}/inspections/{iid}", get(inspection_detail))
+        .route("/projects/{id}/inspections/{iid}/edit", get(inspection_edit))
+        .route(
+            "/projects/{id}/inspections/{iid}/pdf",
+            get(|s: State<Shared>, h: HeaderMap, Path((id, x)): Path<(u64, u64)>| async move {
+                pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::inspection(r, Id::new(id), Id::new(x)))
+            }),
+        )
+        .route("/projects/{id}/inspections/{iid}/answers", post(inspection_answers))
+        .route("/projects/{id}/inspections/{iid}/line-file", post(inspection_line_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
+        .route("/projects/{id}/inspections/{iid}/files/{sha}", get(inspection_file))
+        .route("/projects/{id}/inspections/{iid}/upload", post(inspection_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
+        .route("/projects/{id}/daily-logs", get(daily_log_list))
+        .route("/projects/{id}/daily-logs/new", get(daily_log_new))
+        .route(
+            "/projects/{id}/daily-logs/week",
+            get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, Query(q): Q| async move {
+                page(&s.0, &h, &q, |r, _| buildkiosk_web::daily_logs::week(r, Id::new(id), week_day(&q, r)))
+            }),
+        )
+        .route(
+            "/projects/{id}/daily-logs/week/pdf",
+            get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, Query(q): Q| async move {
+                pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::daily_log_week(r, Id::new(id), week_day(&q, r)))
+            }),
+        )
+        .route("/projects/{id}/daily-logs/save", post(daily_log_save_new))
+        .route("/projects/{id}/daily-logs/{lid}", get(daily_log_detail))
+        .route("/projects/{id}/daily-logs/{lid}/edit", get(daily_log_edit))
+        .route(
+            "/projects/{id}/daily-logs/{lid}/files/{sha}",
+            get(|s: State<Shared>, h: HeaderMap, Path((id, lid, sha)): Path<(u64, u64, String)>| async move {
+                file_download(s.0, h, Kind::DAILY_LOG, id, lid, sha).await
+            }),
+        )
+        .route(
+            "/projects/{id}/daily-logs/{lid}/upload",
+            post(|s: State<Shared>, h: HeaderMap, Path((id, lid)): Path<(u64, u64)>, m: Multipart| async move {
+                file_upload(s.0, h, Kind::DAILY_LOG, id, lid, m).await
+            })
+            .layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)),
+        )
+        .route("/projects/{id}/daily-logs/{lid}/save", post(daily_log_save))
+        .route("/projects/{id}/specifications", get(specifications))
+        .route("/projects/{id}/transmittals", get(transmittals_page))
+        .route("/projects/{id}/transmittals/new", get(transmittal_new))
+        .route("/projects/{id}/transmittals/{tid}", get(transmittal_page))
+        .route("/projects/{id}/transmittals/{tid}/edit", get(transmittal_edit))
+        .route("/projects/{id}/transmittals/{tid}/upload", post(transmittal_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
+        .route("/projects/{id}/transmittals/{tid}/files/{sha}", get(transmittal_download))
+        .route("/projects/{id}/meetings", get(meetings_page))
+        .route("/projects/{id}/meetings/new", get(meeting_new))
+        .route("/projects/{id}/meetings/{mid}", get(meeting_page))
+        .route("/projects/{id}/meetings/{mid}/edit", get(meeting_edit))
+        .route("/projects/{id}/meetings/{mid}/upload", post(meeting_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
+        .route("/projects/{id}/meetings/{mid}/files/{sha}", get(meeting_download))
+        .route("/projects/{id}/photos", get(photos_page))
+        .route("/projects/{id}/photos/slideshow", get(photos_slideshow))
+        .route("/projects/{id}/photos/album.zip", get(photos_zip))
+        .route("/projects/{id}/photos/upload", post(photo_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
+        .route("/projects/{id}/photos/{pid}", get(photo_page))
+        .route("/projects/{id}/photos/{pid}/image", get(photo_image))
+        .route("/projects/{id}/photos/{pid}/thumb", get(photo_thumb))
+        .route("/projects/{id}/photos/{pid}/download", get(photo_download))
+        .route("/projects/{id}/correspondence", get(correspondence_page))
+        .route("/projects/{id}/correspondence/new", get(correspondence_new))
+        .route("/projects/{id}/correspondence/types", get(correspondence_types))
+        .route("/projects/{id}/correspondence/types/{tid}", get(correspondence_type_edit))
+        .route("/projects/{id}/correspondence/incoming", get(correspondence_incoming))
+        .route("/projects/{id}/correspondence/{cid}", get(correspondence_detail))
+        .route("/projects/{id}/correspondence/{cid}/edit", get(correspondence_edit))
+        .route("/projects/{id}/correspondence/{cid}/upload", post(correspondence_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
+        .route("/projects/{id}/correspondence/{cid}/files/{sha}", get(correspondence_download))
+        .route("/projects/{id}/forms", get(forms_page))
+        .route("/projects/{id}/forms/templates", get(form_templates_page))
+        .route("/projects/{id}/forms/report", get(forms_report_page))
+        .route("/projects/{id}/forms/report.csv", get(forms_report_csv))
+        .route("/projects/{id}/forms/templates/{tid}", get(form_template_edit))
+        .route("/projects/{id}/forms/{rid}", get(form_page))
+        .route("/projects/{id}/forms/{rid}/upload", post(form_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
+        .route("/projects/{id}/forms/{rid}/files/{sha}", get(form_download))
+        .route("/projects/{id}/timesheets", get(timesheets_page))
+        .route("/projects/{id}/timesheets.csv", get(timesheets_csv))
+        .route("/projects/{id}/timesheets/cost", get(timesheets_cost))
+        .route("/projects/{id}/timesheets/cost.csv", get(timesheets_cost_csv))
+        .route("/projects/{id}/reports", get(reports_page))
+        .route("/projects/{id}/reports.csv", get(reports_csv))
+        .route("/projects/{id}/action-plans", get(action_plans_page))
+        .route("/projects/{id}/action-plans/new", get(action_plan_new))
+        .route("/projects/{id}/action-plans/{aid}", get(action_plan_page))
+        .route("/projects/{id}/action-plans/{aid}/edit", get(action_plan_edit))
+        .route("/projects/{id}/bidding", get(bidding_page))
+        .route("/projects/{id}/bidding/new", get(bid_package_new))
+        .route("/projects/{id}/bidding/{bid}", get(bid_package_page))
+        .route("/projects/{id}/bidding/{bid}/edit", get(bid_package_edit))
+        .route("/projects/{id}/bidding/{bid}/upload", post(bid_package_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
+        .route("/projects/{id}/bidding/{bid}/files/{sha}", get(bid_package_download))
+        .route("/projects/{id}/estimating", get(estimating_page))
+        .route("/projects/{id}/estimating/new", get(estimate_new))
+        .route("/projects/{id}/estimating/compare", get(estimate_compare))
+        .route("/catalog", get(catalog_page))
+        .route("/projects/{id}/estimating/{eid}", get(estimate_page))
+        .route("/projects/{id}/estimating/{eid}/edit", get(estimate_edit))
+        .route("/projects/{id}/estimating/{eid}/csv", get(estimate_csv))
+        .route("/projects/{id}/schedule", get(schedule_page))
+        .route("/projects/{id}/schedule.csv", get(schedule_csv))
+        .route("/projects/{id}/schedule.xml", get(schedule_xml))
+        .route(
+            "/projects/{id}/schedule/calendar",
+            get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, Query(q): Q| async move {
+                page(&s.0, &h, &q, |r, _| buildkiosk_web::schedule::calendar(r, Id::new(id)))
+            }),
+        )
+        .route(
+            "/projects/{id}/schedule/lookahead",
+            get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, Query(q): Q| async move {
+                let weeks = q.get("weeks").and_then(|w| w.trim().parse::<i64>().ok()).unwrap_or(3);
+                let from = q.get("from").and_then(|f| buildkiosk_core::Date::parse(f.trim()));
+                page(&s.0, &h, &q, |r, _| buildkiosk_web::schedule::lookahead(r, Id::new(id), weeks, from))
+            }),
+        )
+        .route(
+            "/projects/{id}/schedule/resources",
+            get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, Query(q): Q| async move {
+                let weeks = q.get("weeks").and_then(|w| w.trim().parse::<i64>().ok()).unwrap_or(8);
+                let from = q.get("from").and_then(|f| buildkiosk_core::Date::parse(f.trim()));
+                page(&s.0, &h, &q, |r, _| buildkiosk_web::schedule::resources(r, Id::new(id), weeks, from))
+            }),
+        )
+        .route(
+            "/projects/{id}/schedule/import-xml",
+            post(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, m: Multipart| async move {
+                import_file(s.0, h, id, "schedule", "schedule.import_xml", "task", ("8 MB", "Microsoft Project XML file"), &[], m).await
+            })
+            .layer(DefaultBodyLimit::max(8 * 1024 * 1024 + 64 * 1024)),
+        )
+        .route(
+            "/projects/{id}/budget/import-file",
+            post(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, m: Multipart| async move {
+                import_file(s.0, h, id, "budget", "budget.import", "budget line", ("1 MB", "CSV file"), &["add_codes"], m).await
+            })
+            .layer(DefaultBodyLimit::max(1024 * 1024 + 64 * 1024)),
+        )
+        .route("/projects/{id}/schedule/{tid}", get(schedule_task_page))
+        .route("/projects/{id}/drawings", get(drawings_page))
+        .route("/projects/{id}/drawings.csv", get(drawings_csv))
+        .route("/projects/{id}/drawings/upload", post(drawing_upload_new).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
+        .route("/projects/{id}/drawings/upload-set", post(drawing_upload_set).layer(DefaultBodyLimit::max(MAX_BULK + 64 * 1024)))
+        .route("/projects/{id}/drawings/{did}/view", get(drawing_view))
+        .route("/projects/{id}/drawings/{did}/view.png", get(drawing_view_png))
+        .route("/projects/{id}/drawings/{did}/compare.png", get(drawing_compare_png))
+        .route("/projects/{id}/drawings/{did}", get(drawing_page))
+        .route("/projects/{id}/drawings/{did}/upload", post(drawing_upload_revision).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
+        .route("/projects/{id}/drawings/{did}/files/{sha}", get(drawing_download))
+        .route("/projects/{id}/documents", get(documents_page))
+        .route("/projects/{id}/documents/upload", post(document_upload_new).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
+        .route("/projects/{id}/documents/upload-many", post(document_upload_many).layer(DefaultBodyLimit::max(MAX_BULK + 64 * 1024)))
+        .route("/projects/{id}/documents/zip", get(documents_zip))
+        .route("/projects/{id}/documents/trash", get(documents_trash))
+        .route("/projects/{id}/documents/{did}", get(document_page))
+        .route("/projects/{id}/documents/{did}/upload", post(document_upload_version).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
+        .route("/projects/{id}/documents/{did}/files/{sha}", get(document_download))
+        .route("/projects/{id}/documents/{did}/view/{sha}", get(document_view))
+        .route("/projects/{id}/submittals.csv", get(submittal_csv))
+        .route("/projects/{id}/submittals/import", post(submittal_import_file).layer(DefaultBodyLimit::max(1024 * 1024 + 64 * 1024)))
+        .route("/projects/{id}/submittals/new", get(submittal_new))
+        .route(
+            "/projects/{id}/submittals/log",
+            get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, Query(q): Q| async move {
+                page(&s.0, &h, &q, |r, _| buildkiosk_web::submittals::log(r, Id::new(id)))
+            }),
+        )
+        .route(
+            "/projects/{id}/submittals/log/pdf",
+            get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>| async move {
+                pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::submittal_log(r, Id::new(id)))
+            }),
+        )
+        .route("/projects/{id}/submittals/{sid}/review", post(submittal_review).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
+        .route("/projects/{id}/submittals/{sid}", get(submittal_detail))
+        .route("/projects/{id}/submittals/{sid}/edit", get(submittal_edit))
+        .route("/projects/{id}/submittals/{sid}/files/{sha}", get(submittal_file))
+        .route("/projects/{id}/submittals/{sid}/upload", post(submittal_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
+        .route("/projects/{id}/rfis.csv", get(rfi_csv))
+        .route(
+            "/projects/{id}/rfis/{rid}/pdf",
+            get(|s: State<Shared>, h: HeaderMap, Path((id, rid)): Path<(u64, u64)>| async move {
+                pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::rfi(r, Id::new(id), Id::new(rid)))
+            }),
+        )
+        .route(
+            "/projects/{id}/submittals/{sid}/pdf",
+            get(|s: State<Shared>, h: HeaderMap, Path((id, x)): Path<(u64, u64)>| async move {
+                pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::submittal(r, Id::new(id), Id::new(x)))
+            }),
+        )
+        .route(
+            "/projects/{id}/daily-logs/{lid}/pdf",
+            get(|s: State<Shared>, h: HeaderMap, Path((id, x)): Path<(u64, u64)>| async move {
+                pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::daily_log(r, Id::new(id), Id::new(x)))
+            }),
+        )
+        .route(
+            "/projects/{id}/meetings/{mid}/pdf",
+            get(|s: State<Shared>, h: HeaderMap, Path((id, x)): Path<(u64, u64)>| async move {
+                pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::meeting(r, Id::new(id), Id::new(x)))
+            }),
+        )
+        .route(
+            "/projects/{id}/meetings/{mid}/signin.pdf",
+            get(|s: State<Shared>, h: HeaderMap, Path((id, x)): Path<(u64, u64)>| async move {
+                pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::meeting_signin(r, Id::new(id), Id::new(x)))
+            }),
+        )
+        .route(
+            "/projects/{id}/transmittals/{tid}/pdf",
+            get(|s: State<Shared>, h: HeaderMap, Path((id, x)): Path<(u64, u64)>| async move {
+                pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::transmittal(r, Id::new(id), Id::new(x)))
+            }),
+        )
+        .route(
+            "/projects/{id}/correspondence/{cid}/pdf",
+            get(|s: State<Shared>, h: HeaderMap, Path((id, x)): Path<(u64, u64)>| async move {
+                pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::correspondence(r, Id::new(id), Id::new(x)))
+            }),
+        )
+        .route(
+            "/projects/{id}/correspondence/{cid}/letter.pdf",
+            get(|s: State<Shared>, h: HeaderMap, Path((id, x)): Path<(u64, u64)>| async move {
+                pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::correspondence_letter(r, Id::new(id), Id::new(x)))
+            }),
+        )
+        .route(
+            "/projects/{id}/estimating/{eid}/pdf",
+            get(|s: State<Shared>, h: HeaderMap, Path((id, x)): Path<(u64, u64)>| async move {
+                pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::estimate(r, Id::new(id), Id::new(x)))
+            }),
+        )
+        .route(
+            "/projects/{id}/bidding/{bid}/pdf",
+            get(|s: State<Shared>, h: HeaderMap, Path((id, x)): Path<(u64, u64)>| async move {
+                pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::bid_package(r, Id::new(id), Id::new(x)))
+            }),
+        )
+        .route(
+            "/projects/{id}/action-plans/{aid}/pdf",
+            get(|s: State<Shared>, h: HeaderMap, Path((id, x)): Path<(u64, u64)>| async move {
+                pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::action_plan(r, Id::new(id), Id::new(x)))
+            }),
+        )
+        .route(
+            "/projects/{id}/forms/{rid}/pdf",
+            get(|s: State<Shared>, h: HeaderMap, Path((id, x)): Path<(u64, u64)>| async move {
+                pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::form_record(r, Id::new(id), Id::new(x)))
+            }),
+        )
+        .route(
+            "/projects/{id}/schedule/lookahead.pdf",
+            get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, Query(q): Q| async move {
+                let weeks = q.get("weeks").and_then(|w| w.trim().parse::<i64>().ok()).unwrap_or(3);
+                let from = q.get("from").and_then(|f| buildkiosk_core::Date::parse(f.trim()));
+                pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::lookahead(r, Id::new(id), weeks, from))
+            }),
+        )
+        .route(
+            "/projects/{id}/incidents/{iid}/pdf",
+            get(|s: State<Shared>, h: HeaderMap, Path((id, x)): Path<(u64, u64)>| async move {
+                pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::incident(r, Id::new(id), Id::new(x)))
+            }),
+        )
+        .route(
+            "/projects/{id}/incidents/log.pdf",
+            get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, Query(q): Q| async move {
+                let year = q.get("year").and_then(|y| y.trim().parse::<i32>().ok());
+                pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::injury_log(r, Id::new(id), year))
+            }),
+        )
+        .route(
+            "/projects/{id}/incidents/log",
+            get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, Query(q): Q| async move {
+                let year = q.get("year").and_then(|y| y.trim().parse::<i32>().ok());
+                page(&s.0, &h, &q, |r, _| workitems::injury_log(r, Id::new(id), year))
+            }),
+        )
+        .route("/projects/{id}/incidents/log.csv", get(injury_log_csv))
+        .route(
+            "/projects/{id}/budget.pdf",
+            get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, Query(q): Q| async move {
+                pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::budget(r, Id::new(id), budget_view_choice(r, Id::new(id), &q)))
+            }),
+        )
+        .route(
+            "/projects/{id}/drawings.pdf",
+            get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>| async move {
+                pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::drawings(r, Id::new(id)))
+            }),
+        )
+        .route(
+            "/projects/{id}/schedule.pdf",
+            get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>| async move {
+                pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::schedule(r, Id::new(id)))
+            }),
+        )
+        .route(
+            "/projects/{id}/reports.pdf",
+            get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>| async move {
+                pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::project_report(r, Id::new(id)))
+            }),
+        )
+        .route("/projects/{id}/rfis/{rid}", get(rfi_detail))
+        .route("/projects/{id}/rfis/{rid}/files/{sha}", get(rfi_file))
+        .route("/projects/{id}/rfis/{rid}/upload", post(rfi_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
+        .route("/projects/{id}/rfis/{rid}/respond", post(rfi_respond).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
+        .route("/projects/{id}/rfis/{rid}/edit", get(rfi_edit))
+        .route("/do/{command}", post(do_command))
+        .route("/mcp", post(mcp_http))
+        .route("/api/v1/commands/{id}", post(api_command))
+        .route("/static/app.css", get(css))
+        .route("/static/favicon.svg", get(favicon))
+        .route("/static/viewer/start.js", get(|h: HeaderMap| async move { embedded(&h, viewer_assets::START_JS, "text/javascript; charset=utf-8") }))
+        .route(
+            "/static/viewer/viewer.js",
+            get(|h: HeaderMap| async move { embedded(&h, viewer_assets::VIEWER_JS, "text/javascript; charset=utf-8") }),
+        )
+        .route("/static/viewer/viewer_bg.wasm", get(|h: HeaderMap| async move { embedded(&h, viewer_assets::VIEWER_WASM, "application/wasm") }));
     let router = work_routes::<PunchItem>(router);
     let router = work_routes::<Observation>(router).route(
         "/projects/{id}/observations/trends",
@@ -1457,13 +1469,25 @@ async fn inspection_answers(State(app): State<Shared>, headers: HeaderMap, Path(
     redirect(&with_flash(&back, true, "Answers saved."))
 }
 
+/// The saved budget view to show: the one named in the link (0 is the standard layout), else the person's default.
+fn budget_view_choice(
+    req: &Req<'_>,
+    project: Id<buildkiosk_engine::model::project::Project>,
+    q: &HashMap<String, String>,
+) -> Option<Id<buildkiosk_engine::model::finance::BudgetView>> {
+    match q.get("view") {
+        Some(v) => v.parse::<u64>().ok().filter(|n| *n > 0).map(Id::new),
+        None => view::default_budget_view(req.engine.state(), req.person, project),
+    }
+}
+
 async fn budget_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
     page(&app, &headers, &q, |r, _| {
         buildkiosk_web::finance::budget(
             r,
             Id::new(id),
             q.get("compare").and_then(|c| c.parse::<u64>().ok()).map(Id::new),
-            q.get("view").and_then(|c| c.parse::<u64>().ok()).map(Id::new),
+            budget_view_choice(r, Id::new(id), &q),
         )
     })
 }
@@ -1488,7 +1512,7 @@ async fn budget_csv(State(app): State<Shared>, headers: HeaderMap, Path(id): Pat
     let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
     let csrf = auth::csrf_token(app.secret(), &s.cookie);
     let req = Req { engine: &t.engine, person: s.person, csrf: &csrf, now: Timestamp::from_millis(now_ms()), flash: None };
-    let Some(csv) = buildkiosk_web::finance::budget_csv(&req, Id::new(id), q.get("view").and_then(|c| c.parse::<u64>().ok()).map(Id::new)) else {
+    let Some(csv) = buildkiosk_web::finance::budget_csv(&req, Id::new(id), budget_view_choice(&req, Id::new(id), &q)) else {
         return plain(StatusCode::NOT_FOUND, "Not found");
     };
     let mut res = csv.into_response();
@@ -3405,7 +3429,7 @@ fn admin_form(app: &Shared, inner: &Inner, headers: &HeaderMap, form: Option<&[(
     }
     let is_admin = inner.tenant.as_ref().is_some_and(|t| t.engine.state().people.get(s.person).is_some_and(|p| p.company_admin));
     if !is_admin {
-        return Err(Box::new(redirect(&with_flash("/account", false, "Only company admins can change email settings."))));
+        return Err(Box::new(redirect(&with_flash("/account", false, "Only company admins can do that."))));
     }
     Ok(s)
 }
@@ -3600,12 +3624,10 @@ fn backup_time(name: &str) -> Option<u64> {
     name.strip_prefix("backup-").filter(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit())).and_then(|n| n.parse().ok())
 }
 
-/// Takes a backup if the newest one is older than the interval, then drops the oldest beyond how many
-/// to keep. Only folders this scheduler named (`backup-<seconds>` and its `.partial`) are ever touched.
-fn backup_pass(app: &App, now_secs: u64) -> Result<Option<PathBuf>, String> {
-    let Some(plan) = &app.backups else { return Ok(None) };
+/// The finished backups in a folder (`backup-<seconds>`), oldest first; unfinished ones (`.partial`) are removed.
+fn finished_backups(dir: &FsPath) -> Result<Vec<(u64, PathBuf)>, String> {
     let mut done: Vec<(u64, PathBuf)> = Vec::new();
-    for entry in std::fs::read_dir(&plan.dir).map_err(|e| format!("cannot read {}: {e}", plan.dir.display()))?.flatten() {
+    for entry in std::fs::read_dir(dir).map_err(|e| format!("cannot read {}: {e}", dir.display()))?.flatten() {
         let name = entry.file_name().to_string_lossy().into_owned();
         if let Some(stem) = name.strip_suffix(".partial").filter(|s| backup_time(s).is_some()) {
             // A backup that was interrupted: not a backup.
@@ -3616,30 +3638,147 @@ fn backup_pass(app: &App, now_secs: u64) -> Result<Option<PathBuf>, String> {
         }
     }
     done.sort();
-    let due = done.last().is_none_or(|(t, _)| now_secs.saturating_sub(*t) >= plan.every_secs);
-    let mut made = None;
-    if due {
-        let name = format!("backup-{now_secs}");
-        let partial = plan.dir.join(format!("{name}.partial"));
-        let kept = plan.dir.join(&name);
-        if kept.exists() {
-            return Ok(None);
-        }
-        if let Err(e) = app.backup_now(&partial) {
-            let _ = std::fs::remove_dir_all(&partial);
-            return Err(e);
-        }
-        std::fs::rename(&partial, &kept).map_err(|e| format!("cannot finish the backup: {e}"))?;
-        done.push((now_secs, kept.clone()));
-        made = Some(kept);
-    }
-    while done.len() > plan.keep {
+    Ok(done)
+}
+
+/// Drops the oldest backups beyond how many to keep. Only folders this scheduler named are ever touched.
+fn prune_backups(done: &mut Vec<(u64, PathBuf)>, keep: usize) {
+    while done.len() > keep {
         let (_, oldest) = done.remove(0);
         if let Err(e) = std::fs::remove_dir_all(&oldest) {
             log::warn!("cannot remove the old backup {}: {e}", oldest.display());
         }
     }
-    Ok(made)
+}
+
+/// Takes a backup now into the plan's folder (and its second copy), then prunes both. Returns the new folder.
+fn take_backup(app: &App, plan: &BackupPlan, now_secs: u64) -> Result<Option<PathBuf>, String> {
+    let name = format!("backup-{now_secs}");
+    let partial = plan.dir.join(format!("{name}.partial"));
+    let kept = plan.dir.join(&name);
+    if kept.exists() {
+        return Ok(None);
+    }
+    if let Err(e) = app.backup_now(&partial) {
+        let _ = std::fs::remove_dir_all(&partial);
+        return Err(e);
+    }
+    std::fs::rename(&partial, &kept).map_err(|e| format!("cannot finish the backup: {e}"))?;
+    let mut done = finished_backups(&plan.dir)?;
+    prune_backups(&mut done, plan.keep);
+    if let Some(second) = &plan.copy_to {
+        // The second copy is best effort: the backup itself is safe, so a full or missing disk is reported, not fatal.
+        let copied = (|| -> Result<(), String> {
+            let target_partial = second.join(format!("{name}.partial"));
+            let _ = std::fs::remove_dir_all(&target_partial);
+            buildkiosk_store::ops::copy_backup(&kept, &target_partial).map_err(|e| e.to_string())?;
+            std::fs::rename(&target_partial, second.join(&name)).map_err(|e| e.to_string())?;
+            let mut there = finished_backups(second)?;
+            prune_backups(&mut there, plan.keep);
+            Ok(())
+        })();
+        if let Err(e) = copied {
+            log::error!("the backup {name} was made but could not be copied to {}: {e}", second.display());
+        }
+    }
+    Ok(Some(kept))
+}
+
+/// Takes a backup if the newest one is older than the interval, then drops the oldest beyond how many
+/// to keep. Only folders this scheduler named (`backup-<seconds>` and its `.partial`) are ever touched.
+fn backup_pass(app: &App, now_secs: u64) -> Result<Option<PathBuf>, String> {
+    let Some(plan) = &app.backups else { return Ok(None) };
+    let mut done = finished_backups(&plan.dir)?;
+    let due = done.last().is_none_or(|(t, _)| now_secs.saturating_sub(*t) >= plan.every_secs);
+    if due {
+        return take_backup(app, plan, now_secs);
+    }
+    prune_backups(&mut done, plan.keep);
+    Ok(None)
+}
+
+/// The size of a folder and everything in it (it stops counting past 100,000 files).
+fn folder_bytes(dir: &FsPath) -> u64 {
+    let (mut total, mut seen) = (0u64, 0usize);
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(d) = stack.pop() {
+        let Ok(rd) = std::fs::read_dir(&d) else { continue };
+        for e in rd.flatten() {
+            seen += 1;
+            if seen > 100_000 {
+                return total;
+            }
+            match e.file_type() {
+                Ok(t) if t.is_dir() => stack.push(e.path()),
+                Ok(t) if t.is_file() => total = total.saturating_add(e.metadata().map(|m| m.len()).unwrap_or(0)),
+                _ => {}
+            }
+        }
+    }
+    total
+}
+
+async fn backups_page(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Response {
+    let inner = app.lock();
+    let s = match admin_form(&app, &inner, &headers, None) {
+        Ok(s) => s,
+        Err(r) => return *r,
+    };
+    let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+    let csrf = auth::csrf_token(app.secret(), &s.cookie);
+    let req = Req { engine: &t.engine, person: s.person, csrf: &csrf, now: Timestamp::from_millis(now_ms()), flash: flash_from(&q) };
+    html(StatusCode::OK, buildkiosk_web::account::backups_page(&req, &backups_info(&app)))
+}
+
+fn backups_info(app: &App) -> buildkiosk_web::account::BackupInfo {
+    use buildkiosk_web::account::{BackupInfo, BackupRow};
+    let Some(plan) = &app.backups else { return BackupInfo::default() };
+    let second: Vec<u64> =
+        plan.copy_to.as_deref().and_then(|d| finished_backups(d).ok()).map(|v| v.into_iter().map(|(t, _)| t).collect()).unwrap_or_default();
+    let mut rows: Vec<BackupRow> = finished_backups(&plan.dir)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(t, p)| BackupRow {
+            name: format!("backup-{t}"),
+            taken: i64::try_from(t).unwrap_or(0),
+            bytes: folder_bytes(&p),
+            copied: second.contains(&t),
+        })
+        .collect();
+    rows.reverse();
+    BackupInfo {
+        configured: true,
+        dir: plan.dir.display().to_string(),
+        copy_to: plan.copy_to.as_ref().map(|d| d.display().to_string()),
+        every_hours: plan.every_secs / 3600,
+        keep: plan.keep,
+        rows,
+    }
+}
+
+/// Takes a backup now, on a company admin's request.
+async fn backups_run(State(app): State<Shared>, headers: HeaderMap, body: Bytes) -> Response {
+    let form = parse_form(&body);
+    {
+        let inner = app.lock();
+        if let Err(r) = admin_form(&app, &inner, &headers, Some(&form)) {
+            return *r;
+        }
+    }
+    let a = app.clone();
+    let made = tokio::task::spawn_blocking(move || {
+        let Some(plan) = &a.backups else { return Err("backups are not turned on; start the server with --backup-dir".to_string()) };
+        take_backup(&a, plan, u64::try_from(now_ms() / 1000).unwrap_or(0))
+    })
+    .await;
+    match made {
+        Ok(Ok(Some(dir))) => {
+            redirect(&with_flash("/admin/backups", true, &format!("Backup {} written.", dir.file_name().and_then(|n| n.to_str()).unwrap_or(""))))
+        }
+        Ok(Ok(None)) => redirect(&with_flash("/admin/backups", false, "A backup was already made this second; try again in a moment.")),
+        Ok(Err(e)) => redirect(&with_flash("/admin/backups", false, &e)),
+        Err(_) => redirect(&with_flash("/admin/backups", false, "The backup stopped unexpectedly.")),
+    }
 }
 
 async fn mail_loop(app: Shared) {

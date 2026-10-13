@@ -5,7 +5,7 @@ use buildkiosk_core::{Date, Id, Money, Percent};
 use serde::{Deserialize, Serialize};
 
 use crate::common::{FileRef, Stamp};
-use crate::directory::Vendor;
+use crate::directory::{Person, Vendor};
 use crate::project::{CostCode, CostType, Project};
 use crate::{choice, record};
 
@@ -101,6 +101,9 @@ pub struct BudgetView {
     pub columns: Vec<BudgetColumn>,
     #[serde(default)]
     pub group: BudgetGroup,
+    /// The people who open the budget in this view by default.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub default_for: Vec<Id<Person>>,
     pub created: Stamp,
     pub updated: Stamp,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -382,6 +385,9 @@ pub struct PrimeContract {
     pub status: ChangeStatus,
     /// The schedule of values.
     pub lines: Vec<CostLine>,
+    /// Where the signing of the contract with the owner stands.
+    #[serde(default)]
+    pub signature: ContractSignature,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub approved: Option<Stamp>,
     pub created: Stamp,
@@ -406,6 +412,8 @@ pub struct PrimeChange {
     #[serde(default)]
     pub status: ChangeStatus,
     pub lines: Vec<CostLine>,
+    #[serde(default)]
+    pub signature: ContractSignature,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub approved: Option<Stamp>,
     pub created: Stamp,

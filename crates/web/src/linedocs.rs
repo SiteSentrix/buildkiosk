@@ -44,6 +44,10 @@ pub trait LineDoc: CostDoc {
     }
     /// The step buttons for the person (approve, close, void…).
     fn actions(&self, req: &Req<'_>, here: &str, ids: &[(&str, String)]) -> Markup;
+    /// Cards shown between the details and the lines.
+    fn extra_cards(&self, _req: &Req<'_>, _here: &str) -> Markup {
+        html! {}
+    }
     /// Form fields only this record has.
     fn extra_fields(_item: Option<&Self>, _req: &Req<'_>, _project: Id<Project>) -> Markup {
         html! {}
@@ -262,6 +266,17 @@ impl LineDoc for PrimeContract {
     fn actions(&self, req: &Req<'_>, here: &str, ids: &[(&str, String)]) -> Markup {
         change_actions(req, self, "prime_contract", self.status, here, ids)
     }
+    fn extra_cards(&self, req: &Req<'_>, here: &str) -> Markup {
+        crate::finance::signature_card(
+            req,
+            "prime_contract",
+            self.project,
+            self.id.raw(),
+            &self.signature,
+            (self.status != ChangeStatus::Void, self.status == ChangeStatus::Approved),
+            here,
+        )
+    }
     fn extra_fields(item: Option<&Self>, req: &Req<'_>, _project: Id<Project>) -> Markup {
         let state = req.engine.state();
         let mut vendors: Vec<_> = state.vendors.iter().filter(|v| v.deleted.is_none()).collect();
@@ -308,6 +323,17 @@ impl LineDoc for PrimeChange {
     }
     fn actions(&self, req: &Req<'_>, here: &str, ids: &[(&str, String)]) -> Markup {
         change_actions(req, self, "prime_change", self.status, here, ids)
+    }
+    fn extra_cards(&self, req: &Req<'_>, here: &str) -> Markup {
+        crate::finance::signature_card(
+            req,
+            "prime_change",
+            self.project,
+            self.id.raw(),
+            &self.signature,
+            (self.status != ChangeStatus::Void, self.status == ChangeStatus::Approved),
+            here,
+        )
     }
     fn extra_fields(item: Option<&Self>, req: &Req<'_>, project: Id<Project>) -> Markup {
         let state = req.engine.state();
@@ -409,6 +435,7 @@ pub fn detail<T: LineDoc>(req: &Req<'_>, id: Id<Project>, did: Id<T>, history: &
             h2 { "Details" }
             dl class="facts" { (d.extra_facts(req)) }
         }
+        (d.extra_cards(req, &here))
         div class="card" {
             h2 { "Lines" }
             @if d.lines().is_empty() { p class="muted" { "No lines yet." } }

@@ -24,7 +24,7 @@ const INSTRUCTIONS: &str = "BuildKiosk construction management. Every tool is a 
 written as an underscore (rfi.create is rfi_create). Most project tools take `project` (a project id) and `id` (an item id). \
 Start with me_get to see who you are and which projects you can open, then project_list and the tool's own list command. \
 Failed calls return isError with the reason; nothing is changed by a failed call. Results come as text and as \
-structuredContent. Project documents are resources (resources/list, resources/read).";
+structuredContent. Documents, drawing sheets and photos are resources (resources/list, resources/read); prompts/list offers ready-made briefings.";
 
 /// Handles one line of input. Returns the line to send back, or `None` for notifications and
 /// blank lines. `now` is the time commands run at.
@@ -86,7 +86,11 @@ fn handle_message(tenant: &mut Tenant, actor: Actor, now: Timestamp, message: &V
             Ok(result) => ok(id, result),
             Err((code, msg)) => error(id, code, &msg),
         },
-        "prompts/list" => ok(id, json!({ "prompts": [] })),
+        "prompts/list" => ok(id, prompts::list()),
+        "prompts/get" => match prompts::get(&params) {
+            Ok(result) => ok(id, result),
+            Err((code, msg)) => error(id, code, &msg),
+        },
         other => error(id, -32601, &format!("method `{other}` is not supported")),
     })
 }
@@ -95,7 +99,7 @@ fn initialize(params: &Value) -> Value {
     let version = params.get("protocolVersion").and_then(Value::as_str).filter(|v| v.len() <= 32).unwrap_or(DEFAULT_PROTOCOL);
     json!({
         "protocolVersion": version,
-        "capabilities": { "tools": { "listChanged": false }, "resources": { "subscribe": false, "listChanged": false } },
+        "capabilities": { "tools": { "listChanged": false }, "resources": { "subscribe": false, "listChanged": false }, "prompts": { "listChanged": false } },
         "serverInfo": { "name": "buildkiosk", "version": env!("CARGO_PKG_VERSION") },
         "instructions": INSTRUCTIONS,
     })
@@ -175,6 +179,7 @@ fn call(tenant: &mut Tenant, actor: Actor, now: Timestamp, params: &Value) -> Re
     })
 }
 
+mod prompts;
 mod resources;
 
 #[cfg(test)]

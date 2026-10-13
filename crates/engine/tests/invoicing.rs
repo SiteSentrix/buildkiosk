@@ -224,3 +224,61 @@ fn commitment_invoices_bill_the_schedule_and_its_change_orders() {
     w.ok(pm, "commitment_invoice.get", json!({"project": p, "id": draft}));
     w.assert_replay();
 }
+
+#[test]
+fn prime_documents_are_signed_and_budget_views_have_defaults() {
+    use buildkiosk_model::finance::SignatureStatus;
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let sup = w.member(p, "Sue", "Super", "Superintendent");
+    let steel = code(&w, "05-100");
+    let k = w.ok(pm, "prime_contract.create", json!({"project": p, "title": "Clinic contract", "lines": [{"cost_code": steel, "amount": "50000"}]}))
+        ["id"]
+        .as_u64()
+        .unwrap();
+    let status = |w: &World| w.engine.state().prime_contracts.iter().next().unwrap().signature.status;
+    // Required signatures hold back approval, and a change to the lines voids a recorded signature.
+    w.ok(pm, "commitment.require_signed", json!({"project": p, "required": true}));
+    w.err(pm, "prime_contract.approve", json!({"project": p, "id": k}));
+    w.err(pm, "prime_contract.record_signature", json!({"project": p, "id": k}));
+    w.err(pm, "prime_contract.decline_signature", json!({"project": p, "id": k}));
+    w.err(pm, "prime_contract.reset_signature", json!({"project": p, "id": k}));
+    w.ok(pm, "prime_contract.send_for_signature", json!({"project": p, "id": k, "to": "Owner rep", "on": "2026-10-10"}));
+    assert_eq!(status(&w), SignatureStatus::Sent);
+    w.err(pm, "prime_contract.record_signature", json!({"project": p, "id": k, "signer": "Olga Owner", "on": "2026-10-01"}));
+    w.ok(pm, "prime_contract.decline_signature", json!({"project": p, "id": k, "note": "wants a change"}));
+    w.ok(pm, "prime_contract.send_for_signature", json!({"project": p, "id": k}));
+    w.ok(pm, "prime_contract.record_signature", json!({"project": p, "id": k, "signer": "Olga Owner", "note": "wet signature on file"}));
+    assert_eq!(status(&w), SignatureStatus::Signed);
+    w.ok(pm, "prime_contract.update", json!({"project": p, "id": k, "lines": [{"cost_code": steel, "amount": "55000"}]}));
+    assert_eq!(status(&w), SignatureStatus::NotSent, "what was signed is no longer what is written");
+    w.ok(pm, "prime_contract.record_signature", json!({"project": p, "id": k, "signer": "Olga Owner"}));
+    w.ok(pm, "prime_contract.approve", json!({"project": p, "id": k}));
+    w.err(pm, "prime_contract.reset_signature", json!({"project": p, "id": k}));
+
+    // A change order needs its own signature under the same rule.
+    let c = w.ok(
+        pm,
+        "prime_change.create",
+        json!({"project": p, "contract": k, "title": "Extra steel", "lines": [{"cost_code": steel, "amount": "2000"}]}),
+    )["id"]
+        .as_u64()
+        .unwrap();
+    w.err(pm, "prime_change.approve", json!({"project": p, "id": c}));
+    w.ok(pm, "prime_change.record_signature", json!({"project": p, "id": c, "signer": "Olga Owner"}));
+    w.err(sup, "prime_change.reset_signature", json!({"project": p, "id": c}));
+    w.ok(pm, "prime_change.approve", json!({"project": p, "id": c}));
+    w.ok(pm, "commitment.require_signed", json!({"project": p, "required": false}));
+
+    // A default budget view is each person's own choice.
+    let v = w.ok(pm, "budget.view_save", json!({"project": p, "name": "Cost only", "columns": ["revised", "cost"]}))["id"].as_u64().unwrap();
+    w.ok(pm, "budget.view_default", json!({"project": p, "id": v}));
+    let me = |w: &World, who| buildkiosk_engine::view::default_budget_view(w.engine.state(), who, p);
+    assert_eq!((me(&w, pm).map(|x| x.raw()), me(&w, sup)), (Some(v), None));
+    w.ok(sup, "budget.view_default", json!({"project": p, "id": v}));
+    w.ok(pm, "budget.view_default", json!({"project": p}));
+    assert_eq!((me(&w, pm), me(&w, sup).map(|x| x.raw())), (None, Some(v)));
+    w.err(sup, "budget.view_default", json!({"project": p, "id": 9999}));
+    w.assert_replay();
+}

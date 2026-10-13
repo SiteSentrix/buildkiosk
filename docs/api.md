@@ -45,10 +45,15 @@ can do exactly what that person can and no more.
   a single value comes wrapped as `{"result": …}`). A failed call returns a normal result with `isError: true`, the
   text `kind: message` and `structuredContent: {"error": {"kind", "message"}}`, so the agent can read why and try
   again. Protocol mistakes (unknown tool, bad JSON) are JSON-RPC errors.
-- **Resources:** the project documents the person may open are resources, addressed
-  `buildkiosk://document/{project}/{id}` (`resources/list` in pages of 100 with `cursor`, `resources/templates/list`,
-  `resources/read`). Reading returns the current version: text types as `text`, anything else as base64 `blob`, up to
-  8 MB. A document the person can't open is "not found" (-32002), the same as one that doesn't exist.
+- **Resources:** the documents, the current revision of drawing sheets and the photos the person may open are
+  resources, addressed `buildkiosk://document/{project}/{id}`, `buildkiosk://drawing/{project}/{id}` and
+  `buildkiosk://photo/{project}/{id}` (`resources/list` in pages of 100 with `cursor`, `resources/templates/list`,
+  `resources/read`). Reading returns the file: text types as `text`, anything else as base64 `blob`, up to 8 MB.
+  Something the person can't open is "not found" (-32002), the same as something that doesn't exist. Subscriptions are
+  not offered (the server answers one request at a time and does not push), so read again to see a change.
+- **Prompts:** `prompts/list` offers ready-made briefings (`project_status`, `draft_rfi`, `weekly_look_ahead`,
+  `closeout_check`); `prompts/get` fills one in with its arguments and returns the instruction as a user message that
+  names the tools to use. A prompt runs nothing itself.
 - **Start here:** call `me_get` to see who you are and which projects you can open, then `project_list` and the tool's
   own `*_list` command.
 

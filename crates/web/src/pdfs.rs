@@ -392,47 +392,59 @@ pub fn estimate(req: &Req<'_>, id: Id<Project>, eid: Id<buildkiosk_engine::model
     Some((file_name(&e.label()), render(&doc)))
 }
 
-pub fn budget(req: &Req<'_>, id: Id<Project>) -> Option<Pdf> {
+pub fn budget(req: &Req<'_>, id: Id<Project>, chosen: Option<Id<buildkiosk_engine::model::finance::BudgetView>>) -> Option<Pdf> {
+    use buildkiosk_engine::model::finance::BudgetGroup;
     let state = req.engine.state();
     let p = project_of(req, id, Tool::Budget)?;
     let rows = view::budget_rows(state, id).ok()?;
     let t = view::budget_totals(&rows).ok()?;
-    let (mut doc, _) = start(req, p, "Budget".into(), &format!("As of {}", req.today().pretty()));
-    let line = |label: String, r: (String, String, String, String, String, String)| vec![label, r.0, r.1, r.2, r.3, r.4, r.5];
-    let mut body: Vec<Vec<String>> = rows
-        .iter()
-        .map(|r| {
+    let (saved, columns, group) = crate::finance::budget_layout(state, id, chosen);
+    let sub = match saved {
+        Some(v) => format!("{} · as of {}", v.name, req.today().pretty()),
+        None => format!("As of {}", req.today().pretty()),
+    };
+    let (mut doc, _) = start(req, p, "Budget".into(), &sub);
+    let code_of = |r: &view::BudgetRow| state.cost_codes.get(r.cost_code).map(|c| c.code.clone()).unwrap_or_default();
+    let mut body: Vec<Vec<String>> = Vec::new();
+    let mut at = 0;
+    while let Some(first) = rows.get(at) {
+        let key = (group == BudgetGroup::Division).then(|| view::code_division(&code_of(first)).to_string());
+        let end = rows
+            .iter()
+            .skip(at)
+            .position(|r| (group == BudgetGroup::Division).then(|| view::code_division(&code_of(r)).to_string()) != key)
+            .map_or(rows.len(), |n| at + n);
+        let list: Vec<&view::BudgetRow> = rows.iter().skip(at).take(end - at).collect();
+        if let Some(k) = &key {
+            let mut head = vec![format!("Division {k}")];
+            head.extend(columns.iter().map(|_| String::new()));
+            body.push(head);
+        }
+        for r in &list {
             let c = state.cost_codes.get(r.cost_code);
-            line(
-                format!("{} {}", c.map(|c| c.code.as_str()).unwrap_or("?"), c.map(|c| c.description.as_str()).unwrap_or("")),
-                (
-                    r.original.to_string(),
-                    r.changes.to_string(),
-                    r.revised().to_string(),
-                    r.cost().to_string(),
-                    r.projected().to_string(),
-                    r.variance().to_string(),
-                ),
-            )
-        })
-        .collect();
-    body.push(line(
-        "Total".into(),
-        (
-            t.original.to_string(),
-            t.changes.to_string(),
-            t.revised().to_string(),
-            t.cost().to_string(),
-            t.projected.to_string(),
-            t.variance().to_string(),
-        ),
-    ));
-    doc.blocks.push(table(
-        &["Cost code", "Original", "Changes", "Revised", "Cost to date", "Projected", "Over / under"],
-        &[3.4, 1.6, 1.3, 1.6, 1.6, 1.6, 1.5],
-        &[1, 2, 3, 4, 5, 6],
-        body,
-    ));
+            let mut line = vec![format!("{} {}", c.map(|c| c.code.as_str()).unwrap_or("?"), c.map(|c| c.description.as_str()).unwrap_or(""))];
+            line.extend(columns.iter().map(|col| crate::finance::budget_text(r, *col)));
+            body.push(line);
+        }
+        if key.is_some() {
+            let owned: Vec<view::BudgetRow> = list.iter().map(|r| (*r).clone()).collect();
+            if let Ok(st) = view::budget_totals(&owned) {
+                let mut line = vec!["Subtotal".to_string()];
+                line.extend(columns.iter().map(|col| crate::finance::total_text(&st, *col)));
+                body.push(line);
+            }
+        }
+        at = end;
+    }
+    let mut total = vec!["Total".to_string()];
+    total.extend(columns.iter().map(|col| crate::finance::total_text(&t, *col)));
+    body.push(total);
+    let mut heads: Vec<&str> = vec!["Cost code"];
+    heads.extend(columns.iter().map(|c| c.label()));
+    let mut widths: Vec<f32> = vec![3.4];
+    widths.extend(columns.iter().map(|_| 1.6));
+    let right: Vec<usize> = (1..=columns.len()).collect();
+    doc.blocks.push(table(&heads, &widths, &right, body));
     doc.blocks.push(Block::Paragraph("Cost to date is committed cost plus direct costs. Projected is cost to date plus any forecast to complete; where there is none it follows the project's forecasting method (by default the revised budget is assumed to be spent). A negative over / under is a projected overrun.".into()));
     Some(("budget.pdf".into(), render(&doc)))
 }

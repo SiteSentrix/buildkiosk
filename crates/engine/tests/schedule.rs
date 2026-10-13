@@ -571,3 +571,51 @@ fn more_constraints_and_company_holiday_lists() {
     assert!(!sched::calendar(w.engine.state(), p).holiday_on(d("2026-11-11")));
     w.assert_replay();
 }
+
+#[test]
+fn several_named_baselines_and_the_one_in_use() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let sup = w.member(p, "Sue", "Super", "Superintendent");
+    w.ok(pm, "schedule.add", json!({"project": p, "name": "Demo", "start": "2026-10-12", "days": 2}));
+    w.ok(pm, "schedule.add", json!({"project": p, "name": "Frame", "start": "2026-10-14", "days": 3, "predecessors": "1"}));
+    w.err(pm, "schedule.baseline_save", json!({"project": p}));
+    w.err(sup, "schedule.baseline_save", json!({"project": p, "name": "Contract"}));
+    let a = w.ok(pm, "schedule.baseline_save", json!({"project": p, "name": "Contract"}))["id"].as_u64().unwrap();
+    let baseline_of = |w: &World, n: u32| {
+        let t = w.engine.state().schedule_tasks.iter().find(|t| t.number == n).unwrap();
+        t.baseline_finish.map(|d| d.to_string())
+    };
+    assert_eq!((baseline_of(&w, 1).as_deref(), baseline_of(&w, 2).as_deref()), (Some("2026-10-13"), Some("2026-10-16")));
+
+    // The schedule slips and a new baseline is saved; the chart follows the one in use.
+    w.ok(pm, "schedule.move", json!({"project": p, "id": 1, "shift": 2}));
+    let b = w.ok(pm, "schedule.baseline_save", json!({"project": p, "name": "After the redesign"}))["id"].as_u64().unwrap();
+    assert_ne!(a, b);
+    assert_eq!(baseline_of(&w, 1).as_deref(), Some("2026-10-15"));
+    let list = w.ok(pm, "schedule.baselines", json!({"project": p}));
+    let in_use: Vec<(&str, bool)> = list.as_array().unwrap().iter().map(|r| (r["name"].as_str().unwrap(), r["in_use"].as_bool().unwrap())).collect();
+    assert_eq!(in_use, [("After the redesign", true), ("Contract", false)], "newest first");
+    // Back to the first: the slip is measured against it again.
+    w.ok(pm, "schedule.baseline_use", json!({"project": p, "id": a}));
+    assert_eq!(baseline_of(&w, 1).as_deref(), Some("2026-10-13"));
+    let rows = w.ok(pm, "schedule.list", json!({"project": p}));
+    assert_eq!(row(&rows, 1)["slip"].as_i64(), Some(2), "{rows}");
+    // Saving under the same name replaces it; a task added later is not in the older baselines.
+    w.ok(pm, "schedule.add", json!({"project": p, "name": "Roof", "start": "2026-10-19", "days": 2}));
+    assert_eq!(baseline_of(&w, 3), None);
+    w.ok(pm, "schedule.baseline_save", json!({"project": p, "name": "contract"}));
+    assert_eq!(w.engine.state().schedule_baselines.iter().filter(|b| b.deleted.is_none()).count(), 2);
+    assert_eq!(baseline_of(&w, 3).as_deref(), Some("2026-10-20"));
+    // The plain baseline command leaves the saved ones aside; deleting the one in use clears the chart.
+    w.ok(pm, "schedule.baseline", json!({"project": p}));
+    assert!(w.engine.state().schedule_baselines.iter().all(|b| !b.in_use));
+    w.ok(pm, "schedule.baseline_use", json!({"project": p, "id": b}));
+    w.ok(pm, "schedule.baseline_delete", json!({"project": p, "id": b}));
+    assert_eq!(baseline_of(&w, 1), None);
+    w.err(pm, "schedule.baseline_use", json!({"project": p, "id": b}));
+    let other = w.project("Other");
+    w.err(pm, "schedule.baseline_use", json!({"project": other, "id": a}));
+    w.assert_replay();
+}

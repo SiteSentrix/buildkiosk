@@ -190,3 +190,27 @@ pub struct ScheduleTask {
     pub deleted: Option<Stamp>,
 }
 record!(ScheduleTask, "schedule_task", trash, project);
+
+/// One task's dates as they were when a baseline was saved.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BaselineTask {
+    pub task: Id<ScheduleTask>,
+    pub start: Date,
+    pub finish: Date,
+}
+
+/// The schedule's dates saved under a name ("Contract", "After the redesign"), so progress can be measured against any of
+/// them. The one in use is what the chart and each task's slip compare against.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ScheduleBaseline {
+    pub id: Id<ScheduleBaseline>,
+    pub project: Id<Project>,
+    pub name: String,
+    pub saved: crate::common::Stamp,
+    pub tasks: Vec<BaselineTask>,
+    #[serde(default)]
+    pub in_use: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deleted: Option<crate::common::Stamp>,
+}
+crate::record!(ScheduleBaseline, "schedule_baseline", trash, project);

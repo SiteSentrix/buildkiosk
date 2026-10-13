@@ -107,6 +107,17 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, pid: Id<Photo>) -> Markup {
             img class="photo-large" src=(format!("{here}/image")) alt=(title) width="900";
             p class="muted small" { (x.file.name) " · " (human_size(x.file.size)) @if x.width > 0 { " · " (x.width) " × " (x.height) " px" } @if !x.camera.is_empty() { " · " (x.camera) } " · added by " (x.created.by.map(|b| view::person_name(state, b)).unwrap_or_default()) " " (req.when(x.created.at)) " · " a href=(format!("{here}/download")) { "Download original" } }
         }
+        @let others: Vec<&Photo> = visible(state, id).into_iter().filter(|o| o.id != pid).take(300).collect();
+        @if !others.is_empty() {
+            div class="card" {
+                form method="get" action=(format!("{base}/compare")) class="filters" {
+                    input type="hidden" name="a" value=(pid);
+                    label for="cmp_b" { "Compare with" }
+                    select id="cmp_b" name="b" { @for o in &others { option value=(o.id) { (o.taken.map(|d| d.to_string()).unwrap_or_default()) " · " (if o.caption.is_empty() { o.file.name.as_str() } else { o.caption.as_str() }) @if !o.location.is_empty() { " · " (o.location) } } } }
+                    button type="submit" class="btn small" { "Side by side" }
+                }
+            }
+        }
         @let rfis: Vec<_> = x.rfis.iter().filter_map(|r| state.rfis.get(*r)).filter(|r| r.project == id && view::can_see_rfi(state, req.actor(), r)).collect();
         @let obs: Vec<_> = x.observations.iter().filter_map(|o| state.observations.get(*o)).filter(|o| o.project == id && o.deleted.is_none() && o.visible_to(state, req.actor())).collect();
         @let punch: Vec<_> = x.punch_items.iter().filter_map(|o| state.punch_items.get(*o)).filter(|o| o.project == id && o.deleted.is_none() && o.visible_to(state, req.actor())).collect();
@@ -266,5 +277,44 @@ pub fn slideshow(req: &Req<'_>, id: Id<Project>, album: &str, at: usize, play: b
         &[("Projects", Some("/".into())), (&p.name, Some(format!("/projects/{id}"))), ("Photos", Some(base)), ("Slideshow", None)],
         body,
         head,
+    )
+}
+
+/// Two pictures side by side with their days and places: the same spot before and after, or two views of one problem.
+pub fn compare(req: &Req<'_>, id: Id<Project>, a: Id<Photo>, b: Id<Photo>) -> Markup {
+    let Some(p) = project_for(req, id) else { return not_found(req) };
+    let state = req.engine.state();
+    if view::level(state, req.actor(), id, Tool::Photos) < Level::Read {
+        return not_found(req);
+    }
+    let live = |x: Id<Photo>| state.photos.get(x).filter(|x| x.project == id && x.deleted.is_none());
+    let (Some(pa), Some(pb)) = (live(a), live(b)) else { return not_found(req) };
+    let base = format!("/projects/{id}/photos");
+    let title = |x: &Photo| if x.caption.is_empty() { x.file.name.clone() } else { x.caption.clone() };
+    let gap = match (pa.taken, pb.taken) {
+        (Some(x), Some(y)) if x != y => Some(x.days_until(y).abs()),
+        _ => None,
+    };
+    let body = html! {
+        div class="page-head" {
+            div { h1 { "Compare photos" } @if let Some(g) = gap { div class="sub" { (g) " day" @if g != 1 { "s" } " apart" } } }
+            div class="actions" { a class="btn" href=(format!("{base}/compare?a={b}&b={a}")) { "Swap sides" } a class="btn" href=(base.clone()) { "Back to photos" } }
+        }
+        div class="compare" {
+            @for x in [pa, pb] {
+                div class="card" {
+                    a href=(format!("{base}/{}", x.id)) { img class="photo-large" src=(format!("{base}/{}/image", x.id)) alt=(title(x)) width="600"; }
+                    p { strong { (title(x)) } }
+                    p class="muted small" { (x.taken.map(|d| d.pretty()).unwrap_or_default()) @if !x.location.is_empty() { " · " (x.location) } @if !x.album.is_empty() { " · " (x.album) } }
+                }
+            }
+        }
+    };
+    layout::app(
+        req,
+        "Compare photos",
+        Nav::Photos(id),
+        &[("Projects", Some("/".into())), (&p.name, Some(format!("/projects/{id}"))), ("Photos", Some(base)), ("Compare", None)],
+        body,
     )
 }

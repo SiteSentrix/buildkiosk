@@ -349,6 +349,7 @@ pub fn router(app: Shared) -> Router {
         .route("/projects/{id}/meetings/{mid}/files/{sha}", get(meeting_download))
         .route("/projects/{id}/photos", get(photos_page))
         .route("/projects/{id}/photos/slideshow", get(photos_slideshow))
+        .route("/projects/{id}/photos/compare", get(photos_compare))
         .route("/projects/{id}/photos/album.zip", get(photos_zip))
         .route("/projects/{id}/photos/upload", post(photo_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
         .route("/projects/{id}/photos/{pid}", get(photo_page))
@@ -2066,6 +2067,12 @@ async fn photos_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Pa
     let album = q.get("album").map(|s| s.chars().take(100).collect::<String>()).unwrap_or_default();
     let text = q.get("q").map(|s| s.chars().take(100).collect::<String>()).unwrap_or_default();
     page(&app, &headers, &q, |r, _| buildkiosk_web::photos::gallery(r, Id::new(id), &album, &text))
+}
+
+async fn photos_compare(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    let pick = |k: &str| q.get(k).and_then(|v| v.parse::<u64>().ok()).map(Id::new);
+    let (Some(a), Some(b)) = (pick("a"), pick("b")) else { return plain(StatusCode::NOT_FOUND, "Not found") };
+    page(&app, &headers, &q, |r, _| buildkiosk_web::photos::compare(r, Id::new(id), a, b))
 }
 
 async fn photos_slideshow(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {

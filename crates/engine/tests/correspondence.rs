@@ -98,6 +98,13 @@ fn types_numbering_links_and_incoming_email() {
     w.ok(eng, "correspondence.update", json!({"project": p, "id": n, "rfis": [rfi]}));
     w.err(eng, "correspondence.update", json!({"project": p, "id": n, "rfis": [foreign]}));
     w.err(eng, "correspondence.update", json!({"project": p, "id": n, "documents": [9999]}));
+    // Submittals link the same way: the person must be able to see them.
+    let sub = w.ok(eng, "submittal.create", json!({"project": p, "title": "Curtain wall"}))["id"].as_u64().unwrap();
+    w.ok(eng, "correspondence.update", json!({"project": p, "id": n, "submittals": [sub]}));
+    w.err(eng, "correspondence.update", json!({"project": p, "id": n, "submittals": [9999]}));
+    let hidden = w.ok(pm, "submittal.create", json!({"project": p, "title": "Pm draft"}))["id"].as_u64().unwrap();
+    w.err(eng, "correspondence.update", json!({"project": p, "id": n, "submittals": [hidden]}));
+    assert_eq!(w.engine.state().correspondence.iter().find(|c| c.id.raw() == n).unwrap().submittals.len(), 1);
     assert_eq!(w.engine.state().correspondence.iter().find(|c| c.id.raw() == n).unwrap().rfis.len(), 1);
 
     // Filing an incoming letter: open at once, recipients told, the outside sender recorded.

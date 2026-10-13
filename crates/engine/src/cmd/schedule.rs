@@ -10,7 +10,8 @@ use buildkiosk_model::Choice;
 use buildkiosk_model::directory::Vendor;
 use buildkiosk_model::project::Project;
 use buildkiosk_model::schedule::{
-    Assignment, Constraint, Holiday, HolidayList, Link, LinkKind, MAX_ASSIGNMENTS, MAX_HOLIDAYS, MAX_UNITS, ScheduleTask, WorkCalendar,
+    Assignment, BaselineTask, Constraint, Holiday, HolidayList, Link, LinkKind, MAX_ASSIGNMENTS, MAX_HOLIDAYS, MAX_UNITS, ScheduleBaseline,
+    ScheduleTask, WorkCalendar,
 };
 use buildkiosk_model::{Level, Tool, perm};
 use serde_json::{Value, json};
@@ -96,6 +97,38 @@ pub const COMMANDS: &[CommandSpec] = &[
         Access::Project(Level::Standard),
         "project: project id; text: lines of `id, name, start, finish, percent, predecessors, parent[, milestone, constraint, constraint date]` (comma or tab separated; predecessors separated by ; and may carry a kind and lag such as 4SS+2; ids are the file's own and are renumbered)",
         import,
+    ),
+    CommandSpec::mutate(
+        "schedule.baseline_save",
+        "Save a named baseline",
+        Tool::Schedule,
+        Access::Project(Level::Admin),
+        "project: project id; name: text (a baseline of the same name is replaced). Saves every task's current dates under the name and makes it the baseline in use",
+        baseline_save,
+    ),
+    CommandSpec::mutate(
+        "schedule.baseline_use",
+        "Use a saved baseline",
+        Tool::Schedule,
+        Access::Project(Level::Admin),
+        "project, id: ids (the chart and each task's slip compare against this baseline from now on)",
+        baseline_use,
+    ),
+    CommandSpec::mutate(
+        "schedule.baseline_delete",
+        "Delete a saved baseline",
+        Tool::Schedule,
+        Access::Project(Level::Admin),
+        "project, id: ids",
+        baseline_delete,
+    ),
+    CommandSpec::query(
+        "schedule.baselines",
+        "List saved baselines",
+        Tool::Schedule,
+        Access::Project(Level::Read),
+        "project: project id (each with when it was saved, how many tasks and the finish it promised)",
+        baselines,
     ),
     CommandSpec::mutate(
         "holiday_list.save",
@@ -568,9 +601,110 @@ fn push_as_late_as_possible(
     }
 }
 
+fn live_baseline(ctx: &impl Read, project: Id<Project>, id: Id<ScheduleBaseline>) -> Result<ScheduleBaseline> {
+    let b = in_project(&ctx.state().schedule_baselines, project, id, "baseline")?;
+    if b.deleted.is_some() {
+        return Err(EngineError::not_found(format!("baseline {id} not found in this project")));
+    }
+    Ok(b.clone())
+}
+
+/// Makes a saved baseline the one in use: copies its dates onto the tasks (tasks it doesn't know get none).
+fn put_in_use(ctx: &mut Ctx<'_>, project: Id<Project>, b: &ScheduleBaseline) {
+    let all: Vec<Id<ScheduleBaseline>> = ctx.state.schedule_baselines.iter().filter(|x| x.project == project).map(|x| x.id).collect();
+    for id in all {
+        ctx.state.schedule_baselines.update(id, |x| x.in_use = x.id == b.id);
+    }
+    let tasks: Vec<Id<ScheduleTask>> = ctx.state.schedule_tasks.iter().filter(|t| t.project == project).map(|t| t.id).collect();
+    for id in tasks {
+        let at = b.tasks.iter().find(|x| x.task == id).map(|x| (x.start, x.finish));
+        ctx.state.schedule_tasks.update(id, |t| (t.baseline_start, t.baseline_finish) = (at.map(|a| a.0), at.map(|a| a.1)));
+    }
+}
+
+fn baseline_save(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let name = p.req_line("name", 80)?;
+    let tasks: Vec<BaselineTask> = ctx
+        .state
+        .schedule_tasks
+        .iter()
+        .filter(|t| t.project == project && t.deleted.is_none())
+        .map(|t| BaselineTask { task: t.id, start: t.start, finish: t.finish })
+        .collect();
+    if tasks.is_empty() {
+        return Err(EngineError::conflict("there are no tasks to save a baseline of"));
+    }
+    let existing =
+        ctx.state.schedule_baselines.iter().find(|b| b.project == project && b.deleted.is_none() && b.name.eq_ignore_ascii_case(&name)).map(|b| b.id);
+    if existing.is_none() && ctx.state.schedule_baselines.iter().filter(|b| b.project == project && b.deleted.is_none()).count() >= 20 {
+        return Err(EngineError::conflict("a project keeps at most 20 baselines; delete one first"));
+    }
+    let stamp = ctx.stamp();
+    let id = match existing {
+        Some(id) => {
+            ctx.state.schedule_baselines.update(id, |b| (b.tasks, b.saved) = (tasks, stamp));
+            id
+        }
+        None => {
+            let id = ctx.state.schedule_baselines.alloc();
+            ctx.state.schedule_baselines.put(ScheduleBaseline { id, project, name, saved: stamp, tasks, in_use: false, deleted: None });
+            id
+        }
+    };
+    let b = live_baseline(ctx, project, id)?;
+    put_in_use(ctx, project, &b);
+    Ok(json!({ "id": id }))
+}
+
+fn baseline_use(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let b = live_baseline(ctx, project, p.id("id")?)?;
+    put_in_use(ctx, project, &b);
+    Ok(json!({ "id": b.id }))
+}
+
+fn baseline_delete(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let b = live_baseline(ctx, project, p.id("id")?)?;
+    let stamp = ctx.stamp();
+    ctx.state.schedule_baselines.update(b.id, |x| {
+        x.deleted = Some(stamp);
+        x.in_use = false;
+    });
+    if b.in_use {
+        let tasks: Vec<Id<ScheduleTask>> = ctx.state.schedule_tasks.iter().filter(|t| t.project == project).map(|t| t.id).collect();
+        for id in tasks {
+            ctx.state.schedule_tasks.update(id, |t| (t.baseline_start, t.baseline_finish) = (None, None));
+        }
+    }
+    Ok(json!({ "id": b.id }))
+}
+
+/// The project's saved baselines, newest first.
+pub fn saved_baselines(state: &buildkiosk_model::CompanyState, project: Id<Project>) -> Vec<&ScheduleBaseline> {
+    let mut v: Vec<&ScheduleBaseline> = state.schedule_baselines.iter().filter(|b| b.project == project && b.deleted.is_none()).collect();
+    v.sort_by_key(|b| std::cmp::Reverse(b.id));
+    v
+}
+
+fn baselines(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let rows: Vec<Value> = saved_baselines(v.state, project)
+        .into_iter()
+        .map(|b| json!({ "id": b.id, "name": b.name, "saved": b.saved.at, "tasks": b.tasks.len(), "finish": b.tasks.iter().map(|t| t.finish).max(), "in_use": b.in_use }))
+        .collect();
+    json(&rows)
+}
+
 fn baseline(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     let project: Id<Project> = p.id("project")?;
     let clear = p.flag_or("clear", false)?;
+    // The plain baseline is not one of the saved ones: none of them is in use any more.
+    let saved: Vec<Id<ScheduleBaseline>> = ctx.state.schedule_baselines.iter().filter(|b| b.project == project && b.in_use).map(|b| b.id).collect();
+    for id in saved {
+        ctx.state.schedule_baselines.update(id, |b| b.in_use = false);
+    }
     let ids: Vec<Id<ScheduleTask>> = ctx.state.schedule_tasks.iter().filter(|t| t.project == project && t.deleted.is_none()).map(|t| t.id).collect();
     for id in &ids {
         ctx.state.schedule_tasks.update(*id, |t| {

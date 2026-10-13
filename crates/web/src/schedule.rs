@@ -112,6 +112,7 @@ pub fn page(req: &Req<'_>, id: Id<Project>, filter: &str, drag: bool) -> Markup 
     let can_edit = lvl >= Level::Standard;
     let drag = drag && can_edit;
     let admin = lvl == Level::Admin;
+    let saved = buildkiosk_engine::cmd::schedule::saved_baselines(state, id);
     let has_baseline = state.schedule_tasks.iter().any(|t| t.project == id && t.deleted.is_none() && t.baseline_finish.is_some());
     let (n_crit, n_late, n_conflict) =
         (all.iter().filter(|r| r.critical).count(), all.iter().filter(|r| r.late).count(), all.iter().filter(|r| r.conflict).count());
@@ -220,6 +221,33 @@ pub fn page(req: &Req<'_>, id: Id<Project>, filter: &str, drag: bool) -> Markup 
                     @if admin {
                         (button_form(req, "schedule.baseline", &base, &[("project", id.to_string())], if has_baseline { "Replace baseline with current dates" } else { "Save baseline" }, "small"))
                         @if has_baseline { (button_form(req, "schedule.baseline", &base, &[("project", id.to_string()), ("clear", "true".into())], "Clear baseline", "small danger")) }
+                    }
+                }
+            }
+            @if admin || !saved.is_empty() {
+                div class="card" {
+                    h2 { "Baselines" }
+                    @if saved.is_empty() { p class="muted" { "A baseline is the schedule's dates kept under a name, so progress can be measured against them. Save one when the contract is signed and another after a re-plan." } } @else {
+                        table class="data" {
+                            thead { tr { th { "Name" } th { "Saved" } th class="num" { "Tasks" } th { "Finish it promised" } th {} } }
+                            tbody { @for b in &saved { tr {
+                                td { (b.name) @if b.in_use { " " span class="pill blue" { "In use" } } }
+                                td class="nowrap" { (req.when(b.saved.at)) } td class="num" { (b.tasks.len()) }
+                                td class="nowrap" { @if let Some(f) = b.tasks.iter().map(|t| t.finish).max() { (f.pretty()) } }
+                                td class="right" { @if admin {
+                                    @if !b.in_use { (button_form(req, "schedule.baseline_use", &base, &[("project", id.to_string()), ("id", b.id.to_string())], "Use", "small")) " " }
+                                    (button_form(req, "schedule.baseline_delete", &base, &[("project", id.to_string()), ("id", b.id.to_string())], "Delete", "small danger"))
+                                } }
+                            } } }
+                        }
+                    }
+                    @if admin {
+                        (command_form(req, "schedule.baseline_save", &base, &base, html! {
+                            input type="hidden" name="project" value=(id);
+                            div class="form-grid" { (field("Save the current dates as", "bl_name", true, false, html! { input type="text" id="bl_name" name="name" required placeholder="Contract" list="bl_names"; datalist id="bl_names" { @for b in &saved { option value=(b.name) {} } } })) }
+                            p class="muted small" { "A name already used is replaced. The new baseline becomes the one the chart and each task's slip compare against." }
+                            div class="form-actions" { button type="submit" class="btn small primary" { "Save baseline" } }
+                        }))
                     }
                 }
             }

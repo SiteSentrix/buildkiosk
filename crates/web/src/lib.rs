@@ -16,6 +16,7 @@ pub mod inspections;
 pub mod invoicing;
 pub mod layout;
 pub mod linedocs;
+pub mod meetings;
 pub mod pages;
 pub mod schedule;
 pub mod specs;

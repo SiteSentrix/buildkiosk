@@ -12,6 +12,7 @@ pub mod perm;
 pub mod project;
 pub mod rfi;
 // -- project management
+pub mod meeting;
 pub mod spec;
 pub mod submittal;
 pub mod transmittal;
@@ -125,6 +126,7 @@ const MODULES: &[&[CommandSpec]] = &[
     notification::COMMANDS,
     // -- project management
     spec::COMMANDS,
+    meeting::COMMANDS,
     submittal::COMMANDS,
     transmittal::COMMANDS,
     // -- quality and safety

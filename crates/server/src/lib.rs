@@ -163,6 +163,12 @@ pub fn router(app: Shared) -> Router {
         .route("/projects/{id}/transmittals/{tid}/edit", get(transmittal_edit))
         .route("/projects/{id}/transmittals/{tid}/upload", post(transmittal_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
         .route("/projects/{id}/transmittals/{tid}/files/{sha}", get(transmittal_download))
+        .route("/projects/{id}/meetings", get(meetings_page))
+        .route("/projects/{id}/meetings/new", get(meeting_new))
+        .route("/projects/{id}/meetings/{mid}", get(meeting_page))
+        .route("/projects/{id}/meetings/{mid}/edit", get(meeting_edit))
+        .route("/projects/{id}/meetings/{mid}/upload", post(meeting_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
+        .route("/projects/{id}/meetings/{mid}/files/{sha}", get(meeting_download))
         .route("/projects/{id}/schedule", get(schedule_page))
         .route("/projects/{id}/schedule.csv", get(schedule_csv))
         .route("/projects/{id}/schedule/{tid}", get(schedule_task_page))
@@ -1016,6 +1022,33 @@ async fn transmittal_upload(State(app): State<Shared>, headers: HeaderMap, Path(
     file_upload(app, headers, Kind::TRANSMITTAL, id, tid, multipart).await
 }
 
+async fn meetings_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    use buildkiosk_engine::model::Choice;
+    let status = q.get("status").and_then(|s| buildkiosk_engine::model::meeting::MeetingStatus::parse(s));
+    let text = q.get("q").map(|s| s.chars().take(100).collect::<String>()).unwrap_or_default();
+    page(&app, &headers, &q, |r, _| buildkiosk_web::meetings::list(r, Id::new(id), status, &text))
+}
+
+async fn meeting_new(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::meetings::form(r, Id::new(id), None))
+}
+
+async fn meeting_page(State(app): State<Shared>, headers: HeaderMap, Path((id, mid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::meetings::detail(r, Id::new(id), Id::new(mid)))
+}
+
+async fn meeting_edit(State(app): State<Shared>, headers: HeaderMap, Path((id, mid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::meetings::form(r, Id::new(id), Some(Id::new(mid))))
+}
+
+async fn meeting_download(State(app): State<Shared>, headers: HeaderMap, Path((id, mid, sha)): Path<(u64, u64, String)>) -> Response {
+    file_download(app, headers, Kind::MEETING, id, mid, sha).await
+}
+
+async fn meeting_upload(State(app): State<Shared>, headers: HeaderMap, Path((id, mid)): Path<(u64, u64)>, multipart: Multipart) -> Response {
+    file_upload(app, headers, Kind::MEETING, id, mid, multipart).await
+}
+
 async fn schedule_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
     let show = q.get("show").cloned().unwrap_or_default();
     page(&app, &headers, &q, |r, _| buildkiosk_web::schedule::page(r, Id::new(id), &show))
@@ -1474,6 +1507,7 @@ impl Kind {
     const RFI: Kind = Kind { attach: "rfi.attach", path: "rfis", files: rfi_files };
     const SUBMITTAL: Kind = Kind { attach: "submittal.attach", path: "submittals", files: submittal_files };
     const INSPECTION: Kind = Kind { attach: "inspection.attach", path: "inspections", files: inspection_files };
+    const MEETING: Kind = Kind { attach: "meeting.attach", path: "meetings", files: meeting_files };
     const TRANSMITTAL: Kind = Kind { attach: "transmittal.attach", path: "transmittals", files: transmittal_files };
     const COMMITMENT: Kind = Kind { attach: "commitment.attach", path: "commitments", files: commitment_files };
     const DRAWING: Kind = Kind { attach: "drawing.add_revision", path: "drawings", files: drawing_files };
@@ -1495,6 +1529,14 @@ impl Kind {
     fn files(self, state: &CompanyState, actor: Actor, project: u64, item: u64) -> Option<Vec<FileRef>> {
         (self.files)(state, actor, project, item)
     }
+}
+
+fn meeting_files(state: &CompanyState, actor: Actor, project: u64, item: u64) -> Option<Vec<FileRef>> {
+    state
+        .meetings
+        .get(Id::new(item))
+        .filter(|m| m.project == Id::new(project) && m.deleted.is_none() && view::level(state, actor, m.project, Tool::Meetings) >= Level::Read)
+        .map(|m| m.attachments.clone())
 }
 
 fn transmittal_files(state: &CompanyState, actor: Actor, project: u64, item: u64) -> Option<Vec<FileRef>> {

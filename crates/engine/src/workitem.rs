@@ -176,6 +176,59 @@ pub fn create<T: WorkItem>(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     Ok(json!({ "id": id, "number": number }))
 }
 
+/// Adds many items from CSV lines: title, location, kind, priority, due (YYYY-MM-DD), assignees
+/// (email addresses separated by `;`). An optional header line starting with "title" is skipped.
+/// Nothing is added unless every line is good.
+pub fn import<T: WorkItem>(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    const MAX_ROWS: usize = 500;
+    let project: Id<Project> = p.id("project")?;
+    let body = p.req_text("text", 500_000)?;
+    let mut rows: Vec<Value> = Vec::new();
+    for (n, raw) in body.lines().enumerate() {
+        let line = raw.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let cells = crate::cmd::submittal::csv_cells(line);
+        let get = |i: usize| cells.get(i).map(String::as_str).unwrap_or("");
+        if rows.is_empty() && get(0).eq_ignore_ascii_case("title") {
+            continue;
+        }
+        if rows.len() >= MAX_ROWS {
+            return Err(p.bad("text", format!("has more than {MAX_ROWS} rows")));
+        }
+        let mut people = Vec::new();
+        for email in get(5).split(';').map(str::trim).filter(|e| !e.is_empty()) {
+            let found = ctx.state.people.iter().find(|x| x.is_enabled() && x.email.as_deref().is_some_and(|e| e.eq_ignore_ascii_case(email)));
+            let found = found.ok_or_else(|| p.bad("text", format!("line {}: nobody in the directory has the email {email}", n + 1)))?;
+            people.push(json!(found.id));
+        }
+        let mut row = serde_json::Map::new();
+        row.insert("title".into(), json!(get(0)));
+        row.insert("location".into(), json!(get(1)));
+        row.insert("kind".into(), json!(get(2)));
+        row.insert("assignees".into(), json!(people));
+        if !get(3).is_empty() {
+            row.insert("priority".into(), json!(get(3).to_ascii_lowercase()));
+        }
+        if !get(4).is_empty() {
+            row.insert("due".into(), json!(get(4)));
+        }
+        let row = Value::Object(row);
+        rows.push(row);
+    }
+    let mut created = Vec::new();
+    for (i, row) in rows.iter().enumerate() {
+        let rp = Params::new(row, p.cmd());
+        let mut item = T::blank(ctx, project);
+        apply_fields(ctx, &rp, &mut item, true).map_err(|e| p.bad("text", format!("row {}: {e}", i + 1)))?;
+        let id = insert(ctx, item.clone());
+        notify(ctx, &item.assignees, project, &format!("{} was assigned to you: {}", label(&item), item.title), &link(&item));
+        created.push(id);
+    }
+    Ok(json!({ "created": created.len(), "ids": created }))
+}
+
 /// Stores a finished new item and returns its id.
 pub fn insert<T: WorkItem>(ctx: &mut Ctx<'_>, mut item: T) -> Id<T> {
     let id = T::table_mut(ctx.state).alloc();
@@ -420,6 +473,14 @@ macro_rules! work_commands {
                     $extra
                 ),
                 $crate::workitem::create::<$ty>,
+            ),
+            $crate::cmd::CommandSpec::mutate(
+                concat!($prefix, ".import"),
+                concat!("Import ", $noun, "s"),
+                $tool,
+                $crate::cmd::Access::Project(buildkiosk_model::Level::Standard),
+                "project: project id; text: CSV lines title, location, kind, priority, due (YYYY-MM-DD), assignees (emails separated by `;`); an optional header line is skipped",
+                $crate::workitem::import::<$ty>,
             ),
             $crate::cmd::CommandSpec::mutate(
                 concat!($prefix, ".update"),

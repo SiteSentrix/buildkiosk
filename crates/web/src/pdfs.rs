@@ -1,6 +1,7 @@
 //! PDF versions of the documents people print or send: each builder checks the same visibility
 //! rules as the matching page and returns `(file name, PDF bytes)`.
 
+use crate::workitems::{Filter, Group, WorkPage, filtered, sections};
 use buildkiosk_core::Id;
 use buildkiosk_engine::model::daily_log::{DailyLog, hours_text};
 use buildkiosk_engine::model::directory::Person;
@@ -8,7 +9,7 @@ use buildkiosk_engine::model::project::Project;
 use buildkiosk_engine::model::rfi::Rfi;
 use buildkiosk_engine::model::submittal::Submittal;
 use buildkiosk_engine::model::{Choice, CompanyState, Level, Tool};
-use buildkiosk_engine::workitem::WorkItem;
+use buildkiosk_engine::workitem::items_for;
 use buildkiosk_engine::{report, sched, view};
 
 use crate::layout::Req;
@@ -439,27 +440,33 @@ pub fn project_report(req: &Req<'_>, id: Id<Project>) -> Option<Pdf> {
     Some(("project-report.pdf".into(), render(&doc)))
 }
 
-/// A punch list, observations, tasks or incidents list as a document for a site walk.
-pub fn work_list<T: WorkItem>(req: &Req<'_>, id: Id<Project>, title: &str) -> Option<Pdf> {
+/// A punch list, observations, tasks or incidents list as a document for a site walk. Takes the
+/// same filter and grouping as the page; each section starts a new heading.
+pub fn work_list<T: WorkPage>(req: &Req<'_>, id: Id<Project>, title: &str, filter: &Filter) -> Option<Pdf> {
     let state = req.engine.state();
     let p = project_of(req, id, T::TOOL)?;
     let (mut doc, _) = start(req, p, title.into(), &format!("As of {}", req.today().pretty()));
-    let mut items: Vec<&T> = T::table(state).iter().filter(|i| i.project() == id && i.deleted.is_none()).collect();
-    items.sort_by_key(|i| i.number);
-    let rows = items
-        .iter()
-        .map(|i| {
-            vec![
-                i.number.to_string(),
-                i.title.clone(),
-                i.location.clone(),
-                i.assignees.iter().map(|a| view::person_name(state, *a)).collect::<Vec<_>>().join(", "),
-                i.due.map(|d| d.to_string()).unwrap_or_default(),
-                i.status.label().to_string(),
-            ]
-        })
-        .collect();
-    doc.blocks.push(table(&["#", "Item", "Location", "Assigned to", "Due", "Status"], &[0.6, 4.0, 2.0, 2.2, 1.4, 1.5], &[0], rows));
+    let all = items_for::<T>(state, req.actor(), id);
+    let shown = filtered::<T>(req, &all, filter);
+    for (heading, items) in sections::<T>(req, &shown, filter.group) {
+        if filter.group != Group::None {
+            doc.blocks.push(Block::Heading(format!("{heading} ({})", items.len())));
+        }
+        let rows = items
+            .iter()
+            .map(|i| {
+                vec![
+                    i.number.to_string(),
+                    i.title.clone(),
+                    i.location.clone(),
+                    i.assignees.iter().map(|a| view::person_name(state, *a)).collect::<Vec<_>>().join(", "),
+                    i.due.map(|d| d.to_string()).unwrap_or_default(),
+                    i.status.label().to_string(),
+                ]
+            })
+            .collect();
+        doc.blocks.push(table(&["#", "Item", "Location", "Assigned to", "Due", "Status"], &[0.6, 4.0, 2.0, 2.2, 1.4, 1.5], &[0], rows));
+    }
     Some((file_name(title), render(&doc)))
 }
 

@@ -756,13 +756,23 @@ fn daily_log_save_impl(app: Shared, headers: HeaderMap, project: u64, log: Optio
     redirect(&with_flash(&detail, true, "Daily log saved."))
 }
 
-async fn work_list<T: WorkPage>(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+/// The list filter a work item page or PDF was asked for.
+fn work_filter(q: &HashMap<String, String>) -> workitems::Filter {
     use buildkiosk_engine::model::Choice;
-    let filter = workitems::Filter {
+    let text = |k: &str| q.get(k).map(|s| s.chars().take(100).collect()).unwrap_or_default();
+    workitems::Filter {
         status: q.get("status").and_then(|s| buildkiosk_engine::model::work::WorkStatus::parse(s)),
-        q: q.get("q").map(|s| s.chars().take(100).collect()).unwrap_or_default(),
+        q: text("q"),
         mine: q.get("mine").is_some_and(|m| m == "1"),
-    };
+        assignee: q.get("assignee").and_then(|a| a.parse().ok()),
+        location: text("location"),
+        kind: text("kind"),
+        group: workitems::Group::parse(q.get("group").map(String::as_str).unwrap_or("")),
+    }
+}
+
+async fn work_list<T: WorkPage>(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    let filter = work_filter(&q);
     page(&app, &headers, &q, |r, _| workitems::list::<T>(r, Id::new(id), &filter))
 }
 
@@ -885,10 +895,12 @@ fn work_routes<T: WorkPage>(router: Router<Shared>) -> Router<Shared> {
         .route(&format!("{base}.csv"), get(work_csv::<T>))
         .route(
             &format!("{base}.pdf"),
-            get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>| async move {
-                pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::work_list::<T>(r, Id::new(id), T::TITLE))
+            get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, Query(q): Q| async move {
+                let filter = work_filter(&q);
+                pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::work_list::<T>(r, Id::new(id), T::TITLE, &filter))
             }),
         )
+        .route(&format!("{base}/import"), post(work_import_file::<T>).layer(DefaultBodyLimit::max(1024 * 1024 + 64 * 1024)))
         .route(&format!("{base}/new"), get(work_new::<T>))
         .route(&format!("{base}/{{iid}}"), get(work_detail::<T>))
         .route(&format!("{base}/{{iid}}/edit"), get(work_edit::<T>))
@@ -1717,8 +1729,17 @@ async fn specifications(State(app): State<Shared>, headers: HeaderMap, Path(id):
 }
 
 /// Imports a register from an uploaded CSV file (up to 1 MB).
-async fn submittal_import_file(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, mut multipart: Multipart) -> Response {
-    let back = format!("/projects/{id}/submittals");
+async fn submittal_import_file(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, multipart: Multipart) -> Response {
+    import_file(app, headers, id, "submittals", "submittal.import", "submittals", multipart).await
+}
+
+async fn work_import_file<T: WorkPage>(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, multipart: Multipart) -> Response {
+    import_file(app, headers, id, T::PATH, &format!("{}.import", T::PREFIX), T::NOUN, multipart).await
+}
+
+/// Runs an import command on an uploaded CSV file (a multipart form with `_csrf` and `file`).
+async fn import_file(app: Shared, headers: HeaderMap, id: u64, path: &str, command: &str, noun: &str, mut multipart: Multipart) -> Response {
+    let back = format!("/projects/{id}/{path}");
     let too_big = "The upload failed or the file is larger than 1 MB.";
     let (mut token, mut file) = (String::new(), None);
     loop {
@@ -1742,13 +1763,13 @@ async fn submittal_import_file(State(app): State<Shared>, headers: HeaderMap, Pa
     }
     let Some(bytes) = file.filter(|b| !b.is_empty()) else { return redirect(&with_flash(&back, false, "Choose a CSV file to import.")) };
     let Ok(text) = String::from_utf8(bytes.to_vec()) else {
-        return redirect(&with_flash(&back, false, "The file isn't text. Save the register as CSV (UTF-8) and try again."));
+        return redirect(&with_flash(&back, false, "The file isn't text. Save it as CSV (UTF-8) and try again."));
     };
     let text = text.trim_start_matches('\u{feff}');
-    match inner.run(Actor::Person(s.person), "submittal.import", &json!({"project": id, "text": text})) {
+    match inner.run(Actor::Person(s.person), command, &json!({"project": id, "text": text})) {
         Ok(v) => {
             let n = v.get("created").and_then(Value::as_u64).unwrap_or(0);
-            redirect(&with_flash(&back, true, &format!("Imported {n} submittals as drafts.")))
+            redirect(&with_flash(&back, true, &format!("Imported {n} {noun}{}.", if noun.ends_with('s') { "" } else { "s" })))
         }
         Err(e) => redirect(&with_flash(&back, false, &e.to_string())),
     }

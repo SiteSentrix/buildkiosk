@@ -1416,3 +1416,47 @@ async fn project_report_and_home_waiting_list() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn action_plan_outline_assign_and_complete() {
+    let dir = temp("actionplans");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=P"))).await;
+    let (_, _, new) = send(&app, get("/projects/1/action-plans/new")).await;
+    assert!(new.contains("Sections and items"));
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/do/action_plan.create",
+            &ada,
+            format!("_csrf={csrf}&_next=/projects/1/action-plans/%7Bid%7D&_back=/projects/1/action-plans/new&project=1&title=Closeout&manager=1&description=&outline=%23+Documents%0A-+Collect+warranties%0A-+Record+drawings"),
+        ),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().starts_with("/projects/1/action-plans/1?ok="), "{h:?}");
+    send(&app, post("/do/action_plan.set_item", &ada, format!("_csrf={csrf}&project=1&id=1&section=0&item=0&assignee=1&due=2026-11-15&note=Binder")))
+        .await;
+    send(&app, post("/do/action_plan.activate", &ada, format!("_csrf={csrf}&project=1&id=1"))).await;
+    let (_, _, detail) = send(&app, get("/projects/1/action-plans/1")).await;
+    assert!(
+        detail.contains("Collect warranties") && detail.contains("Binder") && detail.contains("Mark done") && detail.contains("0 of 2 items done"),
+        "{detail}"
+    );
+    for item in 0..2 {
+        send(&app, post("/do/action_plan.set_item", &ada, format!("_csrf={csrf}&project=1&id=1&section=0&item={item}&done=true"))).await;
+    }
+    send(&app, post("/do/action_plan.complete", &ada, format!("_csrf={csrf}&project=1&id=1"))).await;
+    let (_, _, list) = send(&app, get("/projects/1/action-plans?status=complete")).await;
+    assert!(list.contains("Closeout") && list.contains("2 of 2 items"), "{list}");
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

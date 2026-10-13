@@ -7,6 +7,7 @@
 //! builds for wasm32.
 #![forbid(unsafe_code)]
 
+pub mod action_plan;
 pub mod choice;
 pub mod common;
 pub mod correspondence;

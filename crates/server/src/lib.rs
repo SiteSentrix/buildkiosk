@@ -192,6 +192,10 @@ pub fn router(app: Shared) -> Router {
         .route("/projects/{id}/timesheets.csv", get(timesheets_csv))
         .route("/projects/{id}/reports", get(reports_page))
         .route("/projects/{id}/reports.csv", get(reports_csv))
+        .route("/projects/{id}/action-plans", get(action_plans_page))
+        .route("/projects/{id}/action-plans/new", get(action_plan_new))
+        .route("/projects/{id}/action-plans/{aid}", get(action_plan_page))
+        .route("/projects/{id}/action-plans/{aid}/edit", get(action_plan_edit))
         .route("/projects/{id}/schedule", get(schedule_page))
         .route("/projects/{id}/schedule.csv", get(schedule_csv))
         .route("/projects/{id}/schedule/{tid}", get(schedule_task_page))
@@ -1306,6 +1310,25 @@ async fn reports_csv(State(app): State<Shared>, headers: HeaderMap, Path(id): Pa
     res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("text/csv; charset=utf-8"));
     res.headers_mut().insert("content-disposition", HeaderValue::from_static("attachment; filename=\"project-report.csv\""));
     res
+}
+
+async fn action_plans_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    use buildkiosk_engine::model::Choice;
+    let status = q.get("status").and_then(|s| buildkiosk_engine::model::action_plan::PlanStatus::parse(s));
+    let text = q.get("q").map(|s| s.chars().take(100).collect::<String>()).unwrap_or_default();
+    page(&app, &headers, &q, |r, _| buildkiosk_web::action_plans::list(r, Id::new(id), status, &text))
+}
+
+async fn action_plan_new(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::action_plans::form(r, Id::new(id), None))
+}
+
+async fn action_plan_page(State(app): State<Shared>, headers: HeaderMap, Path((id, aid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::action_plans::detail(r, Id::new(id), Id::new(aid)))
+}
+
+async fn action_plan_edit(State(app): State<Shared>, headers: HeaderMap, Path((id, aid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::action_plans::form(r, Id::new(id), Some(Id::new(aid))))
 }
 
 async fn schedule_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {

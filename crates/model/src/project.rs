@@ -67,6 +67,10 @@ pub struct Project {
     /// A commitment can only be approved once its contract is recorded as signed.
     #[serde(default)]
     pub require_signed_contracts: bool,
+    /// Hours worked by people who are not on timesheets (subcontractors), by year, added to the approved
+    /// timesheet hours for the incident rates.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub incident_hours: Vec<YearHours>,
     /// The days work is done on, for the schedule.
     #[serde(default)]
     pub calendar: crate::schedule::WorkCalendar,
@@ -89,6 +93,13 @@ impl Project {
     pub fn display_name(&self) -> String {
         if self.number.is_empty() { self.name.clone() } else { format!("{} {}", self.number, self.name) }
     }
+}
+
+/// Hours worked in a year that are not on timesheets.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct YearHours {
+    pub year: i32,
+    pub hours: u32,
 }
 
 choice! {

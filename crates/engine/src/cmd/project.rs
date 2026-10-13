@@ -182,6 +182,7 @@ fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         budget_locked: false,
         forecast_method: Default::default(),
         require_signed_contracts: false,
+        incident_hours: Vec::new(),
         calendar: Default::default(),
         resource_limits: Vec::new(),
         created: stamp,

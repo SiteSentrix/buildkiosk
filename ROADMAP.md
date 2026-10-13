@@ -20,6 +20,7 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 2. Next tools in the order of `docs/gaps.md` (item 8 onward; the financial remainder is listed under item 7).
 
 ## Progress log
+- 2026-10-13: Incidents: injury log with rates (page, PDF, CSV), serious reports notify the tool admins, printable incident report, private incidents.
 - 2026-10-13: Tasks: subtasks, repeating tasks, a "My tasks" page across projects, and links to the RFI or meeting a task came from.
 - 2026-10-13: Operations: scheduled backups while the server runs (`serve --backup-dir`, keeping the newest N) and a `restore` command that checks the backup first and moves the old data aside.
 - 2026-10-13: MCP: tool results also carry `structuredContent`; project documents are resources (list in pages, templates, read).

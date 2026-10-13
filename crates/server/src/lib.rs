@@ -52,6 +52,8 @@ struct Inner {
 pub struct App {
     data: DataDir,
     inner: Mutex<Inner>,
+    /// Serving behind HTTPS: cookies get `Secure` and responses carry HSTS.
+    secure: bool,
 }
 
 type Shared = Arc<App>;
@@ -77,7 +79,14 @@ impl App {
             }
             None => (None, Credentials::default()),
         };
-        Ok(App { data, inner: Mutex::new(Inner { tenant, creds, limiter: RateLimit::default() }) })
+        Ok(App { data, inner: Mutex::new(Inner { tenant, creds, limiter: RateLimit::default() }), secure: false })
+    }
+
+    /// Marks the app as served over HTTPS (behind a TLS-terminating proxy): session and CSRF
+    /// cookies are sent with `Secure` and responses carry `Strict-Transport-Security`.
+    pub fn with_secure_cookies(mut self, secure: bool) -> App {
+        self.secure = secure;
+        self
     }
 
     fn lock(&self) -> MutexGuard<'_, Inner> {
@@ -174,7 +183,7 @@ pub fn router(app: Shared) -> Router {
     router
         .fallback(not_found)
         .layer(DefaultBodyLimit::max(MAX_BODY))
-        .layer(axum::middleware::map_response(security_headers))
+        .layer(axum::middleware::map_response_with_state(app.clone(), security_headers))
         .layer(CatchPanicLayer::new())
         .with_state(app)
 }
@@ -186,7 +195,7 @@ pub async fn serve(app: Shared, bind: SocketAddr) -> Result<(), String> {
     axum::serve(listener, router(app)).await.map_err(|e| e.to_string())
 }
 
-async fn security_headers(mut res: Response) -> Response {
+async fn security_headers(State(app): State<Shared>, mut res: Response) -> Response {
     let h = res.headers_mut();
     let mut put = |k: &'static str, v: &'static str| {
         h.insert(HeaderName::from_static(k), HeaderValue::from_static(v));
@@ -198,6 +207,9 @@ async fn security_headers(mut res: Response) -> Response {
     put("x-content-type-options", "nosniff");
     put("referrer-policy", "same-origin");
     put("x-frame-options", "DENY");
+    if app.secure {
+        put("strict-transport-security", "max-age=31536000");
+    }
     res
 }
 
@@ -281,7 +293,7 @@ fn anon_csrf(app: &App, headers: &HeaderMap) -> (String, Option<String>) {
         Some(c) => (auth::csrf_token(app.secret(), &c), None),
         None => {
             let c = random_bytes::<16>().map(|b| hex(&b)).unwrap_or_else(|_| "0".repeat(32));
-            (auth::csrf_token(app.secret(), &c), Some(auth::set_cookie(CSRF_COOKIE, &c, 86_400)))
+            (auth::csrf_token(app.secret(), &c), Some(auth::set_cookie(CSRF_COOKIE, &c, 86_400, app.secure)))
         }
     }
 }
@@ -876,7 +888,7 @@ async fn favicon() -> Response {
 
 fn session_cookie(app: &App, inner: &Inner, person: u64) -> String {
     let value = auth::issue_session(app.secret(), person, inner.creds.epoch(person), now_ms());
-    auth::set_cookie(SESSION_COOKIE, &value, auth::SESSION_MS / 1000)
+    auth::set_cookie(SESSION_COOKIE, &value, auth::SESSION_MS / 1000, app.secure)
 }
 
 async fn login_page(State(app): State<Shared>, headers: HeaderMap) -> Response {
@@ -939,7 +951,7 @@ async fn logout(State(app): State<Shared>, headers: HeaderMap, body: Bytes) -> R
     if !auth::csrf_ok(app.secret(), &csrf_cookie, get_form(&form, "_csrf")) {
         return plain(StatusCode::FORBIDDEN, "The form expired. Go back, reload the page and try again.");
     }
-    with_cookie(redirect("/login"), &auth::set_cookie(SESSION_COOKIE, "", 0))
+    with_cookie(redirect("/login"), &auth::set_cookie(SESSION_COOKIE, "", 0, app.secure))
 }
 
 async fn setup_page(State(app): State<Shared>, headers: HeaderMap) -> Response {

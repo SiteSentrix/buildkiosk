@@ -21,6 +21,7 @@
 pub mod blobs;
 pub mod creds;
 mod fsutil;
+pub mod ops;
 pub mod tenant;
 
 use std::fs::{self, File, OpenOptions};
@@ -32,6 +33,7 @@ use serde::{Deserialize, Serialize};
 pub use blobs::{BlobStore, BlobWriter};
 pub use creds::{Credentials, hash_password, verify_password};
 pub use fsutil::{hex, random_bytes};
+pub use ops::CompanyReport;
 pub use tenant::{Tenant, TenantStore};
 
 /// Why the store failed.

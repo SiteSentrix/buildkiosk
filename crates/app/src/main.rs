@@ -18,7 +18,11 @@ const USAGE: &str = "\
 usage: buildkiosk <command> [options]
 
 commands:
-  serve    --data DIR [--company SLUG] [--bind ADDR]   run the web app (default bind 127.0.0.1:8080)
+  serve    --data DIR [--company SLUG] [--bind ADDR] [--secure-cookies]
+                                                       run the web app (default bind 127.0.0.1:8080); use
+                                                       --secure-cookies behind an HTTPS proxy
+  backup   --data DIR --to DIR                         copy the data directory (server stopped) and verify the copy
+  check    --data DIR                                  replay every company's journal and print row counts
   demo     --data DIR                                  create a fictional demo company with sample projects
   run      --data DIR --company SLUG --as EMAIL|system COMMAND ['{json params}']
   mcp      --data DIR --company SLUG --as EMAIL        the MCP server on standard input and output (see docs/api.md)
@@ -44,6 +48,7 @@ impl Args {
         let mut it = args.iter();
         while let Some(a) = it.next() {
             match a.strip_prefix("--") {
+                Some("secure-cookies") => opts.push(("secure-cookies".to_string(), "true".to_string())),
                 Some(name) => {
                     let v = it.next().ok_or_else(|| format!("--{name} needs a value"))?;
                     opts.push((name.to_string(), v.clone()));
@@ -85,6 +90,8 @@ fn run(args: &[String]) -> Result<(), String> {
         "serve" => serve(&a),
         "demo" => demo::create(a.need("data")?),
         "run" => run_command(&a),
+        "backup" => backup(&a),
+        "check" => check(&a),
         "commands" => {
             for c in all_commands() {
                 println!("{:<24} {}{}\n    {}", c.id, c.label, if c.is_query() { " (query)" } else { "" }, c.params);
@@ -104,9 +111,36 @@ fn run(args: &[String]) -> Result<(), String> {
 fn serve(a: &Args) -> Result<(), String> {
     let bind: SocketAddr = a.get("bind").unwrap_or("127.0.0.1:8080").parse().map_err(|e| format!("--bind: {e}"))?;
     let data = DataDir::open(a.need("data")?).map_err(|e| e.to_string())?;
-    let app = Arc::new(App::open(data, a.get("company"))?);
+    let app = Arc::new(App::open(data, a.get("company"))?.with_secure_cookies(a.get("secure-cookies").is_some()));
     let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().map_err(|e| e.to_string())?;
     rt.block_on(buildkiosk_server::serve(app, bind))
+}
+
+fn print_reports(reports: &[buildkiosk_store::CompanyReport]) {
+    for r in reports {
+        let rows: Vec<String> = r.rows.iter().map(|(t, n)| format!("{t} {n}")).collect();
+        println!("{}: ok, {} journal entries; {}", r.slug, r.journal_entries, rows.join(", "));
+    }
+    if reports.is_empty() {
+        println!("no companies");
+    }
+}
+
+/// Copies the data directory to a new folder and proves the copy loads.
+fn backup(a: &Args) -> Result<(), String> {
+    let data = DataDir::open(a.need("data")?).map_err(|e| format!("{e} (stop the server before a backup)"))?;
+    let to = a.need("to")?;
+    let reports = data.backup_to(std::path::Path::new(to)).map_err(|e| e.to_string())?;
+    print_reports(&reports);
+    println!("backup written to {to}");
+    Ok(())
+}
+
+/// Replays every company and reports; fails if any does not load.
+fn check(a: &Args) -> Result<(), String> {
+    let data = DataDir::open(a.need("data")?).map_err(|e| format!("{e} (stop the server before a check)"))?;
+    print_reports(&data.check().map_err(|e| e.to_string())?);
+    Ok(())
 }
 
 /// Loads a company and resolves `--as`.

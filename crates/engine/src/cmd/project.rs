@@ -181,6 +181,7 @@ fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         active: true,
         budget_locked: false,
         calendar: Default::default(),
+        resource_limits: Vec::new(),
         created: stamp,
         updated: stamp,
         deleted: None,

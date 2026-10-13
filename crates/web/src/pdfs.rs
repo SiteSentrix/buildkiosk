@@ -415,9 +415,58 @@ pub fn schedule(req: &Req<'_>, id: Id<Project>) -> Option<Pdf> {
         rows,
     ));
     doc.blocks.push(Block::Paragraph(
-        "Days are working days (Monday to Friday). Float is the working days a task can slip without moving the last finish.".into(),
+        "Days are working days of the project calendar. Float is the working days a task can slip without moving the last finish.".into(),
     ));
     Some(("schedule.pdf".into(), render(&doc)))
+}
+
+/// The work under way or starting in each of the next `weeks` weeks from `from`.
+pub fn lookahead(req: &Req<'_>, id: Id<Project>, weeks: i64, from: Option<buildkiosk_core::Date>) -> Option<Pdf> {
+    let state = req.engine.state();
+    let p = project_of(req, id, Tool::Schedule)?;
+    let from = from.unwrap_or_else(|| req.today());
+    let weeks = weeks.clamp(1, 12);
+    let (mut doc, _) = start(req, p, "Look ahead".into(), &format!("{weeks} weeks from {}", from.pretty()));
+    let all = sched::rows(state, id, req.today());
+    for i in 0..weeks {
+        let (Some(a), Some(b)) = (from.add_days(i * 7), from.add_days(i * 7 + 6)) else { break };
+        doc.blocks.push(Block::Heading(format!("Week {} · {} to {}", i + 1, a.pretty(), b.pretty())));
+        let rows: Vec<Vec<String>> = all
+            .iter()
+            .filter(|r| !r.summary && r.start <= b && r.finish >= a && (r.percent < 100 || r.milestone))
+            .map(|r| {
+                let company = state
+                    .schedule_tasks
+                    .get(r.id)
+                    .and_then(|t| t.company)
+                    .and_then(|c| state.vendors.get(c))
+                    .map(|c| c.name.clone())
+                    .unwrap_or_default();
+                vec![
+                    r.number.to_string(),
+                    r.name.clone(),
+                    r.start.to_string(),
+                    r.finish.to_string(),
+                    format!("{}%", r.percent),
+                    company,
+                    if r.critical {
+                        "Critical".into()
+                    } else if r.late {
+                        "Late".into()
+                    } else {
+                        String::new()
+                    },
+                ]
+            })
+            .collect();
+        if rows.is_empty() {
+            doc.blocks.push(Block::Paragraph("Nothing scheduled.".into()));
+        } else {
+            doc.blocks.push(table(&["#", "Task", "Start", "Finish", "Done", "Company", ""], &[0.6, 4.0, 1.5, 1.5, 0.9, 2.4, 1.1], &[0, 4], rows));
+        }
+        doc.blocks.push(Block::Space);
+    }
+    Some(("look-ahead.pdf".into(), render(&doc)))
 }
 
 pub fn project_report(req: &Req<'_>, id: Id<Project>) -> Option<Pdf> {

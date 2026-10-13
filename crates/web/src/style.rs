@@ -230,6 +230,12 @@ a.stat:hover{border-color:var(--primary)}
 .gantt .bar{fill:var(--primary-soft);stroke:var(--primary)}
 .gantt .bar.critical{fill:var(--danger-soft);stroke:var(--danger)}
 .gantt .bar.summary{fill:var(--text);stroke:var(--text)}
+td.over{background:var(--danger-soft);color:var(--danger);font-weight:700}
+.gantt .bar[data-task],.gantt .done[data-task],.gantt .diamond[data-task]{cursor:grab}
+.gantt .handle{fill:transparent;cursor:ew-resize}
+.gantt #gantt-move,#gantt-move[hidden]{display:none}
+.gantt .dayoff{fill:var(--surface-2);opacity:.9}
+.gantt .baseline{fill:none;stroke:var(--muted);stroke-width:1.5}
 .gantt .done{fill:var(--primary)}
 .gantt .done.critical{fill:var(--danger)}
 .gantt .diamond{fill:var(--text)}

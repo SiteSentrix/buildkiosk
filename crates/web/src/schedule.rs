@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use buildkiosk_core::{Date, Id};
 use buildkiosk_engine::model::Choice;
 use buildkiosk_engine::model::project::Project;
-use buildkiosk_engine::model::schedule::ScheduleTask;
+use buildkiosk_engine::model::schedule::{Constraint, ScheduleTask};
 use buildkiosk_engine::model::{Level, Tool};
 use buildkiosk_engine::sched::{self, Row};
 use buildkiosk_engine::view;
@@ -42,6 +42,29 @@ impl Scale {
         ((a.days_until(b) + 1) as f64 / self.days * W).max(3.0)
     }
 
+    /// The days off in the span as (position, width) runs, from the project's calendar.
+    fn days_off(&self, cal: &buildkiosk_engine::model::schedule::WorkCalendar) -> Vec<(f64, f64)> {
+        let mut out = Vec::new();
+        let mut run: Option<(Date, Date)> = None;
+        for i in 0..(self.days as i64).min(4_000) {
+            let Some(d) = self.first.add_days(i) else { break };
+            if cal.is_working(d) {
+                if let Some((a, b)) = run.take() {
+                    out.push((self.at(a), self.width(a, b)));
+                }
+            } else {
+                run = Some(match run {
+                    Some((a, _)) => (a, d),
+                    None => (d, d),
+                });
+            }
+        }
+        if let Some((a, b)) = run {
+            out.push((self.at(a), self.width(a, b)));
+        }
+        out
+    }
+
     /// Month labels with their positions.
     fn months(&self) -> Vec<(String, f64)> {
         let mut out = Vec::new();
@@ -64,7 +87,8 @@ fn short(d: Date) -> String {
     format!("{} {day}", MONTHS.get(usize::try_from(m).unwrap_or(1).saturating_sub(1)).copied().unwrap_or(""))
 }
 
-pub fn page(req: &Req<'_>, id: Id<Project>, filter: &str) -> Markup {
+/// The schedule with its chart. With `drag` (the browser module is built in) a person who can edit may drag bars.
+pub fn page(req: &Req<'_>, id: Id<Project>, filter: &str, drag: bool) -> Markup {
     let Some(p) = project_for(req, id) else { return not_found(req) };
     let state = req.engine.state();
     let lvl = view::level(state, req.actor(), id, Tool::Schedule);
@@ -74,6 +98,7 @@ pub fn page(req: &Req<'_>, id: Id<Project>, filter: &str) -> Markup {
     let today = req.today();
     let all = sched::rows(state, id, today);
     let scale = Scale::new(&all, today);
+    let off = scale.as_ref().map(|s| s.days_off(&sched::calendar(state, id))).unwrap_or_default();
     let rows: Vec<&Row> = all
         .iter()
         .filter(|r| match filter {
@@ -85,6 +110,7 @@ pub fn page(req: &Req<'_>, id: Id<Project>, filter: &str) -> Markup {
         .collect();
     let base = format!("/projects/{id}/schedule");
     let can_edit = lvl >= Level::Standard;
+    let drag = drag && can_edit;
     let admin = lvl == Level::Admin;
     let has_baseline = state.schedule_tasks.iter().any(|t| t.project == id && t.deleted.is_none() && t.baseline_finish.is_some());
     let (n_crit, n_late, n_conflict) =
@@ -100,7 +126,7 @@ pub fn page(req: &Req<'_>, id: Id<Project>, filter: &str) -> Markup {
     let body = html! {
         div class="page-head" {
             div { h1 { "Schedule" } div class="sub" { "Tasks in working days (" (days_text(&sched::calendar(state, id).days)) "), linked finish to start (or start to start, finish to finish, start to finish); the critical path is the chain with no float" } }
-            div class="actions" { a class="btn" href=(format!("{base}/lookahead")) { "Look ahead" } a class="btn" href=(format!("{base}/calendar")) { "Calendar" } a class="btn" href=(format!("{base}.pdf")) { "PDF" } a class="btn" href=(format!("{base}.csv")) { "Export CSV" } }
+            div class="actions" { a class="btn" href=(format!("{base}/lookahead")) { "Look ahead" } a class="btn" href=(format!("{base}/resources")) { "Resources" } a class="btn" href=(format!("{base}/calendar")) { "Calendar" } a class="btn" href=(format!("{base}.pdf")) { "PDF" } a class="btn" href=(format!("{base}.csv")) { "Export CSV" } }
         }
         @if !all.is_empty() {
             div class="stat-row" {
@@ -109,6 +135,8 @@ pub fn page(req: &Req<'_>, id: Id<Project>, filter: &str) -> Markup {
                 div class="stat" { div class="value" { (n_crit) } div class="label" { "On the critical path" } }
                 div class="stat" { div class="value" { (n_late) } div class="label" { "Late" } }
                 @if n_conflict > 0 { div class="stat" { div class="value" { (n_conflict) } div class="label" { "Start before a link allows" } } }
+                @let n_broken = all.iter().filter(|r| r.broken).count();
+                @if n_broken > 0 { div class="stat" { div class="value" { (n_broken) } div class="label" { "Break a constraint" } } }
             }
         }
         form method="get" action=(base) class="filters" {
@@ -121,11 +149,11 @@ pub fn page(req: &Req<'_>, id: Id<Project>, filter: &str) -> Markup {
             div class="card" { (empty(tool_icon(Tool::Schedule), if all.is_empty() { "No tasks yet" } else { "No tasks match" }, if all.is_empty() && can_edit { "Add a task below or import a schedule." } else { "Change the filter to see more." })) }
         } @else if let Some(scale) = &scale {
             div class="table-wrap" {
-                table class="data gantt" {
+                table class="data gantt" id=[drag.then_some("wasm-gantt")] data-days=[drag.then(|| scale.days.to_string())] {
                     thead {
                         tr {
                             th { "#" } th { "Task" } th { "Start" } th { "Finish" } th class="right" { "Days" } th class="right" { "Done" } th class="right" { "Float" }
-                            th class="timeline" { svg class="months" viewBox=(format!("0 0 {W} 20")) preserveAspectRatio="none" aria-hidden="true" { @for (label, at) in scale.months() { line x1=(format!("{at:.1}")) x2=(format!("{at:.1}")) y1="0" y2="20" class="tick" {} text x=(format!("{:.1}", at + 3.0)) y="14" { (label) } } } }
+                            th class="timeline" { svg class="months" viewBox=(format!("0 0 {W} 20")) preserveAspectRatio="none" aria-hidden="true" { defs { g id="daysoff" { @for (x, w) in &off { rect class="dayoff" x=(format!("{x:.1}")) y="0" width=(format!("{w:.1}")) height="30" {} } } } @for (label, at) in scale.months() { line x1=(format!("{at:.1}")) x2=(format!("{at:.1}")) y1="0" y2="20" class="tick" {} text x=(format!("{:.1}", at + 3.0)) y="14" { (label) } } } }
                         }
                     }
                     tbody {
@@ -137,6 +165,7 @@ pub fn page(req: &Req<'_>, id: Id<Project>, filter: &str) -> Markup {
                                     @if r.critical { " " span class="pill red" { "Critical" } }
                                     @if r.late { " " span class="pill amber" { "Late" } }
                                     @if r.conflict { " " span class="pill amber" { "Check links" } }
+                                    @if r.broken { " " span class="pill amber" { "Constraint" } }
                                 }
                                 td class="nowrap" { (short(r.start)) }
                                 td class="nowrap" { (short(r.finish)) }
@@ -145,16 +174,22 @@ pub fn page(req: &Req<'_>, id: Id<Project>, filter: &str) -> Markup {
                                 td class="right" { (r.float.map(|f| f.to_string()).unwrap_or_default()) }
                                 td class="timeline" {
                                     svg class="track" viewBox=(format!("0 0 {W} 30")) preserveAspectRatio="none" role="img" aria-label=(format!("{}: {} to {}, {}% done", r.name, short(r.start), short(r.finish), r.percent)) {
+                                        @if !off.is_empty() { use href="#daysoff" {} }
+                                        @if let Some((bs, bf)) = state.schedule_tasks.get(r.id).and_then(|t| t.baseline_start.zip(t.baseline_finish)) {
+                                            rect class="baseline" x=(format!("{:.1}", scale.at(bs))) y="24" width=(format!("{:.1}", scale.width(bs, bf))) height="4" {}
+                                        }
                                         @if (0.0..=W).contains(&scale.at(today)) { line class="today" x1=(format!("{:.1}", scale.at(today))) x2=(format!("{:.1}", scale.at(today))) y1="0" y2="30" {} }
                                         @if r.milestone {
                                             @let x = scale.at(r.start);
-                                            polygon class=(if r.critical { "diamond critical" } else { "diamond" }) points=(format!("{:.1},9 {:.1},15 {:.1},21 {:.1},15", x, x + 6.0, x, x - 6.0)) {}
+                                            polygon class=(if r.critical { "diamond critical" } else { "diamond" }) data-task=[(drag && !r.summary).then(|| r.id.to_string())] points=(format!("{:.1},9 {:.1},15 {:.1},21 {:.1},15", x, x + 6.0, x, x - 6.0)) {}
                                         } @else {
                                             @let (x, w) = (scale.at(r.start), scale.width(r.start, r.finish));
                                             @let cls = format!("bar{}{}", if r.critical { " critical" } else { "" }, if r.summary { " summary" } else { "" });
                                             @let (y, h) = if r.summary { (11.0, 8.0) } else { (8.0, 14.0) };
-                                            rect class=(cls) x=(format!("{x:.1}")) y=(format!("{y}")) width=(format!("{w:.1}")) height=(format!("{h}")) {}
-                                            @if r.percent > 0 { rect class=(format!("done{}", if r.critical { " critical" } else { "" })) x=(format!("{x:.1}")) y=(format!("{y}")) width=(format!("{:.1}", w * f64::from(r.percent) / 100.0)) height=(format!("{h}")) {} }
+                                            @let task = (drag && !r.summary).then(|| r.id.to_string());
+                                            rect class=(cls) data-task=[task.clone()] x=(format!("{x:.1}")) y=(format!("{y}")) width=(format!("{w:.1}")) height=(format!("{h}")) {}
+                                            @if r.percent > 0 { rect class=(format!("done{}", if r.critical { " critical" } else { "" })) data-task=[task.clone()] x=(format!("{x:.1}")) y=(format!("{y}")) width=(format!("{:.1}", w * f64::from(r.percent) / 100.0)) height=(format!("{h}")) {} }
+                                            @if let Some(t) = &task { rect class="handle" data-task=(t) data-edge="finish" x=(format!("{:.1}", x + w - 5.0)) y=(format!("{y}")) width="5" height=(format!("{h}")) {} }
                                         }
                                     }
                                 }
@@ -163,7 +198,19 @@ pub fn page(req: &Req<'_>, id: Id<Project>, filter: &str) -> Markup {
                     }
                 }
             }
-            p class="muted small" { "The dashed line is today. Red bars are on the critical path. Float is the working days a task can slip without moving the last finish." @if has_baseline { " Baseline saved." } }
+            p class="muted small" { "The dashed line is today. Red bars are on the critical path. Grey columns are days off. Float is the working days a task can slip without moving the last finish." @if has_baseline { " The thin bar under a task is its baseline." } }
+            @if drag {
+                p id="gantt-hint" class="muted small" {}
+                script type="module" src="/static/viewer/start.js" {}
+                div id="gantt-move" hidden {
+                    (command_form(req, "schedule.move", &base, &base, html! {
+                        input type="hidden" name="project" value=(id);
+                        input type="hidden" id="gm-id" name="id" value="";
+                        input type="hidden" id="gm-shift" name="shift" value="0";
+                        input type="hidden" id="gm-fshift" name="finish_shift" value="0" disabled;
+                    }))
+                }
+            }
         }
         @if can_edit {
             div class="card" {
@@ -182,8 +229,20 @@ pub fn page(req: &Req<'_>, id: Id<Project>, filter: &str) -> Markup {
             }
             div class="card" {
                 details class="disclosure" {
+                    summary { "Import a project file (Microsoft Project XML)" }
+                    p class="muted small" { "Save the schedule from your planning software as XML. Tasks, dates, percent complete, milestones, outline levels, links with their kind and lag, and start and finish constraints come across; resources, calendars and costs are left behind. Up to 8 MB." }
+                    form method="post" action=(format!("{base}/import-xml")) enctype="multipart/form-data" {
+                        input type="hidden" name="_csrf" value=(req.csrf);
+                        (field("Project file", "sched_xml", true, true, html! { input type="file" id="sched_xml" name="file" accept=".xml,text/xml,application/xml" required; }))
+                        div class="form-actions" { button type="submit" class="btn primary" { "Import file" } }
+                    }
+                }
+            }
+            div class="card" {
+                details class="disclosure" {
                     summary { "Import a schedule" }
                     p class="muted small" { "One task per line: id, name, start, finish, percent, predecessors, parent. Dates are YYYY-MM-DD. Predecessors are other ids in the file separated by ;, each with an optional lag such as 4+2. Ids are renumbered when imported." }
+                    p class="muted small" { "A seventh to tenth column is optional: milestone (yes or no), then a constraint (snet, mso or fnlt) and its date." }
                     (command_form(req, "schedule.import", &base, &base, html! {
                         input type="hidden" name="project" value=(id);
                         (field("Tasks", "sched_text", true, true, html! { textarea id="sched_text" name="text" required {} }))
@@ -217,7 +276,9 @@ fn task_fields(
     current: Option<&ScheduleTask>,
     state: &buildkiosk_engine::model::CompanyState,
 ) -> Markup {
-    let days = current.map(|t| sched::days_inclusive(t.start, t.finish).max(1).to_string()).unwrap_or_default();
+    let cal = sched::calendar(state, project);
+    let days = current.map(|t| sched::days_inclusive_in(&cal, t.start, t.finish).max(1).to_string()).unwrap_or_default();
+    let resources = current.map(|t| t.resources.iter().map(|a| format!("{} {}", a.name, a.units)).collect::<Vec<_>>().join(", ")).unwrap_or_default();
     html! {
         input type="hidden" name="project" value=(project);
         @if let Some(t) = current { input type="hidden" name="id" value=(t.id); }
@@ -239,6 +300,11 @@ fn task_fields(
                 option value="false" selected[current.is_none_or(|t| !t.milestone)] { "No, a task with a duration" }
                 option value="true" selected[current.is_some_and(|t| t.milestone)] { "Yes, a single day" }
             } }))
+            (field("Constraint", "t_constraint", false, false, html! { select id="t_constraint" name="constraint" {
+                @for c in Constraint::ALL { option value=(c.key()) selected[current.map(|t| t.constraint).unwrap_or_default() == *c] { (c.label()) } }
+            } }))
+            (field("Constraint date", "t_cdate", false, false, html! { input type="date" id="t_cdate" name="constraint_date" value=(current.and_then(|t| t.constraint_date).map(|d| d.to_string()).unwrap_or_default()); }))
+            (field("Resources needed each working day (e.g. Carpenter 4, Laborer 2)", "t_resources", false, true, html! { input type="text" id="t_resources" name="resources" value=(resources); }))
             (field("Notes", "t_notes", false, true, html! { textarea id="t_notes" name="notes" { (current.map(|t| t.notes.as_str()).unwrap_or_default()) } }))
         }
         div class="form-actions" { button type="submit" class="btn primary" { (if current.is_some() { "Save" } else { "Add task" }) } }
@@ -265,6 +331,13 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, tid: Id<ScheduleTask>) -> Markup {
         div class="card" {
             h2 { "Edit task" }
             (command_form(req, "schedule.update", &here, &here, task_fields(id, &parents, &vendors, Some(t), state)))
+        }
+        @if t.constraint != Constraint::None || !t.resources.is_empty() {
+            div class="card" {
+                h2 { "Constraint and resources" }
+                @if let (true, Some(d)) = (t.constraint != Constraint::None, t.constraint_date) { p { strong { (t.constraint.label()) ": " } (d.pretty()) } }
+                @if !t.resources.is_empty() { p { strong { "Needs each working day: " } (t.resources.iter().map(|a| format!("{} {}", a.name, a.units)).collect::<Vec<_>>().join(", ")) } }
+            }
         }
         div class="card" {
             h2 { "Links" }
@@ -385,7 +458,7 @@ pub fn lookahead(req: &Req<'_>, id: Id<Project>, weeks: i64, from: Option<Date>)
     let body = html! {
         div class="page-head" {
             div { h1 { "Look ahead" } div class="sub" { "Work that is under way or starts in each week, and isn't finished" } }
-            div class="actions" { a class="btn" href=(base.clone()) { "Back to the schedule" } }
+            div class="actions" { a class="btn" href=(format!("{base}/lookahead.pdf?weeks={weeks}&from={from}")) { "PDF" } a class="btn" href=(base.clone()) { "Back to the schedule" } }
         }
         div class="viewer-bar" {
             span class="muted" { "Weeks" }
@@ -425,6 +498,72 @@ pub fn lookahead(req: &Req<'_>, id: Id<Project>, weeks: i64, from: Option<Date>)
         "Look ahead",
         Nav::Schedule(id),
         &[("Projects", Some("/".into())), (&p.name, Some(format!("/projects/{id}"))), ("Schedule", Some(base)), ("Look ahead", None)],
+        body,
+    )
+}
+
+/// How many of each resource are needed each week, against the project's limits.
+pub fn resources(req: &Req<'_>, id: Id<Project>, weeks: i64, from: Option<Date>) -> Markup {
+    let Some(p) = project_for(req, id) else { return not_found(req) };
+    let state = req.engine.state();
+    let lvl = view::level(state, req.actor(), id, Tool::Schedule);
+    if lvl < Level::Read {
+        return not_found(req);
+    }
+    let from = from.unwrap_or_else(|| req.today());
+    let weeks = weeks.clamp(1, 26);
+    let loads = sched::loading(state, id, from, weeks);
+    let base = format!("/projects/{id}/schedule");
+    let here = format!("{base}/resources");
+    let limits: String =
+        state.projects.get(id).map(|p| p.resource_limits.iter().map(|a| format!("{} {}\n", a.name, a.units)).collect()).unwrap_or_default();
+    let body = html! {
+        div class="page-head" {
+            div { h1 { "Resource loading" } div class="sub" { "The most of each resource needed on any one working day in each week, from tasks that aren't finished. Red is over the limit you set." } }
+            div class="actions" { a class="btn" href=(base.clone()) { "Back to the schedule" } }
+        }
+        div class="viewer-bar" {
+            span class="muted" { "Weeks" }
+            @for n in [4i64, 8, 12, 26] {
+                a class=(if weeks == n { "chip active" } else { "chip" }) href=(format!("{here}?weeks={n}&from={from}")) { (n) }
+            }
+            span class="muted" { "from " (from.pretty()) }
+        }
+        @if loads.is_empty() {
+            div class="card" { (empty(tool_icon(Tool::Schedule), "No resources yet", "Name what a task needs each working day (such as Carpenter 4) when you add or edit it.")) }
+        } @else {
+            div class="table-wrap" { table class="data" {
+                thead { tr { th { "Resource" } th class="right" { "Limit" } @for w in 0..weeks { th class="right" { (from.add_days(w * 7).map(short).unwrap_or_default()) } } } }
+                tbody {
+                    @for l in &loads {
+                        tr {
+                            td { (l.name) }
+                            td class="right" { (l.limit.map(|n| n.to_string()).unwrap_or_else(|| "—".into())) }
+                            @for (i, peak) in l.peaks.iter().enumerate() {
+                                td class=(if l.over.get(i).copied().unwrap_or(false) { "right over" } else { "right" }) { @if *peak > 0 { (peak) } @else { span class="muted" { "·" } } }
+                            }
+                        }
+                    }
+                }
+            } }
+        }
+        @if lvl == Level::Admin {
+            div class="card" {
+                h2 { "Limits" }
+                p class="muted small" { "How many of each resource you can have working on one day, one per line, such as Carpenter 6." }
+                (command_form(req, "schedule.resource_limits", &here, &here, html! {
+                    input type="hidden" name="project" value=(id);
+                    (field("Limits", "res_limits", false, true, html! { textarea id="res_limits" name="text" rows="6" { (limits) } }))
+                    div class="form-actions" { button type="submit" class="btn primary" { "Save limits" } }
+                }))
+            }
+        }
+    };
+    layout::app(
+        req,
+        "Resource loading",
+        Nav::Schedule(id),
+        &[("Projects", Some("/".into())), (&p.name, Some(format!("/projects/{id}"))), ("Schedule", Some(base)), ("Resources", None)],
         body,
     )
 }

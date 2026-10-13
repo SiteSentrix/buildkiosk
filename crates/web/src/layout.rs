@@ -60,6 +60,7 @@ pub enum Nav {
     Transmittals(Id<Project>),
     Meetings(Id<Project>),
     Tasks(Id<Project>),
+    Incidents(Id<Project>),
     Drawings(Id<Project>),
     Schedule(Id<Project>),
     DailyLogs(Id<Project>),
@@ -159,7 +160,8 @@ pub fn app(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Option<String>
         | Nav::DailyLogs(p)
         | Nav::Punch(p)
         | Nav::Observations(p)
-        | Nav::Tasks(p) => state.projects.get(p),
+        | Nav::Tasks(p)
+        | Nav::Incidents(p) => state.projects.get(p),
     };
     html! {
         (DOCTYPE)
@@ -201,6 +203,9 @@ pub fn app(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Option<String>
                                     a href=(format!("/projects/{}/tasks", p.id)) class=(if matches!(nav, Nav::Tasks(_)) { "active" } else { "" }) { (tool_icon(Tool::Tasks).svg()) "Tasks" }
                                 }
                                 a href=(format!("/projects/{}/observations", p.id)) class=(if matches!(nav, Nav::Observations(_)) { "active" } else { "" }) { (tool_icon(Tool::Observations).svg()) "Observations" }
+                                @if view::level(state, req.actor(), p.id, Tool::Incidents) >= buildkiosk_engine::model::Level::Read {
+                                    a href=(format!("/projects/{}/incidents", p.id)) class=(if matches!(nav, Nav::Incidents(_)) { "active" } else { "" }) { (tool_icon(Tool::Incidents).svg()) "Incidents" }
+                                }
                                 a href=(format!("/projects/{}/inspections", p.id)) class=(if matches!(nav, Nav::Inspections(_)) { "active" } else { "" }) { (tool_icon(Tool::Inspections).svg()) "Inspections" }
                                 @for (tool, path, label, current) in [
                                     (Tool::Budget, "budget", "Budget", matches!(nav, Nav::Budget(_))),

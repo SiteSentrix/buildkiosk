@@ -12,6 +12,7 @@ use crate::table::{Table, TableChange, TableData};
 // -- project management
 use crate::document::{Document, Folder};
 use crate::drawing::Drawing;
+use crate::incident::Incident;
 use crate::meeting::Meeting;
 use crate::schedule::ScheduleTask;
 use crate::spec::SpecSection;
@@ -138,6 +139,7 @@ tables! {
     inspection_templates: InspectionTemplate,
     inspections: Inspection,
     observations: Observation,
+    incidents: Incident,
 
     // -- field
     daily_logs: DailyLog,

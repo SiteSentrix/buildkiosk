@@ -2,6 +2,7 @@
 //! detail, form and CSV export, written once over [`WorkPage`].
 
 use buildkiosk_core::Id;
+use buildkiosk_engine::model::incident::{Incident, Severity};
 use buildkiosk_engine::model::observation::Observation;
 use buildkiosk_engine::model::project::Project;
 use buildkiosk_engine::model::punch::PunchItem;
@@ -69,6 +70,54 @@ impl WorkPage for Task {
 
     fn nav(project: Id<Project>) -> Nav {
         Nav::Tasks(project)
+    }
+}
+
+impl WorkPage for Incident {
+    const PREFIX: &'static str = "incident";
+    const TITLE: &'static str = "Incidents";
+    const SUBTITLE: &'static str = "Injuries, near misses and damage, with the investigation and what was done about it";
+    const ADD: &'static str = "Report incident";
+    const KIND_LABEL: &'static str = "Type";
+    const KIND_HINT: &'static str = "Fall, struck by, equipment, spill…";
+    const EMPTY_HINT: &'static str = "Report an incident to record what happened and what was done.";
+
+    fn nav(project: Id<Project>) -> Nav {
+        Nav::Incidents(project)
+    }
+
+    fn extra_cards(&self) -> Markup {
+        html! {
+            @if !self.people_involved.is_empty() { div class="card" { h2 { "People involved" } p class="prose" { (self.people_involved) } } }
+            @if !self.root_cause.is_empty() { div class="card" { h2 { "Root cause" } p class="prose" { (self.root_cause) } } }
+            @if !self.corrective_action.is_empty() { div class="card" { h2 { "Corrective action" } p class="prose" { (self.corrective_action) } } }
+        }
+    }
+
+    fn extra_facts(&self) -> Markup {
+        html! {
+            dt { "Occurred" } dd { @if let Some(d) = self.occurred { (d.pretty()) } @else { "—" } }
+            dt { "Severity" } dd { (self.severity.label()) }
+            dt { "Recordable" } dd { (if self.recordable { "Yes" } else { "No" }) }
+        }
+    }
+
+    fn extra_fields(item: Option<&Self>, req: &Req<'_>) -> Markup {
+        let occurred = item.map(|i| i.occurred).unwrap_or_else(|| Some(req.today())).map(|d| d.to_string()).unwrap_or_default();
+        let severity = item.map(|i| i.severity).unwrap_or_default();
+        let recordable = item.is_some_and(|i| i.recordable);
+        let text = |f: fn(&Incident) -> &str| item.map(|i| f(i).to_string()).unwrap_or_default();
+        html! {
+            (field("Date it happened", "occurred", false, false, html! { input type="date" id="occurred" name="occurred" value=(occurred); }))
+            (field("Severity", "severity", false, false, html! { select id="severity" name="severity" { @for s in Severity::ALL { option value=(s.key()) selected[*s == severity] { (s.label()) } } } }))
+            (field("Recordable", "recordable", false, false, html! { select id="recordable" name="recordable" {
+                option value="false" selected[!recordable] { "No" }
+                option value="true" selected[recordable] { "Yes, enter it on the injury log" }
+            } }))
+            (field("People involved and witnesses", "people_involved", false, true, html! { textarea id="people_involved" name="people_involved" class="short" { (text(|i| &i.people_involved)) } }))
+            (field("Root cause", "root_cause", false, true, html! { textarea id="root_cause" name="root_cause" class="short" { (text(|i| &i.root_cause)) } }))
+            (field("Corrective action", "corrective_action", false, true, html! { textarea id="corrective_action" name="corrective_action" class="short" { (text(|i| &i.corrective_action)) } }))
+        }
     }
 }
 

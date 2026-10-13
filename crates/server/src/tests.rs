@@ -1201,6 +1201,9 @@ async fn tasks_use_the_shared_work_pages() {
     let (st, _, form) = send(&app, get("/projects/1/tasks/new")).await;
     assert_eq!(st, StatusCode::OK);
     assert!(form.contains("Add task"));
+    let (st, _, form) = send(&app, get("/projects/1/incidents/new")).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(form.contains("Report incident") && form.contains("Root cause") && form.contains("Near miss"));
     send(&app, post("/do/task.create", &ada, format!("_csrf={csrf}&_next=/projects/1/tasks&project=1&title=Order+hardware&priority=high"))).await;
     let (_, _, list) = send(&app, get("/projects/1/tasks")).await;
     assert!(list.contains("Order hardware") && list.contains("Tasks"), "{list}");

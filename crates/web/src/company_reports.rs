@@ -39,7 +39,7 @@ fn text_of(c: &Cell) -> String {
 fn cell(c: &Cell, column: ReportColumn) -> Markup {
     match c {
         Cell::Blank => html! { td class="num" { span class="muted" { "—" } } },
-        Cell::Count(n) if column == ReportColumn::Overdue || column == ReportColumn::LateTasks => {
+        Cell::Count(n) if matches!(column, ReportColumn::Overdue | ReportColumn::LateTasks | ReportColumn::RfisOverdue) => {
             html! { td class="num" { @if *n > 0 { span class="overdue" { (n) } } @else { (n) } } }
         }
         Cell::Money(m) if column == ReportColumn::Variance => {
@@ -118,6 +118,7 @@ pub fn page(req: &Req<'_>, report: Option<Id<SavedReport>>, chart_column: Option
         div class="page-head" {
             div { h1 { (title) } div class="sub" { "Every project you can open, with the columns chosen" @if let Some(s) = def.stage { " · " (s.label()) " projects only" } } }
             div class="actions" {
+                a class="btn" href="/injury-log" { "Injury log" }
                 a class="btn" href=(format!("{here}.pdf{query}")) { "PDF" }
                 a class="btn" href=(format!("{here}.csv{query}")) { "Export CSV" }
             }

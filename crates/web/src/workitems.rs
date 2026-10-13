@@ -1,7 +1,7 @@
 //! Pages for the tools that share the work item workflow (punch list and observations): list,
 //! detail, form and CSV export, written once over [`WorkPage`].
 
-use buildkiosk_core::Id;
+use buildkiosk_core::{Date, Id};
 use buildkiosk_engine::model::incident::{Incident, Severity};
 use buildkiosk_engine::model::observation::Observation;
 use buildkiosk_engine::model::project::Project;
@@ -88,6 +88,10 @@ impl WorkPage for Task {
 
     fn nav(project: Id<Project>) -> Nav {
         Nav::Tasks(project)
+    }
+
+    fn list_actions(project: Id<Project>, _req: &Req<'_>) -> Markup {
+        html! { a class="btn" href=(format!("/projects/{project}/tasks/calendar")) { "Calendar" } }
     }
 
     fn extra_cards(&self, req: &Req<'_>) -> Markup {
@@ -846,6 +850,62 @@ pub fn observation_trends(req: &Req<'_>, id: Id<Project>) -> Markup {
     layout::app(req, "Observation trends", Observation::nav(id), &crumbs::<Observation>(p, Some(("Trends", base))), body)
 }
 
+/// A month of the project's tasks on the days they are due: Monday first, with the days around the month greyed.
+pub fn task_calendar(req: &Req<'_>, id: Id<Project>, month: Option<Date>) -> Markup {
+    let Some(p) = project_for(req, id) else { return not_found(req) };
+    let state = req.engine.state();
+    if view::level(state, req.actor(), id, Tool::Tasks) < Level::Read {
+        return not_found(req);
+    }
+    let today = req.today();
+    let (year, mon, _) = month.unwrap_or(today).ymd();
+    let first = Date::from_ymd(year, mon, 1).unwrap_or(today);
+    let grid_start = first.add_days(-(first.weekday().index() as i64)).unwrap_or(first);
+    let tasks = buildkiosk_engine::workitem::items_for::<Task>(state, req.actor(), id);
+    let on = |d: Date| -> Vec<&&Task> { tasks.iter().filter(|t| t.due == Some(d)).collect() };
+    let undated = tasks.iter().filter(|t| t.due.is_none() && t.status != WorkStatus::Closed).count();
+    let (prev, next) = (first.add_months(-1).unwrap_or(first), first.add_months(1).unwrap_or(first));
+    let base = format!("/projects/{id}/tasks");
+    let ym = |d: Date| format!("{:04}-{:02}", d.ymd().0, d.ymd().1);
+    let month_name = |d: Date| format!("{} {}", d.pretty().split_whitespace().next().unwrap_or(""), d.ymd().0);
+    let weeks: Vec<Vec<Date>> = (0..6)
+        .map(|w| (0..7).filter_map(|d| grid_start.add_days(w * 7 + d)).collect::<Vec<Date>>())
+        .filter(|week| week.iter().any(|d| d.ymd().1 == mon))
+        .collect();
+    let body = html! {
+        div class="page-head" {
+            div { h1 { "Task calendar" } div class="sub" { (month_name(first)) } }
+            div class="actions" {
+                a class="btn" href=(format!("{base}/calendar?month={}", ym(prev))) { "← " (month_name(prev)) }
+                a class="btn" href=(format!("{base}/calendar")) { "This month" }
+                a class="btn" href=(format!("{base}/calendar?month={}", ym(next))) { (month_name(next)) " →" }
+                a class="btn" href=(base.clone()) { "List" }
+            }
+        }
+        div class="table-wrap" { table class="data calendar" {
+            thead { tr { @for d in ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] { th { (d) } } } }
+            tbody { @for week in &weeks { tr { @for d in week {
+                @let here = on(*d);
+                td class=(if d.ymd().1 != mon { "off" } else if *d == today { "today" } else { "" }) {
+                    div class="day" { (d.ymd().2) }
+                    @for t in here.iter().take(4) {
+                        div class="entry" { a href=(format!("{base}/{}", t.id)) class=(if t.status == WorkStatus::Closed { "muted" } else if t.is_overdue(today) { "overdue" } else { "" }) { "#" (t.number) " " (t.title) } }
+                    }
+                    @if here.len() > 4 { div class="muted small" { "+" (here.len() - 4) " more" } }
+                }
+            } } } }
+        } }
+        @if undated > 0 { p class="muted" { (undated) " open task" @if undated != 1 { "s" } " without a due date are not on the calendar." } }
+    };
+    layout::app(
+        req,
+        "Task calendar",
+        Nav::Tasks(id),
+        &[("Projects", Some("/".into())), (&p.name, Some(format!("/projects/{id}"))), ("Tasks", Some(base.clone())), ("Calendar", None)],
+        body,
+    )
+}
+
 /// The person's tasks across every project they can read tasks in.
 pub fn my_tasks(req: &Req<'_>, include_closed: bool, all: bool) -> Markup {
     let state = req.engine.state();
@@ -980,6 +1040,75 @@ pub fn injury_log(req: &Req<'_>, id: Id<Project>, year: Option<i32>) -> Markup {
 }
 
 /// The recordable cases of a year as CSV.
+/// The injury log of every project the person can read incidents on, with the company's totals and rates.
+pub fn company_injury_log(req: &Req<'_>, year: Option<i32>) -> Markup {
+    let state = req.engine.state();
+    let year = year.unwrap_or_else(|| req.today().ymd().0);
+    let (lines, total) = buildkiosk_engine::cmd::incident::company_injury_log(state, req.actor(), year);
+    let rate = |cases: u64, hours: u64| buildkiosk_engine::cmd::incident::rate(cases, hours).unwrap_or_else(|| "—".into());
+    let hours = |t: u64| format!("{}.{}", t / 10, t % 10);
+    let body = html! {
+        div class="page-head" {
+            div { h1 { "Injury log across projects, " (year) } div class="sub" { "Recordable cases and rates for every project whose incidents you can read, from the incidents you can see" } }
+            div class="actions" {
+                a class="btn" href="/reports" { "Company reports" }
+                a class="btn" href=(format!("/injury-log.csv?year={year}")) { (Icon::Download.svg()) "Export CSV" }
+            }
+        }
+        form method="get" action="/injury-log" class="filters" {
+            label for="year" { "Year" }
+            input type="number" id="year" name="year" value=(year) min="1900" max="2399";
+            button type="submit" class="btn small" { "Show" }
+        }
+        @if lines.is_empty() {
+            div class="card" { p class="muted" { "No project you can open lets you read incidents." } }
+        } @else {
+            div class="stat-row" {
+                div class="stat" { div class="label" { "Incidents" } div class="value" { (total.incidents) } }
+                div class="stat" { div class="label" { "Recordable" } div class="value" { (total.recordable) } }
+                div class="stat" { div class="label" { "Lost time" } div class="value" { (total.lost_time) } }
+                div class="stat" { div class="label" { "Hours worked" } div class="value" { (hours(total.hours)) } }
+                div class="stat" { div class="label" { "Recordable rate" } div class="value" { (rate(total.recordable, total.hours)) } div class="muted small" { "cases per 200,000 hours" } }
+                div class="stat" { div class="label" { "Lost-time rate" } div class="value" { (rate(total.lost_time, total.hours)) } div class="muted small" { "cases per 200,000 hours" } }
+            }
+            div class="table-wrap" { table class="data" {
+                thead { tr { th { "Project" } th class="num" { "Incidents" } th class="num" { "Recordable" } th class="num" { "Lost time" } th class="num" { "Fatalities" } th class="num" { "Hours" } th class="num" { "Recordable rate" } th class="num" { "Lost-time rate" } } }
+                tbody { @for l in &lines { tr {
+                    td { a href=(format!("/projects/{}/incidents/log?year={year}", l.project)) { (l.name) } }
+                    td class="num" { (l.incidents) } td class="num" { (l.recordable) } td class="num" { (l.lost_time) }
+                    td class="num" { @if l.fatalities > 0 { span class="overdue" { (l.fatalities) } } @else { (l.fatalities) } }
+                    td class="num" { (hours(l.hours)) } td class="num" { (rate(l.recordable, l.hours)) } td class="num" { (rate(l.lost_time, l.hours)) }
+                } } }
+                tfoot { tr { td { "All projects" } td class="num" { (total.incidents) } td class="num" { (total.recordable) } td class="num" { (total.lost_time) } td class="num" { (total.fatalities) } td class="num" { (hours(total.hours)) } td class="num" { (rate(total.recordable, total.hours)) } td class="num" { (rate(total.lost_time, total.hours)) } }
+                }
+            } }
+            p class="muted small" { "Rates need hours worked: approved timesheets count, and a project's admin can add the hours of people who aren't on timesheets on its own injury log." }
+        }
+    };
+    layout::app(req, "Injury log", Nav::CompanyReports, &[("Company reports", Some("/reports".into())), ("Injury log", None)], body)
+}
+
+pub fn company_injury_log_csv(req: &Req<'_>, year: Option<i32>) -> String {
+    let year = year.unwrap_or_else(|| req.today().ymd().0);
+    let (lines, total) = buildkiosk_engine::cmd::incident::company_injury_log(req.engine.state(), req.actor(), year);
+    let mut out = String::from("Project,Incidents,Recordable,Lost time,Fatalities,Hours,Recordable rate,Lost-time rate\r\n");
+    for l in lines.iter().chain(std::iter::once(&total)) {
+        let cells = [
+            l.name.clone(),
+            l.incidents.to_string(),
+            l.recordable.to_string(),
+            l.lost_time.to_string(),
+            l.fatalities.to_string(),
+            format!("{}.{}", l.hours / 10, l.hours % 10),
+            buildkiosk_engine::cmd::incident::rate(l.recordable, l.hours).unwrap_or_default(),
+            buildkiosk_engine::cmd::incident::rate(l.lost_time, l.hours).unwrap_or_default(),
+        ];
+        out.push_str(&cells.iter().map(|c| layout::csv_cell(c)).collect::<Vec<_>>().join(","));
+        out.push_str("\r\n");
+    }
+    out
+}
+
 pub fn injury_log_csv(req: &Req<'_>, id: Id<Project>, year: Option<i32>) -> Option<String> {
     project_for(req, id)?;
     let state = req.engine.state();

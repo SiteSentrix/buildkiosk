@@ -125,6 +125,20 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, mid: Id<Meeting>) -> Markup {
                 @if can_edit { (button_form(req, "meeting.delete", &base, &ids, "Delete", "danger")) }
             }
         }
+        @if req.allowed("meeting_template.save", Some(id)) {
+            div class="card" {
+                details class="disclosure" {
+                    summary { "Save as a template" }
+                    (command_form(req, "meeting_template.save", &here, &here, html! {
+                        input type="hidden" name="project" value=(id);
+                        input type="hidden" name="from_meeting" value=(mid);
+                        div class="form-grid" { (field("Template name", "tpl_name", true, false, html! { input type="text" id="tpl_name" name="name" required value=(if m.category.is_empty() { m.title.clone() } else { m.category.clone() }); })) }
+                        p class="muted small" { "Keeps the type, time, place, attendees and agenda topics (not the notes or actions) to start the next meeting from." }
+                        div class="form-actions" { button type="submit" class="btn small" { "Save template" } }
+                    }))
+                }
+            }
+        }
         div class="card" {
             h2 { "Attendees" }
             @if m.attendees.is_empty() { p class="muted" { "Nobody invited." } } @else {
@@ -236,6 +250,7 @@ pub fn form(req: &Req<'_>, id: Id<Project>, current: Option<Id<Meeting>>) -> Mar
     let people = user_options(req, id, true);
     let invited = |pid| cur.is_some_and(|m| m.attendees.iter().any(|a| a.person == pid));
     let present = |pid| cur.is_some_and(|m| m.attendees.iter().any(|a| a.person == pid && a.present));
+    let tpls = buildkiosk_engine::cmd::meeting::templates(state, id);
     let agenda_rows = cur.map(|m| m.agenda.len()).unwrap_or(0) + 3;
     let action_rows = cur.map(|m| m.actions.len()).unwrap_or(0) + 3;
     let body = html! {
@@ -245,6 +260,13 @@ pub fn form(req: &Req<'_>, id: Id<Project>, current: Option<Id<Meeting>>) -> Mar
                 input type="hidden" name="project" value=(id);
                 @if let Some(m) = cur { input type="hidden" name="id" value=(m.id); }
                 div class="form-grid" {
+                    @if cur.is_none() && !tpls.is_empty() {
+                        (field("Start from a template", "template", false, true, html! { select id="template" name="template" {
+                            option value="" { "None" }
+                            @for t in &tpls { option value=(t.id) { (t.name) } }
+                        } }))
+                        p class="muted small" { "Whatever you leave blank below (type, time, place, attendees, agenda) comes from the template." }
+                    }
                     (field("Title", "title", true, true, html! { input type="text" id="title" name="title" required value=(cur.map(|m| m.title.as_str()).unwrap_or_default()); }))
                     (field("Date", "date", true, false, html! { input type="date" id="date" name="date" required value=(cur.map(|m| m.date.to_string()).unwrap_or_else(|| req.today().to_string())); }))
                     (field("Time", "time", false, false, html! { input type="text" id="time" name="time" placeholder="9:00 AM" value=(cur.map(|m| m.time.as_str()).unwrap_or_default()); }))

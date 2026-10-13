@@ -1795,6 +1795,20 @@ async fn meeting_form_issue_and_actions() {
     send(&app, post("/do/meeting.issue", &ada, format!("_csrf={csrf}&project=1&id=1"))).await;
     let (_, _, list) = send(&app, get("/projects/1/meetings")).await;
     assert!(list.contains("Kickoff") && list.contains("Minutes issued") && !list.contains("Open action items"), "{list}");
+    // A meeting saved as a template starts the next one.
+    let (_, _, first) = send(&app, get("/projects/1/meetings/1")).await;
+    assert!(first.contains("Save as a template"), "{first}");
+    send(
+        &app,
+        post("/do/meeting_template.save", &ada, format!("_csrf={csrf}&_next=/projects/1/meetings/1&project=1&from_meeting=1&name=Kickoff+template")),
+    )
+    .await;
+    let (_, _, new) = send(&app, get("/projects/1/meetings/new")).await;
+    assert!(new.contains("Start from a template") && new.contains("Kickoff template"), "{new}");
+    let (_, h, _) = send(&app, post("/do/meeting.create", &ada, format!("_csrf={csrf}&_next=/projects/1/meetings/%7Bid%7D&_back=/projects/1/meetings/new&project=1&title=Second+kickoff&date=2026-11-03&time=&category=&location=&minutes=&template=1&invitees%5B%5D="))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, again) = send(&app, get("/projects/1/meetings/4")).await;
+    assert!(again.contains("Look-ahead") && again.contains("9 AM"), "the agenda and time came from the template: {again}");
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -1849,6 +1863,18 @@ async fn tasks_use_the_shared_work_pages() {
     assert!(st == StatusCode::OK && h.get(CONTENT_TYPE).unwrap() == "application/pdf" && pdf.starts_with("%PDF"));
     let (_, _, none) = send(&app, get("/projects/1/incidents/log?year=2020")).await;
     assert!(none.contains("No recordable cases in 2020"), "{none}");
+    let (_, _, all) = send(&app, get("/injury-log?year=2026")).await;
+    assert!(all.contains("Injury log across projects, 2026") && all.contains("20.00") && all.contains("All projects"), "{all}");
+    let (st, h, csv) = send(&app, get("/injury-log.csv?year=2026")).await;
+    assert!(
+        st == StatusCode::OK
+            && h.get("content-disposition").is_some()
+            && csv.starts_with("Project,Incidents,Recordable")
+            && csv.contains("All projects,"),
+        "{csv}"
+    );
+    let (_, _, link) = send(&app, get("/reports")).await;
+    assert!(link.contains("/injury-log"), "{link}");
     send(&app, post("/do/task.create", &ada, format!("_csrf={csrf}&_next=/projects/1/tasks&project=1&title=Order+hardware&priority=high"))).await;
     let (_, _, list) = send(&app, get("/projects/1/tasks")).await;
     assert!(list.contains("Order hardware") && list.contains("Tasks"), "{list}");
@@ -1900,6 +1926,21 @@ async fn tasks_use_the_shared_work_pages() {
     assert!(everything.contains("Order hardware"), "{everything}");
     let (_, _, closed) = send(&app, get("/my-tasks?closed=1")).await;
     assert!(closed.contains("Check harnesses") && closed.contains("Subtask"), "{closed}");
+    send(&app, post("/do/task.create", &ada, format!("_csrf={csrf}&_next=/projects/1/tasks&project=1&title=Hand+over+keys&due=2026-10-15"))).await;
+    let (st, _, cal) = send(&app, get("/projects/1/tasks/calendar?month=2026-10")).await;
+    assert!(
+        st == StatusCode::OK
+            && cal.contains("Hand over keys")
+            && cal.contains("Oct 2026")
+            && cal.contains("month=2026-09")
+            && cal.contains("month=2026-11"),
+        "{cal}"
+    );
+    assert!(cal.contains("without a due date"), "the undated task is counted, not drawn: {cal}");
+    let (_, _, other) = send(&app, get("/projects/1/tasks/calendar?month=2026-11")).await;
+    assert!(!other.contains("Hand over keys"), "{other}");
+    let (_, _, tasks_list) = send(&app, get("/projects/1/tasks")).await;
+    assert!(tasks_list.contains("/projects/1/tasks/calendar"), "{tasks_list}");
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }

@@ -338,6 +338,17 @@ pub fn company_report(
             } else {
                 Cell::Blank
             };
+            // How old the open RFIs are, counted in days from the day each was made.
+            let open_rfis: Option<Vec<i64>> = readable(state, actor, p.id, Tool::Rfis).then(|| {
+                view::rfis_for(state, actor, p.id)
+                    .into_iter()
+                    .filter(|r| r.status == RfiStatus::Open)
+                    .map(|r| r.created.at.date_at(state.utc_offset()).days_until(today).max(0))
+                    .collect()
+            });
+            let rfis_overdue = readable(state, actor, p.id, Tool::Rfis).then(|| {
+                view::rfis_for(state, actor, p.id).into_iter().filter(|r| r.status == RfiStatus::Open && r.due.is_some_and(|d| d < today)).count()
+            });
             let money = |m: Option<buildkiosk_core::Money>| m.map_or(Cell::Blank, Cell::Money);
             let cells = columns
                 .iter()
@@ -349,6 +360,13 @@ pub fn company_report(
                     C::Open => Cell::Count(open),
                     C::Overdue => Cell::Count(overdue),
                     C::Rfis => count_of(&summary, "RFIs"),
+                    C::RfisOverdue => rfis_overdue.map_or(Cell::Blank, Cell::Count),
+                    C::RfiOldest => {
+                        open_rfis.as_ref().and_then(|a| a.iter().max()).map_or(Cell::Blank, |n| Cell::Count(usize::try_from(*n).unwrap_or(0)))
+                    }
+                    C::RfiAge => open_rfis.as_ref().filter(|a| !a.is_empty()).map_or(Cell::Blank, |a| {
+                        Cell::Count(usize::try_from(a.iter().sum::<i64>() / i64::try_from(a.len()).unwrap_or(1)).unwrap_or(0))
+                    }),
                     C::Submittals => count_of(&summary, "Submittals"),
                     C::Punch => count_of(&summary, "Punch list"),
                     C::LateTasks => late.clone(),

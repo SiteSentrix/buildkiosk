@@ -49,6 +49,7 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 - 2026-10-13: documents, more: restricted documents and in-page previews; schedule, more: four more constraints and company holiday lists.
 - 2026-10-13: financials, more: budget PDF follows the view, default budget view per person, signatures on the prime contract and change orders.
 - 2026-10-13: MCP prompts and drawing/photo resources; back-up-now page, second backup copy, single-company restore.
+- 2026-10-13: RFI ageing report columns, company injury log, task calendar, meeting templates.
 - 2026-10-13: portfolio table on the Projects page and `report.portfolio`.
 - 2026-10-13: project report across tools (open and past-due counts) and a "waiting on me" list on the project home; `report.summary` and `report.waiting_on_me` queries.
 - 2026-10-13: timesheets (hours by day and cost code, weekly submit, approve and send back, CSV).

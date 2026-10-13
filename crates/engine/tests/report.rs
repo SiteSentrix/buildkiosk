@@ -139,3 +139,41 @@ fn company_reports_choose_columns_and_respect_visibility() {
     w.ok(pm, "company_report.delete", json!({"id": shared}));
     w.assert_replay();
 }
+
+#[test]
+fn rfi_ageing_columns_count_days_open_and_past_due() {
+    let mut w = World::new();
+    let a = w.project("Riverside Clinic");
+    let pm = w.member(a, "Paula", "Manager", "Project manager");
+    let sub = w.member(a, "Sam", "Sub", "Subcontractor");
+    let make = |w: &mut World, subject: &str, due: Option<&str>| {
+        let mut params = json!({"project": a, "subject": subject, "question": "?", "assignees": [pm.raw()]});
+        if let Some(d) = due {
+            params["due"] = json!(d);
+        }
+        let id = w.ok(pm, "rfi.create", params)["id"].as_u64().unwrap();
+        w.ok(pm, "rfi.open", json!({"project": a, "id": id}));
+        id
+    };
+    // Today is the world's clock; one RFI is made now, another ten days later, one of them with a past due date.
+    make(&mut w, "Old one", Some("2026-01-01"));
+    w.advance_days(10);
+    make(&mut w, "Newer one", None);
+    let run = w.ok(pm, "company_report.run", json!({"columns": ["rfis", "rfis_overdue", "rfi_oldest", "rfi_age"]}));
+    let cells = &run["rows"][0]["cells"];
+    assert_eq!((cells[0].as_u64(), cells[1].as_u64(), cells[2].as_u64(), cells[3].as_u64()), (Some(2), Some(1), Some(10), Some(5)), "{run}");
+    // Counts add up across projects; ages (the oldest, the average) do not.
+    assert_eq!(run["totals"][1].as_u64(), Some(1));
+    assert!(run["totals"][2].is_null() && run["totals"][3].is_null(), "{run}");
+    // A project with no open RFIs has nothing to average; someone who can't read RFIs sees blanks, not zeros.
+    let b = w.project("Annex");
+    w.ok(w.admin(), "member.add", json!({"project": b, "person": pm, "template": buildkiosk_engine::cmd::company::template_named(w.engine.state(), "Project manager").unwrap()}));
+    let run = w.ok(pm, "company_report.run", json!({"columns": ["rfi_oldest", "rfi_age", "rfis_overdue"], "sort": "rfi_oldest", "descending": true}));
+    assert_eq!(names(&run), ["Riverside Clinic", "Annex"], "{run}");
+    assert!(run["rows"][1]["cells"][1].is_null() && run["rows"][1]["cells"][2].is_null(), "{run}");
+    assert_eq!(run["rows"][1]["cells"][0].as_u64(), Some(0), "columns come back in the table's order");
+    w.ok(pm, "member.update", json!({"project": a, "person": sub, "overrides": {"rfis": "none"}}));
+    let blind = w.ok(sub, "company_report.run", json!({"columns": ["rfis_overdue", "rfi_oldest"]}));
+    assert!(blind["rows"][0]["cells"][0].is_null() && blind["rows"][0]["cells"][1].is_null(), "{blind}");
+    w.assert_replay();
+}

@@ -243,6 +243,8 @@ pub fn router(app: Shared) -> Router {
         .route("/prequalification/{vendor}/files/{sha}", get(prequal_download))
         .route("/my-tasks", get(my_tasks_page))
         .route("/reports", get(company_reports_page))
+        .route("/injury-log", get(company_injury_log_page))
+        .route("/injury-log.csv", get(company_injury_log_csv))
         .route("/reports.csv", get(company_reports_csv))
         .route(
             "/reports.pdf",
@@ -621,7 +623,13 @@ pub fn router(app: Shared) -> Router {
             page(&s.0, &h, &q, |r, _| workitems::observation_trends(r, Id::new(id)))
         }),
     );
-    let router = work_routes::<Task>(router);
+    let router = work_routes::<Task>(router).route(
+        "/projects/{id}/tasks/calendar",
+        get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, Query(q): Q| async move {
+            let month = q.get("month").and_then(|m| buildkiosk_core::Date::parse(&format!("{}-01", m.trim())));
+            page(&s.0, &h, &q, |r, _| workitems::task_calendar(r, Id::new(id), month))
+        }),
+    );
     let router = work_routes::<Incident>(router);
     let router = doc_routes::<ChangeEvent>(router);
     let router = doc_routes::<CommitmentChange>(router);
@@ -840,6 +848,23 @@ async fn company_reports_page(State(app): State<Shared>, headers: HeaderMap, Que
     use buildkiosk_engine::model::Choice as _;
     let chart = q.get("chart").and_then(|c| buildkiosk_engine::model::saved_report::ReportColumn::parse(c));
     page(&app, &headers, &q, |r, _| buildkiosk_web::company_reports::page(r, report, chart))
+}
+
+async fn company_injury_log_page(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Response {
+    let year = q.get("year").and_then(|y| y.trim().parse::<i32>().ok());
+    page(&app, &headers, &q, |r, _| workitems::company_injury_log(r, year))
+}
+
+async fn company_injury_log_csv(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Response {
+    let inner = app.lock();
+    let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    let req = Req { engine: &t.engine, person: s.person, csrf: "", now: Timestamp::from_millis(now_ms()), flash: None };
+    let year = q.get("year").and_then(|y| y.trim().parse::<i32>().ok());
+    let mut res = workitems::company_injury_log_csv(&req, year).into_response();
+    res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("text/csv; charset=utf-8"));
+    res.headers_mut().insert("content-disposition", HeaderValue::from_static("attachment; filename=\"injury-log-all-projects.csv\""));
+    res
 }
 
 async fn company_reports_csv(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Response {

@@ -1,6 +1,6 @@
 # BuildKiosk roadmap
 
-_Status: 2026-10-12. Stage: M1 (web app skeleton). Numbers are estimated, not measured._
+_Status: 2026-10-13. Stage: every scoped tool has a first slice (see the progress log). Numbers are estimated, not measured._
 
 Scope (owner decision, 2026-10-12): Procore's tools only; BuildKiosk-only extras are parked (see AGENTS.md).
 The ranked work list is [`docs/gaps.md`](docs/gaps.md).

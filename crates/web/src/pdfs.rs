@@ -549,3 +549,41 @@ pub fn bid_package(req: &Req<'_>, id: Id<Project>, bid: Id<buildkiosk_engine::mo
     }
     Some((file_name(&b.label()), render(&doc)))
 }
+
+pub fn submittal_log(req: &Req<'_>, id: Id<Project>) -> Option<Pdf> {
+    let p = project_of(req, id, Tool::Submittals)?;
+    let log = crate::submittals::log_data(req, id)?;
+    let (mut doc, _) = start(req, p, "Submittal log".into(), &format!("As of {}", req.today().pretty()));
+    let avg = log.average_days.map(|d| d.to_string()).unwrap_or_else(|| "—".into());
+    doc.blocks.push(Block::Facts(vec![
+        ("Submittals".into(), log.total.to_string()),
+        ("Drafts".into(), log.draft.to_string()),
+        ("In review".into(), log.in_review.to_string()),
+        ("Overdue".into(), log.overdue.to_string()),
+        ("Closed".into(), log.closed.to_string()),
+        ("Average days in review".into(), avg),
+    ]));
+    let rows = log
+        .rows
+        .iter()
+        .map(|r| {
+            vec![
+                dash(&r.spec),
+                r.number.clone(),
+                r.title.clone(),
+                r.status.label().to_string(),
+                dash(&r.decision),
+                dash(&r.ball),
+                dash(&r.due),
+                r.days.map(|d| d.to_string()).unwrap_or_else(|| "—".into()),
+            ]
+        })
+        .collect();
+    doc.blocks.push(table(
+        &["Spec", "#", "Title", "Status", "Decision", "Ball in court", "Due", "Days"],
+        &[1.3, 0.7, 3.2, 1.2, 1.6, 2.0, 1.4, 0.7],
+        &[7],
+        rows,
+    ));
+    Some(("submittal-log.pdf".into(), render(&doc)))
+}

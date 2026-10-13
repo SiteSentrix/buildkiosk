@@ -304,6 +304,7 @@ async fn submittal_workflow_and_files_in_the_browser_flow() {
     let (st, _, new) = send(&app, get("/projects/1/submittals/new")).await;
     assert_eq!(st, StatusCode::OK);
     assert!(new.contains("Save and send for review"));
+
     let (_, h, _) = send(
         &app,
         post(
@@ -338,6 +339,32 @@ async fn submittal_workflow_and_files_in_the_browser_flow() {
     let href = detail.split("href=\"").find(|s| s.contains("/files/")).unwrap().split('"').next().unwrap().to_string();
     let (st, _, body) = send(&app, get(&href)).await;
     assert_eq!((st, body.as_str()), (StatusCode::OK, "PDF"));
+
+    // Register import from an uploaded file, then the log and its PDF.
+    let import = |token: &str, csv: &str| {
+        let body = format!(
+            "--B\r\nContent-Disposition: form-data; name=\"_csrf\"\r\n\r\n{token}\r\n--B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"register.csv\"\r\nContent-Type: text/csv\r\n\r\n{csv}\r\n--B--\r\n"
+        );
+        Request::post("/projects/1/submittals/import")
+            .header("cookie", &session)
+            .header("content-type", "multipart/form-data; boundary=B")
+            .body(Body::from(body))
+            .unwrap()
+    };
+    let (st, ..) = send(&app, import("bad", "title\nX")).await;
+    assert_eq!(st, StatusCode::FORBIDDEN);
+    let (_, h, _) =
+        send(&app, import(&csrf, "title,spec_section,kind,due\nAnchor bolts,05 12 00,Product data,2026-12-01\nDoor hardware,08 71 00,Samples,"))
+            .await;
+    let loc = h.get(LOCATION).unwrap().to_str().unwrap().to_string();
+    assert!(loc.contains("ok=") && loc.contains("Imported%202"), "{loc}");
+    let (_, h, _) = send(&app, import(&csrf, "title\n")).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "an empty register imports nothing, without an error");
+    let (st, _, log) = send(&app, get("/projects/1/submittals/log")).await;
+    assert!(st == StatusCode::OK && log.contains("Submittal log") && log.contains("Anchor bolts") && log.contains("05 12 00"), "{log}");
+    let (st, h, pdf) = send(&app, get("/projects/1/submittals/log/pdf")).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(pdf.starts_with("%PDF") && h.get(CONTENT_TYPE).unwrap() == "application/pdf");
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }

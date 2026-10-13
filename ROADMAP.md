@@ -58,6 +58,7 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 - 2026-10-12: Daily log — weather, manpower, equipment, deliveries, visitors, notes; draft, submit, reopen.
 - 2026-10-12: RFI notifications.
 - 2026-10-13: Email — notifications are emailed through the company's own SMTP server (settings and test send on an admin page, per-person opt-out, links back to the app, nothing sent twice).
+- 2026-10-13: Submittals finished — register import from an uploaded CSV file, reviewer groups, a submittal log report (page and PDF).
 - 2026-10-13: Directory and permissions pages finished — per-tool overrides per team member, project settings, company settings, merging duplicate companies.
 - 2026-10-13: RFIs — files on individual responses (multipart post, up to 10 files, download with the RFI's files).
 - 2026-10-12: Submittals round 2 — ordered reviews, register import/export, specification sections, files on reviews, in-app notifications.

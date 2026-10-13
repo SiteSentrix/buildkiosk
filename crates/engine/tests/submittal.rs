@@ -151,3 +151,19 @@ fn register_import_and_spec_sections() {
     assert_eq!(w.ok(pm, "spec.list", json!({"project": p})).as_array().unwrap().len(), 2);
     w.assert_replay();
 }
+
+#[test]
+fn reviewer_groups_add_their_members() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let arch = w.member(p, "Arch", "Itect", "Owner / design team");
+    let eng = w.member(p, "Eli", "Engineer", "Owner / design team");
+    let g = w.ok(w.admin(), "group.create", json!({"name": "Design team", "members": [arch, eng]}))["id"].as_u64().unwrap();
+    let id =
+        w.ok(pm, "submittal.create", json!({"project": p, "title": "Stair", "reviewers": [eng], "reviewer_groups": [g]}))["id"].as_u64().unwrap();
+    let s = w.engine.state().submittals.iter().find(|s| s.id.raw() == id).unwrap().clone();
+    assert_eq!(s.reviewers, vec![eng, arch], "named people first, nobody twice");
+    w.err(pm, "submittal.update", json!({"project": p, "id": id, "reviewer_groups": [9999]}));
+    w.assert_replay();
+}

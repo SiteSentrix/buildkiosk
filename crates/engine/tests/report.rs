@@ -41,3 +41,20 @@ fn summary_and_waiting_on_me() {
     let other = w.project("Other");
     w.err(pm, "report.summary", json!({"project": other}));
 }
+
+#[test]
+fn portfolio_lists_only_your_projects() {
+    let mut w = World::new();
+    let a = w.project("Riverside Clinic");
+    let b = w.project("Harbor Lofts");
+    let pm = w.member(a, "Paula", "Manager", "Project manager");
+    w.ok(pm, "task.create", json!({"project": a, "title": "Order hardware", "due": "2020-01-01"}));
+    let rows = w.ok(pm, "report.portfolio", json!({}));
+    let rows = rows.as_array().unwrap();
+    assert_eq!(rows.len(), 1, "only the project Paula is on");
+    assert_eq!((rows[0]["name"].as_str(), rows[0]["overdue"].as_u64()), (Some("Riverside Clinic"), Some(1)));
+    assert!(rows[0]["revised"].is_string());
+    let all = w.ok(w.admin(), "report.portfolio", json!({}));
+    assert_eq!(all.as_array().unwrap().len(), 2);
+    let _ = b;
+}

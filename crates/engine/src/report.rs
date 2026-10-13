@@ -241,3 +241,46 @@ pub fn waiting_on(state: &CompanyState, actor: Actor, project: Id<Project>, me: 
     out.sort_by_key(|t| (t.due.is_none(), t.due));
     out
 }
+
+/// One project's line of the portfolio view.
+#[derive(Clone, Debug, Serialize)]
+pub struct PortfolioRow {
+    pub project: Id<Project>,
+    pub number: String,
+    pub name: String,
+    pub stage: String,
+    /// Items needing action across the tools the actor reads.
+    pub open: usize,
+    pub overdue: usize,
+    /// The revised budget and the projected over or under (negative is an overrun), when the
+    /// actor reads the budget.
+    pub revised: Option<buildkiosk_core::Money>,
+    pub variance: Option<buildkiosk_core::Money>,
+}
+
+/// Every project the actor may open, with its open and past-due counts and budget position.
+pub fn portfolio(state: &CompanyState, actor: Actor, today: Date) -> Vec<PortfolioRow> {
+    use buildkiosk_model::Choice;
+    view::projects_for(state, actor)
+        .into_iter()
+        .map(|p| {
+            let rows = project_summary(state, actor, p.id, today);
+            let (open, overdue) = rows.iter().fold((0, 0), |a, r| (a.0 + r.open, a.1 + r.overdue));
+            let budget = if readable(state, actor, p.id, Tool::Budget) {
+                view::budget_rows(state, p.id).ok().and_then(|r| view::budget_totals(&r).ok())
+            } else {
+                None
+            };
+            PortfolioRow {
+                project: p.id,
+                number: p.number.clone(),
+                name: p.name.clone(),
+                stage: p.stage.label().to_string(),
+                open,
+                overdue,
+                revised: budget.map(|t| t.revised()),
+                variance: budget.map(|t| t.variance()),
+            }
+        })
+        .collect()
+}

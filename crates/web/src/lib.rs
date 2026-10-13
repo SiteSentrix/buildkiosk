@@ -11,6 +11,7 @@ pub mod daily_logs;
 pub mod documents;
 pub mod drawings;
 pub mod finance;
+pub mod forms;
 pub mod icons;
 pub mod inbox;
 pub mod inspections;

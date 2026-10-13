@@ -15,6 +15,7 @@ pub mod directory;
 pub mod document;
 pub mod drawing;
 pub mod finance;
+pub mod form;
 pub mod incident;
 pub mod inspection;
 pub mod meeting;

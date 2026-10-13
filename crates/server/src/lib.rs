@@ -182,6 +182,12 @@ pub fn router(app: Shared) -> Router {
         .route("/projects/{id}/correspondence/{cid}/edit", get(correspondence_edit))
         .route("/projects/{id}/correspondence/{cid}/upload", post(correspondence_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
         .route("/projects/{id}/correspondence/{cid}/files/{sha}", get(correspondence_download))
+        .route("/projects/{id}/forms", get(forms_page))
+        .route("/projects/{id}/forms/templates", get(form_templates_page))
+        .route("/projects/{id}/forms/templates/{tid}", get(form_template_edit))
+        .route("/projects/{id}/forms/{rid}", get(form_page))
+        .route("/projects/{id}/forms/{rid}/upload", post(form_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
+        .route("/projects/{id}/forms/{rid}/files/{sha}", get(form_download))
         .route("/projects/{id}/schedule", get(schedule_page))
         .route("/projects/{id}/schedule.csv", get(schedule_csv))
         .route("/projects/{id}/schedule/{tid}", get(schedule_task_page))
@@ -1236,6 +1242,34 @@ async fn correspondence_upload(State(app): State<Shared>, headers: HeaderMap, Pa
     file_upload(app, headers, Kind::CORRESPONDENCE, id, cid, multipart).await
 }
 
+async fn forms_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    use buildkiosk_engine::model::Choice;
+    let template = q.get("template").and_then(|t| t.parse::<u64>().ok()).map(Id::new);
+    let status = q.get("status").and_then(|s| buildkiosk_engine::model::form::FormStatus::parse(s));
+    let text = q.get("q").map(|s| s.chars().take(100).collect::<String>()).unwrap_or_default();
+    page(&app, &headers, &q, |r, _| buildkiosk_web::forms::list(r, Id::new(id), template, status, &text))
+}
+
+async fn form_templates_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::forms::templates(r, Id::new(id), None))
+}
+
+async fn form_template_edit(State(app): State<Shared>, headers: HeaderMap, Path((id, tid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::forms::templates(r, Id::new(id), Some(Id::new(tid))))
+}
+
+async fn form_page(State(app): State<Shared>, headers: HeaderMap, Path((id, rid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::forms::detail(r, Id::new(id), Id::new(rid)))
+}
+
+async fn form_download(State(app): State<Shared>, headers: HeaderMap, Path((id, rid, sha)): Path<(u64, u64, String)>) -> Response {
+    file_download(app, headers, Kind::FORM, id, rid, sha).await
+}
+
+async fn form_upload(State(app): State<Shared>, headers: HeaderMap, Path((id, rid)): Path<(u64, u64)>, multipart: Multipart) -> Response {
+    file_upload(app, headers, Kind::FORM, id, rid, multipart).await
+}
+
 async fn schedule_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
     let show = q.get("show").cloned().unwrap_or_default();
     page(&app, &headers, &q, |r, _| buildkiosk_web::schedule::page(r, Id::new(id), &show))
@@ -1567,8 +1601,16 @@ fn form_params(form: &[(String, String)]) -> Value {
     let mut map = Map::new();
     // `items.0.description` style fields become `items: [{description}]`, in row order.
     let mut lists: std::collections::BTreeMap<String, std::collections::BTreeMap<usize, Map<String, Value>>> = std::collections::BTreeMap::new();
+    let mut answers = Map::new();
     for (k, v) in form {
         if k.starts_with('_') {
+            continue;
+        }
+        if let Some(key) = k.strip_prefix("answers.") {
+            // `answers.f1` style fields become `answers: {f1: ...}`.
+            if answers.len() < 200 {
+                answers.insert(key.to_string(), Value::String(v.clone()));
+            }
             continue;
         }
         if let Some((list, rest)) = k.split_once('.')
@@ -1594,6 +1636,9 @@ fn form_params(form: &[(String, String)]) -> Value {
                 map.insert(k.clone(), Value::String(v.clone()));
             }
         }
+    }
+    if !answers.is_empty() {
+        map.insert("answers".into(), Value::Object(answers));
     }
     for (list, rows) in lists {
         map.insert(list, Value::Array(rows.into_values().map(Value::Object).collect()));
@@ -1695,6 +1740,7 @@ impl Kind {
     const SUBMITTAL: Kind = Kind { attach: "submittal.attach", path: "submittals", files: submittal_files };
     const INSPECTION: Kind = Kind { attach: "inspection.attach", path: "inspections", files: inspection_files };
     const CORRESPONDENCE: Kind = Kind { attach: "correspondence.attach", path: "correspondence", files: correspondence_files };
+    const FORM: Kind = Kind { attach: "form.attach", path: "forms", files: form_files };
     const MEETING: Kind = Kind { attach: "meeting.attach", path: "meetings", files: meeting_files };
     const TRANSMITTAL: Kind = Kind { attach: "transmittal.attach", path: "transmittals", files: transmittal_files };
     const COMMITMENT: Kind = Kind { attach: "commitment.attach", path: "commitments", files: commitment_files };
@@ -1725,6 +1771,14 @@ fn correspondence_files(state: &CompanyState, actor: Actor, project: u64, item: 
         .get(Id::new(item))
         .filter(|c| c.project == Id::new(project) && buildkiosk_engine::cmd::correspondence::can_see(state, actor, c))
         .map(|c| c.attachments.clone())
+}
+
+fn form_files(state: &CompanyState, actor: Actor, project: u64, item: u64) -> Option<Vec<FileRef>> {
+    state
+        .form_records
+        .get(Id::new(item))
+        .filter(|r| r.project == Id::new(project) && r.deleted.is_none() && view::level(state, actor, r.project, Tool::Forms) >= Level::Read)
+        .map(|r| r.attachments.clone())
 }
 
 fn meeting_files(state: &CompanyState, actor: Actor, project: u64, item: u64) -> Option<Vec<FileRef>> {

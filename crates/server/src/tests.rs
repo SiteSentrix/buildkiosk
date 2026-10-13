@@ -1310,3 +1310,53 @@ async fn correspondence_send_reply_and_close() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn forms_template_fill_and_submit() {
+    let dir = temp("forms");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=P"))).await;
+    let (_, _, tpl) = send(&app, get("/projects/1/forms/templates")).await;
+    assert!(tpl.contains("fields.0.label") && tpl.contains("Save template"));
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/do/form_template.create",
+            &ada,
+            format!("_csrf={csrf}&_next=/projects/1/forms/templates&project=1&name=Pre-pour&description=&fields.0.label=Rebar+inspected&fields.0.kind=yes_no&fields.0.options=&fields.0.required=true&fields.1.label=Mix&fields.1.kind=choice&fields.1.options=3000+psi%2C+4000+psi&fields.2.label=&fields.2.kind=text&fields.2.options="),
+        ),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/do/form.create",
+            &ada,
+            format!("_csrf={csrf}&_next=/projects/1/forms/%7Bid%7D&_back=/projects/1/forms&project=1&template=1&title=Slab+A"),
+        ),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().starts_with("/projects/1/forms/1?ok="), "{h:?}");
+    let (_, _, detail) = send(&app, get("/projects/1/forms/1")).await;
+    assert!(detail.contains("Rebar inspected") && detail.contains("name=\"answers.f1\"") && detail.contains("4000 psi"));
+    let (_, h, _) = send(&app, post("/do/form.submit", &ada, format!("_csrf={csrf}&_back=/projects/1/forms/1&project=1&id=1"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("error="), "required answer missing");
+    send(&app, post("/do/form.update", &ada, format!("_csrf={csrf}&project=1&id=1&title=Slab+A&answers.f1=yes&answers.f2=4000+psi"))).await;
+    send(&app, post("/do/form.submit", &ada, format!("_csrf={csrf}&project=1&id=1"))).await;
+    let (_, _, detail) = send(&app, get("/projects/1/forms/1")).await;
+    assert!(detail.contains("Submitted") && detail.contains("Reopen") && detail.contains("4000 psi"), "{detail}");
+    let (_, _, list) = send(&app, get("/projects/1/forms?status=submitted")).await;
+    assert!(list.contains("Pre-pour"));
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

@@ -13,6 +13,7 @@ use crate::table::{Table, TableChange, TableData};
 use crate::correspondence::Correspondence;
 use crate::document::{Document, Folder};
 use crate::drawing::Drawing;
+use crate::form::{FormRecord, FormTemplate};
 use crate::incident::Incident;
 use crate::meeting::Meeting;
 use crate::photo::Photo;
@@ -134,6 +135,8 @@ tables! {
     transmittals: Transmittal,
     correspondence: Correspondence,
     meetings: Meeting,
+    form_templates: FormTemplate,
+    form_records: FormRecord,
     tasks: Task,
     spec_sections: SpecSection,
 

@@ -343,6 +343,8 @@ pub fn router(app: Shared) -> Router {
             .route("/projects/{id}/correspondence/{cid}/files/{sha}", get(correspondence_download))
             .route("/projects/{id}/forms", get(forms_page))
             .route("/projects/{id}/forms/templates", get(form_templates_page))
+            .route("/projects/{id}/forms/report", get(forms_report_page))
+            .route("/projects/{id}/forms/report.csv", get(forms_report_csv))
             .route("/projects/{id}/forms/templates/{tid}", get(form_template_edit))
             .route("/projects/{id}/forms/{rid}", get(form_page))
             .route("/projects/{id}/forms/{rid}/upload", post(form_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
@@ -617,6 +619,7 @@ pub async fn serve(app: Shared, bind: SocketAddr) -> Result<(), String> {
     log::info!("listening on http://{bind}");
     tokio::spawn(mail_loop(app.clone()));
     tokio::spawn(prequal_loop(app.clone()));
+    tokio::spawn(form_loop(app.clone()));
     if app.backups.is_some() {
         tokio::spawn(backup_loop(app.clone()));
     }
@@ -932,6 +935,62 @@ async fn prequal_loop(app: Shared) {
         }
         tokio::time::sleep(Duration::from_secs(6 * 3600)).await;
     }
+}
+
+/// Starts the forms that recurring schedules say are due: a pass every hour (a schedule makes one form per
+/// day it comes due, so more passes cost nothing).
+async fn form_loop(app: Shared) {
+    tokio::time::sleep(Duration::from_secs(120)).await;
+    loop {
+        let a = app.clone();
+        let pass = tokio::task::spawn_blocking(move || a.lock().run(Actor::System, "form.generate_due", &json!({}))).await;
+        match pass {
+            Ok(Ok(v)) => {
+                if v.get("made").and_then(Value::as_u64).unwrap_or(0) > 0 {
+                    log::info!("recurring forms started: {v}");
+                }
+            }
+            Ok(Err(e)) => log::warn!("the recurring forms pass failed: {e}"),
+            Err(e) => log::warn!("the recurring forms pass stopped: {e}"),
+        }
+        tokio::time::sleep(Duration::from_secs(3600)).await;
+    }
+}
+
+async fn forms_report_params(
+    q: &std::collections::HashMap<String, String>,
+) -> (
+    Option<Id<buildkiosk_engine::model::form::FormTemplate>>,
+    Option<buildkiosk_engine::model::form::FormStatus>,
+    Option<buildkiosk_core::Date>,
+    Option<buildkiosk_core::Date>,
+) {
+    use buildkiosk_engine::model::Choice;
+    (
+        q.get("template").and_then(|t| t.parse::<u64>().ok()).map(Id::new),
+        q.get("status").and_then(|s| buildkiosk_engine::model::form::FormStatus::parse(s)),
+        q.get("from").and_then(|d| buildkiosk_core::Date::parse(d)),
+        q.get("to").and_then(|d| buildkiosk_core::Date::parse(d)),
+    )
+}
+
+async fn forms_report_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    let (t, st, f, to) = forms_report_params(&q).await;
+    page(&app, &headers, &q, |r, _| buildkiosk_web::forms::report(r, Id::new(id), t, st, f, to))
+}
+
+async fn forms_report_csv(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    let (t, st, f, to) = forms_report_params(&q).await;
+    let Some(t) = t else { return plain(StatusCode::NOT_FOUND, "Not found") };
+    let inner = app.lock();
+    let Some(tenant) = inner.tenant.as_ref() else { return redirect("/setup") };
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    let req = Req { engine: &tenant.engine, person: s.person, csrf: "", now: Timestamp::from_millis(now_ms()), flash: None };
+    let Some(csv) = buildkiosk_web::forms::report_csv(&req, Id::new(id), t, st, f, to) else { return plain(StatusCode::NOT_FOUND, "Not found") };
+    let mut res = csv.into_response();
+    res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("text/csv; charset=utf-8"));
+    res.headers_mut().insert("content-disposition", HeaderValue::from_static("attachment; filename=\"forms-report.csv\""));
+    res
 }
 
 async fn prequalification_page(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Response {

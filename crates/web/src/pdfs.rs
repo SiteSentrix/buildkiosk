@@ -554,8 +554,8 @@ pub fn form_record(req: &Req<'_>, id: Id<Project>, rid: Id<buildkiosk_engine::mo
         start(req, p, format!("{}{}", r.label(), if r.title.is_empty() { String::new() } else { format!(": {}", r.title) }), r.status.label());
     doc.blocks.push(Block::Facts(vec![("Started".into(), format!("{} by {}", req.when(r.created.at), person(state, r.created.by)))]));
     let facts = r
-        .fields
-        .iter()
+        .shown_fields()
+        .into_iter()
         .map(|f| {
             let a = r.answers.get(&f.key).cloned().unwrap_or_default();
             let a = match a.as_str() {
@@ -568,6 +568,18 @@ pub fn form_record(req: &Req<'_>, id: Id<Project>, rid: Id<buildkiosk_engine::mo
         })
         .collect();
     doc.blocks.push(Block::Facts(facts));
+    if !r.signers.is_empty() {
+        doc.blocks.push(Block::Heading("Signatures".into()));
+        let rows = r
+            .signers
+            .iter()
+            .map(|role| match r.signatures.iter().find(|x| x.role.eq_ignore_ascii_case(role)) {
+                Some(x) => vec![role.clone(), x.name.clone(), req.when(x.stamp.at)],
+                None => vec![role.clone(), "Not signed".into(), String::new()],
+            })
+            .collect();
+        doc.blocks.push(table(&["Role", "Signed by", "When"], &[3.0, 4.0, 4.0], &[], rows));
+    }
     Some((file_name(&r.label()), render(&doc)))
 }
 

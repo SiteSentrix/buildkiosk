@@ -1583,3 +1583,53 @@ async fn prequalification_record_review_and_lapse_warning() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn directory_edit_template_levels_and_company() {
+    let dir = temp("dirtemplates");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    let (_, _, dir_page) = send(&app, get("/directory")).await;
+    assert!(dir_page.contains("Edit levels") && dir_page.contains("Add a permission template"));
+    send(&app, post("/do/template.create", &ada, format!("_csrf={csrf}&_next=/directory&name=Estimator&description=Preconstruction+staff"))).await;
+    let (_, _, edit) = send(&app, get("/directory/templates/7")).await;
+    assert!(
+        edit.contains("Permission template: Estimator") && edit.contains("name=\"levels.rfis\"") && edit.contains("name=\"levels.estimating\""),
+        "{edit}"
+    );
+    let (_, h, _) = send(&app, post("/do/template.update", &ada, format!("_csrf={csrf}&_next=/directory/templates/7&id=7&name=Estimator&description=Preconstruction+staff&levels.estimating=admin&levels.bidding=standard&levels.rfis=read&levels.budget=none"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, edit) = send(&app, get("/directory/templates/7")).await;
+    let selected = |tool: &str, level: &str| {
+        let at = edit.find(&format!("name=\"levels.{tool}\"")).unwrap();
+        let chunk = &edit[at..];
+        let end = chunk.find("</select>").unwrap();
+        chunk[..end].contains(&format!("<option value=\"{level}\" selected"))
+    };
+    assert!(selected("estimating", "admin") && selected("bidding", "standard") && selected("rfis", "read"));
+
+    send(&app, post("/do/vendor.create", &ada, format!("_csrf={csrf}&name=Keystone&kind=subcontractor"))).await;
+    let (_, _, company) = send(&app, get("/directory/companies/1")).await;
+    assert!(company.contains("value=\"Keystone\""));
+    send(
+        &app,
+        post(
+            "/do/vendor.update",
+            &ada,
+            format!("_csrf={csrf}&_next=/directory&id=1&name=Keystone+Concrete&kind=subcontractor&trade=Concrete&city=Springfield&notes="),
+        ),
+    )
+    .await;
+    let (_, _, dir_page) = send(&app, get("/directory")).await;
+    assert!(dir_page.contains("Keystone Concrete") && dir_page.contains("Concrete"));
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

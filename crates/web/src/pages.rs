@@ -687,8 +687,8 @@ pub fn directory(req: &Req<'_>) -> Markup {
         div class="card-head" { h2 { "Companies" } }
         div class="table-wrap" {
             table class="data" {
-                thead { tr { th { "Name" } th { "Kind" } th { "Trade" } th { "Phone" } } }
-                tbody { @for v in &vendors { tr { td { (v.name) } td { (v.kind.label()) } td { (v.trade) } td { (v.phone) } } } }
+                thead { tr { th { "Name" } th { "Kind" } th { "Trade" } th { "Phone" } @if req.allowed("vendor.update", None) { th {} } } }
+                tbody { @for v in &vendors { tr { td { (v.name) } td { (v.kind.label()) } td { (v.trade) } td { (v.phone) } @if req.allowed("vendor.update", None) { td class="right" { a class="btn small" href=(format!("/directory/companies/{}", v.id)) { "Edit" } } } } } }
             }
         }
         @if req.allowed("vendor.create", None) {
@@ -708,8 +708,21 @@ pub fn directory(req: &Req<'_>) -> Markup {
         div class="card-head" { h2 { "Permission templates" } }
         div class="table-wrap" {
             table class="data" {
-                thead { tr { th { "Template" } th { "What it is for" } } }
-                tbody { @for t in &templates { tr { td { strong { (t.name) } } td { (t.description) } } } }
+                thead { tr { th { "Template" } th { "What it is for" } @if is_admin { th {} } } }
+                tbody { @for t in &templates { tr { td { strong { (t.name) } } td { (t.description) } @if is_admin { td class="right" { a class="btn small" href=(format!("/directory/templates/{}", t.id)) { "Edit levels" } } } } } }
+            }
+        }
+        @if is_admin {
+            div class="card" {
+                h2 { "Add a permission template" }
+                (command_form(req, "template.create", here, here, html! {
+                    div class="form-grid" {
+                        (field("Name", "tname", true, false, html! { input type="text" id="tname" name="name" required; }))
+                        (field("What it is for", "tdesc", false, false, html! { input type="text" id="tdesc" name="description"; }))
+                    }
+                    p class="muted small" { "Set what the template allows on each tool after adding it." }
+                    div class="form-actions" { button type="submit" class="btn primary" { "Add template" } }
+                }))
             }
         }
     };
@@ -761,4 +774,82 @@ pub fn person_edit(req: &Req<'_>, id: Id<Person>) -> Markup {
         }
     };
     layout::app(req, &p.name(), Nav::Directory, &[("Directory", Some("/directory".into())), (&p.name(), None)], body)
+}
+
+/// Edit a permission template: its name and the level it gives on each tool.
+pub fn template_edit(req: &Req<'_>, id: buildkiosk_core::Id<perm::PermissionTemplate>) -> Markup {
+    use buildkiosk_engine::model::perm::PermissionTemplate;
+    use buildkiosk_engine::model::tool::ToolGroup;
+    let state = req.engine.state();
+    let Some(t) = state.templates.get(id).filter(|t| t.deleted.is_none()) else { return not_found(req) };
+    if !state.people.get(req.person).is_some_and(|x| x.company_admin) {
+        return not_found(req);
+    }
+    let _: Option<&PermissionTemplate> = Some(t);
+    let here = format!("/directory/templates/{id}");
+    let body = html! {
+        div class="page-head" { div { h1 { "Permission template: " (t.name) } div class="sub" { "The level this template gives on each tool. People with it get these levels on the projects they join, unless a person has an override." } } }
+        div class="card" {
+            (command_form(req, "template.update", &here, &here, html! {
+                input type="hidden" name="id" value=(id);
+                div class="form-grid" {
+                    (field("Name", "tname", true, false, html! { input type="text" id="tname" name="name" value=(t.name) required; }))
+                    (field("What it is for", "tdesc", false, false, html! { input type="text" id="tdesc" name="description" value=(t.description); }))
+                }
+                @for group in ToolGroup::ALL {
+                    @let tools: Vec<Tool> = Tool::ALL.iter().copied().filter(|x| x.group() == *group).collect();
+                    @if !tools.is_empty() {
+                        h2 { (group.label()) }
+                        table class="data matrix" {
+                            thead { tr { th { "Tool" } th { "Level" } } }
+                            tbody { @for tool in tools { tr {
+                                td { (tool.label()) }
+                                td { select name=(format!("levels.{}", tool.key())) aria-label=(format!("Level on {}", tool.label())) {
+                                    @for l in Level::ALL { option value=(l.key()) selected[t.level(tool) == *l] { (l.label()) } }
+                                } }
+                            } } }
+                        }
+                    }
+                }
+                div class="form-actions" { a class="btn" href="/directory" { "Back" } button type="submit" class="btn primary" { "Save levels" } }
+            }))
+            (button_form(req, "template.delete", "/directory", &[("id", id.to_string())], "Delete this template", "small danger"))
+        }
+    };
+    layout::app(req, "Permission template", Nav::Directory, &[("Directory", Some("/directory".into())), (&t.name, None)], body)
+}
+
+/// Edit one company of the directory.
+pub fn vendor_edit(req: &Req<'_>, id: buildkiosk_core::Id<buildkiosk_engine::model::directory::Vendor>) -> Markup {
+    let state = req.engine.state();
+    let Some(v) = state.vendors.get(id).filter(|v| v.deleted.is_none()) else { return not_found(req) };
+    if !req.allowed("vendor.update", None) {
+        return not_found(req);
+    }
+    let here = format!("/directory/companies/{id}");
+    let body = html! {
+        div class="page-head" { div { h1 { (v.name) } } }
+        div class="card" {
+            (command_form(req, "vendor.update", "/directory", &here, html! {
+                input type="hidden" name="id" value=(id);
+                div class="form-grid" {
+                    (field("Name", "vname", true, false, html! { input type="text" id="vname" name="name" value=(v.name) required; }))
+                    (field("Kind", "vkind", false, false, html! { select id="vkind" name="kind" { @for k in [VendorKind::Subcontractor, VendorKind::Supplier, VendorKind::Owner, VendorKind::Design, VendorKind::Consultant, VendorKind::Inspector, VendorKind::Other] { option value=(k.key()) selected[v.kind == k] { (k.label()) } } } }))
+                    (field("Trade", "trade", false, false, html! { input type="text" id="trade" name="trade" value=(v.trade); }))
+                    (field("Licence number", "license_number", false, false, html! { input type="text" id="license_number" name="license_number" value=(v.license_number); }))
+                    (field("Email", "vemail", false, false, html! { input type="email" id="vemail" name="email" value=(v.email); }))
+                    (field("Phone", "vphone", false, false, html! { input type="text" id="vphone" name="phone" value=(v.phone); }))
+                    (field("Website", "website", false, false, html! { input type="text" id="website" name="website" value=(v.website); }))
+                    (field("Street", "street", false, false, html! { input type="text" id="street" name="street" value=(v.address.street); }))
+                    (field("City", "city", false, false, html! { input type="text" id="city" name="city" value=(v.address.city); }))
+                    (field("State or region", "region", false, false, html! { input type="text" id="region" name="region" value=(v.address.region); }))
+                    (field("Postal code", "postal_code", false, false, html! { input type="text" id="postal_code" name="postal_code" value=(v.address.postal_code); }))
+                    (field("Country", "country", false, false, html! { input type="text" id="country" name="country" value=(v.address.country); }))
+                    (field("Notes", "vnotes", false, true, html! { textarea id="vnotes" name="notes" class="short" { (v.notes) } }))
+                }
+                div class="form-actions" { a class="btn" href="/directory" { "Cancel" } button type="submit" class="btn primary" { "Save" } }
+            }))
+        }
+    };
+    layout::app(req, &v.name, Nav::Directory, &[("Directory", Some("/directory".into())), (&v.name, None)], body)
 }

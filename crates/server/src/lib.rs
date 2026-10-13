@@ -126,6 +126,8 @@ pub fn router(app: Shared) -> Router {
         .route("/directory", get(directory))
         .route("/prequalification", get(prequalification_page))
         .route("/directory/people/{id}", get(person_edit))
+        .route("/directory/templates/{id}", get(template_edit))
+        .route("/directory/companies/{id}", get(vendor_edit))
         .route("/people/{id}/password", post(set_password))
         .route("/projects/{id}", get(project_home))
         .route("/projects/{id}/team", get(team))
@@ -441,6 +443,14 @@ async fn prequalification_page(State(app): State<Shared>, headers: HeaderMap, Qu
 
 async fn directory(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Response {
     page(&app, &headers, &q, |r, _| pages::directory(r))
+}
+
+async fn template_edit(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| pages::template_edit(r, Id::new(id)))
+}
+
+async fn vendor_edit(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| pages::vendor_edit(r, Id::new(id)))
 }
 
 async fn person_edit(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
@@ -1727,15 +1737,16 @@ fn form_params(form: &[(String, String)]) -> Value {
     let mut map = Map::new();
     // `items.0.description` style fields become `items: [{description}]`, in row order.
     let mut lists: std::collections::BTreeMap<String, std::collections::BTreeMap<usize, Map<String, Value>>> = std::collections::BTreeMap::new();
-    let mut answers = Map::new();
+    let mut objects: std::collections::BTreeMap<&str, Map<String, Value>> = std::collections::BTreeMap::new();
     for (k, v) in form {
         if k.starts_with('_') {
             continue;
         }
-        if let Some(key) = k.strip_prefix("answers.") {
-            // `answers.f1` style fields become `answers: {f1: ...}`.
-            if answers.len() < 200 {
-                answers.insert(key.to_string(), Value::String(v.clone()));
+        if let Some((object, key)) = ["answers", "levels"].iter().find_map(|o| k.strip_prefix(&format!("{o}.")).map(|rest| (*o, rest))) {
+            // `answers.f1` and `levels.rfis` style fields become `answers: {f1: ...}` and `levels: {rfis: ...}`.
+            let entry = objects.entry(object).or_default();
+            if entry.len() < 200 {
+                entry.insert(key.to_string(), Value::String(v.clone()));
             }
             continue;
         }
@@ -1763,8 +1774,8 @@ fn form_params(form: &[(String, String)]) -> Value {
             }
         }
     }
-    if !answers.is_empty() {
-        map.insert("answers".into(), Value::Object(answers));
+    for (name, fields) in objects {
+        map.insert(name.into(), Value::Object(fields));
     }
     for (list, rows) in lists {
         map.insert(list, Value::Array(rows.into_values().map(Value::Object).collect()));

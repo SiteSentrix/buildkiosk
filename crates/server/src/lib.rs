@@ -1,6 +1,7 @@
 //! The HTTP server (layer 6): serves the web pages, handles sign-in with signed session cookies,
 //! checks a CSRF token on every form, turns form posts into commands (`POST /do/{command}`) and
-//! exposes the same commands as JSON (`POST /api/v1/commands/{id}`, bearer token).
+//! exposes the same commands as JSON (`POST /api/v1/commands/{id}`, bearer token) and as MCP
+//! (`POST /mcp`).
 #![forbid(unsafe_code)]
 
 mod auth;
@@ -129,6 +130,10 @@ pub fn router(app: Shared) -> Router {
         .route("/directory/templates/{id}", get(template_edit))
         .route("/directory/companies/{id}", get(vendor_edit))
         .route("/people/{id}/password", post(set_password))
+        .route("/account", get(account_page))
+        .route("/account/password", post(account_password))
+        .route("/account/token", post(account_token))
+        .route("/account/token/revoke", post(account_token_revoke))
         .route("/projects/{id}", get(project_home))
         .route("/projects/{id}/team", get(team))
         .route("/projects/{id}/rfis", get(rfi_list))
@@ -235,6 +240,7 @@ pub fn router(app: Shared) -> Router {
         .route("/projects/{id}/rfis/{rid}/upload", post(rfi_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
         .route("/projects/{id}/rfis/{rid}/edit", get(rfi_edit))
         .route("/do/{command}", post(do_command))
+        .route("/mcp", post(mcp_http))
         .route("/api/v1/commands/{id}", post(api_command))
         .route("/static/app.css", get(css))
         .route("/static/favicon.svg", get(favicon));
@@ -1728,6 +1734,121 @@ async fn set_password(State(app): State<Shared>, headers: HeaderMap, Path(id): P
     }
 }
 
+// -- account
+
+fn token_rows(inner: &Inner, person: u64) -> Vec<buildkiosk_web::account::TokenRow> {
+    inner
+        .creds
+        .tokens
+        .iter()
+        .filter(|t| t.person == person)
+        .map(|t| buildkiosk_web::account::TokenRow { id: t.id.clone(), name: t.name.clone(), created: t.created })
+        .collect()
+}
+
+async fn account_page(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Response {
+    let inner = app.lock();
+    let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    let csrf = auth::csrf_token(app.secret(), &s.cookie);
+    let req = Req { engine: &t.engine, person: s.person, csrf: &csrf, now: Timestamp::from_millis(now_ms()), flash: flash_from(&q) };
+    html(StatusCode::OK, buildkiosk_web::account::page(&req, &token_rows(&inner, s.person.raw()), None))
+}
+
+/// Checks the session and the CSRF token of an account form.
+fn account_form(app: &Shared, inner: &Inner, headers: &HeaderMap, form: &[(String, String)]) -> Result<Session, Box<Response>> {
+    let Some(s) = session(app, inner, headers) else { return Err(Box::new(redirect("/login"))) };
+    if !auth::csrf_ok(app.secret(), &s.cookie, get_form(form, "_csrf")) {
+        return Err(Box::new(plain(StatusCode::FORBIDDEN, "The form expired. Go back, reload the page and try again.")));
+    }
+    Ok(s)
+}
+
+async fn account_password(State(app): State<Shared>, headers: HeaderMap, body: Bytes) -> Response {
+    let form = parse_form(&body);
+    let mut inner = app.lock();
+    let s = match account_form(&app, &inner, &headers, &form) {
+        Ok(s) => s,
+        Err(r) => return *r,
+    };
+    let back = "/account";
+    let id = s.person.raw();
+    if !inner.creds.check_password(id, get_form(&form, "current")) {
+        return redirect(&with_flash(back, false, "The current password is not right."));
+    }
+    let password = get_form(&form, "password");
+    if password != get_form(&form, "confirm") {
+        return redirect(&with_flash(back, false, "The new password and its repeat are different."));
+    }
+    if let Err(e) = check_password_rules(password) {
+        return redirect(&with_flash(back, false, &e));
+    }
+    let mut creds = inner.creds.clone();
+    let saved = creds
+        .set_password(id, password, Timestamp::from_millis(now_ms()))
+        .and_then(|()| inner.tenant.as_ref().map_or(Ok(()), |t| t.store.save_credentials(&creds)));
+    match saved {
+        Ok(()) => {
+            inner.creds = creds;
+            with_cookie(redirect(&with_flash(back, true, "Password changed.")), &session_cookie(&app, &inner, id))
+        }
+        Err(e) => redirect(&with_flash(back, false, &e.to_string())),
+    }
+}
+
+async fn account_token(State(app): State<Shared>, headers: HeaderMap, body: Bytes) -> Response {
+    let form = parse_form(&body);
+    let mut inner = app.lock();
+    let s = match account_form(&app, &inner, &headers, &form) {
+        Ok(s) => s,
+        Err(r) => return *r,
+    };
+    let name = get_form(&form, "name").trim().to_string();
+    if name.is_empty() {
+        return redirect(&with_flash("/account", false, "Give the token a name."));
+    }
+    let mut creds = inner.creds.clone();
+    let made = creds
+        .create_token(s.person.raw(), &name, Timestamp::from_millis(now_ms()))
+        .and_then(|t| inner.tenant.as_ref().map_or(Ok(()), |tn| tn.store.save_credentials(&creds)).map(|()| t));
+    match made {
+        Ok(token) => {
+            inner.creds = creds;
+            let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+            let csrf = auth::csrf_token(app.secret(), &s.cookie);
+            let req = Req { engine: &t.engine, person: s.person, csrf: &csrf, now: Timestamp::from_millis(now_ms()), flash: None };
+            let mut res = html(StatusCode::OK, buildkiosk_web::account::page(&req, &token_rows(&inner, s.person.raw()), Some(&token)));
+            // The page holds a secret: keep it out of caches and history.
+            res.headers_mut().insert("cache-control", HeaderValue::from_static("no-store"));
+            res
+        }
+        Err(e) => redirect(&with_flash("/account", false, &e.to_string())),
+    }
+}
+
+async fn account_token_revoke(State(app): State<Shared>, headers: HeaderMap, body: Bytes) -> Response {
+    let form = parse_form(&body);
+    let mut inner = app.lock();
+    let s = match account_form(&app, &inner, &headers, &form) {
+        Ok(s) => s,
+        Err(r) => return *r,
+    };
+    let id = get_form(&form, "id");
+    // Only the person's own tokens can be revoked here.
+    if !inner.creds.tokens.iter().any(|t| t.id == id && t.person == s.person.raw()) {
+        return redirect(&with_flash("/account", false, "That token is not yours."));
+    }
+    let mut creds = inner.creds.clone();
+    creds.revoke_token(id);
+    match inner.tenant.as_ref().map_or(Ok(()), |t| t.store.save_credentials(&creds)) {
+        Ok(()) => {
+            inner.creds = creds;
+            redirect(&with_flash("/account", true, "Token revoked."))
+        }
+        Err(e) => redirect(&with_flash("/account", false, &e.to_string())),
+    }
+}
+
 // -- commands
 
 /// Turns the posted fields into command parameters: a field named `x[]` collects all its values
@@ -1815,6 +1936,33 @@ fn json_response(status: StatusCode, v: &Value) -> Response {
     let mut res = (status, v.to_string()).into_response();
     res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
     res
+}
+
+/// The MCP server over HTTP: one JSON-RPC message (or batch) per POST, with an API token. A
+/// notification answers 202 with no body.
+async fn mcp_http(State(app): State<Shared>, headers: HeaderMap, body: Bytes) -> Response {
+    let token = headers.get(AUTHORIZATION).and_then(|v| v.to_str().ok()).and_then(|v| v.strip_prefix("Bearer ")).unwrap_or("");
+    let mut inner = app.lock();
+    let person = inner
+        .creds
+        .token_person(token)
+        .filter(|p| inner.tenant.as_ref().and_then(|t| t.engine.state().people.get(Id::new(*p))).is_some_and(|p| p.is_enabled() && p.is_user));
+    let Some(person) = person else {
+        return json_response(
+            StatusCode::UNAUTHORIZED,
+            &json!({"jsonrpc": "2.0", "id": null, "error": {"code": -32001, "message": "send a valid API token as `Authorization: Bearer <token>`"}}),
+        );
+    };
+    let Some(tenant) = inner.tenant.as_mut() else { return plain(StatusCode::SERVICE_UNAVAILABLE, "The company is not set up.") };
+    let text = String::from_utf8_lossy(&body).into_owned();
+    match buildkiosk_mcp::handle_line(tenant, Actor::Person(Id::new(person)), Timestamp::from_millis(now_ms()), &text) {
+        Some(reply) => {
+            let mut res = reply.into_response();
+            res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+            res
+        }
+        None => StatusCode::ACCEPTED.into_response(),
+    }
 }
 
 async fn api_command(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<String>, body: Bytes) -> Response {

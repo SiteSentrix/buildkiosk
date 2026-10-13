@@ -1633,3 +1633,126 @@ async fn directory_edit_template_levels_and_company() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn mcp_over_http_needs_a_token_and_runs_commands() {
+    let dir = temp("mcphttp");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    send(&app, post("/setup", &anon, body)).await;
+    let token = {
+        let mut inner = app.lock();
+        let person = inner.tenant.as_ref().unwrap().engine.state().people.iter().next().unwrap().id.raw();
+        let t = inner.creds.create_token(person, "agent", Timestamp::from_millis(now_ms())).unwrap();
+        let t2 = inner.tenant.as_ref().unwrap().store.save_credentials(&inner.creds);
+        t2.unwrap();
+        t
+    };
+    let rpc = |auth: Option<&str>, msg: &str| {
+        let mut r = Request::post("/mcp").header("content-type", "application/json");
+        if let Some(a) = auth {
+            r = r.header("authorization", format!("Bearer {a}"));
+        }
+        r.body(Body::from(msg.to_string())).unwrap()
+    };
+    let (st, ..) = send(&app, rpc(None, r#"{"jsonrpc":"2.0","id":1,"method":"tools/list"}"#)).await;
+    assert_eq!(st, StatusCode::UNAUTHORIZED);
+    let (st, h, body) = send(&app, rpc(Some(&token), r#"{"jsonrpc":"2.0","id":1,"method":"tools/list"}"#)).await;
+    assert_eq!(st, StatusCode::OK);
+    assert_eq!(h.get("content-type").unwrap(), "application/json");
+    assert!(body.contains("project_create") && body.contains("rfi_list"), "{}", &body[..body.len().min(300)]);
+    let (_, _, body) = send(
+        &app,
+        rpc(Some(&token), r#"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"project_create","arguments":{"name":"Via MCP"}}}"#),
+    )
+    .await;
+    assert!(body.contains("\"id\":2") && !body.contains("\"isError\":true"), "{body}");
+    let (_, _, home) = send(
+        &app,
+        Request::get("/")
+            .header("cookie", {
+                let (_, h, p) = send(&app, Request::get("/login").body(Body::empty()).unwrap()).await;
+                let anon = cookies(&h);
+                let b = format!("_csrf={}&email=ada%40example.com&password=correct-horse-battery", field(&p, "_csrf"));
+                let (_, h, _) = send(&app, post("/login", &anon, b)).await;
+                cookies(&h)
+            })
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    assert!(home.contains("Via MCP"), "the project made over MCP shows up in the app");
+    let (st, ..) = send(&app, rpc(Some(&token), r#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#)).await;
+    assert_eq!(st, StatusCode::ACCEPTED);
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
+async fn account_password_and_tokens() {
+    let dir = temp("account");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let (_, _, acct) = send(&app, get("/account")).await;
+    let csrf = field(&acct, "_csrf");
+    assert!(acct.contains("Change password") && acct.contains("You have no tokens"));
+
+    // A wrong current password, a mismatch and a weak password are refused.
+    for (cur, new, again, want) in [
+        ("nope", "a-new-long-password", "a-new-long-password", "not%20right"),
+        ("correct-horse-battery", "a-new-long-password", "other-long-password", "different"),
+        ("correct-horse-battery", "short", "short", "at%20least"),
+    ] {
+        let (_, h, _) = send(&app, post("/account/password", &ada, format!("_csrf={csrf}&current={cur}&password={new}&confirm={again}"))).await;
+        let loc = h.get(LOCATION).unwrap().to_str().unwrap();
+        assert!(loc.contains("error=") && loc.contains(want), "{loc}");
+    }
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/account/password",
+            &ada,
+            format!("_csrf={csrf}&current=correct-horse-battery&password=a-new-long-password&confirm=a-new-long-password"),
+        ),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="));
+    let ada = cookies(&h);
+    // The new password works and the old one doesn't.
+    let (_, h2, p2) = send(&app, Request::get("/login").body(Body::empty()).unwrap()).await;
+    let a2 = cookies(&h2);
+    let t2 = field(&p2, "_csrf");
+    let (st, ..) = send(&app, post("/login", &a2, format!("_csrf={t2}&email=ada%40example.com&password=correct-horse-battery"))).await;
+    assert_eq!(st, StatusCode::UNAUTHORIZED);
+    let (st, ..) = send(&app, post("/login", &a2, format!("_csrf={t2}&email=ada%40example.com&password=a-new-long-password"))).await;
+    assert_eq!(st, StatusCode::SEE_OTHER);
+
+    // A token is shown once, works for the API, and can be revoked.
+    let (_, _, acct) = send(&app, Request::get("/account").header("cookie", &ada).body(Body::empty()).unwrap()).await;
+    let csrf = field(&acct, "_csrf");
+    let (st, h, made) = send(&app, post("/account/token", &ada, format!("_csrf={csrf}&name=Laptop"))).await;
+    assert_eq!(st, StatusCode::OK);
+    assert_eq!(h.get("cache-control").unwrap(), "no-store");
+    let token = made.split("not shown again):").nth(1).unwrap().split("<code>").nth(1).unwrap().split("</code>").next().unwrap().to_string();
+    assert!(token.starts_with("bk_") && made.contains("Laptop"));
+    let api = |t: &str| Request::post("/api/v1/commands/project.list").header("authorization", format!("Bearer {t}")).body(Body::empty()).unwrap();
+    assert_eq!(send(&app, api(&token)).await.0, StatusCode::OK);
+    let (_, _, again) = send(&app, Request::get("/account").header("cookie", &ada).body(Body::empty()).unwrap()).await;
+    assert!(again.contains("Laptop") && !again.contains(&token), "the secret is never shown again");
+    let id = again.split("name=\"id\" value=\"").nth(1).unwrap().split('"').next().unwrap().to_string();
+    let (_, h, _) = send(&app, post("/account/token/revoke", &ada, format!("_csrf={csrf}&id=nope"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("error="));
+    send(&app, post("/account/token/revoke", &ada, format!("_csrf={csrf}&id={id}"))).await;
+    assert_eq!(send(&app, api(&token)).await.0, StatusCode::UNAUTHORIZED);
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

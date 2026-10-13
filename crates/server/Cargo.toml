@@ -10,6 +10,7 @@ repository.workspace = true
 [dependencies]
 buildkiosk-core = { workspace = true }
 buildkiosk-engine = { workspace = true }
+buildkiosk-mcp = { workspace = true }
 buildkiosk-store = { workspace = true }
 buildkiosk-web = { workspace = true }
 axum = { workspace = true }

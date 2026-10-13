@@ -108,7 +108,7 @@ const NAV_GROUPS: &[(&str, &[NavEntry])] = {
 /// The path segment of the current page's sidebar entry ("" when it has none).
 fn nav_key(nav: Nav) -> &'static str {
     match nav {
-        Nav::Projects | Nav::Directory | Nav::Notifications | Nav::Prequalification | Nav::Home(_) => "",
+        Nav::Projects | Nav::Directory | Nav::Notifications | Nav::Prequalification | Nav::Account | Nav::Home(_) => "",
         Nav::Team(_) => "team",
         Nav::Rfis(_) => "rfis",
         Nav::Submittals(_) => "submittals",
@@ -184,6 +184,7 @@ pub enum Nav {
     CommitmentInvoices(Id<Project>),
     Notifications,
     Prequalification,
+    Account,
 }
 
 fn head(title: &str) -> Markup {
@@ -243,7 +244,7 @@ pub fn app(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Option<String>
     let company = state.company().map(|c| c.name.clone()).unwrap_or_default();
     let unread = state.notifications.iter().filter(|n| n.person == req.person && !n.read).count();
     let project = match nav {
-        Nav::Projects | Nav::Directory | Nav::Notifications | Nav::Prequalification => None,
+        Nav::Projects | Nav::Directory | Nav::Notifications | Nav::Prequalification | Nav::Account => None,
         Nav::Home(p)
         | Nav::Team(p)
         | Nav::Rfis(p)
@@ -293,7 +294,7 @@ pub fn app(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Option<String>
                     div class="who" {
                         a href="/notifications" aria-label=(format!("Notifications, {unread} unread")) { (Icon::Mail.svg()) @if unread > 0 { span class="tag" { (unread) } } }
                         span class="avatar" { (initials(&me)) }
-                        span class="name" { (me) }
+                        a class="name" href="/account" { (me) }
                         form method="post" action="/logout" {
                             input type="hidden" name="_csrf" value=(req.csrf);
                             button type="submit" { (Icon::SignOut.svg()) "Sign out" }

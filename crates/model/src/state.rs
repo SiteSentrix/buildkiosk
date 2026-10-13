@@ -15,7 +15,7 @@ use crate::bidding::BidPackage;
 use crate::correspondence::{Correspondence, CorrespondenceType};
 use crate::document::{Document, Folder};
 use crate::drawing::Drawing;
-use crate::estimate::{Assembly, CatalogItem, Estimate};
+use crate::estimate::{Assembly, CatalogItem, Estimate, EstimateTemplate};
 use crate::form::{FormRecord, FormSchedule, FormTemplate};
 use crate::incident::Incident;
 use crate::meeting::{Meeting, MeetingTemplate};
@@ -185,6 +185,7 @@ tables! {
     commitment_invoices: CommitmentInvoice,
     bid_packages: BidPackage,
     estimates: Estimate,
+    estimate_templates: EstimateTemplate,
     catalog_items: CatalogItem,
     assemblies: Assembly,
 

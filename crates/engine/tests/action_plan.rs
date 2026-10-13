@@ -133,3 +133,31 @@ fn approvers_comments_templates_and_sign_off() {
     assert_eq!(w.ok(sup, "action_plan.template_list", json!({})).as_array().unwrap().len(), 0);
     w.assert_replay();
 }
+
+#[test]
+fn files_on_the_plan_itself() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let sup = w.member(p, "Sue", "Super", "Superintendent");
+    let reader = w.member(p, "Rae", "Reader", "Read only");
+    let id = w.ok(sup, "action_plan.create", json!({"project": p, "title": "Closeout", "outline": "# A\nDo it"}))["id"].as_u64().unwrap();
+    let sha = "a".repeat(64);
+    let file = json!({"project": p, "id": id, "sha256": sha, "name": "programme.pdf", "size": 10});
+    w.err(reader, "action_plan.attach", file.clone());
+    w.ok(sup, "action_plan.attach", file.clone());
+    // The same file twice is one file; a bad hash is refused.
+    w.ok(sup, "action_plan.attach", file.clone());
+    w.err(sup, "action_plan.attach", json!({"project": p, "id": id, "sha256": "xyz", "name": "x", "size": 1}));
+    assert_eq!(w.engine.state().action_plans.iter().next().unwrap().attachments.len(), 1);
+    w.err(sup, "action_plan.detach", json!({"project": p, "id": id, "sha256": "b".repeat(64)}));
+    // A finished plan keeps its files until it is reopened.
+    w.ok(sup, "action_plan.activate", json!({"project": p, "id": id}));
+    w.ok(sup, "action_plan.set_item", json!({"project": p, "id": id, "section": 0, "item": 0, "done": true}));
+    w.ok(sup, "action_plan.complete", json!({"project": p, "id": id}));
+    w.err(sup, "action_plan.attach", json!({"project": p, "id": id, "sha256": "c".repeat(64), "name": "y", "size": 1}));
+    w.err(sup, "action_plan.detach", json!({"project": p, "id": id, "sha256": sha}));
+    w.ok(sup, "action_plan.reopen", json!({"project": p, "id": id}));
+    w.ok(sup, "action_plan.detach", json!({"project": p, "id": id, "sha256": sha}));
+    assert!(w.engine.state().action_plans.iter().next().unwrap().attachments.is_empty());
+    w.assert_replay();
+}

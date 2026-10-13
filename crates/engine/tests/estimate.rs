@@ -409,3 +409,60 @@ fn catalogue_prices_are_kept_by_date_and_supplier() {
     w.err(pm, "catalog.import", json!({"text": "X, ea, 1", "vendor": 9999}));
     w.assert_replay();
 }
+
+#[test]
+fn estimate_templates_start_new_estimates() {
+    let (mut w, p, pm) = setup();
+    let other = w.project("Harbor Office");
+    w.ok(w.admin(), "member.add", json!({"project": other, "person": pm, "template": buildkiosk_engine::cmd::company::template_named(w.engine.state(), "Project manager").unwrap()}));
+    let (concrete, steel) = (code(&w, "03-300"), code(&w, "05-100"));
+    // A cost code only the first project has.
+    w.ok(pm, "cost_code.create", json!({"project": p, "code": "99-900", "description": "Special"}));
+    let special = code(&w, "99-900");
+    let src = w.ok(
+        pm,
+        "estimate.create",
+        json!({"project": p, "name": "Clinic", "notes": "Base scope",
+               "lines": [{"cost_code": concrete, "description": "Slab", "quantity": "100", "unit": "sf", "unit_cost": "8"},
+                         {"cost_code": steel, "description": "Frame", "quantity": "1", "unit": "ls", "unit_cost": "5,000"}],
+               "markups": [{"name": "Overhead", "percent": "5"}],
+               "alternates": [{"name": "Polish", "cost_code": concrete, "amount": "900", "accepted": true}]}),
+    )["id"]
+        .as_u64()
+        .unwrap();
+    w.err(pm, "estimate.template_save", json!({"project": p, "id": src}));
+    let t = w.ok(pm, "estimate.template_save", json!({"project": p, "id": src, "name": "Small clinic"}))["id"].as_u64().unwrap();
+    // Saving under the same name replaces it.
+    assert_eq!(w.ok(pm, "estimate.template_save", json!({"project": p, "id": src, "name": "small CLINIC"}))["id"].as_u64().unwrap(), t);
+    assert_eq!(w.ok(pm, "estimate.template_list", json!({})).as_array().unwrap().len(), 1);
+
+    // Another project starts from it: lines, markups and alternates (none accepted) come across.
+    let n = w.ok(pm, "estimate.create", json!({"project": other, "name": "Harbor", "template": t}))["id"].as_u64().unwrap();
+    let e = estimate_of(&w, n);
+    assert_eq!((e.lines.len(), e.markups.len(), e.alternates.len(), e.notes.as_str()), (2, 1, 1, "Base scope"));
+    assert!(!e.alternates[0].accepted);
+    assert_eq!(e.lines[0].cost_code.raw(), concrete);
+    // Lines given with the call win over the template.
+    let own = w.ok(pm, "estimate.create", json!({"project": other, "name": "Own", "template": t, "lines": [{"cost_code": steel, "description": "x", "quantity": "1", "unit_cost": "1"}]}))["id"].as_u64().unwrap();
+    assert_eq!(estimate_of(&w, own).lines.len(), 1);
+    w.err(pm, "estimate.create", json!({"project": other, "name": "Nope", "template": 9999}));
+
+    // A template with a code the project lacks is refused with the code named.
+    let with_special = w.ok(
+        pm,
+        "estimate.create",
+        json!({"project": p, "name": "Special", "lines": [{"cost_code": special, "description": "y", "quantity": "1", "unit_cost": "1"}]}),
+    )["id"]
+        .as_u64()
+        .unwrap();
+    let t2 = w.ok(pm, "estimate.template_save", json!({"project": p, "id": with_special, "name": "Special work"}))["id"].as_u64().unwrap();
+    let err = w.err(pm, "estimate.create", json!({"project": other, "name": "Fail", "template": t2}));
+    assert!(err.to_string().contains("99-900"), "{err}");
+
+    // Deleting: the author or an admin only.
+    let other_user = w.member(p, "Eli", "Engineer", "Project engineer");
+    w.err(other_user, "estimate.template_delete", json!({"id": t}));
+    w.ok(pm, "estimate.template_delete", json!({"id": t}));
+    w.err(pm, "estimate.create", json!({"project": other, "name": "Gone", "template": t}));
+    w.assert_replay();
+}

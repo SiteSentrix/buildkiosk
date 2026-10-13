@@ -20,6 +20,7 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 2. Next tools in the order of `docs/gaps.md` (item 8 onward; the financial remainder is listed under item 7).
 
 ## Progress log
+- 2026-10-13: Small items: estimate templates, files on action plans, prequalification questionnaire versions, repeat rules for month-end, quarterly and yearly.
 - 2026-10-13: Company reports: saved reports with chosen columns, totals, a chart, CSV and PDF; the schedule exports as a project XML file.
 - 2026-10-13: Bidding: bid form lines and alternates, scope checklist and leveling matrix, addenda with acknowledgements, bid files, required bid bonds.
 - 2026-10-13: Estimating: company price catalogue and assemblies, takeoff totals from sheet measurements, estimate versions and comparison, alternates, bids as lines.

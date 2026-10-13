@@ -1,7 +1,7 @@
 //! Estimating pages: the estimates list, one estimate with its totals, and the form.
 
 use buildkiosk_core::{Id, Money};
-use buildkiosk_engine::cmd::estimate::visible;
+use buildkiosk_engine::cmd::estimate::{can_read_templates, templates, visible};
 use buildkiosk_engine::model::drawing::{Drawing, MarkupKind};
 use buildkiosk_engine::model::estimate::{Estimate, EstimateLine, EstimateStatus};
 use buildkiosk_engine::model::project::Project;
@@ -88,6 +88,20 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, eid: Id<Estimate>, takeoff: Option
                 @if lvl >= Level::Standard && e.status == EstimateStatus::Final { (button_form(req, "estimate.reopen", &here, &ids, "Reopen", "")) }
                 @if lvl >= Level::Standard { (button_form(req, "estimate.duplicate", &here, &ids, "New version", "")) }
                 @if lvl >= Level::Standard { (button_form(req, "estimate.delete", &base, &ids, "Delete", "danger")) }
+            }
+        }
+        @if lvl >= Level::Standard && !e.lines.is_empty() && req.allowed("estimate.template_save", Some(id)) {
+            div class="card" {
+                details class="disclosure" {
+                    summary { "Save as a template" }
+                    (command_form(req, "estimate.template_save", &here, &here, html! {
+                        input type="hidden" name="project" value=(id);
+                        input type="hidden" name="id" value=(eid);
+                        div class="form-grid" { (field("Template name", "tpl_name", true, false, html! { input type="text" id="tpl_name" name="name" required value=(e.name); })) }
+                        p class="muted small" { "Keeps the lines, markups and alternates for any project to start from. Cost codes are kept by number, so a project needs the same codes to use it." }
+                        div class="form-actions" { button type="submit" class="btn primary small" { "Save template" } }
+                    }))
+                }
             }
         }
         @if state.estimates.iter().filter(|x| x.project == id && x.deleted.is_none() && x.id != eid).count() > 0 {
@@ -253,6 +267,12 @@ pub fn form(req: &Req<'_>, id: Id<Project>, current: Option<Id<Estimate>>) -> Ma
                 div class="form-grid" {
                     (field("Name", "name", true, true, html! { input type="text" id="name" name="name" required value=(cur.map(|e| e.name.as_str()).unwrap_or_default()); }))
                     (field("Notes", "notes", false, true, html! { textarea id="notes" name="notes" class="short" { (cur.map(|e| e.notes.as_str()).unwrap_or_default()) } }))
+                    @if cur.is_none() && can_read_templates(state, req.actor()) && !templates(state).is_empty() {
+                        (field("Start from a template", "template", false, false, html! { select id="template" name="template" {
+                            option value="" { "Blank (use the lines below)" }
+                            @for t in templates(state) { option value=(t.id) { (t.name) " (" (t.lines.len()) " lines)" } }
+                        } }))
+                    }
                 }
                 h2 { "Lines" }
                 div class="table-wrap" { table class="data" {

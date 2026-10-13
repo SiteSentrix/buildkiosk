@@ -383,6 +383,8 @@ pub fn router(app: Shared) -> Router {
         .route("/projects/{id}/action-plans/new", get(action_plan_new))
         .route("/projects/{id}/action-plans/{aid}", get(action_plan_page))
         .route("/projects/{id}/action-plans/{aid}/edit", get(action_plan_edit))
+        .route("/projects/{id}/action-plans/{aid}/files/{sha}", get(action_plan_download))
+        .route("/projects/{id}/action-plans/{aid}/upload", post(action_plan_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
         .route("/projects/{id}/bidding", get(bidding_page))
         .route("/projects/{id}/bidding/new", get(bid_package_new))
         .route("/projects/{id}/bidding/{bid}", get(bid_package_page))
@@ -2486,6 +2488,14 @@ async fn action_plan_page(State(app): State<Shared>, headers: HeaderMap, Path((i
     page(&app, &headers, &q, |r, _| buildkiosk_web::action_plans::detail(r, Id::new(id), Id::new(aid)))
 }
 
+async fn action_plan_download(State(app): State<Shared>, headers: HeaderMap, Path((id, aid, sha)): Path<(u64, u64, String)>) -> Response {
+    file_download(app, headers, Kind::ACTION_PLAN, id, aid, sha).await
+}
+
+async fn action_plan_upload(State(app): State<Shared>, headers: HeaderMap, Path((id, aid)): Path<(u64, u64)>, multipart: Multipart) -> Response {
+    file_upload(app, headers, Kind::ACTION_PLAN, id, aid, multipart).await
+}
+
 async fn action_plan_edit(State(app): State<Shared>, headers: HeaderMap, Path((id, aid)): Path<(u64, u64)>, Query(q): Q) -> Response {
     page(&app, &headers, &q, |r, _| buildkiosk_web::action_plans::form(r, Id::new(id), Some(Id::new(aid))))
 }
@@ -4085,6 +4095,7 @@ impl Kind {
     const CORRESPONDENCE: Kind = Kind { attach: "correspondence.attach", path: "correspondence", files: correspondence_files };
     const DAILY_LOG: Kind = Kind { attach: "daily_log.attach", path: "daily-logs", files: daily_log_files };
     const FORM: Kind = Kind { attach: "form.attach", path: "forms", files: form_files };
+    const ACTION_PLAN: Kind = Kind { attach: "action_plan.attach", path: "action-plans", files: action_plan_files };
     const MEETING: Kind = Kind { attach: "meeting.attach", path: "meetings", files: meeting_files };
     const TRANSMITTAL: Kind = Kind { attach: "transmittal.attach", path: "transmittals", files: transmittal_files };
     const COMMITMENT: Kind = Kind { attach: "commitment.attach", path: "commitments", files: commitment_files };
@@ -4123,6 +4134,14 @@ fn form_files(state: &CompanyState, actor: Actor, project: u64, item: u64) -> Op
         .get(Id::new(item))
         .filter(|r| r.project == Id::new(project) && r.deleted.is_none() && view::level(state, actor, r.project, Tool::Forms) >= Level::Read)
         .map(|r| r.attachments.clone())
+}
+
+fn action_plan_files(state: &CompanyState, actor: Actor, project: u64, item: u64) -> Option<Vec<FileRef>> {
+    state
+        .action_plans
+        .get(Id::new(item))
+        .filter(|a| a.project == Id::new(project) && a.deleted.is_none() && view::level(state, actor, a.project, Tool::ActionPlans) >= Level::Read)
+        .map(|a| a.attachments.clone())
 }
 
 fn meeting_files(state: &CompanyState, actor: Actor, project: u64, item: u64) -> Option<Vec<FileRef>> {

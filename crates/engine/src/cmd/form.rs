@@ -649,8 +649,10 @@ fn schedule_save(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         None => None,
     };
     let template = live_template(ctx, project, p.id("template")?)?.id;
-    let every =
-        p.choice::<Repeat>("every")?.filter(|e| *e != Repeat::Never).ok_or_else(|| p.bad("every", "must be daily, weekly, biweekly or monthly"))?;
+    let every = p
+        .choice::<Repeat>("every")?
+        .filter(|e| *e != Repeat::Never)
+        .ok_or_else(|| p.bad("every", "must be daily, weekly, biweekly, monthly, month_end, quarterly or yearly"))?;
     let assignee: Id<Person> = p.id("assignee")?;
     ctx.check_person(assignee)?;
     let next = p.date("next")?.unwrap_or_else(|| ctx.today());

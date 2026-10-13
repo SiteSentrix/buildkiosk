@@ -153,6 +153,17 @@ fn repeating_tasks_make_the_next_one_when_closed() {
         w.ok(pm, "task.create", json!({"project": p, "title": "Pay application", "due": "2026-10-31", "repeat": "monthly"}))["id"].as_u64().unwrap();
     w.ok(pm, "task.close", json!({"project": p, "id": m}));
     assert_eq!(get_task(&w, get_task(&w, m).next.unwrap().raw()).due.unwrap().to_string(), "2026-11-30");
+    // Month-end, quarterly and yearly rules.
+    for (rule, due, want) in [
+        ("month_end", "2026-10-31", "2026-11-30"),
+        ("month_end", "2026-12-15", "2027-01-31"),
+        ("quarterly", "2026-11-30", "2027-02-28"),
+        ("yearly", "2028-02-29", "2029-02-28"),
+    ] {
+        let t = w.ok(pm, "task.create", json!({"project": p, "title": "Rule", "due": due, "repeat": rule}))["id"].as_u64().unwrap();
+        w.ok(pm, "task.close", json!({"project": p, "id": t}));
+        assert_eq!(get_task(&w, get_task(&w, t).next.unwrap().raw()).due.unwrap().to_string(), want, "{rule} from {due}");
+    }
     // Subtasks don't come along.
     let parent =
         w.ok(pm, "task.create", json!({"project": p, "title": "Monthly close", "due": "2026-10-20", "repeat": "monthly"}))["id"].as_u64().unwrap();

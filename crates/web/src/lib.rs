@@ -8,6 +8,7 @@
 
 pub mod daily_logs;
 pub mod documents;
+pub mod drawings;
 pub mod finance;
 pub mod icons;
 pub mod inbox;

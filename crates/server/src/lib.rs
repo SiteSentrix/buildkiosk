@@ -22,7 +22,7 @@ use buildkiosk_engine::model::finance::{BudgetChange, ChangeEvent, CommitmentCha
 use buildkiosk_engine::model::finance::{CommitmentInvoice, OwnerInvoice};
 use buildkiosk_engine::model::observation::Observation;
 use buildkiosk_engine::model::punch::PunchItem;
-use buildkiosk_engine::model::{CompanyState, FileRef};
+use buildkiosk_engine::model::{CompanyState, FileRef, Level, Tool};
 use buildkiosk_engine::workitem::{self, WorkItem};
 use buildkiosk_engine::{Actor, EngineError, find_command, view};
 use buildkiosk_store::creds::check_password_rules;
@@ -155,6 +155,12 @@ pub fn router(app: Shared) -> Router {
         .route("/projects/{id}/daily-logs/{lid}/edit", get(daily_log_edit))
         .route("/projects/{id}/daily-logs/{lid}/save", post(daily_log_save))
         .route("/projects/{id}/specifications", get(specifications))
+        .route("/projects/{id}/drawings", get(drawings_page))
+        .route("/projects/{id}/drawings.csv", get(drawings_csv))
+        .route("/projects/{id}/drawings/upload", post(drawing_upload_new).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
+        .route("/projects/{id}/drawings/{did}", get(drawing_page))
+        .route("/projects/{id}/drawings/{did}/upload", post(drawing_upload_revision).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
+        .route("/projects/{id}/drawings/{did}/files/{sha}", get(drawing_download))
         .route("/projects/{id}/documents", get(documents_page))
         .route("/projects/{id}/documents/upload", post(document_upload_new).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
         .route("/projects/{id}/documents/{did}", get(document_page))
@@ -859,26 +865,22 @@ async fn document_upload_version(State(app): State<Shared>, headers: HeaderMap, 
     document_upload(app, headers, id, Some(did), multipart).await
 }
 
-/// A new document (with its folder, title and description) or a new version of one (with a note).
-async fn document_upload(app: Shared, headers: HeaderMap, id: u64, did: Option<u64>, mut multipart: Multipart) -> Response {
-    let mut back = match did {
-        Some(d) => format!("/projects/{id}/documents/{d}"),
-        None => format!("/projects/{id}/documents"),
-    };
+type UploadFile = (String, String, Bytes);
+
+/// The text fields and the (first) file of a multipart form.
+async fn read_multipart(mut multipart: Multipart) -> Result<(HashMap<String, String>, Option<UploadFile>), ()> {
     let mut fields: HashMap<String, String> = HashMap::new();
-    let mut file: Option<(String, String, Bytes)> = None;
+    let mut file: Option<UploadFile> = None;
     loop {
         let field = match multipart.next_field().await {
             Ok(Some(f)) => f,
             Ok(None) => break,
-            Err(_) => return redirect(&with_flash(&back, false, "The upload failed or the file is larger than 25 MB.")),
+            Err(_) => return Err(()),
         };
         let name = field.name().unwrap_or("").to_string();
         let filename = field.file_name().unwrap_or("file").to_string();
         let mime = field.content_type().unwrap_or("application/octet-stream").to_string();
-        let Ok(bytes) = field.bytes().await else {
-            return redirect(&with_flash(&back, false, "The upload failed or the file is larger than 25 MB."));
-        };
+        let Ok(bytes) = field.bytes().await else { return Err(()) };
         if name == "file" {
             if file.is_none() {
                 file = Some((filename, mime, bytes));
@@ -887,6 +889,18 @@ async fn document_upload(app: Shared, headers: HeaderMap, id: u64, did: Option<u
             fields.entry(name).or_insert_with(|| String::from_utf8_lossy(&bytes).into_owned());
         }
     }
+    Ok((fields, file))
+}
+
+const UPLOAD_FAILED: &str = "The upload failed or the file is larger than 25 MB.";
+
+/// A new document (with its folder, title and description) or a new version of one (with a note).
+async fn document_upload(app: Shared, headers: HeaderMap, id: u64, did: Option<u64>, multipart: Multipart) -> Response {
+    let mut back = match did {
+        Some(d) => format!("/projects/{id}/documents/{d}"),
+        None => format!("/projects/{id}/documents"),
+    };
+    let Ok((fields, file)) = read_multipart(multipart).await else { return redirect(&with_flash(&back, false, UPLOAD_FAILED)) };
     let folder = fields.get("folder").map(|f| f.trim().to_string()).filter(|f| !f.is_empty());
     if did.is_none()
         && let Some(f) = &folder
@@ -902,13 +916,9 @@ async fn document_upload(app: Shared, headers: HeaderMap, id: u64, did: Option<u
     let Some((name, mime, bytes)) = file.filter(|(_, _, b)| !b.is_empty()) else {
         return redirect(&with_flash(&back, false, "Choose a file to upload."));
     };
-    if bytes.len() > MAX_UPLOAD {
-        return redirect(&with_flash(&back, false, "Files can be at most 25 MB."));
-    }
-    let Some(t) = inner.tenant.as_mut() else { return redirect("/setup") };
-    let (sha256, size) = match t.store.blobs.put(&bytes) {
+    let (sha256, size) = match store_blob(&mut inner, &bytes) {
         Ok(x) => x,
-        Err(e) => return redirect(&with_flash(&back, false, &e.to_string())),
+        Err(msg) => return redirect(&with_flash(&back, false, &msg)),
     };
     let get = |k: &str| fields.get(k).cloned().unwrap_or_default();
     let (command, params) = match did {
@@ -924,6 +934,99 @@ async fn document_upload(app: Shared, headers: HeaderMap, id: u64, did: Option<u
         Ok(out) => match (did, out.get("id").and_then(Value::as_u64)) {
             (None, Some(new)) => redirect(&with_flash(&format!("/projects/{id}/documents/{new}"), true, "File uploaded.")),
             _ => redirect(&with_flash(&back, true, "File uploaded.")),
+        },
+        Err(e) => redirect(&with_flash(&back, false, &e.to_string())),
+    }
+}
+
+/// Puts an uploaded file in the blob store: its SHA-256 and size, or a message for the person.
+fn store_blob(inner: &mut Inner, bytes: &Bytes) -> Result<(String, u64), String> {
+    if bytes.len() > MAX_UPLOAD {
+        return Err("Files can be at most 25 MB.".into());
+    }
+    let t = inner.tenant.as_mut().ok_or("The company is not set up.")?;
+    t.store.blobs.put(bytes).map_err(|e| e.to_string())
+}
+
+async fn drawings_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::drawings::page(r, Id::new(id), &q))
+}
+
+async fn drawing_page(State(app): State<Shared>, headers: HeaderMap, Path((id, did)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::drawings::detail(r, Id::new(id), Id::new(did)))
+}
+
+async fn drawing_download(State(app): State<Shared>, headers: HeaderMap, Path((id, did, sha)): Path<(u64, u64, String)>) -> Response {
+    file_download(app, headers, Kind::DRAWING, id, did, sha).await
+}
+
+async fn drawings_csv(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>) -> Response {
+    let inner = app.lock();
+    let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    let req = Req { engine: &t.engine, person: s.person, csrf: "", now: Timestamp::from_millis(now_ms()), flash: None };
+    let Some(csv) = buildkiosk_web::drawings::csv(&req, Id::new(id)) else { return plain(StatusCode::NOT_FOUND, "Not found") };
+    let mut res = csv.into_response();
+    res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("text/csv; charset=utf-8"));
+    res.headers_mut().insert("content-disposition", HeaderValue::from_static("attachment; filename=\"drawings.csv\""));
+    res
+}
+
+async fn drawing_upload_new(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, multipart: Multipart) -> Response {
+    drawing_upload(app, headers, id, None, multipart).await
+}
+
+async fn drawing_upload_revision(State(app): State<Shared>, headers: HeaderMap, Path((id, did)): Path<(u64, u64)>, multipart: Multipart) -> Response {
+    drawing_upload(app, headers, id, Some(did), multipart).await
+}
+
+/// A new sheet or a new revision of one; the file is optional (a revision can be logged before the
+/// sheet arrives).
+async fn drawing_upload(app: Shared, headers: HeaderMap, id: u64, did: Option<u64>, multipart: Multipart) -> Response {
+    let back = match did {
+        Some(d) => format!("/projects/{id}/drawings/{d}"),
+        None => format!("/projects/{id}/drawings"),
+    };
+    let Ok((fields, file)) = read_multipart(multipart).await else { return redirect(&with_flash(&back, false, UPLOAD_FAILED)) };
+    let mut inner = app.lock();
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    if !auth::csrf_ok(app.secret(), &s.cookie, fields.get("_csrf").map(String::as_str).unwrap_or_default()) {
+        return plain(StatusCode::FORBIDDEN, "The form expired. Go back, reload the page and try again.");
+    }
+    let get = |k: &str| fields.get(k).cloned().unwrap_or_default();
+    let mut params = serde_json::Map::new();
+    params.insert("project".into(), json!(id));
+    for k in ["revision", "date", "set", "note"] {
+        params.insert(k.into(), json!(get(k)));
+    }
+    if let Some((name, mime, bytes)) = file.filter(|(_, _, b)| !b.is_empty()) {
+        match store_blob(&mut inner, &bytes) {
+            Ok((sha256, size)) => {
+                params.insert("sha256".into(), json!(sha256));
+                params.insert("name".into(), json!(name));
+                params.insert("size".into(), json!(size));
+                params.insert("mime".into(), json!(mime));
+            }
+            Err(msg) => return redirect(&with_flash(&back, false, &msg)),
+        }
+    }
+    let command = match did {
+        Some(d) => {
+            params.insert("id".into(), json!(d));
+            "drawing.add_revision"
+        }
+        None => {
+            for k in ["number", "title", "discipline", "area"] {
+                params.insert(k.into(), json!(get(k)));
+            }
+            "drawing.add"
+        }
+    };
+    let params = Value::Object(params);
+    match inner.run(Actor::Person(s.person), command, &params) {
+        Ok(out) => match (did, out.get("id").and_then(Value::as_u64)) {
+            (None, Some(new)) => redirect(&with_flash(&format!("/projects/{id}/drawings/{new}"), true, "Sheet added.")),
+            _ => redirect(&with_flash(&back, true, "Revision added.")),
         },
         Err(e) => redirect(&with_flash(&back, false, &e.to_string())),
     }
@@ -1268,6 +1371,7 @@ impl Kind {
     const RFI: Kind = Kind { attach: "rfi.attach", path: "rfis", files: rfi_files };
     const SUBMITTAL: Kind = Kind { attach: "submittal.attach", path: "submittals", files: submittal_files };
     const INSPECTION: Kind = Kind { attach: "inspection.attach", path: "inspections", files: inspection_files };
+    const DRAWING: Kind = Kind { attach: "drawing.add_revision", path: "drawings", files: drawing_files };
     const DOCUMENT: Kind = Kind { attach: "document.add_version", path: "documents", files: document_files };
 
     fn work<T: WorkItem>() -> Kind {
@@ -1286,6 +1390,14 @@ impl Kind {
     fn files(self, state: &CompanyState, actor: Actor, project: u64, item: u64) -> Option<Vec<FileRef>> {
         (self.files)(state, actor, project, item)
     }
+}
+
+fn drawing_files(state: &CompanyState, actor: Actor, project: u64, item: u64) -> Option<Vec<FileRef>> {
+    state
+        .drawings
+        .get(Id::new(item))
+        .filter(|d| d.project == Id::new(project) && d.deleted.is_none() && view::level(state, actor, d.project, Tool::Drawings) >= Level::Read)
+        .map(|d| d.revisions.iter().filter_map(|r| r.file.clone()).collect())
 }
 
 fn document_files(state: &CompanyState, actor: Actor, project: u64, item: u64) -> Option<Vec<FileRef>> {

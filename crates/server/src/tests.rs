@@ -936,3 +936,66 @@ async fn documents_upload_versions_and_download() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn drawings_log_revisions_and_csv() {
+    let dir = temp("drawings");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let session = cookies(&h);
+    let (_, _, home) = send(&app, Request::get("/").header("cookie", &session).body(Body::empty()).unwrap()).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &session, format!("_csrf={csrf}&name=P"))).await;
+    send(&app, post("/do/drawing.import", &session, format!("_csrf={csrf}&project=1&text=S-201%2C+Foundation%2C+structural%2C+Level+0"))).await;
+
+    let upload = |uri: &str, parts: &[(&str, &str)], file: Option<&str>| {
+        let mut body = String::new();
+        for (k, v) in parts {
+            body.push_str(&format!("--B\r\nContent-Disposition: form-data; name=\"{k}\"\r\n\r\n{v}\r\n"));
+        }
+        if let Some(c) = file {
+            body.push_str(&format!(
+                "--B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"s.pdf\"\r\nContent-Type: application/pdf\r\n\r\n{c}\r\n"
+            ));
+        }
+        body.push_str("--B--\r\n");
+        Request::post(uri.to_string())
+            .header("cookie", &session)
+            .header("content-type", "multipart/form-data; boundary=B")
+            .body(Body::from(body))
+            .unwrap()
+    };
+    let (_, h, _) = send(
+        &app,
+        upload(
+            "/projects/1/drawings/upload",
+            &[("_csrf", &csrf), ("number", "A-101"), ("title", "Plan"), ("discipline", "architectural"), ("revision", "0")],
+            Some("sheet one"),
+        ),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().starts_with("/projects/1/drawings/2?ok="));
+    let (_, h, _) = send(&app, upload("/projects/1/drawings/1/upload", &[("_csrf", &csrf), ("revision", "A"), ("set", "Bulletin 1")], None)).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="));
+    let (_, h, _) = send(&app, upload("/projects/1/drawings/1/upload", &[("_csrf", &csrf), ("revision", "A")], None)).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("error="), "duplicate revision is refused");
+
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &session).body(Body::empty()).unwrap();
+    let (_, _, list) = send(&app, get("/projects/1/drawings")).await;
+    assert!(list.contains("A-101") && list.contains("S-201") && list.contains("Bulletin 1"), "{list}");
+    let (_, _, filtered) = send(&app, get("/projects/1/drawings?discipline=structural")).await;
+    assert!(filtered.contains("S-201") && !filtered.contains("A-101"));
+    let (_, _, detail) = send(&app, get("/projects/1/drawings/2")).await;
+    let href = detail.split("href=\"").find(|s| s.contains("/files/")).unwrap().split('"').next().unwrap().to_string();
+    let (st, _, body) = send(&app, get(&href)).await;
+    assert_eq!((st, body.as_str()), (StatusCode::OK, "sheet one"));
+    let (st, h, csv) = send(&app, get("/projects/1/drawings.csv")).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(h.get("content-disposition").is_some() && csv.contains("A-101,Plan,Architectural"), "{csv}");
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

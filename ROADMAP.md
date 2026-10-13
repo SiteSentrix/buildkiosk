@@ -20,6 +20,8 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 2. Next tools in the order of `docs/gaps.md` (item 8 onward; the financial remainder is listed under item 7).
 
 ## Progress log
+- 2026-10-13: Operations: scheduled backups while the server runs (`serve --backup-dir`, keeping the newest N) and a `restore` command that checks the backup first and moves the old data aside.
+- 2026-10-13: MCP: tool results also carry `structuredContent`; project documents are resources (list in pages, templates, read).
 - 2026-10-13: Financials: configurable budget views (columns, grouping by division), a forecasting method per project (budget, committed cost, percent complete), a signed-contract workflow on commitments with an optional approval rule, and budget import from an uploaded CSV file that can add the missing cost codes.
 - 2026-10-13: a refused save sends the person back to the form with what they typed (kept on the server for ten minutes, never passwords).
 - 2026-10-13: PDF export (own writer, no dependency) for RFIs, submittals, daily logs, meetings, transmittals, correspondence, estimates, bid leveling, action plans, forms, invoices, budget, drawing log, schedule, project report and work-item lists.

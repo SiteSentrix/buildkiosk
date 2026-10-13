@@ -94,15 +94,35 @@ final line is dropped with a warning when it is loaded.
 
 `credentials` and `instance.json` are secrets: restrict who can read the backups.
 
+### Backups while the server runs
+
+Start the server with a backup folder and it takes backups on its own, without stopping:
+
+```
+buildkiosk serve --data /var/lib/buildkiosk --backup-dir /backups/buildkiosk --backup-every-hours 24 --backup-keep 7
+```
+
+The defaults are every 24 hours and keeping the newest 7. Each backup is a folder `backup-<unix seconds>` that was
+replayed to prove it loads; one that fails or is interrupted is removed and the failure is logged. Requests wait only
+while the small files (snapshot, credentials) are copied. The journal is copied up to the length it had at that
+moment and the uploaded files after, so the backup is whole as of when it began. The folder must be outside the data
+directory, and the server only ever deletes folders it named itself (`backup-<digits>`). Copy them off the machine
+as for any other backup.
+
 ## Restore
 
-Stop the server, move the damaged directory aside, copy the backup to the data path and run:
+Stop the server, then:
 
 ```
-buildkiosk check --data /var/lib/buildkiosk
+buildkiosk restore --from /backups/2026-10-13 --data /var/lib/buildkiosk --replace
 ```
 
-then start the server. All sessions stay valid because `instance.json` is restored with the data.
+The backup is opened and replayed first: a backup that doesn't load changes nothing. With `--replace` an existing data
+directory is moved aside to `/var/lib/buildkiosk.before-restore-<seconds>` (never deleted; remove it yourself once
+you're sure), the backup is copied into place and the result is replayed again. Without `--replace` the data
+directory must be missing or empty. It refuses to touch a directory a server is using, or a folder that isn't a
+BuildKiosk data directory. Then start the server. All sessions stay valid because `instance.json` is restored with
+the data.
 
 ## Check
 

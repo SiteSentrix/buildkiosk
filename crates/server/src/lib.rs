@@ -16,6 +16,7 @@ mod viewer_assets {
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::path::{Path as FsPath, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -84,6 +85,15 @@ pub struct App {
     inner: Mutex<Inner>,
     /// Serving behind HTTPS: cookies get `Secure` and responses carry HSTS.
     secure: bool,
+    /// Backups taken on a schedule while the server runs.
+    backups: Option<BackupPlan>,
+}
+
+/// Where, how often and how many scheduled backups are kept.
+struct BackupPlan {
+    dir: PathBuf,
+    every_secs: u64,
+    keep: usize,
 }
 
 type Shared = Arc<App>;
@@ -113,7 +123,35 @@ impl App {
             data,
             inner: Mutex::new(Inner { drafts: HashMap::new(), pictures: render::Pictures::default(), tenant, creds, limiter: RateLimit::default() }),
             secure: false,
+            backups: None,
         })
+    }
+
+    /// Takes a backup into `dir` every `every_hours` hours while the server runs, keeping the newest `keep`.
+    /// Each lands in `dir/backup-<unix seconds>` and was replayed to prove it loads. The folder can't be
+    /// inside the data directory.
+    pub fn with_backups(mut self, dir: PathBuf, every_hours: u64, keep: usize) -> Result<App, String> {
+        if dir.starts_with(self.data.root()) {
+            return Err("the backup folder can't be inside the data directory".into());
+        }
+        if every_hours == 0 || keep == 0 {
+            return Err("backups need an interval of at least one hour and to keep at least one".into());
+        }
+        std::fs::create_dir_all(&dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
+        self.backups = Some(BackupPlan { dir, every_secs: every_hours.saturating_mul(3600), keep });
+        Ok(self)
+    }
+
+    /// Backs the data up into `dest` (a new or empty folder) without stopping the server. Requests are
+    /// held up only while the small files are copied; the journal and the uploaded files are copied
+    /// after, and the backup is as of the moment it began.
+    pub fn backup_now(&self, dest: &FsPath) -> Result<Vec<buildkiosk_store::CompanyReport>, String> {
+        let begun = {
+            let _writes_paused = self.lock();
+            self.data.backup_begin(dest)
+        }
+        .map_err(|e| e.to_string())?;
+        begun.finish().map_err(|e| e.to_string())
     }
 
     /// Marks the app as served over HTTPS (behind a TLS-terminating proxy): session and CSRF
@@ -530,6 +568,9 @@ pub async fn serve(app: Shared, bind: SocketAddr) -> Result<(), String> {
     let listener = tokio::net::TcpListener::bind(bind).await.map_err(|e| format!("cannot listen on {bind}: {e}"))?;
     log::info!("listening on http://{bind}");
     tokio::spawn(mail_loop(app.clone()));
+    if app.backups.is_some() {
+        tokio::spawn(backup_loop(app.clone()));
+    }
     axum::serve(listener, router(app)).await.map_err(|e| e.to_string())
 }
 
@@ -2998,6 +3039,68 @@ fn mail_pass(app: &App) -> usize {
         log::warn!("could not record sent emails: {e}");
     }
     sent
+}
+
+/// The scheduled backups: checks every five minutes whether one is due.
+async fn backup_loop(app: Shared) {
+    tokio::time::sleep(Duration::from_secs(60)).await;
+    loop {
+        let a = app.clone();
+        match tokio::task::spawn_blocking(move || backup_pass(&a, u64::try_from(now_ms() / 1000).unwrap_or(0))).await {
+            Ok(Ok(Some(dir))) => log::info!("backup written to {}", dir.display()),
+            Ok(Ok(None)) => {}
+            Ok(Err(e)) => log::error!("the scheduled backup failed: {e}"),
+            Err(e) => log::error!("the scheduled backup stopped: {e}"),
+        }
+        tokio::time::sleep(Duration::from_secs(300)).await;
+    }
+}
+
+/// The unix seconds in a scheduled backup's folder name (`backup-1760000000`).
+fn backup_time(name: &str) -> Option<u64> {
+    name.strip_prefix("backup-").filter(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit())).and_then(|n| n.parse().ok())
+}
+
+/// Takes a backup if the newest one is older than the interval, then drops the oldest beyond how many
+/// to keep. Only folders this scheduler named (`backup-<seconds>` and its `.partial`) are ever touched.
+fn backup_pass(app: &App, now_secs: u64) -> Result<Option<PathBuf>, String> {
+    let Some(plan) = &app.backups else { return Ok(None) };
+    let mut done: Vec<(u64, PathBuf)> = Vec::new();
+    for entry in std::fs::read_dir(&plan.dir).map_err(|e| format!("cannot read {}: {e}", plan.dir.display()))?.flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if let Some(stem) = name.strip_suffix(".partial").filter(|s| backup_time(s).is_some()) {
+            // A backup that was interrupted: not a backup.
+            log::warn!("removing the unfinished backup {stem}.partial");
+            let _ = std::fs::remove_dir_all(entry.path());
+        } else if let Some(t) = backup_time(&name) {
+            done.push((t, entry.path()));
+        }
+    }
+    done.sort();
+    let due = done.last().is_none_or(|(t, _)| now_secs.saturating_sub(*t) >= plan.every_secs);
+    let mut made = None;
+    if due {
+        let name = format!("backup-{now_secs}");
+        let partial = plan.dir.join(format!("{name}.partial"));
+        let kept = plan.dir.join(&name);
+        if kept.exists() {
+            return Ok(None);
+        }
+        if let Err(e) = app.backup_now(&partial) {
+            let _ = std::fs::remove_dir_all(&partial);
+            return Err(e);
+        }
+        std::fs::rename(&partial, &kept).map_err(|e| format!("cannot finish the backup: {e}"))?;
+        done.push((now_secs, kept.clone()));
+        made = Some(kept);
+    }
+    while done.len() > plan.keep {
+        let (_, oldest) = done.remove(0);
+        if let Err(e) = std::fs::remove_dir_all(&oldest) {
+            log::warn!("cannot remove the old backup {}: {e}", oldest.display());
+        }
+    }
+    Ok(made)
 }
 
 async fn mail_loop(app: Shared) {

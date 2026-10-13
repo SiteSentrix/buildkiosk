@@ -2657,3 +2657,51 @@ async fn sheet_viewer_markup_and_compare() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn scheduled_backups_run_while_the_server_is_up_and_keep_the_newest() {
+    let dir = temp("sched-backup");
+    let backups = temp("sched-backup-out");
+    let app = App::open(DataDir::open(&dir).unwrap(), None).unwrap();
+    assert!(app.with_backups(dir.join("inside"), 24, 3).is_err(), "not inside the data directory");
+    let app = App::open(DataDir::open(temp("sched-backup-other")).unwrap(), None).unwrap();
+    assert!(app.with_backups(backups.clone(), 0, 3).is_err());
+    let app = App::open(DataDir::open(temp("sched-backup-other")).unwrap(), None).unwrap();
+    assert!(app.with_backups(backups.clone(), 24, 0).is_err());
+    let _ = std::fs::remove_dir_all(temp("sched-backup-other"));
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap().with_backups(backups.clone(), 24, 2).unwrap());
+    // Set the company up through the browser so there is something to back up.
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    send(&app, post("/setup", &anon, body)).await;
+
+    let day = 86_400;
+    let pass = |now: u64| {
+        let a = app.clone();
+        tokio::task::spawn_blocking(move || backup_pass(&a, now))
+    };
+    // Something this scheduler didn't make is never touched; an interrupted backup is cleared.
+    std::fs::create_dir_all(backups.join("my-notes")).unwrap();
+    std::fs::create_dir_all(backups.join("backup-5.partial")).unwrap();
+    let first = pass(1_000_000).await.unwrap().unwrap().unwrap();
+    assert!(first.ends_with("backup-1000000") && !backups.join("backup-5.partial").exists() && backups.join("my-notes").is_dir());
+    // It loads, with the company in it, and the live server still runs.
+    let copy = DataDir::open(&first).unwrap();
+    assert_eq!(copy.companies().unwrap().len(), 1);
+    drop(copy);
+    let (st, _, _) = send(&app, Request::get("/login").body(Body::empty()).unwrap()).await;
+    assert_eq!(st, StatusCode::OK);
+    // Not due again until the interval has passed.
+    assert!(pass(1_000_000 + day - 1).await.unwrap().unwrap().is_none());
+    assert!(pass(1_000_000 + day).await.unwrap().unwrap().is_some());
+    assert!(pass(1_000_000 + 2 * day).await.unwrap().unwrap().is_some());
+    // Only the newest two are kept.
+    let mut left: Vec<String> = std::fs::read_dir(&backups).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
+    left.sort();
+    assert_eq!(left, ["backup-1086400", "backup-1172800", "my-notes"]);
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+    let _ = std::fs::remove_dir_all(&backups);
+}

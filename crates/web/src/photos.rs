@@ -6,6 +6,7 @@ use buildkiosk_engine::model::photo::Photo;
 use buildkiosk_engine::model::project::Project;
 use buildkiosk_engine::model::{Level, Tool};
 use buildkiosk_engine::view;
+use buildkiosk_engine::workitem::WorkItem;
 use maud::{Markup, html};
 
 use crate::icons::tool_icon;
@@ -37,7 +38,15 @@ pub fn gallery(req: &Req<'_>, id: Id<Project>, album: &str, q: &str) -> Markup {
         .collect();
     let base = format!("/projects/{id}/photos");
     let body = html! {
-        div class="page-head" { div { h1 { "Photos" } div class="sub" { "Pictures of the work, by album" } } }
+        div class="page-head" {
+            div { h1 { "Photos" } div class="sub" { "Pictures of the work, by album" } }
+            @if !shown.is_empty() {
+                div class="actions" {
+                    a class="btn" href=(format!("{base}/slideshow?album={}", enc(album))) { "Slideshow" }
+                    a class="btn" href=(format!("{base}/album.zip?album={}", enc(album))) { (if album.is_empty() { "Download all" } else { "Download album" }) }
+                }
+            }
+        }
         form method="get" action=(base) class="filters" {
             input type="search" name="q" value=(q) placeholder="Search caption, album or place" aria-label="Search photos";
             select name="album" aria-label="Album" {
@@ -68,7 +77,7 @@ pub fn gallery(req: &Req<'_>, id: Id<Project>, album: &str, q: &str) -> Markup {
                         (field("Pictures (JPEG, PNG, GIF or WebP; choose several)", "file", true, true, html! { input type="file" id="file" name="file" multiple required accept="image/jpeg,image/png,image/gif,image/webp"; }))
                         (field("Album", "album", false, false, html! { input type="text" id="album" name="album" list="albums" value=(album); datalist id="albums" { @for a in &albums { option value=(a) {} } } }))
                         (field("Where on site", "location", false, false, html! { input type="text" id="location" name="location"; }))
-                        (field("Date taken", "taken", false, false, html! { input type="date" id="taken" name="taken" value=(req.today().to_string()); }))
+                        (field("Date taken (empty: the date in the picture, else today)", "taken", false, false, html! { input type="date" id="taken" name="taken"; }))
                         (field("Caption (used for every picture)", "caption", false, false, html! { input type="text" id="caption" name="caption"; }))
                     }
                     div class="form-actions" { button type="submit" class="btn primary" { "Upload" } }
@@ -96,7 +105,35 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, pid: Id<Photo>) -> Markup {
         div class="page-head" { div { h1 { (title) } div class="sub" { @if !x.album.is_empty() { (x.album) " · " } (x.taken.map(|d| d.pretty()).unwrap_or_default()) @if !x.location.is_empty() { " · " (x.location) } } } }
         div class="card" {
             img class="photo-large" src=(format!("{here}/image")) alt=(title) width="900";
-            p class="muted small" { (x.file.name) " · " (human_size(x.file.size)) " · added by " (x.created.by.map(|b| view::person_name(state, b)).unwrap_or_default()) " " (req.when(x.created.at)) " · " a href=(format!("{here}/download")) { "Download original" } }
+            p class="muted small" { (x.file.name) " · " (human_size(x.file.size)) @if x.width > 0 { " · " (x.width) " × " (x.height) " px" } @if !x.camera.is_empty() { " · " (x.camera) } " · added by " (x.created.by.map(|b| view::person_name(state, b)).unwrap_or_default()) " " (req.when(x.created.at)) " · " a href=(format!("{here}/download")) { "Download original" } }
+        }
+        @let rfis: Vec<_> = x.rfis.iter().filter_map(|r| state.rfis.get(*r)).filter(|r| r.project == id && view::can_see_rfi(state, req.actor(), r)).collect();
+        @let obs: Vec<_> = x.observations.iter().filter_map(|o| state.observations.get(*o)).filter(|o| o.project == id && o.deleted.is_none() && o.visible_to(state, req.actor())).collect();
+        @let punch: Vec<_> = x.punch_items.iter().filter_map(|o| state.punch_items.get(*o)).filter(|o| o.project == id && o.deleted.is_none() && o.visible_to(state, req.actor())).collect();
+        @if !rfis.is_empty() || !obs.is_empty() || !punch.is_empty() || can_edit {
+            div class="card" {
+                h2 { "Tagged to" }
+                ul class="plain" {
+                    @for r in &rfis { li { a href=(format!("/projects/{id}/rfis/{}", r.id)) { "RFI #" (r.number) " " (r.subject) } @if can_edit { " " (unlink(req, &here, id, pid, "rfi", r.id.raw())) } } }
+                    @for o in &obs { li { a href=(format!("/projects/{id}/observations/{}", o.id)) { "Observation: " (o.title) } @if can_edit { " " (unlink(req, &here, id, pid, "observation", o.id.raw())) } } }
+                    @for o in &punch { li { a href=(format!("/projects/{id}/punch-list/{}", o.id)) { "Punch item: " (o.title) } @if can_edit { " " (unlink(req, &here, id, pid, "punch", o.id.raw())) } } }
+                }
+                @if rfis.is_empty() && obs.is_empty() && punch.is_empty() { p class="muted" { "Not tagged to anything." } }
+                @if can_edit {
+                    (command_form(req, "photo.link", &here, &here, html! {
+                        input type="hidden" name="project" value=(id);
+                        input type="hidden" name="id" value=(pid);
+                        div class="form-grid" {
+                            (field("Tag it to", "tag_item", true, true, html! { select id="tag_item" name="tag" required {
+                                @for r in view::rfis_for(state, req.actor(), id) { option value=(format!("rfi:{}", r.id)) { "RFI #" (r.number) " " (r.subject) } }
+                                @for o in state.observations.iter().filter(|o| o.project == id && o.deleted.is_none() && o.visible_to(state, req.actor())) { option value=(format!("observation:{}", o.id)) { "Observation: " (o.title) } }
+                                @for o in state.punch_items.iter().filter(|o| o.project == id && o.deleted.is_none() && o.visible_to(state, req.actor())) { option value=(format!("punch:{}", o.id)) { "Punch item: " (o.title) } }
+                            } }))
+                        }
+                        div class="form-actions" { button type="submit" class="btn small" { "Tag" } }
+                    }))
+                }
+            }
         }
         @if can_edit {
             div class="card" {
@@ -122,5 +159,112 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, pid: Id<Photo>) -> Markup {
         Nav::Photos(id),
         &[("Projects", Some("/".into())), (&p.name, Some(format!("/projects/{id}"))), ("Photos", Some(base)), (&title, None)],
         body,
+    )
+}
+
+/// Minimal percent-encoding for an album name in a link.
+fn enc(s: &str) -> String {
+    s.bytes().map(|b| if b.is_ascii_alphanumeric() || b == b'-' || b == b'_' { (b as char).to_string() } else { format!("%{b:02X}") }).collect()
+}
+
+fn unlink(req: &Req<'_>, next: &str, project: Id<Project>, photo: Id<Photo>, kind: &str, item: u64) -> Markup {
+    button_form(
+        req,
+        "photo.link",
+        next,
+        &[
+            ("project", project.to_string()),
+            ("id", photo.to_string()),
+            ("kind", kind.to_string()),
+            ("item", item.to_string()),
+            ("remove", "true".to_string()),
+        ],
+        "Remove tag",
+        "small",
+    )
+}
+
+/// The photos tagged to an item, as a card with thumbnails, for the item's own page.
+pub fn tagged_card(req: &Req<'_>, project: Id<Project>, kind: &str, item: u64) -> Markup {
+    let state = req.engine.state();
+    let lvl = view::level(state, req.actor(), project, Tool::Photos);
+    if lvl < Level::Read {
+        return html! {};
+    }
+    let shots: Vec<&Photo> = visible(state, project)
+        .into_iter()
+        .filter(|x| match kind {
+            "rfi" => x.rfis.iter().any(|r| r.raw() == item),
+            "observation" => x.observations.iter().any(|r| r.raw() == item),
+            _ => x.punch_items.iter().any(|r| r.raw() == item),
+        })
+        .collect();
+    let base = format!("/projects/{project}/photos");
+    html! {
+        @if !shots.is_empty() {
+            div class="card" {
+                h2 { "Photos" }
+                div class="gallery" { @for x in &shots {
+                    a class="shot" href=(format!("{base}/{}", x.id)) {
+                        img src=(format!("{base}/{}/thumb", x.id)) alt=(if x.caption.is_empty() { x.file.name.as_str() } else { x.caption.as_str() }) loading="lazy" width="220" height="165";
+                        span class="cap" { (if x.caption.is_empty() { x.file.name.as_str() } else { x.caption.as_str() }) }
+                    }
+                } }
+            }
+        }
+    }
+}
+
+/// One picture at a time, large, with previous and next links; "Play" moves on by itself every few seconds
+/// (the page asks the browser to reload, so no script is involved).
+pub fn slideshow(req: &Req<'_>, id: Id<Project>, album: &str, at: usize, play: bool) -> Markup {
+    let Some(p) = project_for(req, id) else { return not_found(req) };
+    let state = req.engine.state();
+    if view::level(state, req.actor(), id, Tool::Photos) < Level::Read {
+        return not_found(req);
+    }
+    let mut shots: Vec<&Photo> = visible(state, id).into_iter().filter(|x| album.is_empty() || x.album.eq_ignore_ascii_case(album)).collect();
+    shots.sort_by_key(|x| (x.taken, x.id));
+    let base = format!("/projects/{id}/photos");
+    let Some(n) = Some(shots.len()).filter(|n| *n > 0) else {
+        return layout::app(
+            req,
+            "Slideshow",
+            Nav::Photos(id),
+            &[("Projects", Some("/".into())), (&p.name, Some(format!("/projects/{id}"))), ("Photos", Some(base)), ("Slideshow", None)],
+            html! {
+                div class="card" { (empty(tool_icon(Tool::Photos), "No photos", "There is nothing to show.")) }
+            },
+        );
+    };
+    let at = at % n;
+    let Some(x) = shots.get(at).copied() else { return not_found(req) };
+    let link = |i: usize, play: bool| format!("{base}/slideshow?album={}&i={}{}", enc(album), i % n, if play { "&play=1" } else { "" });
+    let (prev, next) = ((at + n - 1) % n, (at + 1) % n);
+    let head = html! { @if play { meta http-equiv="refresh" content=(format!("5;url={}", link(next, true))); } };
+    let title = if x.caption.is_empty() { x.file.name.as_str() } else { x.caption.as_str() };
+    let body = html! {
+        div class="page-head" {
+            div { h1 { (if album.is_empty() { "All photos" } else { album }) } div class="sub" { "Picture " (at + 1) " of " (n) } }
+            div class="actions" {
+                a class="btn" href=(link(prev, play)) { "← Previous" }
+                @if play { a class="btn" href=(link(at, false)) { "Pause" } } @else { a class="btn" href=(link(at, true)) { "Play" } }
+                a class="btn" href=(link(next, play)) { "Next →" }
+                a class="btn" href=(if album.is_empty() { base.clone() } else { format!("{base}?album={}", enc(album)) }) { "Close" }
+            }
+        }
+        div class="card" {
+            a href=(format!("{base}/{}", x.id)) { img class="photo-large" src=(format!("{base}/{}/image", x.id)) alt=(title) width="900"; }
+            p { strong { (title) } }
+            p class="muted small" { (x.taken.map(|d| d.pretty()).unwrap_or_default()) @if !x.location.is_empty() { " · " (x.location) } @if !x.album.is_empty() { " · " (x.album) } }
+        }
+    };
+    layout::app_with_head(
+        req,
+        "Slideshow",
+        Nav::Photos(id),
+        &[("Projects", Some("/".into())), (&p.name, Some(format!("/projects/{id}"))), ("Photos", Some(base)), ("Slideshow", None)],
+        body,
+        head,
     )
 }

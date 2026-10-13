@@ -5,6 +5,7 @@
 #![forbid(unsafe_code)]
 
 mod auth;
+mod exif;
 mod mail;
 mod render;
 mod zip;
@@ -330,6 +331,8 @@ pub fn router(app: Shared) -> Router {
             .route("/projects/{id}/meetings/{mid}/upload", post(meeting_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
             .route("/projects/{id}/meetings/{mid}/files/{sha}", get(meeting_download))
             .route("/projects/{id}/photos", get(photos_page))
+            .route("/projects/{id}/photos/slideshow", get(photos_slideshow))
+            .route("/projects/{id}/photos/album.zip", get(photos_zip))
             .route("/projects/{id}/photos/upload", post(photo_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
             .route("/projects/{id}/photos/{pid}", get(photo_page))
             .route("/projects/{id}/photos/{pid}/image", get(photo_image))
@@ -1965,6 +1968,76 @@ async fn photos_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Pa
     page(&app, &headers, &q, |r, _| buildkiosk_web::photos::gallery(r, Id::new(id), &album, &text))
 }
 
+async fn photos_slideshow(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    let album = q.get("album").map(|a| a.chars().take(100).collect::<String>()).unwrap_or_default();
+    let at = q.get("i").and_then(|i| i.parse::<usize>().ok()).unwrap_or(0);
+    let play = q.get("play").is_some_and(|p| p == "1");
+    page(&app, &headers, &q, |r, _| buildkiosk_web::photos::slideshow(r, Id::new(id), &album, at, play))
+}
+
+/// The pictures of an album (or all of them) as one zip file: the originals, named by day and caption.
+async fn photos_zip(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    let album = q.get("album").map(|a| a.chars().take(100).collect::<String>()).unwrap_or_default();
+    let back = format!("/projects/{id}/photos");
+    let (name, files) = {
+        let inner = app.lock();
+        let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+        let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+        let state = t.engine.state();
+        if view::level(state, Actor::Person(s.person), Id::new(id), Tool::Photos) < Level::Read {
+            return plain(StatusCode::NOT_FOUND, "Not found");
+        }
+        let mut used: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut files: Vec<(String, std::path::PathBuf, u64)> = Vec::new();
+        let mut shots: Vec<_> = buildkiosk_engine::cmd::photo::visible(state, Id::new(id))
+            .into_iter()
+            .filter(|x| album.is_empty() || x.album.eq_ignore_ascii_case(&album))
+            .take(5_000)
+            .collect();
+        shots.sort_by_key(|x| (x.taken, x.id.raw()));
+        for x in shots {
+            let Some(disk) = t.store.blobs.path(&x.file.sha256) else { continue };
+            let day = x.taken.map(|d| d.to_string()).unwrap_or_default();
+            let mut n = 1;
+            let mut name = zip::clean_segment(&format!("{day} {}", x.file.name));
+            while !used.insert(name.to_lowercase()) {
+                n += 1;
+                name = zip::clean_segment(&format!("{day} ({n}) {}", x.file.name));
+            }
+            files.push((name, disk, x.file.size));
+        }
+        let label = if album.is_empty() {
+            state.projects.get(Id::new(id)).map(|p| format!("{} photos", p.name)).unwrap_or_else(|| "photos".into())
+        } else {
+            album.clone()
+        };
+        (label, files)
+    };
+    if files.is_empty() {
+        return redirect(&with_flash(&back, false, "There are no photos to download."));
+    }
+    if files.iter().map(|f| f.2).sum::<u64>() > MAX_ZIP {
+        return redirect(&with_flash(&back, false, "That is more than 200 MB. Download one album at a time."));
+    }
+    let built = tokio::task::spawn_blocking(move || {
+        let mut entries = Vec::new();
+        for (path, disk, _) in files {
+            entries.push(zip::Entry { name: path, data: std::fs::read(disk).ok()? });
+        }
+        zip::build(&entries)
+    })
+    .await
+    .ok()
+    .flatten();
+    let Some(bytes) = built else { return plain(StatusCode::INTERNAL_SERVER_ERROR, "The zip file could not be made.") };
+    let mut res = bytes.into_response();
+    res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("application/zip"));
+    if let Ok(v) = HeaderValue::from_str(&format!("attachment; filename=\"{}.zip\"", safe_filename(&name))) {
+        res.headers_mut().insert("content-disposition", v);
+    }
+    res
+}
+
 async fn photo_page(State(app): State<Shared>, headers: HeaderMap, Path((id, pid)): Path<(u64, u64)>, Query(q): Q) -> Response {
     page(&app, &headers, &q, |r, _| buildkiosk_web::photos::detail(r, Id::new(id), Id::new(pid)))
 }
@@ -2031,13 +2104,21 @@ const THUMB_SIDE: u32 = 360;
 /// A small copy of a picture: JPEG for a JPEG, PNG for the rest. `None` when the bytes can't be
 /// decoded or are unreasonably large, in which case the full picture is sent instead.
 fn thumbnail(bytes: &[u8], jpeg: bool) -> Option<Vec<u8>> {
+    use image::ImageDecoder;
     let mut limits = image::Limits::default();
     limits.max_image_width = Some(20_000);
     limits.max_image_height = Some(20_000);
     limits.max_alloc = Some(512 * 1024 * 1024);
-    let mut reader = image::ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format().ok()?;
-    reader.limits(limits);
-    let img = reader.decode().ok()?;
+    let reader = image::ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format().ok()?;
+    let mut decoder = reader.into_decoder().ok()?;
+    decoder.set_limits(limits).ok()?;
+    // Phones store pictures sideways and say so in the metadata; the thumbnail is re-encoded without that
+    // metadata, so turn it the right way up here.
+    let orientation = decoder.orientation().ok();
+    let mut img = image::DynamicImage::from_decoder(decoder).ok()?;
+    if let Some(o) = orientation {
+        img.apply_orientation(o);
+    }
     let small = img.thumbnail(THUMB_SIDE, THUMB_SIDE);
     let mut out = std::io::Cursor::new(Vec::new());
     if jpeg {
@@ -2132,8 +2213,19 @@ async fn photo_upload(State(app): State<Shared>, headers: HeaderMap, Path(id): P
             Ok(x) => x,
             Err(msg) => return redirect(&with_flash(&back, false, &msg)),
         };
-        let params = json!({"project": id, "sha256": sha256, "name": name, "size": size, "mime": kind,
-            "caption": get("caption"), "album": get("album"), "location": get("location"), "taken": get("taken")});
+        let (width, height) = image::ImageReader::new(std::io::Cursor::new(bytes.as_ref()))
+            .with_guessed_format()
+            .ok()
+            .and_then(|r| r.into_dimensions().ok())
+            .unwrap_or((0, 0));
+        let exif = if kind == "image/jpeg" { exif::read(&bytes) } else { exif::Exif::default() };
+        // The day typed in wins; otherwise the day the camera recorded; otherwise today (the engine's default).
+        let taken = Some(get("taken")).filter(|t| !t.trim().is_empty()).or_else(|| exif.taken.map(|d| d.to_string()));
+        let mut params = json!({"project": id, "sha256": sha256, "name": name, "size": size, "mime": kind,
+            "caption": get("caption"), "album": get("album"), "location": get("location"), "width": width, "height": height, "camera": exif.camera});
+        if let (Some(t), Some(o)) = (taken, params.as_object_mut()) {
+            o.insert("taken".into(), Value::String(t));
+        }
         match inner.run(Actor::Person(s.person), "photo.add", &params) {
             Ok(_) => added += 1,
             Err(e) => last_error = e.to_string(),

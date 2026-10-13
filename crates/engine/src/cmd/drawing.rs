@@ -46,9 +46,30 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Mark up a sheet",
         Tool::Drawings,
         Access::Project(Level::Standard),
-        "project: project id; id: drawing id; revision?: label (default the current one); page?: page number from 1 (default 1); kind: pin|rect|arrow|text; \
-         x, y: 0..10000 across and down the page; x2?, y2?: the far corner of a box or the head of an arrow; text?: the note (required for text)",
+        "project: project id; id: drawing id; revision?: label (default the current one); page?: page number from 1 (default 1); kind: pin|rect|arrow|text|dim|area; \
+         x, y: 0..10000 across and down the page; x2?, y2?: the far corner of a box or area, the head of an arrow, or the far end of a length (required for those); \
+         text?: the note (required for text). A length (dim) or area needs the page's scale (drawing.scale_set) and is worked out from it.",
         markup_add,
+    ),
+    CommandSpec::mutate(
+        "drawing.scale_set",
+        "Set the scale of a sheet page from a stretch of known length",
+        Tool::Drawings,
+        Access::Project(Level::Standard),
+        "project, id: ids; revision?: label (default the current one); page?: page number from 1 (default 1); \
+         x, y, x2, y2: 0..10000 the two ends of a stretch drawn on the page (at least 1% of the page's height long); \
+         aspect: the page's width over its height in thousandths (100..100000; 1294 for a letter page on its side); \
+         length: the stretch's real length (a number, up to three decimals); unit: ft|in|m|mm. \
+         Lengths and areas already measured on the page are worked out again.",
+        scale_set,
+    ),
+    CommandSpec::mutate(
+        "drawing.scale_clear",
+        "Remove the scale of a sheet page",
+        Tool::Drawings,
+        Access::Project(Level::Standard),
+        "project, id: ids; revision?: label (default the current one); page?: page number from 1 (default 1). Measurements on the page keep their lines but lose their values.",
+        scale_clear,
     ),
     CommandSpec::mutate(
         "drawing.markup_resolve",
@@ -150,6 +171,7 @@ fn revision(ctx: &Ctx<'_>, p: &Params<'_>) -> Result<DrawingRevision> {
         by: ctx.person(),
         at: ctx.at,
         markups: Vec::new(),
+        scales: Vec::new(),
     })
 }
 
@@ -237,7 +259,7 @@ fn markup_add(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         }
     };
     let (x, y) = (coord("x", true)?, coord("y", true)?);
-    let two_points = matches!(kind, MarkupKind::Rectangle | MarkupKind::Arrow);
+    let two_points = matches!(kind, MarkupKind::Rectangle | MarkupKind::Arrow | MarkupKind::Dimension | MarkupKind::Area);
     let (x2, y2) = (coord("x2", two_points)?, coord("y2", two_points)?);
     let text = p.text_or_empty("text", 1_000)?;
     if kind == MarkupKind::Text && text.trim().is_empty() {
@@ -250,11 +272,84 @@ fn markup_add(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         return Err(EngineError::conflict(format!("a revision holds at most {MAX_MARKUPS} markups")));
     }
     let id = rev.markups.iter().map(|m| m.id).max().unwrap_or(0).saturating_add(1);
-    rev.markups.push(Markup { id, page, kind, x, y, x2, y2, text, resolved: false, by: person, at: now });
+    let (mut measure, mut unit) = (0, None);
+    if matches!(kind, MarkupKind::Dimension | MarkupKind::Area) {
+        let Some(scale) = rev.scales.iter().find(|s| s.page == page) else {
+            return Err(EngineError::conflict(format!("set the scale of page {page} first (drawing.scale_set)")));
+        };
+        let worked = if kind == MarkupKind::Dimension { scale.length(x, y, x2, y2) } else { scale.area(x, y, x2, y2) };
+        measure = worked.ok_or_else(|| EngineError::conflict("that is too large to measure"))?;
+        unit = Some(scale.unit);
+    }
+    rev.markups.push(Markup { id, page, kind, x, y, x2, y2, text, resolved: false, measure, unit, by: person, at: now });
     d.updated = ctx.stamp();
     let did = d.id;
     ctx.state.drawings.put(d);
     Ok(json!({ "id": did, "markup": id }))
+}
+
+/// The page number from 1 in `page` (default 1).
+fn page_number(p: &Params<'_>) -> Result<u32> {
+    Ok(p.int("page", 1..=2_000)?.and_then(|v| u32::try_from(v).ok()).unwrap_or(1))
+}
+
+/// Works the lengths and areas on a page out again from its scale (or clears them when it has none).
+fn remeasure(rev: &mut buildkiosk_model::drawing::DrawingRevision, page: u32) {
+    use buildkiosk_model::drawing::MarkupKind;
+    let scale = rev.scales.iter().find(|s| s.page == page).cloned();
+    for m in rev.markups.iter_mut().filter(|m| m.page == page && matches!(m.kind, MarkupKind::Dimension | MarkupKind::Area)) {
+        let worked =
+            scale.as_ref().and_then(|s| if m.kind == MarkupKind::Dimension { s.length(m.x, m.y, m.x2, m.y2) } else { s.area(m.x, m.y, m.x2, m.y2) });
+        m.measure = worked.unwrap_or(0);
+        m.unit = worked.and(scale.as_ref().map(|s| s.unit));
+    }
+}
+
+fn scale_set(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    use buildkiosk_model::drawing::{LengthUnit, MARKUP_SCALE, MAX_ASPECT, MIN_ASPECT, PageScale};
+    let mut d = load(ctx, p)?;
+    let at = revision_index(&d, p)?;
+    let page = page_number(p)?;
+    let coord = |key: &str| -> Result<u16> {
+        let v = p.int(key, 0..=i64::from(MARKUP_SCALE))?.ok_or_else(|| p.bad(key, "is required"))?;
+        Ok(u16::try_from(v).unwrap_or(0))
+    };
+    let (x, y, x2, y2) = (coord("x")?, coord("y")?, coord("x2")?, coord("y2")?);
+    let aspect = p
+        .int("aspect", i64::from(MIN_ASPECT)..=i64::from(MAX_ASPECT))?
+        .and_then(|v| u32::try_from(v).ok())
+        .ok_or_else(|| p.bad("aspect", "is required"))?;
+    let unit = p.choice::<LengthUnit>("unit")?.ok_or_else(|| p.bad("unit", "is required (ft, in, m or mm)"))?;
+    let text = p.line("length", 30)?.ok_or_else(|| p.bad("length", "is required"))?;
+    let length_um = unit.parse_length(&text).ok_or_else(|| p.bad("length", "must be a positive number with at most three decimals, up to 10 km"))?;
+    let scale = PageScale { page, x, y, x2, y2, aspect, length_um, unit, by: ctx.person(), at: ctx.at };
+    if !scale.usable() {
+        return Err(p.bad("x2", "the stretch must be at least 1% of the page's height long"));
+    }
+    let Some(rev) = d.revisions.get_mut(at) else { return Err(EngineError::not_found("revision not found")) };
+    rev.scales.retain(|s| s.page != page);
+    rev.scales.push(scale);
+    remeasure(rev, page);
+    d.updated = ctx.stamp();
+    let did = d.id;
+    ctx.state.drawings.put(d);
+    Ok(json!({ "id": did }))
+}
+
+fn scale_clear(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut d = load(ctx, p)?;
+    let at = revision_index(&d, p)?;
+    let page = page_number(p)?;
+    let Some(rev) = d.revisions.get_mut(at) else { return Err(EngineError::not_found("revision not found")) };
+    if !rev.scales.iter().any(|s| s.page == page) {
+        return Err(EngineError::not_found(format!("page {page} has no scale")));
+    }
+    rev.scales.retain(|s| s.page != page);
+    remeasure(rev, page);
+    d.updated = ctx.stamp();
+    let did = d.id;
+    ctx.state.drawings.put(d);
+    Ok(json!({ "id": did }))
 }
 
 fn markup_resolve(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {

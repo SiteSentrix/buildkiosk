@@ -11,6 +11,7 @@ repository.workspace = true
 buildkiosk-core = { workspace = true }
 buildkiosk-engine = { workspace = true }
 buildkiosk-mcp = { workspace = true }
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 hayro = "0.8"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
 lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "builder", "hostname", "rustls-tls"] }
@@ -25,6 +26,9 @@ log = { workspace = true }
 sha2 = { workspace = true }
 hmac = { workspace = true }
 base64 = { workspace = true }
+
+[build-dependencies]
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 
 [dev-dependencies]
 tower = { workspace = true }

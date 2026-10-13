@@ -315,15 +315,23 @@ pub struct PageShape {
     pub interactive: bool,
 }
 
-/// The markups of a page as the browser viewer reads them (`data-marks`).
-fn marks_json(marks: &[&buildkiosk_engine::model::drawing::Markup]) -> String {
-    let list: Vec<serde_json::Value> = marks
+/// What the browser viewer needs to know about the sheet (`data-sheet`): every revision with a file, the file's
+/// address, and its markups.
+fn sheet_json(here: &str, sheet: &str, d: &buildkiosk_engine::model::drawing::Drawing, current: &str, page: u32, can_mark: bool) -> String {
+    let revisions: Vec<serde_json::Value> = d
+        .revisions
         .iter()
-        .map(
-            |m| serde_json::json!({ "id": m.id, "kind": m.kind, "x": m.x, "y": m.y, "x2": m.x2, "y2": m.y2, "text": m.text, "resolved": m.resolved }),
-        )
+        .filter_map(|r| {
+            let file = r.file.as_ref()?;
+            let marks: Vec<serde_json::Value> = r
+                .markups
+                .iter()
+                .map(|m| serde_json::json!({ "id": m.id, "page": m.page, "kind": m.kind, "x": m.x, "y": m.y, "x2": m.x2, "y2": m.y2, "text": m.text, "resolved": m.resolved, "measure": m.measure_text() }))
+                .collect();
+            Some(serde_json::json!({ "label": r.label, "file": format!("{sheet}/files/{}", file.sha256), "marks": marks, "scales": r.scales }))
+        })
         .collect();
-    serde_json::to_string(&list).unwrap_or_else(|_| "[]".into())
+    serde_json::json!({ "here": here, "rev": current, "page": page, "can_mark": can_mark, "revisions": revisions }).to_string()
 }
 
 fn enc(s: &str) -> String {
@@ -382,6 +390,7 @@ pub fn viewer(req: &Req<'_>, id: Id<Project>, did: Id<Drawing>, v: &View, shape:
             @let height = ((width as f32) * shape.height / shape.width).round().max(1.0) as u32;
             @let rev_q = if v.rev.is_empty() { String::new() } else { format!("&rev={}", enc(&v.rev)) };
             div class="viewer-bar" {
+                span class="classic-only" {
                 span class="muted" { "Revision" }
                 @for (i, x) in d.revisions.iter().enumerate().rev() {
                     a class=(if x.label == r.label { "chip active" } else { "chip" }) href=(link(&|n| { n.rev = if i + 1 == d.revisions.len() { String::new() } else { x.label.clone() }; n.first = None; n.compare = String::new(); })) { (x.label) }
@@ -391,6 +400,7 @@ pub fn viewer(req: &Req<'_>, id: Id<Project>, did: Id<Drawing>, v: &View, shape:
                     @if page > 1 { a class="chip" href=(link(&|n| { n.page = page - 1; n.first = None; })) { "‹ Prev" } }
                     span { (page) " of " (shape.pages) }
                     @if (page as usize) < shape.pages { a class="chip" href=(link(&|n| { n.page = page + 1; n.first = None; })) { "Next ›" } }
+                }
                 }
                 span class="classic-only" {
                     span class="muted" { "Zoom" }
@@ -410,6 +420,7 @@ pub fn viewer(req: &Req<'_>, id: Id<Project>, did: Id<Drawing>, v: &View, shape:
                     }
                 }
                 @if d.revisions.len() > 1 {
+                    span class="classic-only" {
                     span class="muted" { "Compare with" }
                     @if v.compare.is_empty() {
                         @for x in d.revisions.iter().filter(|x| x.label != r.label && x.file.is_some()) {
@@ -418,21 +429,45 @@ pub fn viewer(req: &Req<'_>, id: Id<Project>, did: Id<Drawing>, v: &View, shape:
                     } @else {
                         a class="chip active" href=(link(&|n| { n.compare = String::new(); })) { (v.compare) " ✕" }
                     }
+                    }
                 }
             }
             @if !v.compare.is_empty() {
                 p class="muted" { span class="swatch red" {} " only on revision " (r.label) " · " span class="swatch blue" {} " only on revision " (v.compare) " · " span class="swatch gray" {} " on both. Revisions are laid on top of each other at the page's size; a sheet that moved or was rescaled shows as changed everywhere." }
                 div class="sheet-scroll" { img src=(format!("{here}/compare.png?a={}&b={}&page={page}&w={width}", enc(&v.compare), enc(&r.label))) width=(width) height=(height) alt="Differences between the two revisions"; }
             } @else {
-                @let marks: Vec<_> = r.markups.iter().filter(|m| m.page == page).collect();
+                @let with_files: Vec<_> = d.revisions.iter().filter(|x| x.file.is_some()).collect();
                 @if shape.interactive {
                     script type="module" src="/static/viewer/start.js" {}
-                    div id="wasm-viewer" class="wasm-viewer" data-file=(r.file.as_ref().map(|f| format!("{sheet}/files/{}", f.sha256)).unwrap_or_default()) data-page=(page) data-marks=(marks_json(&marks)) data-can-mark=(if can_mark { "1" } else { "0" }) {
+                    div id="wasm-viewer" class="wasm-viewer" data-sheet=(sheet_json(&here, &sheet, d, &r.label, page, can_mark)) {
+                        div class="viewer-bar" {
+                            @if with_files.len() > 1 {
+                                span class="muted" { "Revision" }
+                                @for x in with_files.iter().rev() {
+                                    button type="button" class=(if x.label == r.label { "chip rev-btn active" } else { "chip rev-btn" }) data-rev=(x.label) { (x.label) }
+                                }
+                            }
+                            span class="muted" { "Page" }
+                            button type="button" class="chip page-btn" data-page-step="-1" aria-label="Previous page" { "‹" }
+                            span id="wasm-page" { (page) " of " (shape.pages) }
+                            button type="button" class="chip page-btn" data-page-step="1" aria-label="Next page" { "›" }
+                            @if with_files.len() > 1 {
+                                span class="muted" { "Compare with" }
+                                @for x in with_files.iter().rev() {
+                                    button type="button" class="chip cmp-btn" data-compare=(x.label) { (x.label) }
+                                }
+                            }
+                        }
+                        p id="wasm-legend" class="muted" hidden { span class="swatch red" {} " only on the revision shown · " span class="swatch blue" {} " only on the one compared with · " span class="swatch gray" {} " on both. Revisions are laid on top of each other at the page's size; a sheet that moved or was rescaled shows as changed everywhere." }
                         div class="viewer-bar" {
                             @if can_mark {
                                 span class="muted" { "Tool" }
                                 button type="button" class="chip tool-btn active" data-tool="move" { "Move" }
                                 @for (key, label) in [("pin", "Pin"), ("rect", "Box"), ("arrow", "Arrow"), ("text", "Text")] {
+                                    button type="button" class="chip tool-btn" data-tool=(key) { (label) }
+                                }
+                                span class="muted" { "Measure" }
+                                @for (key, label) in [("scale", "Scale"), ("dim", "Length"), ("area", "Area")] {
                                     button type="button" class="chip tool-btn" data-tool=(key) { (label) }
                                 }
                             }
@@ -442,15 +477,58 @@ pub fn viewer(req: &Req<'_>, id: Id<Project>, did: Id<Drawing>, v: &View, shape:
                             button type="button" class="chip" data-zoom="fit" { "Fit" }
                         }
                         p id="wasm-hint" class="notice" {}
+                        div class="viewer-bar" {
+                            span id="wasm-scale-note" class="muted" {}
+                            @if can_mark {
+                                div id="wasm-scale-clear" hidden {
+                                    (command_form(req, "drawing.scale_clear", &format!("{here}?{}", { let mut n = v.clone(); n.first = None; n.click = None; n.query() }), &format!("{here}?{}", v.query()), html! {
+                                        input type="hidden" name="project" value=(id);
+                                        input type="hidden" name="id" value=(did);
+                                        input type="hidden" id="sc-revision" name="revision" value=(r.label);
+                                        input type="hidden" id="sc-page" name="page" value=(page);
+                                        button type="submit" class="btn small" { "Remove this page's scale" }
+                                    }))
+                                }
+                            }
+                        }
                         canvas class="wasm-canvas" role="img" aria-label=(format!("Sheet {} page {page}", d.number)) {}
                         @if can_mark {
+                            div id="wasm-scale-form" class="card" hidden {
+                                h2 { "Set the scale" }
+                                p class="muted" { "Type the real length of the stretch you just drew, from a dimension printed on the sheet or a known size. Anything else on this page is measured against it." }
+                                (command_form(req, "drawing.scale_set", &format!("{here}?{}", { let mut n = v.clone(); n.first = None; n.click = None; n.query() }), &format!("{here}?{}", v.query()), html! {
+                                    input type="hidden" name="project" value=(id);
+                                    input type="hidden" name="id" value=(did);
+                                    input type="hidden" id="sf-revision" name="revision" value=(r.label);
+                                    input type="hidden" id="sf-page" name="page" value=(page);
+                                    input type="hidden" id="sf-x" name="x" value="0";
+                                    input type="hidden" id="sf-y" name="y" value="0";
+                                    input type="hidden" id="sf-x2" name="x2" value="0";
+                                    input type="hidden" id="sf-y2" name="y2" value="0";
+                                    input type="hidden" id="sf-aspect" name="aspect" value="1000";
+                                    (field("Real length", "sf-length", true, false, html! { input type="text" id="sf-length" name="length" inputmode="decimal" autocomplete="off" required; }))
+                                    (field("Unit", "sf-unit", true, false, html! {
+                                        select id="sf-unit" name="unit" {
+                                            option value="ft" { "Feet" }
+                                            option value="in" { "Inches" }
+                                            option value="m" { "Metres" }
+                                            option value="mm" { "Millimetres" }
+                                        }
+                                    }))
+                                    div class="form-actions" {
+                                        button type="button" class="btn" data-action="cancel" { "Cancel" }
+                                        button type="submit" class="btn primary" { "Set scale" }
+                                    }
+                                }))
+                            }
                             div id="wasm-markup" class="card" hidden {
                                 h2 { "Add markup" }
+                                p id="mk-reading" class="notice" {}
                                 (command_form(req, "drawing.markup_add", &format!("{here}?{}", { let mut n = v.clone(); n.first = None; n.click = None; n.query() }), &format!("{here}?{}", v.query()), html! {
                                     input type="hidden" name="project" value=(id);
                                     input type="hidden" name="id" value=(did);
-                                    input type="hidden" name="revision" value=(r.label);
-                                    input type="hidden" name="page" value=(page);
+                                    input type="hidden" id="mk-revision" name="revision" value=(r.label);
+                                    input type="hidden" id="mk-page" name="page" value=(page);
                                     input type="hidden" id="mk-kind" name="kind" value="pin";
                                     input type="hidden" id="mk-x" name="x" value="0";
                                     input type="hidden" id="mk-y" name="y" value="0";
@@ -477,6 +555,7 @@ pub fn viewer(req: &Req<'_>, id: Id<Project>, did: Id<Drawing>, v: &View, shape:
                     _ => "",
                 };
                 @if !tool_hint.is_empty() { p class="notice" { (tool_hint) } }
+                @let marks: Vec<_> = r.markups.iter().filter(|m| m.page == page).collect();
                 @let scale = |a: u16, total: u32| (f64::from(a) * f64::from(total) / f64::from(MARKUP_SCALE)).round();
                 @let drawing = html! {
                     svg class="sheet-overlay" width=(width) height=(height) viewBox=(format!("0 0 {width} {height}")) aria-hidden="true" {
@@ -489,6 +568,8 @@ pub fn viewer(req: &Req<'_>, id: Id<Project>, did: Id<Drawing>, v: &View, shape:
                                 MarkupKind::Rectangle => { rect x=(x.min(x2)) y=(y.min(y2)) width=((x - x2).abs()) height=((y - y2).abs()) fill="none" stroke=(color) stroke-width="2" {} text x=(x.min(x2) + 3.0) y=(y.min(y2) - 4.0) font-size="12" font-weight="700" fill=(color) { (m.id) } }
                                 MarkupKind::Arrow => { line x1=(x) y1=(y) x2=(x2) y2=(y2) stroke=(color) stroke-width="2" marker-end="url(#head)" {} text x=(x + 4.0) y=(y - 4.0) font-size="12" font-weight="700" fill=(color) { (m.id) } }
                                 MarkupKind::Text => { text x=(x) y=(y) font-size="16" font-weight="600" fill=(color) { (m.id) ". " (m.text) } }
+                                MarkupKind::Dimension => { line x1=(x) y1=(y) x2=(x2) y2=(y2) stroke=(color) stroke-width="2" {} text x=(x + 4.0) y=(y - 4.0) font-size="12" font-weight="700" fill=(color) { (m.id) @if let Some(t) = m.measure_text() { " · " (t) } } }
+                                MarkupKind::Area => { rect x=(x.min(x2)) y=(y.min(y2)) width=((x - x2).abs()) height=((y - y2).abs()) fill="none" stroke=(color) stroke-width="2" {} text x=(x.min(x2) + 3.0) y=(y.min(y2) - 4.0) font-size="12" font-weight="700" fill=(color) { (m.id) @if let Some(t) = m.measure_text() { " · " (t) } } }
                             }
                         }
                         @if let Some((fx, fy)) = v.first { circle cx=(scale(fx, width)) cy=(scale(fy, height)) r="5" fill="#1565c0" {} }
@@ -538,22 +619,38 @@ pub fn viewer(req: &Req<'_>, id: Id<Project>, did: Id<Drawing>, v: &View, shape:
                     }
                 }
                 }
+                @let shown_marks = !marks.is_empty();
                 div class="card" {
                     h2 { "Markups on this page" }
-                    @if marks.is_empty() { p class="muted" { "None yet." @if can_mark { " Pick a tool above and click the sheet." } } }
-                    @for m in &marks {
-                        div class="response" {
-                            div class="meta" {
-                                span { strong { "#" (m.id) " " (m.kind.label()) } " · " @if let Some(b) = m.by { (view::person_name(state, b)) } " · " (req.when(m.at)) }
-                                @if m.resolved { span class="pill green" { "Resolved" } }
-                            }
-                            @if !m.text.is_empty() { p class="prose" { (m.text) } }
-                            @if can_mark {
-                                div class="row" {
-                                    @let ids = [("project", id.to_string()), ("id", did.to_string()), ("revision", r.label.clone()), ("markup", m.id.to_string())];
-                                    @let back = format!("{here}?{}", v.query());
-                                    (button_form(req, "drawing.markup_resolve", &back, &[ids[0].clone(), ids[1].clone(), ids[2].clone(), ids[3].clone(), ("resolved", (!m.resolved).to_string())], if m.resolved { "Reopen" } else { "Resolve" }, "small"))
-                                    (button_form(req, "drawing.markup_delete", &back, &ids, "Remove", "small danger"))
+                    p class="muted marklist-none" hidden[shown_marks] { "None yet." @if can_mark { " Pick a tool above and click the sheet." } }
+                    // Every revision's and page's markups are here (hidden but the one shown), so the browser viewer can switch without reloading.
+                    @for (ri, rv) in d.revisions.iter().enumerate() {
+                        @let pages: std::collections::BTreeSet<u32> = rv.markups.iter().map(|m| m.page).collect();
+                        @for pg in pages {
+                            @let visible = rv.label == r.label && pg == page;
+                            @let back = format!("{here}?{}", { let mut n = v.clone(); n.click = None; n.first = None; n.compare = String::new(); n.page = pg; n.rev = if ri + 1 == d.revisions.len() { String::new() } else { rv.label.clone() }; n.query() });
+                            @let lengths: u64 = rv.markups.iter().filter(|m| m.page == pg && m.kind == MarkupKind::Dimension).map(|m| m.measure).fold(0u64, |a, b| a.saturating_add(b));
+                            @let areas: u64 = rv.markups.iter().filter(|m| m.page == pg && m.kind == MarkupKind::Area).map(|m| m.measure).fold(0u64, |a, b| a.saturating_add(b));
+                            @let unit = rv.scales.iter().find(|s| s.page == pg).map(|s| s.unit);
+                            div class="marklist" data-rev=(rv.label) data-page=(pg) hidden[!visible] {
+                                @if let Some(u) = unit.filter(|_| lengths > 0 || areas > 0) {
+                                    p class="muted" { "Measured on this page: " @if lengths > 0 { strong { (u.length_text(lengths)) } " of lines" } @if lengths > 0 && areas > 0 { " and " } @if areas > 0 { strong { (u.area_text(areas)) } " of areas" } "." }
+                                }
+                                @for m in rv.markups.iter().filter(|m| m.page == pg) {
+                                    div class="response" {
+                                        div class="meta" {
+                                            span { strong { "#" (m.id) " " (m.kind.label()) } @if let Some(t) = m.measure_text() { " " strong { (t) } } " · " @if let Some(b) = m.by { (view::person_name(state, b)) } " · " (req.when(m.at)) }
+                                            @if m.resolved { span class="pill green" { "Resolved" } }
+                                        }
+                                        @if !m.text.is_empty() { p class="prose" { (m.text) } }
+                                        @if can_mark {
+                                            div class="row" {
+                                                @let ids = [("project", id.to_string()), ("id", did.to_string()), ("revision", rv.label.clone()), ("markup", m.id.to_string())];
+                                                (button_form(req, "drawing.markup_resolve", &back, &[ids[0].clone(), ids[1].clone(), ids[2].clone(), ids[3].clone(), ("resolved", (!m.resolved).to_string())], if m.resolved { "Reopen" } else { "Resolve" }, "small"))
+                                                (button_form(req, "drawing.markup_delete", &back, &ids, "Remove", "small danger"))
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }

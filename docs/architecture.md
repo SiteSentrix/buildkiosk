@@ -78,6 +78,20 @@ PDF drawing) are tested on the host; the browser glue is checked in a real brows
 can't be caught in WebAssembly, so it stops the module (the page stays as it was); the server renders in a
 blocking task that catches it.
 
+The browser viewer also owns the revision, page and compare choices (no reload: it fetches each revision's file the
+first time it is needed, and the page carries every revision's markups in hidden lists it switches between), draws a
+comparison itself (`crates/viewer/src/diff.rs`, the same colours as the server's picture), and keeps the address in
+step with `history.replaceState`.
+
+**Measuring.** A page's scale (`drawing.scale_set`) is a stretch drawn on it with a known real length, plus the
+page's shape (width over height), so the engine needs nothing else to measure: `drawing.markup_add` with kind `dim`
+(length) or `area` (a box) works the value out from it and stores it on the markup (micrometres, square
+micrometres); setting or clearing the scale works the page's measurements out again. The maths lives in
+`buildkiosk_model::drawing::PageScale`, shared by the engine and the browser (for the live readout while placing the
+second point), and uses only exact IEEE operations (add, subtract, multiply, divide, square root) so a replayed
+journal gives the same numbers on every machine. Scales and measurements are per revision and page, because a
+revision may be redrawn at another size.
+
 Build: `cargo xtask viewer` (needs `cargo install wasm-bindgen-cli --version <the version in Cargo.lock> --locked`)
 writes `crates/server/assets/viewer/{start.js,viewer.js,viewer_bg.wasm}`; then compile the server. `build.rs` embeds
 the three files when all exist. The module is about 5 MB (not compressed on the wire yet). Its policy is set on the

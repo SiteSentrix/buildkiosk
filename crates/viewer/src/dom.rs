@@ -6,17 +6,21 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use serde::Deserialize;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::{Clamped, JsCast};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{
-    CanvasRenderingContext2d, Document, Element, Event, EventTarget, HtmlCanvasElement, HtmlElement, HtmlInputElement, ImageData, KeyboardEvent,
-    PointerEvent, Response, WheelEvent, Window,
+    CanvasRenderingContext2d, Document, Element, Event, EventTarget, HtmlCanvasElement, HtmlCollection, HtmlElement, HtmlInputElement, ImageData,
+    KeyboardEvent, PointerEvent, Response, WheelEvent, Window,
 };
 
+use buildkiosk_model::drawing::{MAX_ASPECT, MIN_ASPECT, PageScale};
+
+use crate::diff;
 use crate::geom::{self, Camera, Stage};
 use crate::shapes::{self, Mark, Shape};
-use crate::sheet::{MAX_FILE, Sheet};
+use crate::sheet::{MAX_FILE, Raster, Sheet};
 
 const RED: &str = "#c62828";
 const GREY: &str = "#7b8794";
@@ -25,6 +29,8 @@ const BLUE: &str = "#1565c0";
 const CLICK_SLOP: f64 = 4.0;
 /// How long after the last zoom or pan the page is drawn again, sharper.
 const SHARPEN_MS: i32 = 180;
+/// At most this many revisions are read from a page.
+const MAX_REVS: usize = 200;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Tool {
@@ -33,6 +39,10 @@ enum Tool {
     Box,
     Arrow,
     Text,
+    /// Two clicks on a stretch of known length set the page's scale.
+    Scale,
+    Length,
+    Area,
 }
 
 impl Tool {
@@ -43,6 +53,9 @@ impl Tool {
             "rect" => Tool::Box,
             "arrow" => Tool::Arrow,
             "text" => Tool::Text,
+            "scale" => Tool::Scale,
+            "dim" => Tool::Length,
+            "area" => Tool::Area,
             _ => return None,
         })
     }
@@ -55,11 +68,14 @@ impl Tool {
             Tool::Box => "rect",
             Tool::Arrow => "arrow",
             Tool::Text => "text",
+            Tool::Length => "dim",
+            Tool::Area => "area",
+            Tool::Scale => "",
         }
     }
 
     fn two_points(self) -> bool {
-        matches!(self, Tool::Box | Tool::Arrow)
+        matches!(self, Tool::Box | Tool::Arrow | Tool::Scale | Tool::Length | Tool::Area)
     }
 
     fn hint(self, started: bool) -> &'static str {
@@ -71,8 +87,45 @@ impl Tool {
             (Tool::Box, true) => "Click the opposite corner.",
             (Tool::Arrow, false) => "Click where the arrow starts.",
             (Tool::Arrow, true) => "Click where the arrow points.",
+            (Tool::Scale, false) => "Click one end of a stretch whose real length you know.",
+            (Tool::Scale, true) => "Click the other end of the stretch.",
+            (Tool::Length, false) => "Click where the length starts.",
+            (Tool::Length, true) => "Click where it ends.",
+            (Tool::Area, false) => "Click one corner of the area.",
+            (Tool::Area, true) => "Click the opposite corner.",
         }
     }
+}
+
+/// What the page tells the viewer about the sheet (`data-sheet`).
+#[derive(Deserialize)]
+struct Boot {
+    /// The viewer page's own address, to build the address of a revision and page from.
+    here: String,
+    /// The label of the revision shown first, and the page (from 1).
+    rev: String,
+    page: usize,
+    can_mark: bool,
+    revisions: Vec<BootRev>,
+}
+
+#[derive(Deserialize)]
+struct BootRev {
+    label: String,
+    file: String,
+    #[serde(default)]
+    marks: Vec<Mark>,
+    #[serde(default)]
+    scales: Vec<PageScale>,
+}
+
+/// One revision of the sheet. Its file is fetched and opened the first time it is needed.
+struct Rev {
+    label: String,
+    file: String,
+    sheet: Option<Rc<Sheet>>,
+    marks: Vec<Mark>,
+    scales: Vec<PageScale>,
 }
 
 struct Finger {
@@ -96,12 +149,20 @@ struct Viewer {
     /// The page as drawn by the renderer, kept off screen and scaled onto the canvas.
     picture: HtmlCanvasElement,
     picture_w: u32,
-    sheet: Sheet,
+    here: String,
+    revs: Vec<Rev>,
+    /// The revision shown, and the one laid over it to see what changed.
+    rev: usize,
+    compare: Option<usize>,
+    /// The page shown, from 0.
     page: usize,
+    /// Width over height of what is on the canvas (the page, or the comparison).
+    aspect: f64,
+    /// A revision is being fetched; further requests wait.
+    busy: bool,
     stage: Stage,
     cam: Camera,
     ratio: f64,
-    marks: Vec<Mark>,
     can_mark: bool,
     tool: Tool,
     /// The first corner of a box or arrow, as fractions of the page.
@@ -148,6 +209,26 @@ fn listen<E: JsCast + 'static>(target: &EventTarget, name: &str, mut f: impl FnM
     cb.forget();
 }
 
+fn each(list: HtmlCollection, mut f: impl FnMut(Element)) {
+    for i in 0..list.length() {
+        if let Some(e) = list.item(i) {
+            f(e);
+        }
+    }
+}
+
+fn set_on(e: &Element, name: &str, on: bool) {
+    if on {
+        ok(e.set_attribute(name, ""));
+    } else {
+        ok(e.remove_attribute(name));
+    }
+}
+
+fn enc(s: &str) -> String {
+    s.bytes().map(|b| if b.is_ascii_alphanumeric() || b == b'-' || b == b'_' { (b as char).to_string() } else { format!("%{b:02X}") }).collect()
+}
+
 pub fn start() {
     std::panic::set_hook(Box::new(|info| web_sys::console::error_1(&JsValue::from_str(&info.to_string()))));
     let Some(window) = web_sys::window() else { return };
@@ -175,19 +256,29 @@ async fn fetch_bytes(window: &Window, url: &str) -> Result<Vec<u8>, String> {
 }
 
 async fn run(window: Window, document: Document, root: Element) -> Result<(), String> {
-    let attr = |name: &str| root.get_attribute(name);
-    let url = attr("data-file").ok_or("The page names no file.")?;
-    let page = attr("data-page").and_then(|p| p.trim().parse::<usize>().ok()).unwrap_or(1).max(1) - 1;
-    let marks = shapes::parse(&attr("data-marks").unwrap_or_default());
-    let can_mark = attr("data-can-mark").as_deref() == Some("1");
-
-    let sheet = Sheet::open(fetch_bytes(&window, &url).await?)?;
-    let aspect = sheet.aspect(page).ok_or("This page doesn't exist.")?;
+    let mut boot: Boot = serde_json::from_str(&root.get_attribute("data-sheet").ok_or("The page describes no sheet.")?)
+        .map_err(|_| "The page's sheet description is unreadable.")?;
+    boot.revisions.truncate(MAX_REVS);
+    for r in &mut boot.revisions {
+        r.marks.truncate(shapes::MAX_MARKS);
+    }
+    let rev = boot.revisions.iter().position(|r| r.label == boot.rev).ok_or("The page shows a revision it doesn't list.")?;
+    let page = boot.page.max(1) - 1;
+    let file = boot.revisions.get(rev).map(|r| r.file.clone()).ok_or("The page shows a revision it doesn't list.")?;
+    let first = Rc::new(Sheet::open(fetch_bytes(&window, &file).await?)?);
+    let aspect = first.aspect(page).ok_or("This page doesn't exist.")?;
 
     let canvas: HtmlCanvasElement = root.query_selector("canvas").map_err(js)?.ok_or("The page has no canvas.")?.dyn_into().map_err(wrong)?;
     let ctx: CanvasRenderingContext2d = canvas.get_context("2d").map_err(js)?.ok_or("No 2D canvas.")?.dyn_into().map_err(wrong)?;
     let picture: HtmlCanvasElement = document.create_element("canvas").map_err(js)?.dyn_into().map_err(wrong)?;
     let body: HtmlElement = document.body().ok_or("The page has no body.")?;
+
+    let revs: Vec<Rev> = boot
+        .revisions
+        .into_iter()
+        .enumerate()
+        .map(|(i, r)| Rev { label: r.label, file: r.file, sheet: (i == rev).then(|| first.clone()), marks: r.marks, scales: r.scales })
+        .collect();
 
     // The canvas has no size until it is shown.
     ok(body.class_list().add_1("wasm-viewer-on"));
@@ -199,13 +290,17 @@ async fn run(window: Window, document: Document, root: Element) -> Result<(), St
         ctx,
         picture,
         picture_w: 0,
-        sheet,
+        here: boot.here,
+        revs,
+        rev,
+        compare: None,
         page,
+        aspect,
+        busy: false,
         stage: Stage { w: 1.0, h: 1.0 },
         cam: Camera::fit(Stage { w: 1.0, h: 1.0 }, aspect),
         ratio: 1.0,
-        marks,
-        can_mark,
+        can_mark: boot.can_mark,
         tool: Tool::Move,
         first: None,
         hover: None,
@@ -221,14 +316,15 @@ async fn run(window: Window, document: Document, root: Element) -> Result<(), St
         ok(body.class_list().remove_1("wasm-viewer-on"));
         return Err(e);
     }
-    paint(&v);
     set_tool(&mut v, Tool::Move);
+    sync_ui(&v);
+    paint(&v);
 
     let shared: Shared = Rc::new(RefCell::new(v));
     let again = shared.clone();
     let cb = Closure::<dyn FnMut()>::new(move || with(&again, sharpen));
     with(&shared, |v| v.sharpen = Some(cb));
-    wire(&shared, aspect);
+    wire(&shared);
     Ok(())
 }
 
@@ -243,15 +339,29 @@ fn measure(v: &mut Viewer) {
     v.stage = Stage { w, h };
 }
 
-/// Draws the page `width` pixels wide into the off-screen picture.
+/// What is shown at `width` pixels wide: the page, or, with a revision to compare, what differs.
+fn raster(v: &Viewer, width: u32) -> Result<Raster, String> {
+    let sheet = |i: usize| v.revs.get(i).and_then(|r| r.sheet.clone()).ok_or_else(|| "That revision isn't loaded.".to_string());
+    let shown = sheet(v.rev)?.draw(v.page, width)?;
+    match v.compare {
+        None => Ok(shown),
+        Some(other) => {
+            let old = sheet(other)?.draw(v.page, shown.width)?;
+            diff::overlay(&old, &shown)
+        }
+    }
+}
+
+/// Draws what is shown into the off-screen picture and remembers its shape.
 fn make_picture(v: &mut Viewer, width: u32) -> Result<(), String> {
-    let raster = v.sheet.draw(v.page, width)?;
-    let image = ImageData::new_with_u8_clamped_array_and_sh(Clamped(&raster.rgba), raster.width, raster.height).map_err(js)?;
-    v.picture.set_width(raster.width);
-    v.picture.set_height(raster.height);
+    let r = raster(v, width)?;
+    let image = ImageData::new_with_u8_clamped_array_and_sh(Clamped(&r.rgba), r.width, r.height).map_err(js)?;
     let ctx: CanvasRenderingContext2d = v.picture.get_context("2d").map_err(js)?.ok_or("No 2D canvas.")?.dyn_into().map_err(wrong)?;
+    v.picture.set_width(r.width);
+    v.picture.set_height(r.height);
     ctx.put_image_data(&image, 0.0, 0.0).map_err(js)?;
-    v.picture_w = raster.width;
+    v.picture_w = r.width;
+    v.aspect = f64::from(r.width) / f64::from(r.height.max(1));
     Ok(())
 }
 
@@ -275,6 +385,23 @@ fn moved(v: &mut Viewer) {
     }
 }
 
+/// The scale set on the page shown, if there is one.
+fn scale_here(v: &Viewer) -> Option<&PageScale> {
+    let page = u32::try_from(v.page + 1).ok()?;
+    v.revs.get(v.rev)?.scales.iter().find(|s| s.page == page)
+}
+
+/// What a length or area from `a` to `b` (fractions of the page) measures on this page, as text.
+fn measure_text(v: &Viewer, tool: Tool, a: (f64, f64), b: (f64, f64)) -> Option<String> {
+    let s = scale_here(v)?;
+    let (x, y, x2, y2) = (geom::to_units(a.0), geom::to_units(a.1), geom::to_units(b.0), geom::to_units(b.1));
+    match tool {
+        Tool::Length => s.length(x, y, x2, y2).map(|um| s.unit.length_text(um)),
+        Tool::Area => s.area(x, y, x2, y2).map(|um| s.unit.area_text(um)),
+        _ => None,
+    }
+}
+
 fn paint(v: &Viewer) {
     let c = &v.ctx;
     c.set_fill_style_str("#dfe3e8");
@@ -282,8 +409,29 @@ fn paint(v: &Viewer) {
     let (pw, ph) = v.cam.size();
     c.set_image_smoothing_enabled(true);
     ok(c.draw_image_with_html_canvas_element_and_dw_and_dh(&v.picture, v.cam.x, v.cam.y, pw, ph));
-    for (shape, resolved) in shapes::shapes(&v.marks, &v.cam) {
-        draw_shape(c, &shape, if resolved { GREY } else { RED });
+    // Markups belong to one revision's page, so they aren't drawn over a comparison.
+    if v.compare.is_none() {
+        let page = u32::try_from(v.page + 1).unwrap_or(u32::MAX);
+        let marks: Vec<Mark> = v.revs.get(v.rev).map(|r| r.marks.iter().filter(|m| m.page == page).cloned().collect()).unwrap_or_default();
+        for (shape, resolved) in shapes::shapes(&marks, &v.cam) {
+            draw_shape(c, &shape, if resolved { GREY } else { RED });
+        }
+    }
+    // The stretch the page's scale was set from, faintly, while a measuring tool is in use.
+    if v.compare.is_none()
+        && matches!(v.tool, Tool::Scale | Tool::Length | Tool::Area)
+        && let Some(s) = scale_here(v)
+    {
+        let ((x1, y1), (x2, y2)) =
+            (v.cam.to_screen(geom::from_units(s.x), geom::from_units(s.y)), v.cam.to_screen(geom::from_units(s.x2), geom::from_units(s.y2)));
+        c.set_stroke_style_str(BLUE);
+        c.set_line_width(1.5);
+        ok(c.set_line_dash(&js_sys::Array::of2(&JsValue::from_f64(6.0), &JsValue::from_f64(4.0))));
+        c.begin_path();
+        c.move_to(x1, y1);
+        c.line_to(x2, y2);
+        c.stroke();
+        ok(c.set_line_dash(&js_sys::Array::new()));
     }
     // The markup being placed.
     if let Some((fx, fy)) = v.first {
@@ -293,12 +441,15 @@ fn paint(v: &Viewer) {
         ok(c.arc(x, y, 5.0, 0.0, std::f64::consts::TAU));
         c.fill();
         if let Some((hx, hy)) = v.hover.filter(|_| v.tool.two_points()) {
-            let shape = if v.tool == Tool::Box {
-                Shape::Box { x: x.min(hx), y: y.min(hy), w: (x - hx).abs(), h: (y - hy).abs(), label: String::new() }
-            } else {
-                Shape::Arrow { x1: x, y1: y, x2: hx, y2: hy, label: String::new() }
+            // What the stretch measures so far, beside the pointer.
+            let reading = v.cam.to_page(hx, hy).and_then(|b| measure_text(v, v.tool, (fx, fy), b)).unwrap_or_default();
+            let shape = match v.tool {
+                Tool::Box | Tool::Area => Shape::Box { x: x.min(hx), y: y.min(hy), w: (x - hx).abs(), h: (y - hy).abs(), label: String::new() },
+                Tool::Arrow => Shape::Arrow { x1: x, y1: y, x2: hx, y2: hy, label: String::new() },
+                _ => Shape::Line { x1: x, y1: y, x2: hx, y2: hy, label: String::new() },
             };
             draw_shape(c, &shape, BLUE);
+            label_at(c, &reading, hx + 12.0, hy - 8.0, BLUE);
         }
     }
 }
@@ -338,6 +489,21 @@ fn draw_shape(c: &CanvasRenderingContext2d, shape: &Shape, color: &str) {
             c.fill();
             label_at(c, label, *x1 + 4.0, *y1 - 6.0, color);
         }
+        Shape::Line { x1, y1, x2, y2, label } => {
+            c.begin_path();
+            c.move_to(*x1, *y1);
+            c.line_to(*x2, *y2);
+            // A short tick across each end.
+            let (dx, dy) = (x2 - x1, y2 - y1);
+            let len = dx.hypot(dy).max(1.0);
+            let (nx, ny) = (-dy / len * 6.0, dx / len * 6.0);
+            for (px, py) in [(*x1, *y1), (*x2, *y2)] {
+                c.move_to(px - nx, py - ny);
+                c.line_to(px + nx, py + ny);
+            }
+            c.stroke();
+            label_at(c, label, (x1 + x2) / 2.0 + 6.0, (y1 + y2) / 2.0 - 6.0, color);
+        }
         Shape::Text { x, y, label } => {
             c.set_font("bold 16px sans-serif");
             label_at(c, label, *x, *y, color);
@@ -361,8 +527,12 @@ fn label_at(c: &CanvasRenderingContext2d, text: &str, x: f64, y: f64, color: &st
 }
 
 fn set_hint(v: &Viewer) {
+    set_status(v, v.tool.hint(v.first.is_some()));
+}
+
+fn set_status(v: &Viewer, text: &str) {
     if let Ok(Some(hint)) = v.root.query_selector("#wasm-hint") {
-        hint.set_text_content(Some(v.tool.hint(v.first.is_some())));
+        hint.set_text_content(Some(text));
     }
 }
 
@@ -370,16 +540,89 @@ fn set_tool(v: &mut Viewer, tool: Tool) {
     v.tool = tool;
     v.first = None;
     ok(v.canvas.class_list().toggle_with_force("marking", tool != Tool::Move));
-    let buttons = v.root.get_elements_by_class_name("tool-btn");
-    for i in 0..buttons.length() {
-        if let Some(b) = buttons.item(i) {
-            let on = b.get_attribute("data-tool").as_deref().and_then(Tool::from_key) == Some(tool);
-            ok(b.class_list().toggle_with_force("active", on));
-        }
-    }
+    each(v.root.get_elements_by_class_name("tool-btn"), |b| {
+        let on = b.get_attribute("data-tool").as_deref().and_then(Tool::from_key) == Some(tool);
+        ok(b.class_list().toggle_with_force("active", on));
+    });
     close_form(v);
     set_hint(v);
     paint(v);
+}
+
+/// Brings the buttons, the lists of markups, the form and the address up to date with what is shown.
+fn sync_ui(v: &Viewer) {
+    let (Some(rev), page) = (v.revs.get(v.rev), v.page + 1) else { return };
+    let compare = v.compare.and_then(|i| v.revs.get(i)).map(|r| r.label.as_str());
+    each(v.root.get_elements_by_class_name("rev-btn"), |b| {
+        ok(b.class_list().toggle_with_force("active", b.get_attribute("data-rev").as_deref() == Some(rev.label.as_str())));
+    });
+    each(v.root.get_elements_by_class_name("cmp-btn"), |b| {
+        let label = b.get_attribute("data-compare");
+        ok(b.class_list().toggle_with_force("active", compare.is_some() && label.as_deref() == compare));
+        // A revision can't be compared with itself.
+        set_on(&b, "disabled", label.as_deref() == Some(rev.label.as_str()));
+    });
+    let pages = rev.sheet.as_ref().map_or(1, |s| s.pages());
+    if let Some(e) = v.document.get_element_by_id("wasm-page") {
+        e.set_text_content(Some(&format!("{page} of {pages}")));
+    }
+    each(v.root.get_elements_by_class_name("page-btn"), |b| {
+        let step = b.get_attribute("data-page-step").and_then(|s| s.parse::<i32>().ok()).unwrap_or(0);
+        set_on(&b, "disabled", (step < 0 && page <= 1) || (step > 0 && page >= pages));
+    });
+    each(v.root.get_elements_by_class_name("tool-btn"), |b| set_on(&b, "disabled", v.compare.is_some()));
+    if let Some(e) = v.document.get_element_by_id("wasm-legend") {
+        set_on(&e, "hidden", v.compare.is_none());
+    }
+    // The lists of markups below the sheet: only this revision's page, and none over a comparison.
+    let mut any = false;
+    each(v.document.get_elements_by_class_name("marklist"), |m| {
+        let show = v.compare.is_none()
+            && m.get_attribute("data-rev").as_deref() == Some(rev.label.as_str())
+            && m.get_attribute("data-page").and_then(|p| p.parse::<usize>().ok()) == Some(page);
+        any |= show;
+        set_on(&m, "hidden", !show);
+    });
+    each(v.document.get_elements_by_class_name("marklist-none"), |m| set_on(&m, "hidden", any || v.compare.is_some()));
+    // The page's scale, and the button that removes it.
+    let has_scale = scale_here(v).is_some();
+    if let Some(e) = v.document.get_element_by_id("wasm-scale-note") {
+        let text = match scale_here(v) {
+            Some(s) => format!("Scale set from a stretch of {}. Lengths and areas drawn on this page use it.", s.unit.length_text(s.length_um)),
+            None => "No scale set on this page. Use the Scale tool to set it, then measure lengths and areas.".to_string(),
+        };
+        e.set_text_content(Some(&text));
+    }
+    if let Some(e) = v.document.get_element_by_id("wasm-scale-clear") {
+        set_on(&e, "hidden", !has_scale || !v.can_mark);
+    }
+    // Saving a markup goes back to this revision and page.
+    let here = format!("{}?rev={}&page={page}", v.here, enc(&rev.label));
+    let value = |id: &str, text: &str| {
+        if let Some(i) = input(v, id) {
+            i.set_value(text);
+        }
+    };
+    for id in ["mk-revision", "sf-revision", "sc-revision"] {
+        value(id, &rev.label);
+    }
+    for id in ["mk-page", "sf-page", "sc-page"] {
+        value(id, &page.to_string());
+    }
+    for id in ["wasm-markup", "wasm-scale-form", "wasm-scale-clear"] {
+        if let Some(form) = v.document.get_element_by_id(id) {
+            for name in ["_next", "_back"] {
+                if let Ok(Some(i)) = form.query_selector(&format!("input[name={name}]"))
+                    && let Ok(i) = i.dyn_into::<HtmlInputElement>()
+                {
+                    i.set_value(&here);
+                }
+            }
+        }
+    }
+    if let Ok(history) = v.window.history() {
+        ok(history.replace_state_with_url(&JsValue::NULL, "", Some(&here)));
+    }
 }
 
 fn input(v: &Viewer, id: &str) -> Option<HtmlInputElement> {
@@ -387,9 +630,37 @@ fn input(v: &Viewer, id: &str) -> Option<HtmlInputElement> {
 }
 
 fn close_form(v: &Viewer) {
-    if let Some(form) = v.document.get_element_by_id("wasm-markup") {
-        ok(form.set_attribute("hidden", ""));
+    for id in ["wasm-markup", "wasm-scale-form"] {
+        if let Some(form) = v.document.get_element_by_id(id) {
+            ok(form.set_attribute("hidden", ""));
+        }
     }
+}
+
+/// Fills in the form that sets the page's scale with the stretch drawn, and shows it.
+fn open_scale_form(v: &mut Viewer, a: (f64, f64), b: (f64, f64)) {
+    let aspect = v.revs.get(v.rev).and_then(|r| r.sheet.as_ref()).and_then(|s| s.aspect(v.page)).unwrap_or(1.0);
+    let milli = (aspect * 1000.0).round().clamp(f64::from(MIN_ASPECT), f64::from(MAX_ASPECT)) as u32;
+    for (id, value) in [
+        ("sf-x", geom::to_units(a.0).to_string()),
+        ("sf-y", geom::to_units(a.1).to_string()),
+        ("sf-x2", geom::to_units(b.0).to_string()),
+        ("sf-y2", geom::to_units(b.1).to_string()),
+        ("sf-aspect", milli.to_string()),
+    ] {
+        if let Some(i) = input(v, id) {
+            i.set_value(&value);
+        }
+    }
+    if let Some(form) = v.document.get_element_by_id("wasm-scale-form") {
+        ok(form.remove_attribute("hidden"));
+        form.scroll_into_view();
+    }
+    if let Some(i) = input(v, "sf-length") {
+        ok(i.focus());
+    }
+    v.first = None;
+    set_hint(v);
 }
 
 /// Fills in the markup form with the place clicked and shows it.
@@ -407,6 +678,11 @@ fn open_form(v: &mut Viewer, a: (f64, f64), b: Option<(f64, f64)>) {
     let far = b.unwrap_or(a);
     set("mk-x2", geom::to_units(far.0).to_string(), b.is_some());
     set("mk-y2", geom::to_units(far.1).to_string(), b.is_some());
+    // What a length or area measures, so the person can check it before saving.
+    let reading = b.and_then(|b| measure_text(v, v.tool, a, b)).map(|t| format!("Measures {t}")).unwrap_or_default();
+    if let Some(e) = v.document.get_element_by_id("mk-reading") {
+        e.set_text_content(Some(&reading));
+    }
     if let Some(form) = v.document.get_element_by_id("wasm-markup") {
         ok(form.remove_attribute("hidden"));
         form.scroll_into_view();
@@ -420,10 +696,14 @@ fn open_form(v: &mut Viewer, a: (f64, f64), b: Option<(f64, f64)>) {
 }
 
 fn place(v: &mut Viewer, sx: f64, sy: f64) {
-    if !v.can_mark || v.tool == Tool::Move {
+    if !v.can_mark || v.tool == Tool::Move || v.compare.is_some() {
         return;
     }
     let Some(p) = v.cam.to_page(sx, sy) else { return };
+    if matches!(v.tool, Tool::Length | Tool::Area) && scale_here(v).is_none() {
+        set_status(v, "Set this page's scale first: pick Scale, then click both ends of a stretch whose real length you know.");
+        return;
+    }
     if v.tool.two_points() {
         match v.first.take() {
             None => {
@@ -431,6 +711,7 @@ fn place(v: &mut Viewer, sx: f64, sy: f64) {
                 v.hover = Some((sx, sy));
                 set_hint(v);
             }
+            Some(a) if v.tool == Tool::Scale => open_scale_form(v, a, p),
             Some(a) => open_form(v, a, Some(p)),
         }
     } else {
@@ -439,12 +720,94 @@ fn place(v: &mut Viewer, sx: f64, sy: f64) {
     paint(v);
 }
 
+/// What a click on the revision, page or compare buttons asks for; `None` leaves it as it is.
+#[derive(Clone, Copy)]
+struct Go {
+    rev: Option<usize>,
+    page: Option<usize>,
+    /// `Some(None)` switches the comparison off.
+    compare: Option<Option<usize>>,
+}
+
+/// Fetches a revision's file the first time it is needed.
+async fn load(shared: &Shared, idx: usize) -> Result<(), String> {
+    let (window, url) = {
+        let v = shared.try_borrow().map_err(|_| "Busy.")?;
+        let r = v.revs.get(idx).ok_or("There is no such revision.")?;
+        if r.sheet.is_some() {
+            return Ok(());
+        }
+        (v.window.clone(), r.file.clone())
+    };
+    let sheet = Rc::new(Sheet::open(fetch_bytes(&window, &url).await?).map_err(|e| format!("That revision can't be shown here: {e}"))?);
+    with(shared, |v| {
+        if let Some(r) = v.revs.get_mut(idx) {
+            r.sheet = Some(sheet);
+        }
+    });
+    Ok(())
+}
+
+fn go(shared: &Shared, req: Go) {
+    let shared = shared.clone();
+    wasm_bindgen_futures::spawn_local(async move {
+        let want = {
+            let Ok(mut v) = shared.try_borrow_mut() else { return };
+            if v.busy {
+                return;
+            }
+            v.busy = true;
+            set_status(&v, "Loading…");
+            (req.rev.unwrap_or(v.rev), req.compare.unwrap_or(v.compare))
+        };
+        let mut result = load(&shared, want.0).await;
+        if let (Ok(()), Some(other)) = (&result, want.1) {
+            result = load(&shared, other).await;
+        }
+        with(&shared, |v| {
+            v.busy = false;
+            let outcome = result.and_then(|()| switch(v, req));
+            match outcome {
+                Ok(()) => set_hint(v),
+                Err(e) => set_status(v, &e),
+            }
+        });
+    });
+}
+
+/// Shows another revision, page or comparison (the files are loaded already).
+fn switch(v: &mut Viewer, req: Go) -> Result<(), String> {
+    let before = (v.rev, v.page, v.compare, v.aspect);
+    v.rev = req.rev.unwrap_or(v.rev);
+    v.compare = req.compare.unwrap_or(v.compare).filter(|c| *c != v.rev);
+    let pages = v.revs.get(v.rev).and_then(|r| r.sheet.as_ref()).map_or(1, |s| s.pages());
+    v.page = req.page.unwrap_or(v.page).min(pages.saturating_sub(1));
+    v.first = None;
+    // Fit the new picture; the one before stays if the new one can't be drawn.
+    let width = geom::render_width(&Camera::fit(v.stage, v.aspect), v.ratio);
+    if let Err(e) = make_picture(v, width) {
+        (v.rev, v.page, v.compare, v.aspect) = before;
+        return Err(e);
+    }
+    v.cam = Camera::fit(v.stage, v.aspect);
+    sharpen(v);
+    close_form(v);
+    sync_ui(v);
+    paint(v);
+    Ok(())
+}
+
 fn local(canvas: &HtmlCanvasElement, e: &PointerEvent) -> (f64, f64) {
     let r = canvas.get_bounding_client_rect();
     (f64::from(e.client_x()) - r.left(), f64::from(e.client_y()) - r.top())
 }
 
-fn wire(shared: &Shared, aspect: f64) {
+fn index_of(v: &Viewer, label: Option<String>) -> Option<usize> {
+    let label = label?;
+    v.revs.iter().position(|r| r.label == label)
+}
+
+fn wire(shared: &Shared) {
     let (canvas, root, window, document) = {
         let v = shared.borrow();
         (v.canvas.clone(), v.root.clone(), v.window.clone(), v.document.clone())
@@ -542,6 +905,7 @@ fn wire(shared: &Shared, aspect: f64) {
     listen(&root, "click", move |e: Event| {
         let Some(target) = e.target().and_then(|t| t.dyn_into::<Element>().ok()) else { return };
         let find = |selector: &str| target.closest(selector).ok().flatten();
+        let mut ask: Option<Go> = None;
         with(&s, |v| {
             if let Some(b) = find("[data-tool]") {
                 if let Some(tool) = b.get_attribute("data-tool").as_deref().and_then(Tool::from_key) {
@@ -552,10 +916,21 @@ fn wire(shared: &Shared, aspect: f64) {
                 match b.get_attribute("data-zoom").as_deref() {
                     Some("in") => v.cam = v.cam.zoom_at(cx, cy, 1.5),
                     Some("out") => v.cam = v.cam.zoom_at(cx, cy, 1.0 / 1.5),
-                    Some("fit") => v.cam = Camera::fit(v.stage, aspect),
+                    Some("fit") => v.cam = Camera::fit(v.stage, v.aspect),
                     _ => return,
                 }
                 moved(v);
+            } else if let Some(b) = find("[data-rev]") {
+                ask = index_of(v, b.get_attribute("data-rev")).map(|i| Go { rev: Some(i), page: None, compare: None });
+            } else if let Some(b) = find("[data-compare]") {
+                // An empty label switches the comparison off; pressing the one in use does too.
+                let label = b.get_attribute("data-compare").filter(|l| !l.is_empty());
+                let target = index_of(v, label).filter(|i| Some(*i) != v.compare);
+                ask = Some(Go { rev: None, page: None, compare: Some(target) });
+            } else if let Some(b) = find("[data-page-step]") {
+                let step = b.get_attribute("data-page-step").and_then(|s| s.parse::<i64>().ok()).unwrap_or(0);
+                let page = i64::try_from(v.page).unwrap_or(0).saturating_add(step).max(0);
+                ask = Some(Go { rev: None, page: Some(usize::try_from(page).unwrap_or(0)), compare: None });
             } else if find("[data-action=cancel]").is_some() {
                 e.prevent_default();
                 v.first = None;
@@ -564,6 +939,9 @@ fn wire(shared: &Shared, aspect: f64) {
                 paint(v);
             }
         });
+        if let Some(req) = ask {
+            go(&s, req);
+        }
     });
 
     let s = shared.clone();
@@ -582,7 +960,7 @@ fn wire(shared: &Shared, aspect: f64) {
     listen(&window, "resize", move |_: Event| {
         with(&s, |v| {
             measure(v);
-            v.cam = Camera::fit(v.stage, aspect);
+            v.cam = Camera::fit(v.stage, v.aspect);
             moved(v);
         });
     });

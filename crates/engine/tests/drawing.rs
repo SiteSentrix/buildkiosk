@@ -142,3 +142,70 @@ fn markups_on_a_revision() {
     assert!(rev(&w, "B").markups.is_empty());
     w.assert_replay();
 }
+
+#[test]
+fn measuring_against_a_pages_scale() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let reader = w.member(p, "Rae", "Reader", "Read only");
+    let id = w.ok(pm, "drawing.add", json!({"project": p, "id": 0, "number": "A-101", "revision": "A"}))["id"].as_u64().unwrap();
+    let rev = |w: &World| w.engine.state().drawings.iter().next().unwrap().revisions[0].clone();
+    let base = |extra: serde_json::Value| {
+        let mut v = json!({"project": p, "id": id});
+        for (k, val) in extra.as_object().unwrap() {
+            v[k] = val.clone();
+        }
+        v
+    };
+
+    // No scale, no measuring.
+    let dim = |x2: u32| base(json!({"kind": "dim", "x": 0, "y": 0, "x2": x2, "y2": 0}));
+    w.err(pm, "drawing.markup_add", dim(5000));
+
+    // A scale: the stretch across the middle of a square page is 10 feet.
+    let scale = base(json!({"x": 2500, "y": 5000, "x2": 7500, "y2": 5000, "aspect": 1000, "length": "10", "unit": "ft"}));
+    w.err(reader, "drawing.scale_set", scale.clone());
+    w.ok(pm, "drawing.scale_set", scale);
+    for bad in [
+        json!({"length": "0"}),
+        json!({"length": "1.2345"}),
+        json!({"length": "ten"}),
+        json!({"unit": "yd"}),
+        json!({"aspect": 10}),
+        json!({"x2": 2510}),
+        json!({"x": 20000}),
+        json!({"page": 0}),
+        json!({"revision": "Z"}),
+    ] {
+        let mut params = base(json!({"x": 2500, "y": 5000, "x2": 7500, "y2": 5000, "aspect": 1000, "length": "10", "unit": "ft"}));
+        for (k, v) in bad.as_object().unwrap() {
+            params[k] = v.clone();
+        }
+        w.err(pm, "drawing.scale_set", params);
+    }
+
+    // Lengths and areas come out of the scale.
+    let len = w.ok(pm, "drawing.markup_add", dim(2500))["markup"].as_u64().unwrap();
+    let area = w.ok(pm, "drawing.markup_add", base(json!({"kind": "area", "x": 0, "y": 0, "x2": 5000, "y2": 2500})))["markup"].as_u64().unwrap();
+    let m = |w: &World, n: u64| rev(w).markups.iter().find(|m| u64::from(m.id) == n).unwrap().clone();
+    assert_eq!(m(&w, len).measure_text().as_deref(), Some("5.00 ft"));
+    assert_eq!(m(&w, area).measure_text().as_deref(), Some("50.0 sq ft"));
+    // Another page has no scale yet.
+    w.err(pm, "drawing.markup_add", base(json!({"kind": "dim", "page": 2, "x": 0, "y": 0, "x2": 100, "y2": 0})));
+    // A length needs its far end.
+    w.err(pm, "drawing.markup_add", base(json!({"kind": "dim", "x": 0, "y": 0})));
+
+    // A new scale (the same stretch is now 20 metres) works the measurements out again.
+    w.ok(pm, "drawing.scale_set", base(json!({"x": 2500, "y": 5000, "x2": 7500, "y2": 5000, "aspect": 1000, "length": "20", "unit": "m"})));
+    assert_eq!(rev(&w).scales.len(), 1, "one scale per page");
+    assert_eq!(m(&w, len).measure_text().as_deref(), Some("10.00 m"));
+    assert_eq!(m(&w, area).measure_text().as_deref(), Some("200.00 sq m"));
+
+    // Without a scale the lines stay but the values go.
+    w.err(reader, "drawing.scale_clear", base(json!({})));
+    w.ok(pm, "drawing.scale_clear", base(json!({})));
+    assert_eq!((m(&w, len).measure, m(&w, len).measure_text()), (0, None));
+    w.err(pm, "drawing.scale_clear", base(json!({})));
+    w.assert_replay();
+}

@@ -2399,7 +2399,10 @@ async fn sheet_viewer_markup_and_compare() {
     let (_, _, marked) = send(&app, get("/projects/1/drawings/1/view")).await;
     assert!(marked.contains("<circle cx=\"450\" cy=\"338\"") && marked.contains("Check this door") && marked.contains("Resolve"), "{marked}");
     let (_, _, other_rev) = send(&app, get("/projects/1/drawings/1/view?rev=A")).await;
-    assert!(!other_rev.contains("Check this door"), "markups belong to their revision");
+    // Revision B's markup is on A's page only in a hidden list (the browser viewer switches between them), and the overlay shows none.
+    assert!(other_rev.contains("<div class=\"marklist\" data-rev=\"B\" data-page=\"1\" hidden>"), "markups belong to their revision");
+    assert!(!other_rev.contains("<circle cx=\"450\" cy=\"338\""), "no overlay for another revision");
+    assert!(marked.contains("<div class=\"marklist\" data-rev=\"B\" data-page=\"1\">"), "{marked}");
 
     // The browser viewer (WebAssembly) is offered only by a build that carries it, and only its own
     // page may run scripts.
@@ -2410,8 +2413,26 @@ async fn sheet_viewer_markup_and_compare() {
     assert!(csp(&ph).contains("script-src 'none'"), "{}", csp(&ph));
     if viewer_assets::START_JS.is_some() {
         assert_eq!(st, StatusCode::OK);
-        assert!(vpage.contains("id=\"wasm-viewer\"") && vpage.contains("data-file=\"/projects/1/drawings/1/files/"), "{vpage}");
-        assert!(vpage.contains("&quot;kind&quot;:&quot;pin&quot;") && vpage.contains("data-can-mark=\"1\""), "{vpage}");
+        // Compressed for browsers that accept it, plain for the rest.
+        let zipped = router(app.clone())
+            .oneshot(Request::get("/static/viewer/viewer_bg.wasm").header("accept-encoding", "br, gzip;q=0.8").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(zipped.headers().get("content-encoding").and_then(|v| v.to_str().ok()), Some("gzip"));
+        let zipped_len = zipped.into_body().collect().await.unwrap().to_bytes().len();
+        let raw = router(app.clone()).oneshot(get("/static/viewer/viewer_bg.wasm")).await.unwrap();
+        assert!(raw.headers().get("content-encoding").is_none());
+        let raw = raw.into_body().collect().await.unwrap().to_bytes();
+        assert!(raw.starts_with(b"\0asm") && zipped_len < raw.len() / 2, "{zipped_len} vs {}", raw.len());
+        assert!(
+            vpage.contains("id=\"wasm-viewer\"")
+                && vpage.contains("data-sheet=")
+                && vpage.contains("/projects/1/drawings/1/files/")
+                && vpage.contains("class=\"chip cmp-btn\"")
+                && vpage.contains("class=\"marklist\""),
+            "{vpage}"
+        );
+        assert!(vpage.contains("&quot;kind&quot;:&quot;pin&quot;") && vpage.contains("&quot;can_mark&quot;:true"), "{vpage}");
         assert!(vpage.contains("src=\"/static/viewer/start.js\"") && vpage.contains("id=\"mk-x\""), "{vpage}");
         assert!(csp(&vh).contains("script-src 'self' 'wasm-unsafe-eval'") && !csp(&vh).contains("unsafe-inline"), "{}", csp(&vh));
         // A comparison is a picture the server draws, so it keeps the strict policy.

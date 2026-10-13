@@ -13,14 +13,15 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 | Web UI | budget (rolled up by cost code), commitments (schedule of values), direct costs; inspections (list, checklist, form, templates); observations (same views as the punch list, plus category, date observed, corrective action); punch list (list, detail, form, comments, files, CSV); daily log (list by month, detail, form with crews, equipment, deliveries, visitors); submittals (list, detail, form, reviews, close, resubmit, files); sign-in, first-run setup, projects, project home, team, RFIs (list, detail, new, edit, respond, open, close, reopen, delete, files, history, distribution list, CSV export) |
 | Directory | company directory page: people, companies, permission templates (view), add forms, admin sets passwords |
 | Server | signed session cookies, CSRF on every form, `POST /do/{command}`, `POST /api/v1/commands/{id}` (bearer token) |
-| App | `serve`, `demo`, `run`, `commands`, `token` |
-| Not yet | MCP server, file attachments, submittals and every other tool, email notifications |
+| App | `serve`, `demo`, `run`, `commands`, `token`, `mcp` |
+| Not yet | file attachments, submittals and every other tool, email notifications |
 
 ## Upcoming
 1. Finish RFIs: files on responses, PDF export, email notifications.
 2. Next tools in the order of `docs/gaps.md` (MCP server, operations, then documents and drawings and the schedule; financials still to do: forecasting, budget snapshots).
 
 ## Progress log
+- 2026-10-13: MCP server (`buildkiosk mcp`): every command is a tool, runs as a person; `docs/api.md`.
 - 2026-10-13: Commitment invoices — payment applications against commitments with retainage; owner and commitment invoices share one implementation.
 - 2026-10-12: Owner billing — prime contract with retainage, prime change orders, owner invoices (payment applications) and the billing roll-up.
 - 2026-10-12: Change management — change events, commitment change orders, budget changes; the budget shows revised budget and pending exposure.

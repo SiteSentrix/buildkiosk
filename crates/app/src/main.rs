@@ -21,6 +21,7 @@ commands:
   serve    --data DIR [--company SLUG] [--bind ADDR]   run the web app (default bind 127.0.0.1:8080)
   demo     --data DIR                                  create a fictional demo company with sample projects
   run      --data DIR --company SLUG --as EMAIL|system COMMAND ['{json params}']
+  mcp      --data DIR --company SLUG --as EMAIL        the MCP server on standard input and output (see docs/api.md)
   commands                                             list every command and its parameters
   token    --data DIR --company SLUG --as EMAIL [--name TEXT]   create an API token for POST /api/v1/commands/{id}
 ";
@@ -91,6 +92,7 @@ fn run(args: &[String]) -> Result<(), String> {
             Ok(())
         }
         "token" => token(&a),
+        "mcp" => mcp(&a),
         "-h" | "--help" | "help" => {
             print!("{USAGE}");
             Ok(())
@@ -148,5 +150,26 @@ fn token(a: &Args) -> Result<(), String> {
     let token = creds.create_token(p.raw(), a.get("name").unwrap_or("cli"), now()).map_err(|e| e.to_string())?;
     t.store.save_credentials(&creds).map_err(|e| e.to_string())?;
     println!("{token}");
+    Ok(())
+}
+
+/// The MCP server: one JSON-RPC message per line on standard input, replies on standard output.
+/// Logs go to standard error only.
+fn mcp(a: &Args) -> Result<(), String> {
+    use std::io::{BufRead, Write};
+    let data = DataDir::open(a.need("data")?).map_err(|e| e.to_string())?;
+    let (mut t, actor) = open_company(a, &data)?;
+    if actor == Actor::System {
+        return Err("the MCP server runs as a person: use --as EMAIL".into());
+    }
+    let stdin = std::io::stdin();
+    let mut out = std::io::stdout().lock();
+    for line in stdin.lock().lines() {
+        let line = line.map_err(|e| format!("reading standard input: {e}"))?;
+        if let Some(reply) = buildkiosk_mcp::handle_line(&mut t, actor, now(), &line) {
+            writeln!(out, "{reply}").map_err(|e| format!("writing standard output: {e}"))?;
+            out.flush().map_err(|e| format!("writing standard output: {e}"))?;
+        }
+    }
     Ok(())
 }

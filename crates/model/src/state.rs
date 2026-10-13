@@ -11,6 +11,7 @@ use crate::rfi::Rfi;
 use crate::table::{Table, TableChange, TableData};
 // -- project management
 use crate::document::{Document, Folder};
+use crate::drawing::Drawing;
 use crate::spec::SpecSection;
 use crate::submittal::Submittal;
 
@@ -148,6 +149,7 @@ tables! {
     // -- documents
     folders: Folder,
     documents: Document,
+    drawings: Drawing,
 
     // -- collaboration
     notifications: Notification,

@@ -132,6 +132,26 @@ pub fn create(dir: &str) -> Result<(), String> {
             "document.add",
             json!({"project": pid, "folder": id_of(&folder, "id")?, "title": "Kickoff meeting notes", "sha256": sha256, "name": "kickoff-notes.txt", "size": size, "mime": "text/plain"}),
         )?;
+        exec(
+            &mut t,
+            pm,
+            "drawing.import",
+            json!({"project": pid, "text": "S-201, Foundation plan, structural, Level 0\nM-301, Rooftop unit plan, mechanical, Roof\nE-401, Power plan, electrical, Level 1"}),
+        )?;
+        let sheet = b"Sheet A-101: first floor plan (demo placeholder, not a real drawing)\n";
+        let (sha256, size) = t.store.blobs.put(sheet).map_err(|e| e.to_string())?;
+        let plan = exec(
+            &mut t,
+            pm,
+            "drawing.add",
+            json!({"project": pid, "number": "A-101", "title": "First floor plan", "discipline": "architectural", "area": "Level 1", "revision": "0", "date": "2026-08-03", "set": "Permit set", "sha256": sha256, "name": "A-101.txt", "size": size, "mime": "text/plain"}),
+        )?;
+        exec(
+            &mut t,
+            pm,
+            "drawing.add_revision",
+            json!({"project": pid, "id": id_of(&plan, "id")?, "revision": "A", "date": "2026-09-14", "set": "Bulletin 1", "note": "Door 104 moved to the east wall"}),
+        )?;
         let eng = Actor::Person(Id::new(person(2)));
         let log = exec(
             &mut t,

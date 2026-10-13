@@ -33,6 +33,7 @@ pub mod prime;
 
 // -- documents
 pub mod document;
+pub mod drawing;
 
 // -- collaboration
 
@@ -131,6 +132,7 @@ const MODULES: &[&[CommandSpec]] = &[
     daily_log::COMMANDS,
     // -- documents
     document::COMMANDS,
+    drawing::COMMANDS,
     // -- financials
     budget::COMMANDS,
     change::COMMANDS,

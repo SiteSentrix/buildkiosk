@@ -190,6 +190,8 @@ pub fn router(app: Shared) -> Router {
         .route("/projects/{id}/forms/{rid}/files/{sha}", get(form_download))
         .route("/projects/{id}/timesheets", get(timesheets_page))
         .route("/projects/{id}/timesheets.csv", get(timesheets_csv))
+        .route("/projects/{id}/reports", get(reports_page))
+        .route("/projects/{id}/reports.csv", get(reports_csv))
         .route("/projects/{id}/schedule", get(schedule_page))
         .route("/projects/{id}/schedule.csv", get(schedule_csv))
         .route("/projects/{id}/schedule/{tid}", get(schedule_task_page))
@@ -1287,6 +1289,22 @@ async fn timesheets_csv(State(app): State<Shared>, headers: HeaderMap, Path(id):
     let mut res = csv.into_response();
     res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("text/csv; charset=utf-8"));
     res.headers_mut().insert("content-disposition", HeaderValue::from_static("attachment; filename=\"timesheets.csv\""));
+    res
+}
+
+async fn reports_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::reports::page(r, Id::new(id)))
+}
+
+async fn reports_csv(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>) -> Response {
+    let inner = app.lock();
+    let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    let req = Req { engine: &t.engine, person: s.person, csrf: "", now: Timestamp::from_millis(now_ms()), flash: None };
+    let Some(csv) = buildkiosk_web::reports::csv(&req, Id::new(id)) else { return plain(StatusCode::NOT_FOUND, "Not found") };
+    let mut res = csv.into_response();
+    res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("text/csv; charset=utf-8"));
+    res.headers_mut().insert("content-disposition", HeaderValue::from_static("attachment; filename=\"project-report.csv\""));
     res
 }
 

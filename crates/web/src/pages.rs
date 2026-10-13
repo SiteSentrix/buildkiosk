@@ -127,6 +127,7 @@ pub fn project_home(req: &Req<'_>, id: Id<Project>) -> Markup {
     let mine = rfis.iter().filter(|r| r.ball_in_court.contains(&req.person)).count();
     let team = state.members.iter().filter(|m| m.project == id && m.removed.is_none()).count();
     let base = format!("/projects/{id}");
+    let waiting = buildkiosk_engine::report::waiting_on(state, req.actor(), id, req.person);
     let body = html! {
         div class="page-head" {
             div {
@@ -139,6 +140,20 @@ pub fn project_home(req: &Req<'_>, id: Id<Project>) -> Markup {
             a class=(if overdue > 0 { "stat alert" } else { "stat" }) href=(format!("{base}/rfis?status=open")) { div class="label" { "Overdue RFIs" } div class="value" { (overdue) } }
             a class="stat" href=(format!("{base}/rfis?mine=1")) { div class="label" { "Waiting on me" } div class="value" { (mine) } }
             a class="stat" href=(format!("{base}/team")) { div class="label" { "Team members" } div class="value" { (team) } }
+        }
+        @if !waiting.is_empty() {
+            div class="card" {
+                h2 { "Waiting on me" }
+                table class="data" {
+                    thead { tr { th { "Item" } th { "What" } th { "Due" } } }
+                    tbody { @for t in waiting.iter().take(10) { tr {
+                        td class="nowrap" { a href=(t.link) { (t.label) } }
+                        td { (t.title) }
+                        td class="nowrap" { @if let Some(d) = t.due { @if d < today { span class="overdue" { (d.to_string()) } } @else { (d.to_string()) } } }
+                    } } }
+                }
+                @if waiting.len() > 10 { p class="muted small" { (waiting.len() - 10) " more. " a href=(format!("{base}/reports")) { "See the project report" } } }
+            }
         }
         @if !p.description.is_empty() { div class="card" { h2 { "About" } p class="prose" { (p.description) } } }
         div class="card" {

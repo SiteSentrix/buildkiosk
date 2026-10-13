@@ -1390,3 +1390,29 @@ async fn timesheets_week_submit_and_approve() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn project_report_and_home_waiting_list() {
+    let dir = temp("report");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=P"))).await;
+    send(&app, post("/do/task.create", &ada, format!("_csrf={csrf}&project=1&title=Order+hardware&due=2020-01-01"))).await;
+    let (_, _, report) = send(&app, get("/projects/1/reports")).await;
+    assert!(report.contains("Project report") && report.contains("Tasks") && report.contains("Past due"), "{report}");
+    let (_, _, project) = send(&app, get("/projects/1")).await;
+    assert!(project.contains("Waiting on me") && project.contains("Order hardware"), "{project}");
+    let (st, h, csv) = send(&app, get("/projects/1/reports.csv")).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(h.get("content-disposition").is_some() && csv.contains("Tasks,1,1,1"), "{csv}");
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

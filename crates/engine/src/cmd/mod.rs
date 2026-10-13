@@ -10,6 +10,7 @@ pub mod meta;
 pub mod notification;
 pub mod perm;
 pub mod project;
+pub mod report;
 pub mod rfi;
 // -- project management
 pub mod correspondence;
@@ -127,6 +128,7 @@ const MODULES: &[&[CommandSpec]] = &[
     directory::COMMANDS,
     perm::COMMANDS,
     project::COMMANDS,
+    report::COMMANDS,
     rfi::COMMANDS,
     meta::COMMANDS,
     notification::COMMANDS,

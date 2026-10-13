@@ -8,6 +8,8 @@
 use buildkiosk_core::{Id, text};
 use buildkiosk_model::common::FileRef;
 use buildkiosk_model::directory::Person;
+use buildkiosk_model::document::Document;
+use buildkiosk_model::drawing::Drawing;
 use buildkiosk_model::project::Project;
 use buildkiosk_model::transmittal::{Purpose, Transmittal, TransmittalItem, TransmittalStatus};
 use buildkiosk_model::{Level, Tool};
@@ -25,7 +27,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Create transmittal",
         Tool::Transmittals,
         Access::Project(Level::Standard),
-        "project: project id; subject: text; purpose?: for_information|for_review|for_approval|for_construction|for_record|as_requested; to?: [person ids]; cc?: [person ids]; due?: YYYY-MM-DD; message?: text; private?: bool; items?: [{description: text, copies?: number}]",
+        "project: project id; subject: text; purpose?: for_information|for_review|for_approval|for_construction|for_record|as_requested; to?: [person ids]; cc?: [person ids]; due?: YYYY-MM-DD; message?: text; private?: bool; items?: [{description: text, copies?: number, document?: document id, drawing?: drawing id}] (a linked item takes its description from the document or drawing when blank, and the version or revision that goes out is noted when sent)",
         create,
     ),
     CommandSpec::mutate(
@@ -43,6 +45,14 @@ pub const COMMANDS: &[CommandSpec] = &[
         Access::Project(Level::Standard),
         "project, id: ids (needs at least one recipient and one item or file)",
         send,
+    ),
+    CommandSpec::mutate(
+        "transmittal.acknowledge",
+        "Acknowledge receipt",
+        Tool::Transmittals,
+        Access::Project(Level::Read),
+        "project, id: ids; person?: person id (default you; the sender or an admin can record receipt for a recipient); note?: text. Only a recipient of a sent transmittal can acknowledge it, once; the sender is told",
+        acknowledge,
     ),
     CommandSpec::mutate(
         "transmittal.attach",
@@ -167,16 +177,55 @@ fn apply(ctx: &Ctx<'_>, p: &Params<'_>, t: &mut Transmittal) -> Result<()> {
         }
         let mut out = Vec::new();
         for r in rows {
-            let description = r.line_or_empty("description", text::SHORT)?;
-            if description.is_empty() {
+            let mut description = r.line_or_empty("description", text::SHORT)?;
+            let document: Option<Id<Document>> = r.opt_id("document")?;
+            let drawing: Option<Id<Drawing>> = r.opt_id("drawing")?;
+            if description.is_empty() && document.is_none() && drawing.is_none() {
                 continue; // blank spare rows
             }
+            if let Some(d) = document {
+                let doc = ctx
+                    .state
+                    .documents
+                    .get(d)
+                    .filter(|x| x.project == t.project && x.deleted.is_none() && view::can_see_document(ctx.state, ctx.actor, x));
+                let doc = doc.ok_or_else(|| r.bad("document", format!("{d} was not found in this project")))?;
+                if description.is_empty() {
+                    description = doc.title.clone();
+                }
+            }
+            if let Some(d) = drawing {
+                let dr = ctx.state.drawings.get(d).filter(|x| x.project == t.project && x.deleted.is_none());
+                let dr = dr.ok_or_else(|| r.bad("drawing", format!("{d} was not found in this project")))?;
+                if view::level(ctx.state, ctx.actor, t.project, Tool::Drawings) < Level::Read {
+                    return Err(r.bad("drawing", format!("{d} was not found in this project")));
+                }
+                if description.is_empty() {
+                    description = dr.label();
+                }
+            }
             let copies = r.int("copies", 0..=100_000)?.unwrap_or(1);
-            out.push(TransmittalItem { description, copies: u32::try_from(copies).unwrap_or(1) });
+            let mut item = TransmittalItem { description, copies: u32::try_from(copies).unwrap_or(1), document, drawing, revision: String::new() };
+            // What already went out keeps the version it went out with, even when an admin corrects the text.
+            let sent_as =
+                t.items.get(out.len()).filter(|old| t.status == TransmittalStatus::Sent && old.document == document && old.drawing == drawing);
+            item.revision = sent_as.map(|old| old.revision.clone()).unwrap_or_else(|| revision_of(ctx.state, &item));
+            out.push(item);
         }
         t.items = out;
     }
     Ok(())
+}
+
+/// The version of the linked document or revision of the linked drawing as it stands now ("v3", "rev C").
+fn revision_of(state: &buildkiosk_model::CompanyState, item: &TransmittalItem) -> String {
+    if let Some(v) = item.document.and_then(|d| state.documents.get(d)).and_then(|d| d.current()) {
+        return format!("v{}", v.number);
+    }
+    if let Some(r) = item.drawing.and_then(|d| state.drawings.get(d)).and_then(|d| d.current()) {
+        return format!("rev {}", r.label);
+    }
+    String::new()
 }
 
 fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
@@ -197,6 +246,7 @@ fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         message: String::new(),
         items: Vec::new(),
         attachments: Vec::new(),
+        receipts: Vec::new(),
         private: false,
         sent: None,
         created: stamp,
@@ -243,6 +293,12 @@ fn send(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     if t.items.is_empty() && t.attachments.is_empty() {
         return Err(EngineError::conflict("list at least one item or attach a file"));
     }
+    // What goes out is what the linked documents and drawings are at this moment.
+    for i in &mut t.items {
+        if i.document.is_some() || i.drawing.is_some() {
+            i.revision = revision_of(ctx.state, i);
+        }
+    }
     t.status = TransmittalStatus::Sent;
     t.sent = Some(ctx.stamp());
     t.updated = ctx.stamp();
@@ -254,6 +310,39 @@ fn send(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     notify(ctx, &to, project, &to_text, &l);
     notify(ctx, &cc, project, &cc_text, &l);
     Ok(json!({ "id": id }))
+}
+
+fn acknowledge(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut t = load(ctx, p)?;
+    if t.status != TransmittalStatus::Sent {
+        return Err(EngineError::conflict(format!("{} has not been sent", t.label())));
+    }
+    let me = ctx.person().ok_or_else(|| EngineError::forbidden("receipt is acknowledged by a person"))?;
+    let who: Id<Person> = p.opt_id("person")?.unwrap_or(me);
+    if who != me && !can_edit_sent(ctx, &t) {
+        return Err(EngineError::forbidden("only the sender or an admin can record receipt for someone else"));
+    }
+    if !t.to.contains(&who) && !t.cc.contains(&who) {
+        return Err(EngineError::conflict("only the people it was sent to can acknowledge it"));
+    }
+    if t.receipts.iter().any(|r| r.person == who) {
+        return Err(EngineError::conflict("receipt was already acknowledged"));
+    }
+    let note = p.line_or_empty("note", text::SHORT)?;
+    let stamp = ctx.stamp();
+    t.receipts.push(buildkiosk_model::transmittal::Receipt { person: who, stamp, note });
+    t.updated = stamp;
+    let (id, project, l) = (t.id, t.project, link(&t));
+    let sender: Vec<Id<Person>> = t.sent.and_then(|s| s.by).into_iter().chain(t.created.by).collect();
+    let text = format!("{} acknowledged receiving {}: {}", view::person_name(ctx.state, who), t.label(), t.subject);
+    ctx.state.transmittals.put(t);
+    notify(ctx, &sender, project, &text, &l);
+    Ok(json!({ "id": id }))
+}
+
+/// The sender or an admin, for a transmittal that has already gone out.
+fn can_edit_sent(ctx: &Ctx<'_>, t: &Transmittal) -> bool {
+    is_admin(ctx, t.project) || is_author(ctx, t)
 }
 
 fn attach(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {

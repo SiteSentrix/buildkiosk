@@ -1,0 +1,19 @@
+[package]
+name = "buildkiosk-mcp"
+description = "The MCP server: every BuildKiosk command as a tool for AI agents, over JSON-RPC on standard input and output."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+buildkiosk-core = { workspace = true }
+buildkiosk-engine = { workspace = true }
+buildkiosk-store = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+
+[lints]
+workspace = true

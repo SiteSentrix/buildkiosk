@@ -227,6 +227,7 @@ version = "0.1.0"
 dependencies = [
  "buildkiosk-core",
  "buildkiosk-engine",
+ "buildkiosk-mcp",
  "buildkiosk-server",
  "buildkiosk-store",
  "env_logger",
@@ -256,6 +257,16 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+]
+
+[[package]]
+name = "buildkiosk-mcp"
+version = "0.1.0"
+dependencies = [
+ "buildkiosk-core",
+ "buildkiosk-engine",
+ "buildkiosk-store",
+ "serde_json",
 ]
 
 [[package]]

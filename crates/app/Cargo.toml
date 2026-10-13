@@ -16,6 +16,7 @@ buildkiosk-core = { workspace = true }
 buildkiosk-engine = { workspace = true }
 buildkiosk-store = { workspace = true }
 buildkiosk-server = { workspace = true }
+buildkiosk-mcp = { workspace = true }
 tokio = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }

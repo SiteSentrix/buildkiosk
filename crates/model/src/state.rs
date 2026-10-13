@@ -11,6 +11,7 @@ use crate::rfi::Rfi;
 use crate::table::{Table, TableChange, TableData};
 // -- project management
 use crate::action_plan::ActionPlan;
+use crate::bidding::BidPackage;
 use crate::correspondence::Correspondence;
 use crate::document::{Document, Folder};
 use crate::drawing::Drawing;
@@ -167,6 +168,7 @@ tables! {
     prime_changes: PrimeChange,
     owner_invoices: OwnerInvoice,
     commitment_invoices: CommitmentInvoice,
+    bid_packages: BidPackage,
 
     // -- documents
     folders: Folder,

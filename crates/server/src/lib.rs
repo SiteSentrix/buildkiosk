@@ -196,6 +196,10 @@ pub fn router(app: Shared) -> Router {
         .route("/projects/{id}/action-plans/new", get(action_plan_new))
         .route("/projects/{id}/action-plans/{aid}", get(action_plan_page))
         .route("/projects/{id}/action-plans/{aid}/edit", get(action_plan_edit))
+        .route("/projects/{id}/bidding", get(bidding_page))
+        .route("/projects/{id}/bidding/new", get(bid_package_new))
+        .route("/projects/{id}/bidding/{bid}", get(bid_package_page))
+        .route("/projects/{id}/bidding/{bid}/edit", get(bid_package_edit))
         .route("/projects/{id}/schedule", get(schedule_page))
         .route("/projects/{id}/schedule.csv", get(schedule_csv))
         .route("/projects/{id}/schedule/{tid}", get(schedule_task_page))
@@ -1329,6 +1333,25 @@ async fn action_plan_page(State(app): State<Shared>, headers: HeaderMap, Path((i
 
 async fn action_plan_edit(State(app): State<Shared>, headers: HeaderMap, Path((id, aid)): Path<(u64, u64)>, Query(q): Q) -> Response {
     page(&app, &headers, &q, |r, _| buildkiosk_web::action_plans::form(r, Id::new(id), Some(Id::new(aid))))
+}
+
+async fn bidding_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    use buildkiosk_engine::model::Choice;
+    let status = q.get("status").and_then(|s| buildkiosk_engine::model::bidding::BidStatus::parse(s));
+    let text = q.get("q").map(|s| s.chars().take(100).collect::<String>()).unwrap_or_default();
+    page(&app, &headers, &q, |r, _| buildkiosk_web::bidding::list(r, Id::new(id), status, &text))
+}
+
+async fn bid_package_new(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::bidding::form(r, Id::new(id), None))
+}
+
+async fn bid_package_page(State(app): State<Shared>, headers: HeaderMap, Path((id, bid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::bidding::detail(r, Id::new(id), Id::new(bid)))
+}
+
+async fn bid_package_edit(State(app): State<Shared>, headers: HeaderMap, Path((id, bid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::bidding::form(r, Id::new(id), Some(Id::new(bid))))
 }
 
 async fn schedule_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {

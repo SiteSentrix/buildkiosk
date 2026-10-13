@@ -1460,3 +1460,54 @@ async fn action_plan_outline_assign_and_complete() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn bidding_package_bids_and_award() {
+    let dir = temp("bidding");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=P"))).await;
+    send(&app, post("/do/vendor.create", &ada, format!("_csrf={csrf}&name=Keystone+Concrete&kind=subcontractor"))).await;
+    send(&app, post("/do/vendor.create", &ada, format!("_csrf={csrf}&name=Northline+Concrete&kind=subcontractor"))).await;
+    let (_, _, budget) = send(&app, get("/projects/1/budget")).await;
+    let code = budget.split("name=\"cost_code\"").nth(1).and_then(|s| s.split("value=\"").nth(1)).unwrap().split('"').next().unwrap().to_string();
+    let (_, _, new) = send(&app, get("/projects/1/bidding/new")).await;
+    assert!(new.contains("Keystone Concrete") && new.contains("Scope of work"));
+    let (_, h, _) = send(
+        &app,
+        post("/do/bid_package.create", &ada, format!("_csrf={csrf}&_next=/projects/1/bidding/%7Bid%7D&_back=/projects/1/bidding/new&project=1&title=Concrete&due=&cost_code={code}&scope=Slab&invite%5B%5D=&invite%5B%5D=1&invite%5B%5D=2")),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().starts_with("/projects/1/bidding/1?ok="), "{h:?}");
+    send(&app, post("/do/bid_package.open", &ada, format!("_csrf={csrf}&project=1&id=1"))).await;
+    send(
+        &app,
+        post("/do/bid_package.record_bid", &ada, format!("_csrf={csrf}&project=1&id=1&vendor=1&amount=120000&received=&notes=Excludes+rebar")),
+    )
+    .await;
+    send(&app, post("/do/bid_package.record_bid", &ada, format!("_csrf={csrf}&project=1&id=1&vendor=2&amount=98000.50&received=&notes="))).await;
+    let (_, _, detail) = send(&app, get("/projects/1/bidding/1")).await;
+    assert!(
+        detail.contains("98,000.50")
+            && detail.contains("120,000.00")
+            && detail.contains("Low")
+            && detail.contains("Excludes rebar")
+            && detail.contains("Award and start a commitment"),
+        "{detail}"
+    );
+    send(&app, post("/do/bid_package.award", &ada, format!("_csrf={csrf}&project=1&id=1&vendor=2&commitment=true"))).await;
+    let (_, _, detail) = send(&app, get("/projects/1/bidding/1")).await;
+    assert!(detail.contains("Awarded") && detail.contains("A draft commitment was started"), "{detail}");
+    let (_, _, commitments) = send(&app, get("/projects/1/commitments")).await;
+    assert!(commitments.contains("Concrete") && commitments.contains("98,000.50"), "{commitments}");
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

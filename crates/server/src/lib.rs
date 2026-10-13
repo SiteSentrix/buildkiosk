@@ -352,6 +352,8 @@ pub fn router(app: Shared) -> Router {
             .route("/projects/{id}/bidding/{bid}/edit", get(bid_package_edit))
             .route("/projects/{id}/estimating", get(estimating_page))
             .route("/projects/{id}/estimating/new", get(estimate_new))
+            .route("/projects/{id}/estimating/compare", get(estimate_compare))
+            .route("/catalog", get(catalog_page))
             .route("/projects/{id}/estimating/{eid}", get(estimate_page))
             .route("/projects/{id}/estimating/{eid}/edit", get(estimate_edit))
             .route("/projects/{id}/estimating/{eid}/csv", get(estimate_csv))
@@ -2173,6 +2175,19 @@ async fn bid_package_edit(State(app): State<Shared>, headers: HeaderMap, Path((i
     page(&app, &headers, &q, |r, _| buildkiosk_web::bidding::form(r, Id::new(id), Some(Id::new(bid))))
 }
 
+async fn estimate_compare(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    let get_id = |k: &str| q.get(k).and_then(|v| v.parse::<u64>().ok()).map(Id::new);
+    let (Some(a), Some(b)) = (get_id("a"), get_id("b")) else { return redirect(&format!("/projects/{id}/estimating")) };
+    page(&app, &headers, &q, |r, _| buildkiosk_web::estimating::compare(r, Id::new(id), a, b))
+}
+
+async fn catalog_page(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Response {
+    let number = |k: &str| q.get(k).and_then(|v| v.parse::<u64>().ok());
+    let (item, assembly) = (number("edit").map(Id::new), number("assembly").map(Id::new));
+    let needle = q.get("q").cloned().unwrap_or_default();
+    page(&app, &headers, &q, |r, _| buildkiosk_web::catalog::page(r, &needle, item, assembly))
+}
+
 async fn estimating_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
     page(&app, &headers, &q, |r, _| buildkiosk_web::estimating::list(r, Id::new(id)))
 }
@@ -2182,7 +2197,8 @@ async fn estimate_new(State(app): State<Shared>, headers: HeaderMap, Path(id): P
 }
 
 async fn estimate_page(State(app): State<Shared>, headers: HeaderMap, Path((id, eid)): Path<(u64, u64)>, Query(q): Q) -> Response {
-    page(&app, &headers, &q, |r, _| buildkiosk_web::estimating::detail(r, Id::new(id), Id::new(eid)))
+    let takeoff = q.get("takeoff").and_then(|t| t.parse::<u64>().ok()).map(Id::new);
+    page(&app, &headers, &q, |r, _| buildkiosk_web::estimating::detail(r, Id::new(id), Id::new(eid), takeoff))
 }
 
 async fn estimate_edit(State(app): State<Shared>, headers: HeaderMap, Path((id, eid)): Path<(u64, u64)>, Query(q): Q) -> Response {

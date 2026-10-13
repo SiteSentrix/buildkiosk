@@ -38,6 +38,7 @@ pub mod timesheet;
 // -- financials
 pub mod bidding;
 pub mod budget;
+pub mod catalog;
 pub mod change;
 pub mod commitment;
 pub mod direct_cost;
@@ -170,6 +171,7 @@ const MODULES: &[&[CommandSpec]] = &[
     commitment::COMMANDS,
     direct_cost::COMMANDS,
     estimate::COMMANDS,
+    catalog::COMMANDS,
     invoice::COMMANDS,
     prime::COMMANDS,
     // -- documents

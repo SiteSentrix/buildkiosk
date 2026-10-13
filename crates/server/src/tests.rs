@@ -2218,6 +2218,69 @@ async fn estimate_form_totals_apply_and_csv() {
     let (st, h, csv) = send(&app, get("/projects/1/estimating/1/csv")).await;
     assert_eq!(st, StatusCode::OK);
     assert!(h.get("content-disposition").is_some() && csv.contains("Total,,,,,9350.00"), "{csv}");
+
+    // The company catalogue, an assembly, lines from them, a new version and a comparison.
+    let (st, _, cat) = send(&app, get("/catalog")).await;
+    assert!(st == StatusCode::OK && cat.contains("Add an item") && cat.contains("Import a price list"), "{cat}");
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/do/catalog.save",
+            &ada,
+            format!("_csrf={csrf}&_next=/catalog&name=Ready-mix&unit=cy&unit_cost=185&category=Concrete&cost_code={code}&notes="),
+        ),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, h, _) = send(&app, post("/do/catalog.import", &ada, format!("_csrf={csrf}&_next=/catalog&text=Mesh%2C+sf%2C+0.45%2C+Concrete"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, h, _) = send(&app, post("/do/assembly.save", &ada, format!("_csrf={csrf}&_next=/catalog&name=Slab&unit=sf&parts.0.item=1&parts.0.quantity=0.012&parts.1.item=2&parts.1.quantity=1&parts.2.item=&parts.2.quantity="))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, cat) = send(&app, get("/catalog?q=mesh")).await;
+    assert!(cat.contains("Mesh") && !cat.contains("Ready-mix</strong>") && cat.contains("2.67"), "{cat}");
+    send(&app, post("/do/estimate.reopen", &ada, format!("_csrf={csrf}&project=1&id=1"))).await;
+    let (_, _, detail) = send(&app, get("/projects/1/estimating/1")).await;
+    assert!(
+        detail.contains("Add lines from the catalogue")
+            && detail.contains("From the catalogue")
+            && detail.contains("Add its lines")
+            && detail.contains("New version"),
+        "{detail}"
+    );
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/do/estimate.add_from_catalog",
+            &ada,
+            format!("_csrf={csrf}&_next=/projects/1/estimating/1&project=1&id=1&item=1&quantity=10&cost_code="),
+        ),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/do/estimate.add_assembly",
+            &ada,
+            format!("_csrf={csrf}&_next=/projects/1/estimating/1&project=1&id=1&assembly=1&quantity=100&cost_code={code}"),
+        ),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, detail) = send(&app, get("/projects/1/estimating/1")).await;
+    assert!(detail.contains("Ready-mix") && detail.contains("Slab: Mesh"), "{detail}");
+    let (_, h, _) = send(&app, post("/do/estimate.duplicate", &ada, format!("_csrf={csrf}&_next=/projects/1/estimating/1&project=1&id=1"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, list) = send(&app, get("/projects/1/estimating")).await;
+    assert!(list.contains("(copy)") && list.contains("from #1") && list.contains("Catalogue"), "{list}");
+    send(&app, post("/do/estimate.update", &ada, format!("_csrf={csrf}&project=1&id=2&alternates.0.name=Polished&alternates.0.cost_code={code}&alternates.0.amount=750&alternates.0.accepted=false&alternates.1.name=&alternates.1.cost_code=&alternates.1.amount="))).await;
+    let (_, _, two) = send(&app, get("/projects/1/estimating/2")).await;
+    assert!(two.contains("Alternates") && two.contains("Polished") && two.contains("Accept") && two.contains("A new version of"), "{two}");
+    send(&app, post("/do/estimate.accept_alternate", &ada, format!("_csrf={csrf}&project=1&id=2&index=0&accepted=true"))).await;
+    let (st, _, cmp) = send(&app, get("/projects/1/estimating/compare?a=2&b=1")).await;
+    assert!(st == StatusCode::OK && cmp.contains("Compare estimates") && cmp.contains("Difference") && cmp.contains("750.00"), "{cmp}");
+    let (_, _, csv) = send(&app, get("/projects/1/estimating/2/csv")).await;
+    assert!(csv.contains("Alternate: Polished"), "{csv}");
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }

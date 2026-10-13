@@ -2,9 +2,9 @@
 //! put the result into the budget.
 
 use buildkiosk_core::{Id, Money, Percent, text};
-use buildkiosk_model::estimate::{Estimate, EstimateLine, EstimateStatus, Markup};
+use buildkiosk_model::estimate::{Alternate, Estimate, EstimateLine, EstimateStatus, Markup};
 use buildkiosk_model::project::{CostCode, Project};
-use buildkiosk_model::{Level, Tool};
+use buildkiosk_model::{Choice, Level, Tool};
 use serde_json::{Value, json};
 
 use super::budget::{upsert, usable_code};
@@ -19,7 +19,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Create estimate",
         Tool::Estimating,
         Access::Project(Level::Standard),
-        "project: project id; name: text; notes?: text; lines?: [{cost_code: cost code id, description: text, quantity: number (up to 3 decimals), unit?: text, unit_cost: amount}]; markups?: [{name: text, percent: percent of the subtotal}]",
+        "project: project id; name: text; notes?: text; lines?: [{cost_code: cost code id, description: text, quantity: number (up to 3 decimals), unit?: text, unit_cost: amount}]; markups?: [{name: text, percent: percent of the subtotal}]; alternates?: [{name: text, cost_code: cost code id, amount: amount (negative for a deduct), description?: text, accepted?: bool}] (priced apart from the base estimate; accepted ones are added to the subtotal)",
         create,
     ),
     CommandSpec::mutate(
@@ -37,6 +37,70 @@ pub const COMMANDS: &[CommandSpec] = &[
         Access::Project(Level::Standard),
         "project, id: ids (needs at least one line)",
         finalize,
+    ),
+    CommandSpec::mutate(
+        "estimate.accept_alternate",
+        "Accept or decline an alternate",
+        Tool::Estimating,
+        Access::Project(Level::Standard),
+        "project, id: ids; index: alternate number (from 0); accepted: bool (accepted alternates are added to the subtotal; not once the estimate is in the budget)",
+        accept_alternate,
+    ),
+    CommandSpec::mutate(
+        "estimate.duplicate",
+        "Copy estimate as a new version",
+        Tool::Estimating,
+        Access::Project(Level::Standard),
+        "project, id: ids; name?: text (default: the old name with `copy` added). A draft with the same lines, markups and alternates (none accepted), noting which estimate it came from",
+        duplicate,
+    ),
+    CommandSpec::query(
+        "estimate.compare",
+        "Compare two estimates",
+        Tool::Estimating,
+        Access::Project(Level::Read),
+        "project: project id; id: estimate id; with: the estimate to compare it with (by cost code: each one's total and the difference)",
+        compare,
+    ),
+    CommandSpec::mutate(
+        "estimate.add_from_catalog",
+        "Add a catalogue item to an estimate",
+        Tool::Estimating,
+        Access::Project(Level::Standard),
+        "project, id: ids (a draft); item: catalogue item id; quantity: number (up to 3 decimals); cost_code?: cost code id (default: the item's, when the project has it); description?: text",
+        add_from_catalog,
+    ),
+    CommandSpec::mutate(
+        "estimate.add_assembly",
+        "Add an assembly to an estimate",
+        Tool::Estimating,
+        Access::Project(Level::Standard),
+        "project, id: ids (a draft); assembly: assembly id; quantity: how many units of the assembly; cost_code?: cost code id for the parts whose items have none the project can use. One line is added per part",
+        add_assembly,
+    ),
+    CommandSpec::mutate(
+        "estimate.add_from_bid",
+        "Add a bid to an estimate",
+        Tool::Estimating,
+        Access::Project(Level::Standard),
+        "project, id: ids (a draft); package: bid package id; vendor?: company id (default: the lowest standing bid). One lump-sum line at the bid amount, under the package's cost code",
+        add_from_bid,
+    ),
+    CommandSpec::query(
+        "takeoff.summary",
+        "Measurements on a sheet",
+        Tool::Estimating,
+        Access::Project(Level::Read),
+        "project: project id; drawing: drawing id (the current revision). The lengths, areas and counts drawn on it, added up by what they were labelled",
+        takeoff_summary,
+    ),
+    CommandSpec::mutate(
+        "estimate.add_from_takeoff",
+        "Add a takeoff total to an estimate",
+        Tool::Estimating,
+        Access::Project(Level::Standard),
+        "project, id: ids (a draft); drawing: drawing id; kind: dim (lengths)|area|pin (counts); label?: the text on the markups to add up (blank: those with none); cost_code: cost code id; unit_cost: amount per unit; description?: text. One line: the total as the quantity (feet or metres, square feet or metres, or each)",
+        add_from_takeoff,
     ),
     CommandSpec::mutate("estimate.reopen", "Reopen estimate", Tool::Estimating, Access::Project(Level::Standard), "project, id: ids", reopen),
     CommandSpec::mutate(
@@ -150,10 +214,287 @@ fn apply(ctx: &Ctx<'_>, p: &Params<'_>, e: &mut Estimate) -> Result<()> {
         }
         e.markups = out;
     }
+    if p.present("alternates") {
+        let rows = p.items("alternates")?;
+        if rows.len() > MAX_MARKUPS {
+            return Err(p.bad("alternates", format!("holds more than {MAX_MARKUPS} alternates")));
+        }
+        let mut out = Vec::new();
+        for r in rows {
+            let name = r.line_or_empty("name", 100)?;
+            let amount: Option<Money> = r.money("amount")?;
+            if name.is_empty() && amount.is_none() {
+                continue;
+            }
+            if name.is_empty() {
+                return Err(r.bad("name", "is required on every alternate"));
+            }
+            let code: Id<CostCode> = r.id("cost_code")?;
+            usable_code(ctx.state, e.project, code)?;
+            let amount = amount.ok_or_else(|| r.bad("amount", "is required on every alternate"))?;
+            out.push(Alternate {
+                name,
+                description: r.line_or_empty("description", text::SHORT)?,
+                cost_code: code,
+                amount,
+                accepted: r.flag_or("accepted", false)?,
+            });
+        }
+        e.alternates = out;
+    }
     if e.totals().is_none() {
         return Err(p.bad("lines", "the totals are too large to add up"));
     }
     Ok(())
+}
+
+fn draft(ctx: &Ctx<'_>, p: &Params<'_>) -> Result<Estimate> {
+    let e = load(ctx, p)?;
+    if e.status != EstimateStatus::Draft {
+        return Err(EngineError::conflict(format!("{} was issued; reopen it to edit it", e.label())));
+    }
+    Ok(e)
+}
+
+fn accept_alternate(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut e = load(ctx, p)?;
+    if e.applied.is_some() {
+        return Err(EngineError::conflict(format!("{} is already in the budget", e.label())));
+    }
+    let index = usize::try_from(p.int("index", 0..=1_000)?.ok_or_else(|| p.bad("index", "is required"))?).unwrap_or(usize::MAX);
+    let accepted = p.flag("accepted")?.ok_or_else(|| p.bad("accepted", "is required"))?;
+    let Some(a) = e.alternates.get_mut(index) else {
+        return Err(EngineError::not_found(format!("{} has no alternate {index}", e.label())));
+    };
+    a.accepted = accepted;
+    if e.totals().is_none() {
+        return Err(EngineError::conflict("the totals are too large to add up"));
+    }
+    e.updated = ctx.stamp();
+    let id = e.id;
+    ctx.state.estimates.put(e);
+    Ok(json!({ "id": id }))
+}
+
+fn duplicate(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let from = load(ctx, p)?;
+    let number = ctx.state.estimates.iter().filter(|e| e.project == from.project).map(|e| e.number).max().unwrap_or(0).saturating_add(1);
+    let name = match p.line("name", text::SHORT)?.filter(|n| !n.is_empty()) {
+        Some(n) => n,
+        None => format!("{} (copy)", from.name),
+    };
+    let stamp = ctx.stamp();
+    let id = ctx.state.estimates.alloc();
+    let mut copy = from.clone();
+    copy.id = id;
+    copy.number = number;
+    copy.name = name;
+    copy.status = EstimateStatus::Draft;
+    copy.applied = None;
+    copy.based_on = Some(from.id);
+    for a in &mut copy.alternates {
+        a.accepted = false;
+    }
+    copy.created = stamp;
+    copy.updated = stamp;
+    copy.deleted = None;
+    ctx.state.estimates.put(copy);
+    Ok(json!({ "id": id, "number": number }))
+}
+
+fn compare(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let id: Id<Estimate> = p.id("id")?;
+    let with: Id<Estimate> = p.id("with")?;
+    let get = |id| {
+        in_project(&v.state.estimates, project, id, "estimate")
+            .ok()
+            .filter(|e| e.deleted.is_none())
+            .ok_or_else(|| EngineError::not_found(format!("estimate {id} not found in this project")))
+    };
+    let (a, b) = (get(id)?, get(with)?);
+    let by_code = |e: &Estimate| -> Vec<(Id<CostCode>, Money)> {
+        let mut out: Vec<(Id<CostCode>, Money)> = Vec::new();
+        let lines = e.lines.iter().map(|l| (l.cost_code, l.total().unwrap_or(Money::ZERO)));
+        let alts = e.alternates.iter().filter(|x| x.accepted).map(|x| (x.cost_code, x.amount));
+        for (code, amt) in lines.chain(alts) {
+            match out.iter_mut().find(|(c, _)| *c == code) {
+                Some((_, m)) => *m = m.checked_add(amt).unwrap_or(*m),
+                None => out.push((code, amt)),
+            }
+        }
+        out
+    };
+    let (ma, mb) = (by_code(a), by_code(b));
+    let mut codes: Vec<Id<CostCode>> = ma.iter().map(|(c, _)| *c).chain(mb.iter().map(|(c, _)| *c)).collect();
+    codes.sort();
+    codes.dedup();
+    let amount = |m: &[(Id<CostCode>, Money)], c: Id<CostCode>| m.iter().find(|(x, _)| *x == c).map_or(Money::ZERO, |(_, v)| *v);
+    let rows: Vec<Value> = codes
+        .into_iter()
+        .map(|c| {
+            let (x, y) = (amount(&ma, c), amount(&mb, c));
+            let code = v.state.cost_codes.get(c);
+            json!({ "cost_code": c, "code": code.map(|c| c.code.clone()), "description": code.map(|c| c.description.clone()), "this": x, "other": y, "difference": x.checked_sub(y) })
+        })
+        .collect();
+    let (ta, tb) = (a.totals(), b.totals());
+    Ok(json!({
+        "this": { "id": a.id, "number": a.number, "name": a.name, "total": ta.as_ref().map(|t| t.total) },
+        "other": { "id": b.id, "number": b.number, "name": b.name, "total": tb.as_ref().map(|t| t.total) },
+        "difference": ta.zip(tb).and_then(|(x, y)| x.total.checked_sub(y.total)),
+        "rows": rows,
+    }))
+}
+
+fn push_line(e: &mut Estimate, line: EstimateLine) -> Result<()> {
+    if e.lines.len() >= MAX_LINES {
+        return Err(EngineError::conflict(format!("{} has the most lines it can hold", e.label())));
+    }
+    if line.total().is_none() {
+        return Err(EngineError::conflict("the line total is too large"));
+    }
+    e.lines.push(line);
+    if e.totals().is_none() {
+        return Err(EngineError::conflict("the totals are too large to add up"));
+    }
+    Ok(())
+}
+
+fn catalog_read(ctx: &Ctx<'_>) -> Result<()> {
+    if super::catalog::can_read(ctx.state, ctx.actor) {
+        Ok(())
+    } else {
+        Err(EngineError::forbidden("the catalogue is for people who work on estimates"))
+    }
+}
+
+fn quantity(p: &Params<'_>) -> Result<i64> {
+    let q = p.line_or_empty("quantity", 30)?;
+    parse_quantity(&q).filter(|v| *v > 0).ok_or_else(|| p.bad("quantity", "is required: a number above zero (up to three decimals)"))
+}
+
+/// The cost code for a catalogue line: the one asked for, else the item's when the project can use it.
+fn code_for(
+    ctx: &Ctx<'_>,
+    project: Id<Project>,
+    asked: Option<Id<CostCode>>,
+    item: &buildkiosk_model::estimate::CatalogItem,
+) -> Result<Id<CostCode>> {
+    if let Some(c) = asked {
+        usable_code(ctx.state, project, c)?;
+        return Ok(c);
+    }
+    match item.cost_code.filter(|c| usable_code(ctx.state, project, *c).is_ok()) {
+        Some(c) => Ok(c),
+        None => Err(EngineError::conflict(format!("`{}` has no cost code this project uses; choose one", item.name))),
+    }
+}
+
+fn add_from_catalog(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    catalog_read(ctx)?;
+    let mut e = draft(ctx, p)?;
+    let id: Id<buildkiosk_model::estimate::CatalogItem> = p.id("item")?;
+    let item = ctx
+        .state
+        .catalog_items
+        .get(id)
+        .filter(|i| i.deleted.is_none())
+        .cloned()
+        .ok_or_else(|| EngineError::not_found(format!("catalogue item {id} not found")))?;
+    let code = code_for(ctx, e.project, p.opt_id("cost_code")?, &item)?;
+    let description = p.line("description", text::SHORT)?.filter(|d| !d.is_empty()).unwrap_or_else(|| item.name.clone());
+    push_line(
+        &mut e,
+        EstimateLine { cost_code: code, description, quantity_milli: quantity(p)?, unit: item.unit.clone(), unit_cost: item.unit_cost },
+    )?;
+    e.updated = ctx.stamp();
+    let eid = e.id;
+    ctx.state.estimates.put(e);
+    Ok(json!({ "id": eid }))
+}
+
+fn add_assembly(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    catalog_read(ctx)?;
+    let mut e = draft(ctx, p)?;
+    let id: Id<buildkiosk_model::estimate::Assembly> = p.id("assembly")?;
+    let assembly = ctx
+        .state
+        .assemblies
+        .get(id)
+        .filter(|a| a.deleted.is_none())
+        .cloned()
+        .ok_or_else(|| EngineError::not_found(format!("assembly {id} not found")))?;
+    let units = quantity(p)?;
+    let asked: Option<Id<CostCode>> = p.opt_id("cost_code")?;
+    let before = e.lines.len();
+    for part in &assembly.parts {
+        let item = ctx
+            .state
+            .catalog_items
+            .get(part.item)
+            .filter(|i| i.deleted.is_none())
+            .cloned()
+            .ok_or_else(|| EngineError::conflict("an item of this assembly is no longer in the catalogue"))?;
+        // The item's own code wins where the project has it; the one asked for covers the rest.
+        let code = match item.cost_code.filter(|c| usable_code(ctx.state, e.project, *c).is_ok()) {
+            Some(c) => c,
+            None => code_for(ctx, e.project, asked, &item)?,
+        };
+        // Units of the assembly times the part's quantity per unit, in thousandths, rounded to the nearest.
+        let q = i128::from(units) * i128::from(part.quantity_milli);
+        let quantity_milli =
+            i64::try_from((q + if q >= 0 { 500 } else { -500 }) / 1000).map_err(|_| EngineError::conflict("the quantity is too large"))?;
+        push_line(
+            &mut e,
+            EstimateLine {
+                cost_code: code,
+                description: format!("{}: {}", assembly.name, item.name),
+                quantity_milli,
+                unit: item.unit.clone(),
+                unit_cost: item.unit_cost,
+            },
+        )?;
+    }
+    let added = e.lines.len() - before;
+    e.updated = ctx.stamp();
+    let eid = e.id;
+    ctx.state.estimates.put(e);
+    Ok(json!({ "id": eid, "lines_added": added }))
+}
+
+fn add_from_bid(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut e = draft(ctx, p)?;
+    let pkg: Id<buildkiosk_model::bidding::BidPackage> = p.id("package")?;
+    let b = in_project(&ctx.state.bid_packages, e.project, pkg, "bid package")?;
+    if b.deleted.is_some() {
+        return Err(EngineError::not_found(format!("bid package {pkg} not found in this project")));
+    }
+    let code = b.cost_code.ok_or_else(|| EngineError::conflict("the bid package has no cost code; set one first"))?;
+    let wanted: Option<Id<buildkiosk_model::directory::Vendor>> = p.opt_id("vendor")?;
+    let bid = match wanted {
+        Some(v) => b.bids.iter().find(|x| x.vendor == v && !x.withdrawn),
+        None => b.bids.iter().filter(|x| !x.withdrawn).min_by_key(|x| x.amount),
+    }
+    .cloned()
+    .ok_or_else(|| EngineError::conflict("there is no standing bid to add"))?;
+    let title = b.title.clone();
+    usable_code(ctx.state, e.project, code)?;
+    let vendor = crate::view::vendor_name(ctx.state, bid.vendor);
+    push_line(
+        &mut e,
+        EstimateLine {
+            cost_code: code,
+            description: format!("{title}: bid from {vendor}"),
+            quantity_milli: 1000,
+            unit: "ls".into(),
+            unit_cost: bid.amount,
+        },
+    )?;
+    e.updated = ctx.stamp();
+    let eid = e.id;
+    ctx.state.estimates.put(e);
+    Ok(json!({ "id": eid }))
 }
 
 fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
@@ -169,6 +510,8 @@ fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         status: EstimateStatus::Draft,
         lines: Vec::new(),
         markups: Vec::new(),
+        alternates: Vec::new(),
+        based_on: None,
         applied: None,
         created: stamp,
         updated: stamp,
@@ -232,13 +575,14 @@ fn apply_to_budget(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         return Err(EngineError::conflict("the original budget is locked; unlock it first"));
     }
     let t = e.totals().ok_or_else(|| EngineError::conflict("the totals are too large to add up"))?;
-    // Sum by cost code, in code order of first use.
+    // Sum by cost code, in code order of first use; accepted alternates go under their own codes.
     let mut by_code: Vec<(Id<CostCode>, Money)> = Vec::new();
-    for l in &e.lines {
-        let amt = l.total().unwrap_or(Money::ZERO);
-        match by_code.iter_mut().find(|(c, _)| *c == l.cost_code) {
+    let lines = e.lines.iter().map(|l| (l.cost_code, l.total().unwrap_or(Money::ZERO)));
+    let alternates = e.alternates.iter().filter(|a| a.accepted).map(|a| (a.cost_code, a.amount));
+    for (cost_code, amt) in lines.chain(alternates) {
+        match by_code.iter_mut().find(|(c, _)| *c == cost_code) {
             Some((_, m)) => *m = m.checked_add(amt).ok_or_else(|| EngineError::conflict("the totals are too large to add up"))?,
-            None => by_code.push((l.cost_code, amt)),
+            None => by_code.push((cost_code, amt)),
         }
     }
     let markup_code: Option<Id<CostCode>> = p.opt_id("markup_cost_code")?;
@@ -318,4 +662,132 @@ fn get(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
         o.insert("totals".into(), json!({ "subtotal": t.subtotal, "markups": t.markups, "total": t.total }));
     }
     Ok(out)
+}
+
+/// One kind of measurement under one label on a sheet, added up.
+struct Group {
+    kind: buildkiosk_model::drawing::MarkupKind,
+    label: String,
+    count: usize,
+    /// Micrometres for lengths, square micrometres for areas; unused for counts.
+    total: u128,
+    unit: Option<buildkiosk_model::drawing::LengthUnit>,
+    /// More than one unit in the group: it can't be added up.
+    mixed: bool,
+}
+
+impl Group {
+    /// The quantity in thousandths and its unit text ("lf", "sf", "ea"), in the units the sheet was measured in.
+    fn quantity(&self) -> Option<(i64, String)> {
+        use buildkiosk_model::drawing::{LengthUnit as U, MarkupKind as K};
+        match self.kind {
+            K::Pin => Some((i64::try_from(self.count).ok()?.checked_mul(1000)?, "ea".into())),
+            K::Dimension | K::Area if self.mixed => None,
+            K::Dimension => {
+                let unit = self.unit?;
+                let milli = self.total.checked_mul(1000)? / u128::from(unit.micrometres());
+                Some((
+                    i64::try_from(milli).ok()?,
+                    match unit {
+                        U::Feet => "lf",
+                        U::Inches => "in",
+                        U::Meters => "m",
+                        U::Millimeters => "mm",
+                    }
+                    .into(),
+                ))
+            }
+            K::Area => {
+                let unit = self.unit?;
+                let one = u128::from(unit.micrometres());
+                let milli = self.total.checked_mul(1000)? / one.checked_mul(one)?;
+                Some((
+                    i64::try_from(milli).ok()?,
+                    match unit {
+                        U::Feet => "sf",
+                        U::Inches => "sq in",
+                        U::Meters => "sq m",
+                        U::Millimeters => "sq mm",
+                    }
+                    .into(),
+                ))
+            }
+            _ => None,
+        }
+    }
+}
+
+/// The measurements on the current revision of a sheet, by kind and label.
+fn groups(state: &buildkiosk_model::CompanyState, project: Id<Project>, drawing: Id<buildkiosk_model::drawing::Drawing>) -> Result<Vec<Group>> {
+    use buildkiosk_model::drawing::MarkupKind as K;
+    let d = in_project(&state.drawings, project, drawing, "drawing")?;
+    if d.deleted.is_some() {
+        return Err(EngineError::not_found(format!("drawing {drawing} not found in this project")));
+    }
+    let mut out: Vec<Group> = Vec::new();
+    for m in d.current().into_iter().flat_map(|r| &r.markups) {
+        if !matches!(m.kind, K::Dimension | K::Area | K::Pin) || (m.kind != K::Pin && m.measure == 0) {
+            continue;
+        }
+        let label = m.text.trim().to_string();
+        let g = match out.iter().position(|g| g.kind == m.kind && g.label == label) {
+            Some(i) => i,
+            None => {
+                out.push(Group { kind: m.kind, label, count: 0, total: 0, unit: m.unit, mixed: false });
+                out.len() - 1
+            }
+        };
+        if let Some(g) = out.get_mut(g) {
+            g.count += 1;
+            g.total = g.total.saturating_add(u128::from(m.measure));
+            g.mixed |= g.unit != m.unit;
+        }
+    }
+    Ok(out)
+}
+
+fn takeoff_summary(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let drawing: Id<buildkiosk_model::drawing::Drawing> = p.id("drawing")?;
+    let rows: Vec<Value> = groups(v.state, project, drawing)?
+        .iter()
+        .map(|g| {
+            let q = g.quantity();
+            json!({ "kind": g.kind, "label": g.label, "count": g.count, "quantity": q.as_ref().map(|(m, _)| format!("{}.{:03}", m / 1000, m % 1000)), "unit": q.map(|(_, u)| u) })
+        })
+        .collect();
+    Ok(Value::Array(rows))
+}
+
+fn add_from_takeoff(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    use buildkiosk_model::drawing::MarkupKind as K;
+    let mut e = draft(ctx, p)?;
+    let drawing: Id<buildkiosk_model::drawing::Drawing> = p.id("drawing")?;
+    let kind =
+        p.choice::<K>("kind")?.filter(|k| matches!(k, K::Dimension | K::Area | K::Pin)).ok_or_else(|| p.bad("kind", "must be dim, area or pin"))?;
+    let label = p.line_or_empty("label", text::SHORT)?;
+    let code: Id<CostCode> = p.id("cost_code")?;
+    usable_code(ctx.state, e.project, code)?;
+    let unit_cost = p.money("unit_cost")?.ok_or_else(|| p.bad("unit_cost", "is required"))?;
+    if unit_cost.is_negative() {
+        return Err(p.bad("unit_cost", "must not be negative"));
+    }
+    let all = groups(ctx.state, e.project, drawing)?;
+    let g = all
+        .iter()
+        .find(|g| g.kind == kind && g.label == label)
+        .ok_or_else(|| EngineError::not_found("no measurements on the sheet match that kind and label"))?;
+    let (quantity_milli, unit) =
+        g.quantity().ok_or_else(|| EngineError::conflict("those measurements are in different units; set the sheet's scale to one unit"))?;
+    if quantity_milli <= 0 {
+        return Err(EngineError::conflict("the measurements add up to nothing"));
+    }
+    let sheet = ctx.state.drawings.get(drawing).map(|d| d.label()).unwrap_or_default();
+    let what = if label.is_empty() { kind.label().to_string() } else { label.clone() };
+    let description = p.line("description", text::SHORT)?.filter(|d| !d.is_empty()).unwrap_or_else(|| format!("{what} (takeoff, {sheet})"));
+    push_line(&mut e, EstimateLine { cost_code: code, description, quantity_milli, unit, unit_cost })?;
+    e.updated = ctx.stamp();
+    let id = e.id;
+    ctx.state.estimates.put(e);
+    Ok(json!({ "id": id, "quantity_milli": quantity_milli }))
 }

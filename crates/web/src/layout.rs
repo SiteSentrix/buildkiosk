@@ -62,6 +62,7 @@ pub enum Nav {
     Tasks(Id<Project>),
     Incidents(Id<Project>),
     Photos(Id<Project>),
+    Correspondence(Id<Project>),
     Drawings(Id<Project>),
     Schedule(Id<Project>),
     DailyLogs(Id<Project>),
@@ -163,7 +164,8 @@ pub fn app(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Option<String>
         | Nav::Observations(p)
         | Nav::Tasks(p)
         | Nav::Incidents(p)
-        | Nav::Photos(p) => state.projects.get(p),
+        | Nav::Photos(p)
+        | Nav::Correspondence(p) => state.projects.get(p),
     };
     html! {
         (DOCTYPE)
@@ -229,6 +231,9 @@ pub fn app(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Option<String>
                                 a href=(format!("/projects/{}/specifications", p.id)) class=(if matches!(nav, Nav::Specs(_)) { "active" } else { "" }) { (tool_icon(Tool::Specifications).svg()) "Specifications" }
                                 @if view::level(state, req.actor(), p.id, Tool::Transmittals) >= buildkiosk_engine::model::Level::Read {
                                     a href=(format!("/projects/{}/transmittals", p.id)) class=(if matches!(nav, Nav::Transmittals(_)) { "active" } else { "" }) { (tool_icon(Tool::Transmittals).svg()) "Transmittals" }
+                                }
+                                @if view::level(state, req.actor(), p.id, Tool::Correspondence) >= buildkiosk_engine::model::Level::Read {
+                                    a href=(format!("/projects/{}/correspondence", p.id)) class=(if matches!(nav, Nav::Correspondence(_)) { "active" } else { "" }) { (tool_icon(Tool::Correspondence).svg()) "Correspondence" }
                                 }
                                 @if view::level(state, req.actor(), p.id, Tool::Meetings) >= buildkiosk_engine::model::Level::Read {
                                     a href=(format!("/projects/{}/meetings", p.id)) class=(if matches!(nav, Nav::Meetings(_)) { "active" } else { "" }) { (tool_icon(Tool::Meetings).svg()) "Meetings" }

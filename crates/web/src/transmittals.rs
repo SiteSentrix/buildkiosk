@@ -49,7 +49,7 @@ pub fn list(req: &Req<'_>, id: Id<Project>, status: Option<TransmittalStatus>, q
             div class="card" { (empty(tool_icon(Tool::Transmittals), "No transmittals", "Create one to record what you send to the team.")) }
         } @else {
             div class="table-wrap" { table class="data" {
-                thead { tr { th { "#" } th { "Subject" } th { "Purpose" } th { "To" } th { "Sent" } th { "Response due" } th { "Status" } } }
+                thead { tr { th { "#" } th { "Subject" } th { "Purpose" } th { "To" } th { "Sent" } th { "Response due" } th { "Receipt" } th { "Status" } } }
                 tbody { @for t in &shown { tr {
                     td { (t.number) }
                     td { a href=(format!("{base}/{}", t.id)) { (t.subject) } @if t.private { " " span class="pill blue" { "Private" } } }
@@ -57,6 +57,7 @@ pub fn list(req: &Req<'_>, id: Id<Project>, status: Option<TransmittalStatus>, q
                     td { (view::people_names(state, &t.to)) }
                     td class="nowrap" { (t.sent.map(|s| req.when(s.at)).unwrap_or_default()) }
                     td class="nowrap" { (t.due.map(|d| d.to_string()).unwrap_or_default()) }
+                    td class="nowrap" { @if t.status == TransmittalStatus::Sent { (t.receipts.len()) " of " (t.to.len() + t.cc.len()) } }
                     td { (status_pill(t.status)) }
                 } } }
             } }
@@ -103,7 +104,40 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, tid: Id<Transmittal>) -> Markup {
         div class="card" {
             h2 { "Items" }
             @if t.items.is_empty() { p class="muted" { "No items listed." } } @else {
-                table class="data" { thead { tr { th { "Description" } th class="num" { "Copies" } } } tbody { @for i in &t.items { tr { td { (i.description) } td class="num" { (i.copies) } } } } }
+                table class="data" {
+                    thead { tr { th { "Description" } th { "Version" } th class="num" { "Copies" } } }
+                    tbody { @for i in &t.items { tr {
+                        td {
+                            (i.description)
+                            @if let Some(d) = i.document.and_then(|d| state.documents.get(d)).filter(|d| d.project == id && d.deleted.is_none()) { " " a class="tag" href=(format!("/projects/{id}/documents/{}", d.id)) { "Document" } }
+                            @if let Some(d) = i.drawing.and_then(|d| state.drawings.get(d)).filter(|d| d.project == id && d.deleted.is_none()) { " " a class="tag" href=(format!("/projects/{id}/drawings/{}", d.id)) { "Drawing " (d.number) } }
+                        }
+                        td { (i.revision) }
+                        td class="num" { (i.copies) }
+                    } } }
+                }
+            }
+        }
+        @if !draft {
+            @let me = req.actor().person();
+            @let recipients: Vec<_> = t.to.iter().map(|p| (*p, "To")).chain(t.cc.iter().map(|p| (*p, "Copy"))).collect();
+            @let sender = me.is_some() && (t.created.by == me || t.sent.and_then(|s| s.by) == me);
+            @let record_for_others = sender || view::level(state, req.actor(), id, Tool::Transmittals) == Level::Admin;
+            div class="card" {
+                h2 { "Receipt" }
+                p class="muted small" { (t.receipts.len()) " of " (recipients.len()) " have acknowledged receiving it." }
+                table class="data" {
+                    thead { tr { th { "Who" } th { "" } th { "Received" } th {} } }
+                    tbody { @for (person, role) in &recipients { @let r = t.receipts.iter().find(|r| r.person == *person); tr {
+                        td { (view::person_name(state, *person)) }
+                        td { span class="tag" { (role) } }
+                        td { @if let Some(r) = r { span class="pill green" { "Received" } " " (req.when(r.stamp.at)) @if !r.note.is_empty() { " · " (r.note) } @if r.stamp.by.is_some() && r.stamp.by != Some(*person) { " · recorded by " (r.stamp.by.map(|b| view::person_name(state, b)).unwrap_or_default()) } } @else { span class="pill amber" { "Not yet" } } }
+                        td class="right" { @if r.is_none() {
+                            @if Some(*person) == me { (button_form(req, "transmittal.acknowledge", &here, &ids, "Acknowledge receipt", "small primary")) }
+                            @else if record_for_others { (button_form(req, "transmittal.acknowledge", &here, &[("project", id.to_string()), ("id", tid.to_string()), ("person", person.to_string())], "Record receipt", "small")) }
+                        } }
+                    } } }
+                }
             }
         }
         div class="card" {
@@ -163,6 +197,13 @@ pub fn form(req: &Req<'_>, id: Id<Project>, current: Option<Id<Transmittal>>) ->
         }
     };
     let rows = cur.map(|t| t.items.len()).unwrap_or(0) + 3;
+    let mut documents: Vec<_> =
+        state.documents.iter().filter(|d| d.project == id && d.deleted.is_none() && view::can_see_document(state, req.actor(), d)).collect();
+    documents.sort_by_key(|d| d.title.to_lowercase());
+    documents.truncate(500);
+    let mut drawings: Vec<_> = state.drawings.iter().filter(|d| d.project == id && d.deleted.is_none()).collect();
+    drawings.sort_by_key(|d| d.number.clone());
+    drawings.truncate(500);
     let body = html! {
         div class="page-head" { div { h1 { (if cur.is_some() { "Edit transmittal" } else { "New transmittal" }) } } }
         div class="card" {
@@ -183,9 +224,17 @@ pub fn form(req: &Req<'_>, id: Id<Project>, current: Option<Id<Transmittal>>) ->
                 }
                 h2 { "Items sent" }
                 table class="data" {
-                    thead { tr { th { "Description" } th class="num" { "Copies" } } }
+                    thead { tr { th { "Description" } th { "Document" } th { "Drawing" } th class="num" { "Copies" } } }
                     tbody { @for i in 0..rows { @let item = cur.and_then(|t| t.items.get(i)); tr {
                         td { input type="text" name=(format!("items.{i}.description")) value=(item.map(|x| x.description.as_str()).unwrap_or_default()) aria-label=(format!("Item {} description", i + 1)); }
+                        td { select name=(format!("items.{i}.document")) aria-label=(format!("Item {} document", i + 1)) {
+                            option value="" { "—" }
+                            @for d in &documents { option value=(d.id) selected[item.is_some_and(|x| x.document == Some(d.id))] { (d.title) } }
+                        } }
+                        td { select name=(format!("items.{i}.drawing")) aria-label=(format!("Item {} drawing", i + 1)) {
+                            option value="" { "—" }
+                            @for d in &drawings { option value=(d.id) selected[item.is_some_and(|x| x.drawing == Some(d.id))] { (d.number) " " (d.title) } }
+                        } }
                         td class="num" { input type="number" min="0" name=(format!("items.{i}.copies")) value=(item.map(|x| x.copies.to_string()).unwrap_or_default()) aria-label=(format!("Item {} copies", i + 1)); }
                     } } }
                 }

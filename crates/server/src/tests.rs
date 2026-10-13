@@ -1641,7 +1641,51 @@ async fn transmittal_form_send_and_files() {
     assert!(detail.contains("Drawings") && detail.contains("Send") && detail.contains("Draft"));
     send(&app, post("/do/transmittal.send", &ada, format!("_csrf={csrf}&project=1&id=1"))).await;
     let (_, _, list) = send(&app, get("/projects/1/transmittals?status=sent")).await;
-    assert!(list.contains("Permit set") && list.contains("Sent"));
+    assert!(list.contains("Permit set") && list.contains("Sent") && list.contains("0 of 1"), "{list}");
+
+    // Items linked to a document and a drawing; the recipient acknowledges; the cover sheet shows both.
+    let sha = "d".repeat(64);
+    send(
+        &app,
+        post(
+            "/do/document.add",
+            &ada,
+            format!("_csrf={csrf}&project=1&title=Geotech+report&sha256={sha}&name=geo.pdf&size=10&mime=application%2Fpdf"),
+        ),
+    )
+    .await;
+    send(
+        &app,
+        post("/do/drawing.add", &ada, format!("_csrf={csrf}&project=1&number=A-101&title=Floor+plan&revision=B&sha256={sha}&name=a.pdf&size=10")),
+    )
+    .await;
+    let (_, _, form) = send(&app, get("/projects/1/transmittals/new")).await;
+    assert!(form.contains("items.0.document") && form.contains("Geotech report") && form.contains("A-101 Floor plan"), "{form}");
+    let (_, h, _) = send(
+        &app,
+        post("/do/transmittal.create", &ada, format!("_csrf={csrf}&_next=/projects/1/transmittals/%7Bid%7D&project=1&subject=Linked&to%5B%5D=1&items.0.description=&items.0.document=1&items.0.copies=1&items.1.description=&items.1.drawing=1&items.1.copies=2")),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().starts_with("/projects/1/transmittals/2?ok="), "{h:?}");
+    send(&app, post("/do/transmittal.send", &ada, format!("_csrf={csrf}&project=1&id=2"))).await;
+    let (_, _, detail) = send(&app, get("/projects/1/transmittals/2")).await;
+    assert!(
+        detail.contains("Geotech report") && detail.contains("v1") && detail.contains("A-101 Floor plan") && detail.contains("rev B"),
+        "{detail}"
+    );
+    assert!(
+        detail.contains("href=\"/projects/1/documents/1\"")
+            && detail.contains("href=\"/projects/1/drawings/1\"")
+            && detail.contains("Acknowledge receipt"),
+        "{detail}"
+    );
+    let (_, h, _) =
+        send(&app, post("/do/transmittal.acknowledge", &ada, format!("_csrf={csrf}&_next=/projects/1/transmittals/2&project=1&id=2&person="))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, detail) = send(&app, get("/projects/1/transmittals/2")).await;
+    assert!(detail.contains("1 of 1 have acknowledged") && detail.contains("Received"), "{detail}");
+    let (st, h, pdf) = send(&app, get("/projects/1/transmittals/2/pdf")).await;
+    assert!(st == StatusCode::OK && h.get(CONTENT_TYPE).unwrap() == "application/pdf" && pdf.starts_with("%PDF"));
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }

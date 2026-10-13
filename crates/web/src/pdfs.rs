@@ -238,9 +238,27 @@ pub fn transmittal(req: &Req<'_>, id: Id<Project>, tid: Id<buildkiosk_engine::mo
         doc.blocks.push(Block::Paragraph(t.message.clone()));
     }
     doc.blocks.push(Block::Heading("Items sent".into()));
-    let mut rows: Vec<Vec<String>> = t.items.iter().map(|i| vec![i.description.clone(), i.copies.to_string()]).collect();
-    rows.extend(t.attachments.iter().map(|f| vec![format!("File: {}", f.name), "1".into()]));
-    doc.blocks.push(table(&["Description", "Copies"], &[6.0, 1.0], &[1], rows));
+    let mut rows: Vec<Vec<String>> = t.items.iter().map(|i| vec![i.description.clone(), i.revision.clone(), i.copies.to_string()]).collect();
+    rows.extend(t.attachments.iter().map(|f| vec![format!("File: {}", f.name), String::new(), "1".into()]));
+    doc.blocks.push(table(&["Description", "Version", "Copies"], &[5.2, 1.4, 1.0], &[2], rows));
+    // The receipt block: who has acknowledged, and a line to sign and return for those who haven't.
+    if t.status == buildkiosk_engine::model::transmittal::TransmittalStatus::Sent {
+        doc.blocks.push(Block::Heading("Receipt".into()));
+        let rows =
+            t.to.iter()
+                .map(|p| (*p, "To"))
+                .chain(t.cc.iter().map(|p| (*p, "Copy")))
+                .map(|(who, role)| {
+                    let got = t.receipts.iter().find(|r| r.person == who);
+                    vec![
+                        view::person_name(state, who),
+                        role.to_string(),
+                        got.map(|r| format!("Received {}", req.when(r.stamp.at))).unwrap_or_else(|| "______________  Date: ________".into()),
+                    ]
+                })
+                .collect();
+        doc.blocks.push(table(&["Recipient", "", "Received (sign and return)"], &[3.5, 1.0, 4.0], &[], rows));
+    }
     Some((file_name(&t.label()), render(&doc)))
 }
 

@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::common::{FileRef, Stamp};
 use crate::directory::Person;
+use crate::document::Document;
+use crate::drawing::Drawing;
 use crate::project::Project;
 use crate::{choice, record};
 
@@ -38,6 +40,25 @@ pub struct TransmittalItem {
     pub description: String,
     #[serde(default)]
     pub copies: u32,
+    /// The project document this item is (its current version when the transmittal was sent).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub document: Option<Id<Document>>,
+    /// The drawing sheet this item is (its current revision when the transmittal was sent).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub drawing: Option<Id<Drawing>>,
+    /// The version or revision that went out ("v3", "rev C"); filled in from the document or drawing.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub revision: String,
+}
+
+/// A recipient saying (or being recorded as saying) the transmittal reached them.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Receipt {
+    pub person: Id<Person>,
+    /// When it was recorded and by whom (the recipient, or the sender for a paper or phone receipt).
+    pub stamp: Stamp,
+    #[serde(default)]
+    pub note: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -64,6 +85,9 @@ pub struct Transmittal {
     pub items: Vec<TransmittalItem>,
     #[serde(default)]
     pub attachments: Vec<FileRef>,
+    /// Who has acknowledged receiving it.
+    #[serde(default)]
+    pub receipts: Vec<Receipt>,
     /// Only the author, the recipients and admins see a private transmittal.
     #[serde(default)]
     pub private: bool,

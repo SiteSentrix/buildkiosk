@@ -20,6 +20,7 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 2. Next tools in the order of `docs/gaps.md` (item 8 onward; the financial remainder is listed under item 7).
 
 ## Progress log
+- 2026-10-13: Transmittals: items linked to documents and drawings with the version sent, recipient acknowledgement of receipt, cover sheet with a receipt block.
 - 2026-10-13: Meetings: repeat a meeting on a schedule, carry open actions forward, make a task from an action, printable sign-in sheet.
 - 2026-10-13: Incidents: injury log with rates (page, PDF, CSV), serious reports notify the tool admins, printable incident report, private incidents.
 - 2026-10-13: Tasks: subtasks, repeating tasks, a "My tasks" page across projects, and links to the RFI or meeting a task came from.

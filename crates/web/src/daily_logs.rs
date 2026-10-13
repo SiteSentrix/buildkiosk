@@ -113,6 +113,7 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, lid: Id<DailyLog>) -> Markup {
                 div class="sub" { "Started " (req.when(l.created.at)) @if let Some(b) = l.created.by { " by " (view::person_name(state, b)) } @if let Some(s) = l.submitted { " · submitted " (req.when(s.at)) } }
             }
             div class="actions" {
+                a class="btn" href=(format!("{here}/pdf")) { "PDF" }
                 @if editable { a class="btn" href=(format!("{here}/edit")) { "Edit" } }
                 @if editable && l.status == LogStatus::Draft { (button_form(req, "daily_log.submit", &here, &ids, "Submit log", "primary")) }
                 @if level == Level::Admin && l.status == LogStatus::Submitted { (button_form(req, "daily_log.reopen", &here, &ids, "Reopen as draft", "")) }

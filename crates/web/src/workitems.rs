@@ -223,6 +223,7 @@ pub fn list<T: WorkPage>(req: &Req<'_>, id: Id<Project>, filter: &Filter) -> Mar
         div class="page-head" {
             div { h1 { (T::TITLE) } div class="sub" { (T::SUBTITLE) } }
             div class="actions" {
+                a class="btn" href=(format!("{base}.pdf")) { "PDF" }
                 a class="btn" href=(format!("{base}.csv")) { (Icon::Download.svg()) "Export CSV" }
                 @if req.allowed(&cmd::<T>("create"), Some(id)) { a class="btn primary" href=(format!("{base}/new")) { (Icon::Plus.svg()) (T::ADD) } }
             }

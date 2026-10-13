@@ -103,6 +103,7 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, aid: Id<ActionPlan>) -> Markup {
         div class="page-head" {
             div { h1 { (a.label()) ": " (a.title) " " (status_pill(a.status)) } div class="sub" { (done) " of " (all) " items done · managed by " (a.manager.map(|m| view::person_name(state, m)).unwrap_or_else(|| "nobody".into())) } }
             div class="actions" {
+                a class="btn" href=(format!("{here}/pdf")) { "PDF" }
                 @if manager && a.status != PlanStatus::Complete { a class="btn" href=(format!("{here}/edit")) { "Edit" } }
                 @if manager && a.status == PlanStatus::Draft { (button_form(req, "action_plan.activate", &here, &ids, "Start the plan", "primary")) }
                 @if manager && a.status == PlanStatus::Active { (button_form(req, "action_plan.complete", &here, &ids, "Mark complete", "primary")) }

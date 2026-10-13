@@ -1756,3 +1756,50 @@ async fn account_password_and_tokens() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn pdf_downloads_for_documents_and_lists() {
+    let dir = temp("pdfs");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=P"))).await;
+    send(
+        &app,
+        post("/do/rfi.create", &ada, format!("_csrf={csrf}&project=1&subject=Door+hardware&question=Which+hinge%3F&assignees%5B%5D=1&open=true")),
+    )
+    .await;
+    send(&app, post("/do/task.create", &ada, format!("_csrf={csrf}&project=1&title=Order+hardware"))).await;
+    send(&app, post("/do/schedule.add", &ada, format!("_csrf={csrf}&project=1&name=Excavate&start=2026-10-12&days=3"))).await;
+    send(&app, post("/do/meeting.create", &ada, format!("_csrf={csrf}&project=1&title=Kickoff&date=2026-10-20"))).await;
+    for (uri, want) in [
+        ("/projects/1/rfis/1/pdf", "rfi-1.pdf"),
+        ("/projects/1/tasks.pdf", "tasks.pdf"),
+        ("/projects/1/schedule.pdf", "schedule.pdf"),
+        ("/projects/1/budget.pdf", "budget.pdf"),
+        ("/projects/1/reports.pdf", "project-report.pdf"),
+        ("/projects/1/drawings.pdf", "drawing-log.pdf"),
+        ("/projects/1/meetings/1/pdf", "meeting-1.pdf"),
+    ] {
+        let (st, h, body) = send(&app, get(uri)).await;
+        assert_eq!(st, StatusCode::OK, "{uri}");
+        assert_eq!(h.get("content-type").unwrap(), "application/pdf", "{uri}");
+        assert!(h.get("content-disposition").unwrap().to_str().unwrap().contains(want), "{uri}: {h:?}");
+        assert!(body.starts_with("%PDF-1.4") && body.trim_end().ends_with("%%EOF"), "{uri}");
+    }
+    let (st, ..) = send(&app, get("/projects/1/rfis/99/pdf")).await;
+    assert_eq!(st, StatusCode::NOT_FOUND);
+    let (st, ..) = send(&app, Request::get("/projects/1/rfis/1/pdf").body(Body::empty()).unwrap()).await;
+    assert_eq!(st, StatusCode::SEE_OTHER, "signed-out people don't get documents");
+    let (_, _, page) = send(&app, get("/projects/1/rfis/1")).await;
+    assert!(page.contains("/projects/1/rfis/1/pdf"));
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

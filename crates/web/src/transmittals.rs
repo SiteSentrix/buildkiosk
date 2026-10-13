@@ -86,6 +86,7 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, tid: Id<Transmittal>) -> Markup {
         div class="page-head" {
             div { h1 { (t.label()) ": " (t.subject) " " (status_pill(t.status)) } div class="sub" { (t.purpose.label()) @if let Some(s) = t.sent { " · sent " (req.when(s.at)) " by " (s.by.map(|b| view::person_name(state, b)).unwrap_or_default()) } } }
             div class="actions" {
+                a class="btn" href=(format!("{here}/pdf")) { "PDF" }
                 @if can_edit { a class="btn" href=(format!("{here}/edit")) { "Edit" } }
                 @if draft && can_edit { (button_form(req, "transmittal.send", &here, &ids, "Send", "primary")) }
                 @if req.allowed("transmittal.delete", Some(id)) && (draft || view::level(state, req.actor(), id, Tool::Transmittals) == Level::Admin) { (button_form(req, "transmittal.delete", &base, &ids, "Delete", "danger")) }

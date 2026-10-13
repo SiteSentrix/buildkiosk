@@ -368,6 +368,7 @@ pub fn rfi_detail(req: &Req<'_>, id: Id<Project>, rfi_id: Id<Rfi>, history: &[Jo
                 div class="sub" { "Created " (req.when(r.created.at)) @if let Some(b) = r.created.by { " by " (view::person_name(state, b)) } }
             }
             div class="actions" {
+                a class="btn" href=(format!("{here}/pdf")) { "PDF" }
                 @if editable { a class="btn" href=(format!("{here}/edit")) { "Edit" } }
                 @if r.status == RfiStatus::Draft && (manager_like || r.created.by == Some(req.person)) && level >= Level::Standard {
                     (button_form(req, "rfi.open", &here, &ids(), "Open RFI", "primary"))

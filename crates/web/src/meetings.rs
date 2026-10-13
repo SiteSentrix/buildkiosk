@@ -112,6 +112,7 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, mid: Id<Meeting>) -> Markup {
         div class="page-head" {
             div { h1 { (m.label()) ": " (m.title) " " (status_pill(m.status)) } div class="sub" { (m.date.pretty()) @if !m.time.is_empty() { " · " (m.time) } @if !m.location.is_empty() { " · " (m.location) } @if !m.category.is_empty() { " · " (m.category) } } }
             div class="actions" {
+                a class="btn" href=(format!("{here}/pdf")) { "PDF" }
                 @if can_edit { a class="btn" href=(format!("{here}/edit")) { "Edit" } }
                 @if can_edit && m.status == MeetingStatus::Scheduled { (button_form(req, "meeting.issue", &here, &ids, "Issue minutes", "primary")) }
                 @if admin && m.status == MeetingStatus::Issued { (button_form(req, "meeting.reopen", &here, &ids, "Reopen minutes", "")) }

@@ -368,3 +368,44 @@ fn takeoff_totals_become_lines() {
     assert!(sum.as_array().unwrap().iter().any(|g| g["kind"] == "dim" && g["unit"] == "m"), "{sum}");
     w.assert_replay();
 }
+
+#[test]
+fn catalogue_prices_are_kept_by_date_and_supplier() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let reader = w.member(p, "Rae", "Reader", "Read only");
+    let admin = w.admin();
+    let acme = w.ok(admin, "vendor.create", json!({"name": "Acme Supply", "kind": "supplier"}))["id"].as_u64().unwrap();
+    let other = w.ok(admin, "vendor.create", json!({"name": "Other Supply", "kind": "supplier"}))["id"].as_u64().unwrap();
+    let id = w.ok(pm, "catalog.save", json!({"name": "Ready-mix 4000 psi", "unit": "cy", "unit_cost": "180"}))["id"].as_u64().unwrap();
+    let item = |w: &World| w.engine.state().catalog_items.iter().find(|i| i.id.raw() == id).unwrap().clone();
+    assert_eq!((item(&w).prices.len(), item(&w).unit_cost.plain()), (1, "180.00".to_string()), "a first price is the first point");
+    // Typing a new cost is recording today's price; typing the same cost again adds nothing.
+    w.ok(pm, "catalog.save", json!({"id": id, "name": "Ready-mix 4000 psi", "unit": "cy", "unit_cost": "180"}));
+    assert_eq!(item(&w).prices.len(), 1);
+    w.ok(pm, "catalog.save", json!({"id": id, "name": "Ready-mix 4000 psi", "unit": "cy", "unit_cost": "185"}));
+    assert_eq!((item(&w).prices.len(), item(&w).unit_cost.plain()), (1, "185.00".to_string()), "same day, same (no) supplier: replaced");
+
+    // Quotes from suppliers, on days: the newest by date is the current price, whatever order they arrive in.
+    w.err(reader, "catalog.price", json!({"id": id, "unit_cost": "170"}));
+    w.err(pm, "catalog.price", json!({"id": id, "unit_cost": "-1"}));
+    w.err(pm, "catalog.price", json!({"id": id, "unit_cost": "170", "date": "2099-01-01"}));
+    w.err(pm, "catalog.price", json!({"id": id, "unit_cost": "170", "vendor": 9999}));
+    w.err(pm, "catalog.price", json!({"id": 9999, "unit_cost": "170"}));
+    w.ok(pm, "catalog.price", json!({"id": id, "unit_cost": "172.50", "date": "2026-09-01", "vendor": acme, "note": "September list"}));
+    w.ok(pm, "catalog.price", json!({"id": id, "unit_cost": "168", "date": "2026-10-05", "vendor": other}));
+    assert_eq!(item(&w).unit_cost.plain(), "185.00", "today's price is newer than the quotes");
+    assert_eq!(item(&w).prices.iter().map(|x| x.date.to_string()).collect::<Vec<_>>(), ["2026-09-01", "2026-10-05", "2026-10-12"]);
+    // A supplier's price list updates every item it names, with its date.
+    w.ok(pm, "catalog.import", json!({"text": "Ready-mix 4000 psi, cy, 190\nRebar #5, ton, 900", "date": "2026-10-12", "vendor": acme}));
+    assert_eq!((item(&w).unit_cost.plain(), item(&w).prices.len()), ("190.00".to_string(), 4));
+    assert!(item(&w).prices.last().unwrap().vendor.is_some_and(|v| v.raw() == acme));
+    let rebar = w.engine.state().catalog_items.iter().find(|i| i.name == "Rebar #5").unwrap().clone();
+    assert_eq!((rebar.prices.len(), rebar.unit_cost.plain()), (1, "900.00".to_string()));
+    // An older list does not push the current price back.
+    w.ok(pm, "catalog.import", json!({"text": "Ready-mix 4000 psi, cy, 150", "date": "2026-06-01", "vendor": other}));
+    assert_eq!(item(&w).unit_cost.plain(), "190.00");
+    w.err(pm, "catalog.import", json!({"text": "X, ea, 1", "vendor": 9999}));
+    w.assert_replay();
+}

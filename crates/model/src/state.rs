@@ -26,7 +26,7 @@ use crate::schedule::{HolidayList, ScheduleTask};
 use crate::spec::SpecSection;
 use crate::submittal::Submittal;
 use crate::task::Task;
-use crate::timesheet::{PayRate, TimeEntry};
+use crate::timesheet::{Crew, PayRate, TimeEntry};
 use crate::transmittal::Transmittal;
 
 // -- quality and safety
@@ -165,6 +165,7 @@ tables! {
     daily_logs: DailyLog,
     time_entries: TimeEntry,
     pay_rates: PayRate,
+    crews: Crew,
     schedule_tasks: ScheduleTask,
     holiday_lists: HolidayList,
 

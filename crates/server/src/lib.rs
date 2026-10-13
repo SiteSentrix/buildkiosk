@@ -3894,7 +3894,9 @@ fn form_params(form: &[(String, String)]) -> Value {
         if k.starts_with('_') {
             continue;
         }
-        if let Some((object, key)) = ["answers", "levels", "overrides"].iter().find_map(|o| k.strip_prefix(&format!("{o}.")).map(|rest| (*o, rest))) {
+        if let Some((object, key)) =
+            ["answers", "levels", "overrides", "scores"].iter().find_map(|o| k.strip_prefix(&format!("{o}.")).map(|rest| (*o, rest)))
+        {
             // `answers.f1` and `levels.rfis` style fields become `answers: {f1: ...}` and `levels: {rfis: ...}`.
             let entry = objects.entry(object).or_default();
             if entry.len() < 200 {

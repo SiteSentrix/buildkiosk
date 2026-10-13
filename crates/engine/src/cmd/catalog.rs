@@ -3,14 +3,16 @@
 //! estimates on some project may look. They are company-wide: a line made from one is copied into the
 //! estimate, so changing the catalogue later never changes an estimate that was already priced.
 
-use buildkiosk_core::{Id, Money, text};
-use buildkiosk_model::estimate::{Assembly, AssemblyPart, CatalogItem};
+use buildkiosk_core::{Date, Id, Money, text};
+use buildkiosk_model::directory::Vendor;
+use buildkiosk_model::estimate::{Assembly, AssemblyPart, CatalogItem, PricePoint};
 use buildkiosk_model::project::CostCode;
 use buildkiosk_model::{CompanyState, Level, Tool, perm};
 use serde_json::{Value, json};
 
 use super::estimate::parse_quantity;
 use super::{Access, CommandSpec};
+use crate::ctx::Read;
 use crate::{Actor, Ctx, EngineError, Params, Result, View, view};
 
 pub const COMMANDS: &[CommandSpec] = &[
@@ -21,6 +23,14 @@ pub const COMMANDS: &[CommandSpec] = &[
         Access::Member,
         "id?: item id (changes it; without it a new one is made); name: text; unit_cost: amount; unit?: text (sf, cy, ea); cost_code?: cost code id; category?: text; notes?: text",
         save,
+    ),
+    CommandSpec::mutate(
+        "catalog.price",
+        "Record a price for a catalogue item",
+        Tool::Estimating,
+        Access::Member,
+        "id: item id; unit_cost: amount; date?: YYYY-MM-DD the price is from (default today); vendor?: the supplier's company id; note?: text (kept with the price; a price from the same supplier on the same day is replaced; the newest price by date becomes the item's unit cost)",
+        price,
     ),
     CommandSpec::mutate(
         "catalog.delete",
@@ -35,7 +45,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Import catalogue",
         Tool::Estimating,
         Access::Member,
-        "text: CSV lines `name, unit, unit cost[, category[, cost code]]`; an optional first line starting with `name` is skipped; an item with the same name is changed",
+        "text: CSV lines `name, unit, unit cost[, category[, cost code]]`; an optional first line starting with `name` is skipped; an item with the same name is changed; date?: YYYY-MM-DD and vendor?: company id when the list is a supplier's price list (each price is kept with that date and supplier)",
         import,
     ),
     CommandSpec::query("catalog.list", "List catalogue", Tool::Estimating, Access::Member, "q?: text; category?: text", list),
@@ -54,6 +64,7 @@ pub const COMMANDS: &[CommandSpec] = &[
 const MAX_ITEMS: usize = 20_000;
 const MAX_ASSEMBLIES: usize = 2_000;
 const MAX_PARTS: usize = 100;
+const MAX_PRICES: usize = 200;
 
 /// Whether the person may look at the catalogue (and so at the unit costs): company admins, and anyone who can
 /// read estimates on some project.
@@ -104,6 +115,58 @@ fn positive(p: &Params<'_>, key: &str) -> Result<Money> {
     Ok(m)
 }
 
+/// Adds a price to an item's history (a price from the same supplier on the same day is replaced) and makes the
+/// newest by date its unit cost. At most 200 are kept, the oldest dropped first.
+fn add_price(i: &mut CatalogItem, point: PricePoint) {
+    i.prices.retain(|x| !(x.date == point.date && x.vendor == point.vendor));
+    i.prices.push(point);
+    i.prices.sort_by_key(|x| x.date);
+    while i.prices.len() > MAX_PRICES {
+        i.prices.remove(0);
+    }
+    if let Some(last) = i.prices.last() {
+        i.unit_cost = last.unit_cost;
+    }
+}
+
+/// The day a price is from: today unless given, and never a day yet to come.
+fn price_date(ctx: &Ctx<'_>, p: &Params<'_>) -> Result<Date> {
+    let d = p.date("date")?.unwrap_or_else(|| ctx.today());
+    if d > ctx.today() {
+        return Err(p.bad("date", "can't be in the future; record a price on the day it applies"));
+    }
+    Ok(d)
+}
+
+fn price_vendor(ctx: &Ctx<'_>, p: &Params<'_>) -> Result<Option<Id<Vendor>>> {
+    let v: Option<Id<Vendor>> = p.opt_id("vendor")?;
+    if let Some(v) = v {
+        ctx.check_vendor(v)?;
+    }
+    Ok(v)
+}
+
+fn price(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    need_write(ctx)?;
+    let id: Id<CatalogItem> = p.id("id")?;
+    if !ctx.state.catalog_items.get(id).is_some_and(|i| i.deleted.is_none()) {
+        return Err(EngineError::not_found(format!("catalogue item {id} not found")));
+    }
+    let point = PricePoint {
+        date: price_date(ctx, p)?,
+        unit_cost: positive(p, "unit_cost")?,
+        vendor: price_vendor(ctx, p)?,
+        note: p.line_or_empty("note", text::SHORT)?,
+    };
+    let stamp = ctx.stamp();
+    ctx.state.catalog_items.update(id, |i| {
+        add_price(i, point);
+        i.updated = stamp;
+    });
+    let cost = ctx.state.catalog_items.get(id).map(|i| i.unit_cost);
+    Ok(json!({ "id": id, "unit_cost": cost }))
+}
+
 fn save(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     need_write(ctx)?;
     let name = p.req_line("name", text::SHORT)?;
@@ -122,8 +185,14 @@ fn save(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
             if !ctx.state.catalog_items.get(id).is_some_and(|i| i.deleted.is_none()) {
                 return Err(EngineError::not_found(format!("catalogue item {id} not found")));
             }
+            let today = ctx.today();
             ctx.state.catalog_items.update(id, |i| {
-                (i.name, i.unit, i.unit_cost, i.cost_code, i.category, i.notes, i.updated) = (name, unit, unit_cost, code, category, notes, stamp);
+                let changed = i.unit_cost != unit_cost;
+                (i.name, i.unit, i.cost_code, i.category, i.notes, i.updated) = (name, unit, code, category, notes, stamp);
+                // Typing a different cost is recording a price for today.
+                if changed {
+                    add_price(i, PricePoint { date: today, unit_cost, vendor: None, note: String::new() });
+                }
             });
             id
         }
@@ -137,6 +206,7 @@ fn save(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
                 name,
                 unit,
                 unit_cost,
+                prices: vec![PricePoint { date: ctx.today(), unit_cost, vendor: None, note: String::new() }],
                 cost_code: code,
                 category,
                 notes,
@@ -205,12 +275,16 @@ fn import(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     }
     let (mut added, mut changed) = (0usize, 0usize);
     let stamp = ctx.stamp();
+    let on: Date = price_date(ctx, p)?;
+    let supplier = price_vendor(ctx, p)?;
     for (name, unit, unit_cost, category, code) in rows {
+        let point = PricePoint { date: on, unit_cost, vendor: supplier, note: String::new() };
         let existing = ctx.state.catalog_items.iter().find(|i| i.deleted.is_none() && i.name.eq_ignore_ascii_case(&name)).map(|i| i.id);
         match existing {
             Some(id) => {
                 ctx.state.catalog_items.update(id, |i| {
-                    (i.unit, i.unit_cost, i.category, i.updated) = (unit, unit_cost, category, stamp);
+                    (i.unit, i.category, i.updated) = (unit, category, stamp);
+                    add_price(i, point);
                     if code.is_some() {
                         i.cost_code = code;
                     }
@@ -224,6 +298,7 @@ fn import(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
                     name,
                     unit,
                     unit_cost,
+                    prices: vec![point],
                     cost_code: code,
                     category,
                     notes: String::new(),

@@ -1,6 +1,6 @@
 //! Estimating: a priced list of work by cost code with markups, which can become the budget.
 
-use buildkiosk_core::{Id, Money, Percent};
+use buildkiosk_core::{Date, Id, Money, Percent};
 use serde::{Deserialize, Serialize};
 
 use crate::common::Stamp;
@@ -50,6 +50,17 @@ pub struct Alternate {
     pub accepted: bool,
 }
 
+/// A price an item was quoted or bought at, on a day, optionally from a supplier.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PricePoint {
+    pub date: Date,
+    pub unit_cost: Money,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vendor: Option<Id<crate::directory::Vendor>>,
+    #[serde(default)]
+    pub note: String,
+}
+
 /// A thing the company prices again and again: a unit of work or material at a unit cost.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CatalogItem {
@@ -59,6 +70,9 @@ pub struct CatalogItem {
     #[serde(default)]
     pub unit: String,
     pub unit_cost: Money,
+    /// Every price kept for it, oldest first; the newest by date is the unit cost.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub prices: Vec<PricePoint>,
     /// The cost code a line made from it goes under, when it is one the project has.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cost_code: Option<Id<CostCode>>,

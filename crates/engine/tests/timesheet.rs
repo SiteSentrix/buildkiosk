@@ -156,3 +156,33 @@ fn pay_rates_overtime_crews_and_posting_labour() {
     w.err(pm, "timesheet.delete_rate", json!({"project": p, "id": rid}));
     w.assert_replay();
 }
+
+#[test]
+fn saved_crews_log_hours_together() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let sup = w.member(p, "Sue", "Super", "Superintendent");
+    let eng = w.member(p, "Eli", "Engineer", "Project engineer");
+    w.err(sup, "crew.save", json!({"project": p, "name": "Concrete", "members": [sup.raw()]}));
+    w.err(pm, "crew.save", json!({"project": p, "name": "Empty", "members": []}));
+    w.err(pm, "crew.save", json!({"project": p, "name": "Ghosts", "members": [9999]}));
+    let c =
+        w.ok(pm, "crew.save", json!({"project": p, "name": "Concrete crew", "members": [sup.raw(), eng.raw(), sup.raw()]}))["id"].as_u64().unwrap();
+    w.err(pm, "crew.save", json!({"project": p, "name": "concrete CREW", "members": [eng.raw()]}));
+    assert_eq!(w.engine.state().crews.iter().next().unwrap().members.len(), 2);
+    assert_eq!(w.ok(pm, "crew.list", json!({"project": p})).as_array().unwrap().len(), 1);
+    w.err(sup, "crew.list", json!({"project": p}));
+
+    // One call logs the crew; a crew can be joined by extra people; only admins do it.
+    w.err(sup, "timesheet.add", json!({"project": p, "date": "2026-10-12", "hours": 8, "crew": c}));
+    let r = w.ok(pm, "timesheet.add", json!({"project": p, "date": "2026-10-12", "hours": 8, "crew": c, "people": [pm.raw(), sup.raw()]}));
+    assert_eq!(r["ids"].as_array().unwrap().len(), 3, "Sue is in the crew and listed again: one entry each");
+    w.err(pm, "timesheet.add", json!({"project": p, "date": "2026-10-12", "hours": 17, "crew": c}));
+    w.err(pm, "timesheet.add", json!({"project": p, "date": "2026-10-13", "hours": 8, "crew": 9999}));
+    w.ok(pm, "crew.save", json!({"project": p, "id": c, "name": "Concrete crew", "members": [eng.raw()]}));
+    w.ok(pm, "crew.delete", json!({"project": p, "id": c}));
+    w.err(pm, "crew.delete", json!({"project": p, "id": c}));
+    w.err(pm, "timesheet.add", json!({"project": p, "date": "2026-10-13", "hours": 8, "crew": c}));
+    w.assert_replay();
+}

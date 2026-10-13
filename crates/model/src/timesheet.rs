@@ -86,3 +86,16 @@ impl OvertimeRules {
         self.multiplier.unwrap_or(Percent::from_hundredths(15_000))
     }
 }
+
+/// A named group of people who are logged together ("Concrete crew").
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Crew {
+    pub id: Id<Crew>,
+    pub project: Id<Project>,
+    pub name: String,
+    pub members: Vec<Id<Person>>,
+    pub created: Stamp,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deleted: Option<Stamp>,
+}
+record!(Crew, "crew", trash, project);

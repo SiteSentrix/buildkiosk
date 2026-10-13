@@ -61,6 +61,24 @@ pub struct Acknowledgement {
     pub stamp: Stamp,
 }
 
+/// A way bids are judged besides price, and how much it counts. Weights add up to 100.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Criterion {
+    pub name: String,
+    pub weight: u32,
+    /// Scored by the system from the leveled amounts (the lowest bid gets the top score); at most one criterion.
+    #[serde(default)]
+    pub price: bool,
+}
+
+/// The team's score of one bid on one criterion, 0 to 10.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BidScore {
+    /// The criterion, from 0.
+    pub criterion: u32,
+    pub score: u32,
+}
+
 /// A bidder's unit price for a line of the bid form.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct BidLine {
@@ -122,6 +140,9 @@ pub struct Bid {
     pub scope: Vec<ScopeResponse>,
     #[serde(default)]
     pub bond: BondReceipt,
+    /// The team's scores on the package's criteria (the price criterion is worked out, not scored).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub scores: Vec<BidScore>,
     /// The proposal and anything else the company sent.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub files: Vec<FileRef>,
@@ -171,6 +192,9 @@ pub struct BidPackage {
     /// A bid bond of this share of the bid is required with each bid.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bond_required: Option<Percent>,
+    /// What bids are judged on besides price; empty means price alone.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub criteria: Vec<Criterion>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub addenda: Vec<Addendum>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -200,6 +224,29 @@ impl BidPackage {
     /// The addenda a company has not yet acknowledged.
     pub fn unacknowledged(&self, vendor: Id<Vendor>) -> Vec<u32> {
         self.addenda.iter().map(|a| a.number).filter(|n| !self.acknowledgements.iter().any(|x| x.vendor == vendor && x.number == *n)).collect()
+    }
+
+    /// A bid's weighted total in hundredths of a point out of 10 (1000 is a perfect score), or none when the package has
+    /// no criteria or a criterion is not scored yet. The price criterion gives the lowest leveled bid the top score and
+    /// the others in proportion.
+    pub fn weighted(&self, bid: &Bid) -> Option<u32> {
+        if self.criteria.is_empty() {
+            return None;
+        }
+        let amount = |b: &Bid| b.leveled().unwrap_or(b.amount).cents();
+        let low = self.standing().iter().map(|b| amount(b)).filter(|c| *c > 0).min()?;
+        let mut total: u64 = 0;
+        for (i, c) in self.criteria.iter().enumerate() {
+            let hundredths: u64 = if c.price {
+                let mine = u64::try_from(amount(bid)).ok().filter(|m| *m > 0)?;
+                u64::try_from(low).ok()?.checked_mul(1000)? / mine
+            } else {
+                let given = bid.scores.iter().find(|s| usize::try_from(s.criterion).is_ok_and(|x| x == i))?;
+                u64::from(given.score.min(10)) * 100
+            };
+            total = total.checked_add(u64::from(c.weight).checked_mul(hundredths)? / 100)?;
+        }
+        u32::try_from(total).ok()
     }
 
     /// The bids that stand (not withdrawn), lowest first.

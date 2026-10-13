@@ -3,7 +3,6 @@
 _Status: 2026-10-12. This is the work list: take the top item, finish it end to end (engine, tests, pages), then the next._
 Procore's tools only for now; BuildKiosk-only extras stay parked (AGENTS.md).
 
-0. **Hosting for other companies (owner direction, 2026-10-13)**: one server serving many companies by hostname, with provisioning, per-company limits and export. Designed in [`docs/hosting.md`](hosting.md); not started. It comes before the bidder portal, which needs to know which company a link belongs to.
 1. ~~**RFIs**~~ done (2026-10-13): files, change history, distribution list, CSV, PDF, files on individual responses.
 2. ~~**Web UI for directory and permissions**~~ done (2026-10-13): team page edits template, role and project admin, per-tool overrides on each member (`/projects/N/team/P`), project settings (`/projects/N/settings`), company settings (`/settings`), merging duplicate companies (`vendor.merge`, on the company page), edit companies, permission templates with the level on every tool, person edit, deactivate and remove, admins set passwords.
 3. ~~**Submittals**~~ done (2026-10-13): ordered reviews, register CSV import (pasted or uploaded file) and export, specification sections linked by number, files on reviews, in-app and email notifications, reviewer and distribution groups (`reviewer_groups`, `distribution_groups`), a submittal log report with totals, decisions, days in review, page and PDF.

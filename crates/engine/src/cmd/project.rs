@@ -180,6 +180,7 @@ fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         observation_types: Vec::new(),
         active: true,
         budget_locked: false,
+        calendar: Default::default(),
         created: stamp,
         updated: stamp,
         deleted: None,

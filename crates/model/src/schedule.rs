@@ -6,15 +6,83 @@ use serde::{Deserialize, Serialize};
 use crate::common::Stamp;
 use crate::directory::Vendor;
 use crate::project::Project;
-use crate::record;
+use crate::{choice, record};
 
-/// A finish-to-start link: the task can't start until `task` has finished, plus `lag` working
+choice! {
+    /// How a task depends on its predecessor.
+    #[derive(Default)]
+    pub enum LinkKind {
+        /// The task can't start until the predecessor has finished (the usual one).
+        #[default]
+        FinishToStart = ("fs", "Finish to start"),
+        /// The task can't start until the predecessor has started.
+        StartToStart = ("ss", "Start to start"),
+        /// The task can't finish until the predecessor has finished.
+        FinishToFinish = ("ff", "Finish to finish"),
+        /// The task can't finish until the predecessor has started.
+        StartToFinish = ("sf", "Start to finish"),
+    }
+}
+
+/// A link to a predecessor: what it holds the task to depends on the `kind`, plus `lag` working
 /// days (negative for an overlap).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Link {
     pub task: Id<ScheduleTask>,
     #[serde(default)]
     pub lag: i32,
+    #[serde(default)]
+    pub kind: LinkKind,
+}
+
+/// A day off for the whole project, with what it is ("Labor Day").
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Holiday {
+    pub date: Date,
+    #[serde(default)]
+    pub name: String,
+}
+
+/// The days a project's work is done on: which weekdays, minus the holidays. Schedule dates and
+/// durations are counted in these days.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorkCalendar {
+    /// Monday first: whether work is done on that weekday.
+    pub days: [bool; 7],
+    /// Oldest first, one per date.
+    #[serde(default)]
+    pub holidays: Vec<Holiday>,
+}
+
+impl Default for WorkCalendar {
+    /// Monday to Friday.
+    fn default() -> Self {
+        WorkCalendar { days: [true, true, true, true, true, false, false], holidays: Vec::new() }
+    }
+}
+
+/// Most holidays one calendar keeps.
+pub const MAX_HOLIDAYS: usize = 400;
+
+impl WorkCalendar {
+    /// Whether work is done on `d`.
+    pub fn is_working(&self, d: Date) -> bool {
+        self.days.get(d.weekday().index()).copied().unwrap_or(false) && self.holiday(d).is_none()
+    }
+
+    pub fn holiday(&self, d: Date) -> Option<&Holiday> {
+        self.holidays.binary_search_by_key(&d, |h| h.date).ok().and_then(|i| self.holidays.get(i))
+    }
+
+    /// How many days a week are worked (before holidays).
+    pub fn days_per_week(&self) -> usize {
+        self.days.iter().filter(|d| **d).count()
+    }
+
+    /// A calendar needs at least one working day a week.
+    pub fn is_valid(&self) -> bool {
+        self.days_per_week() > 0 && self.holidays.len() <= MAX_HOLIDAYS && self.holidays.windows(2).all(|w| matches!(w, [a, b] if a.date < b.date))
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

@@ -59,6 +59,7 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 - 2026-10-12: RFI notifications.
 - 2026-10-13: Email — notifications are emailed through the company's own SMTP server (settings and test send on an admin page, per-person opt-out, links back to the app, nothing sent twice).
 - 2026-10-13: Sheet viewer — PDF pages drawn on the server, click-to-place markups kept per revision, revision overlay; no JavaScript or WASM needed.
+- 2026-10-13: Schedule: start-to-start, finish-to-finish and start-to-finish links, a working calendar per project (weekdays and holidays) used for all date maths, and a look-ahead page.
 - 2026-10-13: Measuring on sheets: per-page scale, lengths and areas worked out by the engine, live readout in the browser viewer; revision, page and compare without reloading; module gzipped on the wire.
 - 2026-10-13: Browser sheet viewer in WebAssembly (`crates/viewer`): smooth pan and zoom, sharp redraw, click-to-place markups through the same command; built by `cargo xtask viewer`, optional, with the server-drawn viewer as fallback. First client code in the project (owner-approved exception, AGENTS.md).
 - 2026-10-13: Documents (multi-file upload, zip download, folder moves, deleted files page) and drawings (sheet-set upload, publish a revision, sheets linked to RFIs and work items).

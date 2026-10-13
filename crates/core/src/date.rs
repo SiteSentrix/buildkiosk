@@ -25,6 +25,19 @@ impl Weekday {
     pub const ALL: [Weekday; 7] =
         [Weekday::Monday, Weekday::Tuesday, Weekday::Wednesday, Weekday::Thursday, Weekday::Friday, Weekday::Saturday, Weekday::Sunday];
 
+    /// 0 for Monday to 6 for Sunday.
+    pub fn index(self) -> usize {
+        match self {
+            Weekday::Monday => 0,
+            Weekday::Tuesday => 1,
+            Weekday::Wednesday => 2,
+            Weekday::Thursday => 3,
+            Weekday::Friday => 4,
+            Weekday::Saturday => 5,
+            Weekday::Sunday => 6,
+        }
+    }
+
     pub fn is_weekend(self) -> bool {
         matches!(self, Weekday::Saturday | Weekday::Sunday)
     }

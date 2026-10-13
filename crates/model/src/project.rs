@@ -61,6 +61,9 @@ pub struct Project {
     /// The original budget is locked: only budget changes alter it.
     #[serde(default)]
     pub budget_locked: bool,
+    /// The days work is done on, for the schedule.
+    #[serde(default)]
+    pub calendar: crate::schedule::WorkCalendar,
     pub created: Stamp,
     pub updated: Stamp,
     #[serde(default, skip_serializing_if = "Option::is_none")]

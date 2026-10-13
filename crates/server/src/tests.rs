@@ -1339,6 +1339,39 @@ async fn schedule_page_gantt_and_csv() {
     let (st, h, csv) = send(&app, get("/projects/1/schedule.csv")).await;
     assert_eq!(st, StatusCode::OK);
     assert!(h.get("content-disposition").is_some() && csv.contains("Foundations,2026-10-15,2026-10-20,4"), "{csv}");
+
+    // The working calendar: set by the form, shown on its page, used by the dates.
+    let (st, _, cal) = send(&app, get("/projects/1/schedule/calendar")).await;
+    assert!(st == StatusCode::OK && cal.contains("name=\"days\" value=\"mon-fri\"") && cal.contains("Save calendar"), "{cal}");
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/do/schedule.calendar_set",
+            &session,
+            format!("_csrf={csrf}&project=1&days=mon-sat&holidays=2026-10-14+Founders+Day&_next=%2Fprojects%2F1%2Fschedule%2Fcalendar&_back=%2Fprojects%2F1%2Fschedule%2Fcalendar"),
+        ),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, cal) = send(&app, get("/projects/1/schedule/calendar")).await;
+    assert!(cal.contains("value=\"mon-sat\"") && cal.contains("2026-10-14 Founders Day"), "{cal}");
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/do/schedule.calendar_set",
+            &session,
+            format!("_csrf={csrf}&project=1&days=nope&_next=%2F&_back=%2Fprojects%2F1%2Fschedule%2Fcalendar"),
+        ),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("error="), "a bad weekday is refused");
+
+    // A link with a kind, shown the way it is written, and the look ahead.
+    send(&app, post("/do/schedule.update", &session, format!("_csrf={csrf}&project=1&id=2&predecessors=1SS%2B1"))).await;
+    let (_, _, edit) = send(&app, get("/projects/1/schedule/2")).await;
+    assert!(edit.contains("value=\"1SS+1\"") && edit.contains("start to start"), "{edit}");
+    let (st, _, ahead) = send(&app, get("/projects/1/schedule/lookahead?weeks=2&from=2026-10-12")).await;
+    assert!(st == StatusCode::OK && ahead.contains("Week 1") && ahead.contains("Excavate") && ahead.contains("Foundations"), "{ahead}");
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }

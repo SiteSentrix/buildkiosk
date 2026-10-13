@@ -1998,7 +1998,7 @@ async fn forms_template_fill_and_submit() {
         post(
             "/do/form_template.create",
             &ada,
-            format!("_csrf={csrf}&_next=/projects/1/forms/templates&project=1&name=Pre-pour&description=&fields.0.label=Rebar+inspected&fields.0.kind=yes_no&fields.0.options=&fields.0.required=true&fields.1.label=Mix&fields.1.kind=choice&fields.1.options=3000+psi%2C+4000+psi&fields.2.label=&fields.2.kind=text&fields.2.options="),
+            format!("_csrf={csrf}&_next=/projects/1/forms/templates&project=1&name=Pre-pour&description=&fields.0.label=Rebar+inspected&fields.0.kind=yes_no&fields.0.options=&fields.0.required=true&fields.1.label=Mix&fields.1.kind=choice&fields.0.show_if_question=&fields.0.show_if_answer=&fields.1.show_if_question=1&fields.1.show_if_answer=yes&fields.1.options=3000+psi%2C+4000+psi&fields.2.label=&fields.2.kind=text&fields.2.options=&signers=Inspector"),
         ),
     )
     .await;
@@ -2023,6 +2023,30 @@ async fn forms_template_fill_and_submit() {
     assert!(detail.contains("Submitted") && detail.contains("Reopen") && detail.contains("4000 psi"), "{detail}");
     let (_, _, list) = send(&app, get("/projects/1/forms?status=submitted")).await;
     assert!(list.contains("Pre-pour"));
+    // Signing as the one role, then the report and the recurring-form schedule.
+    assert!(detail.contains("Type your full name"), "{detail}");
+    send(&app, post("/do/form.sign", &ada, format!("_csrf={csrf}&project=1&id=1&role=Inspector&name=Ada+Admin"))).await;
+    let (_, _, signed) = send(&app, get("/projects/1/forms/1")).await;
+    assert!(signed.contains("Ada Admin") && !signed.contains("Not signed"), "{signed}");
+    let (st, _, pdf) = send(&app, get("/projects/1/forms/1/pdf")).await;
+    assert_eq!(st, StatusCode::OK, "{pdf}");
+    let (_, _, rep) = send(&app, get("/projects/1/forms/report?template=1")).await;
+    assert!(rep.contains("Rebar inspected") && rep.contains("4000 psi") && rep.contains("Export CSV"), "{rep}");
+    let (st, h, csv) = send(&app, get("/projects/1/forms/report.csv?template=1&status=submitted")).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(
+        h.get("content-disposition").is_some()
+            && csv.starts_with("Number,Title,Status,Started,Started by,Rebar inspected,Mix")
+            && csv.contains("Slab A,Submitted"),
+        "{csv}"
+    );
+    send(
+        &app,
+        post("/do/form_schedule.save", &ada, format!("_csrf={csrf}&project=1&template=1&every=weekly&assignee=1&title=Weekly&next=2026-10-01")),
+    )
+    .await;
+    let (_, _, tpl) = send(&app, get("/projects/1/forms/templates")).await;
+    assert!(tpl.contains("Recurring forms") && tpl.contains("Weekly") && tpl.contains("Only if question no."), "{tpl}");
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }

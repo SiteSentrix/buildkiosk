@@ -16,7 +16,7 @@ use crate::correspondence::Correspondence;
 use crate::document::{Document, Folder};
 use crate::drawing::Drawing;
 use crate::estimate::{Assembly, CatalogItem, Estimate};
-use crate::form::{FormRecord, FormTemplate};
+use crate::form::{FormRecord, FormSchedule, FormTemplate};
 use crate::incident::Incident;
 use crate::meeting::Meeting;
 use crate::photo::Photo;
@@ -145,6 +145,7 @@ tables! {
     correspondence: Correspondence,
     meetings: Meeting,
     form_templates: FormTemplate,
+    form_schedules: FormSchedule,
     form_records: FormRecord,
     tasks: Task,
     spec_sections: SpecSection,

@@ -52,7 +52,7 @@ pub fn gallery(req: &Req<'_>, id: Id<Project>, album: &str, q: &str) -> Markup {
             div class="gallery" {
                 @for x in &shown {
                     a class="shot" href=(format!("{base}/{}", x.id)) {
-                        img src=(format!("{base}/{}/image", x.id)) alt=(if x.caption.is_empty() { x.file.name.as_str() } else { x.caption.as_str() }) loading="lazy" width="220" height="165";
+                        img src=(format!("{base}/{}/thumb", x.id)) alt=(if x.caption.is_empty() { x.file.name.as_str() } else { x.caption.as_str() }) loading="lazy" width="220" height="165";
                         span class="cap" { (if x.caption.is_empty() { x.file.name.as_str() } else { x.caption.as_str() }) }
                         span class="muted small" { (x.taken.map(|d| d.to_string()).unwrap_or_default()) @if !x.album.is_empty() { " · " (x.album) } }
                     }

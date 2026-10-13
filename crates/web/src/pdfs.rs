@@ -642,6 +642,13 @@ pub fn inspection(req: &Req<'_>, id: Id<Project>, iid: Id<buildkiosk_engine::mod
         ("Manager".into(), person(state, i.manager)),
         ("Scheduled".into(), i.scheduled.map(|d| d.pretty()).unwrap_or_else(|| "—".into())),
         ("Answered".into(), format!("{} of {}, {} failed", i.answered(), i.items.len(), i.failed())),
+        (
+            "Signed".into(),
+            i.signed
+                .as_ref()
+                .map(|s| format!("{}, {}", s.name, req.when(s.at)))
+                .unwrap_or_else(|| if i.require_signature { "Signature required: ____________________".into() } else { "—".into() }),
+        ),
     ]));
     let mut section: Option<&str> = None;
     let mut rows: Vec<Vec<String>> = Vec::new();

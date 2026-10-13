@@ -213,6 +213,7 @@ pub fn router(app: Shared) -> Router {
                 }),
             )
             .route("/projects/{id}/inspections/{iid}/answers", post(inspection_answers))
+            .route("/projects/{id}/inspections/{iid}/line-file", post(inspection_line_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
             .route("/projects/{id}/inspections/{iid}/files/{sha}", get(inspection_file))
             .route("/projects/{id}/inspections/{iid}/upload", post(inspection_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
             .route("/projects/{id}/daily-logs", get(daily_log_list))
@@ -232,6 +233,19 @@ pub fn router(app: Shared) -> Router {
             .route("/projects/{id}/daily-logs/save", post(daily_log_save_new))
             .route("/projects/{id}/daily-logs/{lid}", get(daily_log_detail))
             .route("/projects/{id}/daily-logs/{lid}/edit", get(daily_log_edit))
+            .route(
+                "/projects/{id}/daily-logs/{lid}/files/{sha}",
+                get(|s: State<Shared>, h: HeaderMap, Path((id, lid, sha)): Path<(u64, u64, String)>| async move {
+                    file_download(s.0, h, Kind::DAILY_LOG, id, lid, sha).await
+                }),
+            )
+            .route(
+                "/projects/{id}/daily-logs/{lid}/upload",
+                post(|s: State<Shared>, h: HeaderMap, Path((id, lid)): Path<(u64, u64)>, m: Multipart| async move {
+                    file_upload(s.0, h, Kind::DAILY_LOG, id, lid, m).await
+                })
+                .layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)),
+            )
             .route("/projects/{id}/daily-logs/{lid}/save", post(daily_log_save))
             .route("/projects/{id}/specifications", get(specifications))
             .route("/projects/{id}/transmittals", get(transmittals_page))
@@ -250,6 +264,7 @@ pub fn router(app: Shared) -> Router {
             .route("/projects/{id}/photos/upload", post(photo_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
             .route("/projects/{id}/photos/{pid}", get(photo_page))
             .route("/projects/{id}/photos/{pid}/image", get(photo_image))
+            .route("/projects/{id}/photos/{pid}/thumb", get(photo_thumb))
             .route("/projects/{id}/photos/{pid}/download", get(photo_download))
             .route("/projects/{id}/correspondence", get(correspondence_page))
             .route("/projects/{id}/correspondence/new", get(correspondence_new))
@@ -985,6 +1000,54 @@ async fn inspection_upload(State(app): State<Shared>, headers: HeaderMap, Path((
     file_upload(app, headers, Kind::INSPECTION, id, iid, multipart).await
 }
 
+/// Attaches a file (a photo) to one checklist line: a multipart form with `_csrf`, `line` and `file`.
+async fn inspection_line_upload(
+    State(app): State<Shared>,
+    headers: HeaderMap,
+    Path((id, iid)): Path<(u64, u64)>,
+    mut multipart: Multipart,
+) -> Response {
+    let back = format!("/projects/{id}/inspections/{iid}");
+    let too_big = "The upload failed or the file is larger than 25 MB.";
+    let (mut token, mut line, mut file) = (String::new(), String::new(), None);
+    loop {
+        let field = match multipart.next_field().await {
+            Ok(Some(f)) => f,
+            Ok(None) => break,
+            Err(_) => return redirect(&with_flash(&back, false, too_big)),
+        };
+        let name = field.name().unwrap_or("").to_string();
+        let filename = field.file_name().unwrap_or("file").to_string();
+        let mime = field.content_type().unwrap_or("application/octet-stream").to_string();
+        let Ok(bytes) = field.bytes().await else { return redirect(&with_flash(&back, false, too_big)) };
+        match name.as_str() {
+            "_csrf" => token = String::from_utf8_lossy(&bytes).into_owned(),
+            "line" => line = String::from_utf8_lossy(&bytes).into_owned(),
+            "file" if file.is_none() => file = Some((filename, mime, bytes)),
+            _ => {}
+        }
+    }
+    let mut inner = app.lock();
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    if !auth::csrf_ok(app.secret(), &s.cookie, &token) {
+        return plain(StatusCode::FORBIDDEN, "The form expired. Go back, reload the page and try again.");
+    }
+    let Some((name, mime, bytes)) = file.filter(|(_, _, b)| !b.is_empty()) else {
+        return redirect(&with_flash(&back, false, "Choose a file to attach."));
+    };
+    let Ok(line) = line.trim().parse::<u32>() else { return redirect(&with_flash(&back, false, "Choose the line the file belongs to.")) };
+    let Some(t) = inner.tenant.as_mut() else { return redirect("/setup") };
+    let (sha256, size) = match t.store.blobs.put(&bytes) {
+        Ok(x) => x,
+        Err(e) => return redirect(&with_flash(&back, false, &e.to_string())),
+    };
+    let params = json!({"project": id, "id": iid, "line": line, "sha256": sha256, "name": name, "size": size, "mime": mime});
+    match inner.run(Actor::Person(s.person), "inspection.attach_line", &params) {
+        Ok(_) => redirect(&with_flash(&back, true, "File attached to the line.")),
+        Err(e) => redirect(&with_flash(&back, false, &e.to_string())),
+    }
+}
+
 /// Saves the checklist form (`line.N.answer`, `line.N.note`), and completes the inspection when
 /// asked to.
 async fn inspection_answers(State(app): State<Shared>, headers: HeaderMap, Path((id, iid)): Path<(u64, u64)>, body: Bytes) -> Response {
@@ -1014,7 +1077,8 @@ async fn inspection_answers(State(app): State<Shared>, headers: HeaderMap, Path(
         return redirect(&with_flash(&back, false, &e.to_string()));
     }
     if !get_form(&form, "_complete").is_empty() {
-        return match inner.run(actor, "inspection.complete", &json!({"project": id, "id": iid})) {
+        let params = json!({"project": id, "id": iid, "signature": get_form(&form, "signature")});
+        return match inner.run(actor, "inspection.complete", &params) {
             Ok(_) => redirect(&with_flash(&back, true, "Inspection completed.")),
             Err(e) => redirect(&with_flash(&back, false, &format!("Answers saved, but not completed: {e}"))),
         };
@@ -1410,6 +1474,53 @@ async fn photo_image(State(app): State<Shared>, headers: HeaderMap, Path((id, pi
     let mut res = bytes.into_response();
     res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static(kind));
     res.headers_mut().insert("cache-control", HeaderValue::from_static("private, max-age=3600"));
+    res
+}
+
+/// The longest side of a gallery thumbnail, in pixels.
+const THUMB_SIDE: u32 = 360;
+
+/// A small copy of a picture: JPEG for a JPEG, PNG for the rest. `None` when the bytes can't be
+/// decoded or are unreasonably large, in which case the full picture is sent instead.
+fn thumbnail(bytes: &[u8], jpeg: bool) -> Option<Vec<u8>> {
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(20_000);
+    limits.max_image_height = Some(20_000);
+    limits.max_alloc = Some(512 * 1024 * 1024);
+    let mut reader = image::ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format().ok()?;
+    reader.limits(limits);
+    let img = reader.decode().ok()?;
+    let small = img.thumbnail(THUMB_SIDE, THUMB_SIDE);
+    let mut out = std::io::Cursor::new(Vec::new());
+    if jpeg {
+        image::DynamicImage::ImageRgb8(small.to_rgb8()).write_to(&mut out, image::ImageFormat::Jpeg).ok()?;
+    } else {
+        small.write_to(&mut out, image::ImageFormat::Png).ok()?;
+    }
+    Some(out.into_inner())
+}
+
+/// A photo's thumbnail for the gallery; falls back to the picture itself if it can't be shrunk.
+async fn photo_thumb(State(app): State<Shared>, headers: HeaderMap, Path((id, pid)): Path<(u64, u64)>) -> Response {
+    let (path, file) = match photo_file(&app, &headers, id, pid) {
+        Ok(x) => x,
+        Err(r) => return *r,
+    };
+    let bytes = match photo_bytes(path).await {
+        Ok(b) => b,
+        Err(r) => return *r,
+    };
+    let Some(kind) = sniff_image(&bytes).filter(|k| *k == file.mime) else { return plain(StatusCode::NOT_FOUND, "Not a picture") };
+    let jpeg = kind == "image/jpeg";
+    let source = bytes.clone();
+    let small = tokio::task::spawn_blocking(move || thumbnail(&source, jpeg)).await.ok().flatten();
+    let (body, kind) = match small {
+        Some(t) => (Bytes::from(t), if jpeg { "image/jpeg" } else { "image/png" }),
+        None => (bytes, kind),
+    };
+    let mut res = body.into_response();
+    res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static(kind));
+    res.headers_mut().insert("cache-control", HeaderValue::from_static("private, max-age=86400"));
     res
 }
 
@@ -2565,6 +2676,7 @@ impl Kind {
     const SUBMITTAL: Kind = Kind { attach: "submittal.attach", path: "submittals", files: submittal_files };
     const INSPECTION: Kind = Kind { attach: "inspection.attach", path: "inspections", files: inspection_files };
     const CORRESPONDENCE: Kind = Kind { attach: "correspondence.attach", path: "correspondence", files: correspondence_files };
+    const DAILY_LOG: Kind = Kind { attach: "daily_log.attach", path: "daily-logs", files: daily_log_files };
     const FORM: Kind = Kind { attach: "form.attach", path: "forms", files: form_files };
     const MEETING: Kind = Kind { attach: "meeting.attach", path: "meetings", files: meeting_files };
     const TRANSMITTAL: Kind = Kind { attach: "transmittal.attach", path: "transmittals", files: transmittal_files };
@@ -2663,12 +2775,20 @@ fn submittal_files(state: &CompanyState, actor: Actor, project: u64, item: u64) 
         .map(|r| r.attachments.iter().chain(r.reviews.iter().flat_map(|v| v.attachments.iter())).cloned().collect())
 }
 
+fn daily_log_files(state: &CompanyState, actor: Actor, project: u64, item: u64) -> Option<Vec<FileRef>> {
+    state
+        .daily_logs
+        .get(Id::new(item))
+        .filter(|r| r.project == Id::new(project) && view::can_see_daily_log(state, actor, r))
+        .map(|r| r.attachments.clone())
+}
+
 fn inspection_files(state: &CompanyState, actor: Actor, project: u64, item: u64) -> Option<Vec<FileRef>> {
     state
         .inspections
         .get(Id::new(item))
         .filter(|r| r.project == Id::new(project) && view::can_see_inspection(state, actor, r))
-        .map(|r| r.attachments.clone())
+        .map(|r| r.attachments.iter().chain(r.items.iter().flat_map(|l| l.attachments.iter())).cloned().collect())
 }
 
 fn work_files<T: WorkItem>(state: &CompanyState, actor: Actor, project: u64, item: u64) -> Option<Vec<FileRef>> {

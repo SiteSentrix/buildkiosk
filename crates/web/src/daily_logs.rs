@@ -161,6 +161,23 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, lid: Id<DailyLog>) -> Markup {
                 } }
             }
         }
+        div class="card" {
+            h2 { "Files" }
+            @if l.attachments.is_empty() { p class="muted" { "No files attached." } }
+            @for a in &l.attachments {
+                div class="row" {
+                    a href=(format!("{here}/files/{}", a.sha256)) { (a.name) } span class="muted small" { (crate::pages::human_size(a.size)) }
+                    @if editable { (button_form(req, "daily_log.detach", &here, &[("project", id.to_string()), ("id", l.id.to_string()), ("sha256", a.sha256.clone())], "Remove", "small danger")) }
+                }
+            }
+            @if editable {
+                form method="post" action=(format!("{here}/upload")) enctype="multipart/form-data" class="stack" {
+                    input type="hidden" name="_csrf" value=(req.csrf);
+                    input type="file" name="file" required aria-label="File to attach";
+                    button type="submit" class="btn small" { "Attach file" }
+                }
+            }
+        }
         @if !l.visitors.is_empty() {
             div class="card" {
                 h2 { "Visitors" }

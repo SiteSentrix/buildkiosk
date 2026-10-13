@@ -144,3 +144,49 @@ fn templates_are_edited_and_copied_between_projects() {
     assert_eq!(w.engine.state().inspection_templates.iter().filter(|t| t.project == q && t.items.len() == 2).count(), 1);
     w.assert_replay();
 }
+
+#[test]
+fn signatures_line_files_and_repeating_inspections() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let reader = w.member(p, "Rae", "Reader", "Read only");
+    let id = w.ok(pm, "inspection.create", json!({"project": p, "title": "Weekly site walk", "items": "# Site\nFences up\nExits clear", "inspector": pm, "require_signature": true, "repeat_days": 7, "scheduled": "2026-10-13"}))["id"].as_u64().unwrap();
+    let get = |w: &World, id: u64| w.engine.state().inspections.iter().find(|i| i.id.raw() == id).unwrap().clone();
+    w.ok(
+        pm,
+        "inspection.answer",
+        json!({"project": p, "id": id, "answers": [{"line": 1, "answer": "pass"}, {"line": 2, "answer": "fail", "note": "Blocked by pallets"}]}),
+    );
+
+    // A photo on a failed line: only the inspector or manager adds one; at most five.
+    let sha = "a".repeat(64);
+    w.ok(pm, "inspection.attach_line", json!({"project": p, "id": id, "line": 2, "sha256": sha, "name": "pallets.jpg", "size": 10}));
+    w.err(reader, "inspection.attach_line", json!({"project": p, "id": id, "line": 2, "sha256": "b".repeat(64), "name": "x.jpg", "size": 1}));
+    w.err(pm, "inspection.attach_line", json!({"project": p, "id": id, "line": 9, "sha256": "c".repeat(64), "name": "x.jpg", "size": 1}));
+    for n in 0..4 {
+        w.ok(pm, "inspection.attach_line", json!({"project": p, "id": id, "line": 2, "sha256": format!("{n:064}"), "name": "x.jpg", "size": 1}));
+    }
+    w.err(pm, "inspection.attach_line", json!({"project": p, "id": id, "line": 2, "sha256": "d".repeat(64), "name": "x.jpg", "size": 1}));
+    w.ok(pm, "inspection.detach_line", json!({"project": p, "id": id, "line": 2, "sha256": "0".repeat(64)}));
+    w.err(pm, "inspection.detach_line", json!({"project": p, "id": id, "line": 2, "sha256": "0".repeat(64)}));
+    assert_eq!(get(&w, id).items[1].attachments.len(), 4);
+
+    // Signing is required; completing starts the next one, once.
+    w.err(pm, "inspection.complete", json!({"project": p, "id": id}));
+    w.err(pm, "inspection.complete", json!({"project": p, "id": id, "signature": "   "}));
+    w.ok(pm, "inspection.complete", json!({"project": p, "id": id, "signature": "Paula Manager"}));
+    let done = get(&w, id);
+    assert_eq!(done.signed.as_ref().unwrap().name, "Paula Manager");
+    let next = done.next.unwrap();
+    let successor = get(&w, next.raw());
+    assert_eq!((successor.number, successor.answered(), successor.repeat_days, successor.require_signature), (2, 0, Some(7), true));
+    assert!(successor.items.iter().all(|i| i.attachments.is_empty() && i.punch.is_none()));
+    w.ok(pm, "inspection.reopen", json!({"project": p, "id": id}));
+    assert!(get(&w, id).signed.is_none(), "reopening clears the signature");
+    w.ok(pm, "inspection.complete", json!({"project": p, "id": id, "signature": "Paula Manager"}));
+    assert_eq!(w.engine.state().inspections.iter().count(), 2, "completing again doesn't start another");
+    w.ok(pm, "inspection.update", json!({"project": p, "id": next.raw(), "repeat_days": "", "require_signature": false}));
+    assert_eq!(get(&w, next.raw()).repeat_days, None);
+    w.assert_replay();
+}

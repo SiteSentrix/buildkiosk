@@ -13,6 +13,48 @@ use crate::layout::{self, Nav, Req, button_form, command_form, empty, field};
 use crate::pages::{dash, human_size, not_found, project_for, user_options};
 
 /// Whether line `n` opens a new, named section.
+/// Pass, fail, N/A and unanswered counts per section, in checklist order.
+pub fn section_scores(i: &Inspection) -> Vec<(String, [usize; 4])> {
+    let mut out: Vec<(String, [usize; 4])> = Vec::new();
+    for item in &i.items {
+        let name = if item.section.is_empty() { "(no section)".to_string() } else { item.section.clone() };
+        if out.last().is_none_or(|(n, _)| *n != name) {
+            out.push((name, [0; 4]));
+        }
+        if let Some((_, c)) = out.last_mut() {
+            let slot = match item.answer {
+                Some(Answer::Pass) => 0,
+                Some(Answer::Fail) => 1,
+                Some(Answer::NotApplicable) => 2,
+                None => 3,
+            };
+            if let Some(n) = c.get_mut(slot) {
+                *n += 1;
+            }
+        }
+    }
+    out
+}
+
+/// The files on one checklist line, with a remove button for the people who can answer.
+fn line_files(
+    req: &Req<'_>,
+    here: &str,
+    ids: &[(&str, String); 2],
+    n: usize,
+    item: &buildkiosk_engine::model::inspection::ChecklistItem,
+    removable: bool,
+) -> Markup {
+    html! {
+        @for a in &item.attachments {
+            div class="row small" {
+                a href=(format!("{here}/files/{}", a.sha256)) { (a.name) } span class="muted" { (human_size(a.size)) }
+                @if removable { (button_form(req, "inspection.detach_line", here, &[ids[0].clone(), ids[1].clone(), ("line", (n + 1).to_string()), ("sha256", a.sha256.clone())], "Remove", "small danger")) }
+            }
+        }
+    }
+}
+
 /// A template's checklist as the text the form takes: `# Section` lines and one line per item.
 fn items_text(items: &[buildkiosk_engine::model::inspection::TemplateItem]) -> String {
     let mut out = String::new();
@@ -199,7 +241,11 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, iid: Id<Inspection>, history: &[Jo
                                         }
                                     }
                                     input type="text" name=(format!("line.{n}.note")) value=(item.note) placeholder="Note (optional)" aria-label=(format!("Note for line {}", n + 1));
+                                    (line_files(req, &here, &ids, n, item, true))
                                 }
+                            }
+                            @if i.require_signature {
+                                (field("Sign to complete (type your full name)", "signature", false, false, html! { input type="text" id="signature" name="signature" maxlength="100" autocomplete="name"; }))
                             }
                             div class="form-actions" {
                                 button type="submit" class="btn" { "Save answers" }
@@ -215,8 +261,22 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, iid: Id<Inspection>, history: &[Jo
                                     span { @if let Some(a) = item.answer { (answer_pill(a)) } @else { span class="muted" { "Not answered" } } }
                                 }
                                 @if !item.note.is_empty() { p class="prose" { (item.note) } }
+                                (line_files(req, &here, &ids, n, item, false))
                                 @if let Some(pid) = item.punch { p class="small" { a href=(format!("/projects/{id}/punch-list/{pid}")) { "Punch item raised" } } }
                             }
+                        }
+                    }
+                }
+                @if editing {
+                    div class="card" {
+                        h2 { "Add a photo to a line" }
+                        form method="post" action=(format!("{here}/line-file")) enctype="multipart/form-data" class="stack" {
+                            input type="hidden" name="_csrf" value=(req.csrf);
+                            div class="form-grid" {
+                                (field("Line", "line", true, false, html! { select id="line" name="line" required { @for (n, item) in i.items.iter().enumerate() { option value=(n + 1) { (n + 1) ". " (item.text) } } } }))
+                                (field("File", "line_file", true, false, html! { input type="file" id="line_file" name="file" required; }))
+                            }
+                            div class="form-actions" { button type="submit" class="btn small" { "Attach to line" } }
                         }
                     }
                 }
@@ -247,6 +307,21 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, iid: Id<Inspection>, history: &[Jo
                         dt { "Manager" } dd { @if let Some(x) = i.manager { (view::person_name(state, x)) } @else { "—" } }
                         dt { "Scheduled" } dd { @if let Some(d) = i.scheduled { span class=(if i.is_overdue(req.today()) { "overdue" } else { "" }) { (d.pretty()) } } @else { "—" } }
                         @if let Some(c) = i.completed { dt { "Completed" } dd { (req.when(c.at)) } }
+                        @if let Some(sig) = &i.signed { dt { "Signed" } dd { (sig.name) " · " (req.when(sig.at)) } }
+                        @else if i.require_signature { dt { "Signature" } dd { "Required to complete" } }
+                        @if let Some(d) = i.repeat_days { dt { "Repeats" } dd { "Every " (d) " days" } }
+                        @if let Some(n) = i.next { dt { "Next" } dd { a href=(format!("{base}/{n}")) { "Next inspection" } } }
+                    }
+                }
+                @if i.items.iter().any(|x| !x.section.is_empty()) {
+                    div class="card" {
+                        h2 { "Sections" }
+                        table class="data" {
+                            thead { tr { th { "Section" } th class="num" { "Pass" } th class="num" { "Fail" } th class="num" { "N/A" } th class="num" { "Open" } } }
+                            tbody { @for (name, c) in section_scores(i) { tr {
+                                td { (name) } td class="num" { (c[0]) } td class="num" { span class=(if c[1] > 0 { "overdue" } else { "" }) { (c[1]) } } td class="num" { (c[2]) } td class="num" { (c[3]) }
+                            } } }
+                        }
                     }
                 }
                 div class="card" {
@@ -336,6 +411,11 @@ pub fn form(req: &Req<'_>, id: Id<Project>, existing: Option<Id<Inspection>>) ->
                     (field("Kind", "kind", false, false, html! { input type="text" id="kind" name="kind" value=(text(|i| i.kind.clone())); }))
                     (field("Inspector", "inspector", false, false, html! { select id="inspector" name="inspector" { option value="" { "—" } @for x in &people { option value=(x.id) selected[Some(x.id) == inspector] { (x.name()) } } } }))
                     (field("Manager", "manager", false, false, html! { select id="manager" name="manager" { @for x in &people { option value=(x.id) selected[Some(x.id) == manager] { (x.name()) } } } }))
+                    (field("Repeat every (days, blank for once)", "repeat_days", false, false, html! { input type="number" min="1" max="365" id="repeat_days" name="repeat_days" value=(current.and_then(|i| i.repeat_days).map(|d| d.to_string()).unwrap_or_default()); }))
+                    div class="field full" {
+                        input type="hidden" name="require_signature" value="false";
+                        label class="check" { input type="checkbox" name="require_signature" value="true" checked[current.is_some_and(|i| i.require_signature)]; "The inspector must sign (type their name) to complete it" }
+                    }
                     (field("Scheduled for", "scheduled", false, false, html! { input type="date" id="scheduled" name="scheduled" value=(current.and_then(|i| i.scheduled).map(|d| d.to_string()).unwrap_or_default()); }))
                     @if current.is_none() {
                         (field("Checklist lines (when no template)", "items", false, true, html! { textarea id="items" name="items" class="short" placeholder="# Section heading\nOne checklist line per line" {} }))

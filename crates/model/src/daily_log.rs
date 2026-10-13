@@ -117,6 +117,9 @@ pub struct DailyLog {
     pub deliveries: Vec<Delivery>,
     #[serde(default)]
     pub visitors: Vec<Visitor>,
+    /// Photos and other files for the day.
+    #[serde(default)]
+    pub attachments: Vec<crate::common::FileRef>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub submitted: Option<Stamp>,
     pub created: Stamp,

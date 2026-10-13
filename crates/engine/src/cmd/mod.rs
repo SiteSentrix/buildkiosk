@@ -34,6 +34,7 @@ pub mod schedule;
 pub mod timesheet;
 
 // -- financials
+pub mod bidding;
 pub mod budget;
 pub mod change;
 pub mod commitment;
@@ -156,6 +157,7 @@ const MODULES: &[&[CommandSpec]] = &[
     photo::COMMANDS,
     drawing::COMMANDS,
     // -- financials
+    bidding::COMMANDS,
     budget::COMMANDS,
     change::COMMANDS,
     commitment::COMMANDS,

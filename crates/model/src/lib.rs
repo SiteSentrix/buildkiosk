@@ -8,6 +8,7 @@
 #![forbid(unsafe_code)]
 
 pub mod action_plan;
+pub mod bidding;
 pub mod choice;
 pub mod common;
 pub mod correspondence;

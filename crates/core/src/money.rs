@@ -82,6 +82,14 @@ impl Money {
         self.0.checked_mul(n).map(Money)
     }
 
+    /// `self ÷ n`, rounded half away from zero to the cent; `None` when `n` is zero.
+    pub fn checked_div_int(self, n: i64) -> Option<Money> {
+        if n == 0 {
+            return None;
+        }
+        i64::try_from(div_round(i128::from(self.0), i128::from(n))).ok().map(Money)
+    }
+
     /// The sum of `items`, or `None` if it overflows.
     pub fn sum<I: IntoIterator<Item = Money>>(items: I) -> Option<Money> {
         items.into_iter().try_fold(Money::ZERO, Money::checked_add)

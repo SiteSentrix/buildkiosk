@@ -54,6 +54,7 @@ pub fn list(req: &Req<'_>, id: Id<Project>, month: &str) -> Markup {
         div class="page-head" {
             div { h1 { "Daily log" } div class="sub" { "What happened on site, day by day" } }
             div class="actions" {
+                a class="btn" href=(format!("{base}/week")) { "Week" }
                 @if let Some(l) = todays { a class="btn primary" href=(format!("{base}/{}", l.id)) { "Today's log" } }
                 @else if req.allowed("daily_log.create", Some(id)) { a class="btn primary" href=(format!("{base}/new")) { (Icon::Plus.svg()) "Start today's log" } }
                 @if todays.is_some() && req.allowed("daily_log.create", Some(id)) { a class="btn" href=(format!("{base}/new")) { (Icon::Plus.svg()) "Another day" } }
@@ -182,7 +183,9 @@ fn input(name: String, label: &str, value: String) -> Markup {
     html! { input type="text" name=(name) value=(value) aria-label=(label); }
 }
 
-pub fn form(req: &Req<'_>, id: Id<Project>, existing: Option<Id<DailyLog>>) -> Markup {
+/// The new/edit form. On a new log, `copy` fills the crews and equipment from the latest earlier
+/// log the person can see.
+pub fn form(req: &Req<'_>, id: Id<Project>, existing: Option<Id<DailyLog>>, copy: bool) -> Markup {
     let Some(p) = project_for(req, id) else { return not_found(req) };
     let state = req.engine.state();
     let current = match existing {
@@ -210,13 +213,24 @@ pub fn form(req: &Req<'_>, id: Id<Project>, existing: Option<Id<DailyLog>>) -> M
     let date = current.map(|l| l.date).unwrap_or_else(|| req.today());
     let sky = current.map(|l| l.weather.sky).unwrap_or_default();
     let num = |v: Option<i32>| v.map(|n| n.to_string()).unwrap_or_default();
-    let manpower = current.map(|l| l.manpower.as_slice()).unwrap_or(&[]);
-    let equipment = current.map(|l| l.equipment.as_slice()).unwrap_or(&[]);
+    let previous = if current.is_none() {
+        view::daily_logs_for(state, req.actor(), id).into_iter().filter(|l| l.date < date).max_by_key(|l| l.date)
+    } else {
+        None
+    };
+    let copied = previous.filter(|_| copy);
+    let source = current.or(copied);
+    let manpower = source.map(|l| l.manpower.as_slice()).unwrap_or(&[]);
+    let equipment = source.map(|l| l.equipment.as_slice()).unwrap_or(&[]);
     let deliveries = current.map(|l| l.deliveries.as_slice()).unwrap_or(&[]);
     let visitors = current.map(|l| l.visitors.as_slice()).unwrap_or(&[]);
     let title = if current.is_some() { "Edit daily log" } else { "New daily log" };
     let body = html! {
         div class="page-head" { h1 { (title) } }
+        @if let Some(prev) = previous {
+            @if copied.is_some() { p class="muted" { "Crews and equipment copied from " (prev.date.pretty()) ". Change or remove what's different today." } }
+            @else { p { a class="btn small" href=(format!("{base}/new?copy=1")) { "Copy crews and equipment from " (prev.date.pretty()) } } }
+        }
         form method="post" action=(action) {
             input type="hidden" name="_csrf" value=(req.csrf);
             input type="hidden" name="_project" value=(id);
@@ -306,4 +320,102 @@ pub fn form(req: &Req<'_>, id: Id<Project>, existing: Option<Id<DailyLog>>) -> M
         }
     };
     layout::app(req, title, Nav::DailyLogs(id), &crumbs(p, Some(title)), body)
+}
+
+// -- weekly summary
+
+/// One day of the weekly summary.
+pub struct WeekDay {
+    pub date: buildkiosk_core::Date,
+    pub log: Option<u64>,
+    pub status: Option<LogStatus>,
+    pub weather: String,
+    pub workers: u64,
+    pub tenths: u64,
+    pub work: String,
+    pub delays: String,
+    pub safety: String,
+}
+
+pub struct Week {
+    pub start: buildkiosk_core::Date,
+    pub days: Vec<WeekDay>,
+    pub worker_days: u64,
+    pub tenths: u64,
+    pub logged: usize,
+}
+
+/// The Monday-to-Sunday week that holds `any_day`, from the logs the person can see.
+pub fn week_data(req: &Req<'_>, id: Id<Project>, any_day: buildkiosk_core::Date) -> Option<Week> {
+    project_for(req, id)?;
+    let state = req.engine.state();
+    if view::level(state, req.actor(), id, Tool::DailyLog) < Level::Read {
+        return None;
+    }
+    let back = i64::try_from(buildkiosk_core::date::Weekday::ALL.iter().position(|w| *w == any_day.weekday()).unwrap_or(0)).unwrap_or(0);
+    let start = any_day.add_days(-back)?;
+    let logs = view::daily_logs_for(state, req.actor(), id);
+    let mut days = Vec::new();
+    for i in 0..7 {
+        let date = start.add_days(i)?;
+        let log = logs.iter().copied().find(|l| l.date == date);
+        let (workers, tenths) = log.map(|l| l.headcount()).unwrap_or((0, 0));
+        days.push(WeekDay {
+            date,
+            log: log.map(|l| l.id.raw()),
+            status: log.map(|l| l.status),
+            weather: log.map(weather_text).unwrap_or_default(),
+            workers,
+            tenths,
+            work: log.map(|l| l.work_performed.clone()).unwrap_or_default(),
+            delays: log.map(|l| l.delays.clone()).unwrap_or_default(),
+            safety: log.map(|l| l.safety.clone()).unwrap_or_default(),
+        });
+    }
+    Some(Week {
+        start,
+        worker_days: days.iter().map(|d| d.workers).sum(),
+        tenths: days.iter().map(|d| d.tenths).sum(),
+        logged: days.iter().filter(|d| d.log.is_some()).count(),
+        days,
+    })
+}
+
+/// A week at a glance: weather, crews, work, delays and safety for each day, with totals.
+pub fn week(req: &Req<'_>, id: Id<Project>, any_day: buildkiosk_core::Date) -> Markup {
+    let Some(p) = project_for(req, id) else { return not_found(req) };
+    let Some(w) = week_data(req, id, any_day) else { return not_found(req) };
+    let base = format!("/projects/{id}/daily-logs");
+    let prev = w.start.add_days(-7).map(|d| d.to_string()).unwrap_or_default();
+    let next = w.start.add_days(7).map(|d| d.to_string()).unwrap_or_default();
+    let end = w.start.add_days(6).unwrap_or(w.start);
+    let body = html! {
+        div class="page-head" {
+            div { h1 { "Week of " (w.start.pretty()) } div class="sub" { (p.name) " · " (w.logged) " of 7 days logged · " (w.worker_days) " worker-days · " (hours_text(w.tenths)) " worker-hours" } }
+            div class="actions" {
+                a class="btn" href=(format!("{base}/week?date={prev}")) { "Previous week" }
+                a class="btn" href=(format!("{base}/week?date={next}")) { "Next week" }
+                a class="btn" href=(format!("{base}/week/pdf?date={}", w.start)) { "PDF" }
+                a class="btn" href=(base.clone()) { "All logs" }
+            }
+        }
+        div class="table-wrap" {
+            table class="data" {
+                thead { tr { th { "Day" } th { "Weather" } th class="num" { "Workers" } th class="num" { "Worker-hours" } th { "Work performed" } th { "Delays" } th { "Safety" } } }
+                tbody { @for d in &w.days { tr {
+                    td class="nowrap" {
+                        @if let Some(l) = d.log { a class="row-link" href=(format!("{base}/{l}")) { (d.date.weekday().short()) " " (d.date.pretty()) } }
+                        @else { (d.date.weekday().short()) " " (d.date.pretty()) }
+                        @if d.status == Some(LogStatus::Draft) { " " span class="tag" { "Draft" } }
+                    }
+                    td { @if d.log.is_some() { (d.weather) } @else { span class="muted" { "No log" } } }
+                    td class="num" { @if d.log.is_some() { (d.workers) } }
+                    td class="num" { @if d.log.is_some() { (hours_text(d.tenths)) } }
+                    td { (d.work) } td { (d.delays) } td { (d.safety) }
+                } } }
+            }
+        }
+        p class="muted small" { "Week ends " (end.pretty()) "." }
+    };
+    layout::app(req, "Weekly summary", Nav::DailyLogs(id), &crumbs(p, Some("Week")), body)
 }

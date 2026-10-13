@@ -111,3 +111,36 @@ fn ad_hoc_inspections_files_and_visibility() {
     w.ok(w.admin(), "inspection.restore", json!({"project": p, "id": id}));
     w.assert_replay();
 }
+
+#[test]
+fn templates_are_edited_and_copied_between_projects() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let q = w.project("Harbor Lofts");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let reader = w.member(p, "Rae", "Reader", "Read only");
+    let id = w.ok(pm, "inspection_template.create", json!({"project": p, "name": "Roof check", "items": "# Membrane\nSeams sealed"}))["id"]
+        .as_u64()
+        .unwrap();
+    let insp = w.ok(pm, "inspection.create", json!({"project": p, "template": id, "title": "Roof, level 3"}))["id"].as_u64().unwrap();
+
+    w.ok(
+        pm,
+        "inspection_template.update",
+        json!({"project": p, "id": id, "name": "Roof inspection", "items": "# Membrane\nSeams sealed\nFlashing lapped"}),
+    );
+    let t = w.engine.state().inspection_templates.iter().find(|t| t.id.raw() == id).unwrap().clone();
+    assert_eq!((t.name.as_str(), t.items.len()), ("Roof inspection", 2));
+    let started = w.engine.state().inspections.iter().find(|i| i.id.raw() == insp).unwrap();
+    assert_eq!(started.items.len(), 1, "a started inspection keeps its own checklist");
+    w.err(pm, "inspection_template.update", json!({"project": p, "id": id, "items": "# Only a heading"}));
+    w.err(reader, "inspection_template.update", json!({"project": p, "id": id, "name": "x"}));
+
+    // Copy into another project: only for people who can read inspections in the source project.
+    w.err(pm, "inspection_template.copy", json!({"project": q, "from_project": p, "id": id}));
+    let admin = w.admin();
+    w.ok(admin, "inspection_template.copy", json!({"project": q, "from_project": p, "id": id}));
+    w.err(admin, "inspection_template.copy", json!({"project": q, "from_project": p, "id": id}));
+    assert_eq!(w.engine.state().inspection_templates.iter().filter(|t| t.project == q && t.items.len() == 2).count(), 1);
+    w.assert_replay();
+}

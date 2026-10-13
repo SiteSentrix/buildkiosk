@@ -459,6 +459,15 @@ async fn daily_log_form_saves_lists_and_submits() {
     for want in ["Northline", "Keystone", "Excavator", "Rebar", "Inspector", "Submitted", "10", "78"] {
         assert!(detail.contains(want), "{want} missing");
     }
+    // Copy yesterday's crews, and the weekly summary with its PDF.
+    let (_, _, plain_form) = send(&app, get("/projects/1/daily-logs/new")).await;
+    assert!(plain_form.contains("Copy crews and equipment from") && !plain_form.contains("value=\"Northline\""));
+    let (_, _, copied) = send(&app, get("/projects/1/daily-logs/new?copy=1")).await;
+    assert!(copied.contains("value=\"Northline\"") && copied.contains("value=\"Excavator\""), "{copied}");
+    let (st, _, week) = send(&app, get("/projects/1/daily-logs/week?date=2026-10-14")).await;
+    assert!(st == StatusCode::OK && week.contains("Week of Oct 12, 2026") && week.contains("Poured footings") && week.contains("No log"), "{week}");
+    let (st, h, pdf) = send(&app, get("/projects/1/daily-logs/week/pdf?date=2026-10-12")).await;
+    assert!(st == StatusCode::OK && pdf.starts_with("%PDF") && h.get(CONTENT_TYPE).unwrap() == "application/pdf");
     // A second log for the same day is refused with a message, and a bad hours value too.
     let (_, h, _) = send(&app, post("/projects/1/daily-logs/save", &ada, format!("_csrf={csrf}&date=2026-10-12"))).await;
     assert!(
@@ -580,7 +589,12 @@ async fn observation_list_in_the_browser_flow() {
     send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=P"))).await;
     let (st, _, form) = send(&app, get("/projects/1/observations/new")).await;
     assert_eq!(st, StatusCode::OK);
-    assert!(form.contains("Add observation"));
+    assert!(form.contains("Add observation") && form.contains("name=\"kind\" placeholder"), "free text until the project sets categories");
+    send(&app, post("/do/project.update", &ada, format!("_csrf={csrf}&project=1&observation_types=Safety%0AHousekeeping"))).await;
+    let (_, _, form) = send(&app, get("/projects/1/observations/new")).await;
+    assert!(form.contains("<select id=\"kind\"") && form.contains("value=\"Housekeeping\""), "{form}");
+    let (st, _, trends) = send(&app, get("/projects/1/observations/trends")).await;
+    assert!(st == StatusCode::OK && trends.contains("Observation trends"));
     let (_, h, _) = send(
         &app,
         post(
@@ -654,6 +668,20 @@ async fn inspection_checklist_in_the_browser_flow() {
     assert_eq!(h.get(LOCATION).unwrap().to_str().unwrap().split('?').next().unwrap(), "/projects/1/inspections/1");
     let (_, _, detail) = send(&app, get("/projects/1/inspections/1")).await;
     assert!(detail.contains("line.0.answer") && detail.contains("Save and complete") && detail.contains("0 of 7 answered"));
+    let (st, h, pdf) = send(&app, get("/projects/1/inspections/1/pdf")).await;
+    assert!(st == StatusCode::OK && pdf.starts_with("%PDF") && h.get(CONTENT_TYPE).unwrap() == "application/pdf");
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/do/inspection_template.update",
+            &ada,
+            format!("_csrf={csrf}&_next=/projects/1/inspections/templates&project=1&id=2&name=Framing+check&items=%23+Studs%0AStuds+plumb"),
+        ),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, templates) = send(&app, get("/projects/1/inspections/templates")).await;
+    assert!(templates.contains("Framing check") && templates.contains("Studs plumb") && templates.contains("Edit this template"));
 
     // Completing with unanswered lines is refused; answering everything works.
     let some = "line.0.answer=pass&line.1.answer=fail&line.1.note=Wrong+size&line.2.answer=";

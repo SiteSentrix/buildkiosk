@@ -94,3 +94,18 @@ fn observed_date_defaults_to_today_and_corrective_action_is_kept() {
     w.err(pm, "observation.update", json!({"project": p, "id": id, "observed": "not-a-date"}));
     w.assert_replay();
 }
+
+#[test]
+fn project_categories_are_a_list_of_lines() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    w.ok(pm, "project.update", json!({"project": p, "observation_types": "Safety\n\n quality \nSAFETY\nHousekeeping"}));
+    let types = w.engine.state().projects.get(p).unwrap().observation_types.clone();
+    assert_eq!(types, vec!["Safety", "quality", "Housekeeping"], "blank and repeated lines are dropped");
+    let too_many: String = (0..51).map(|n| format!("Type {n}\n")).collect();
+    w.err(pm, "project.update", json!({"project": p, "observation_types": too_many}));
+    w.ok(pm, "project.update", json!({"project": p, "observation_types": ""}));
+    assert!(w.engine.state().projects.get(p).unwrap().observation_types.is_empty());
+    w.assert_replay();
+}

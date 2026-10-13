@@ -38,6 +38,22 @@ pub const COMMANDS: &[CommandSpec] = &[
         template_create,
     ),
     CommandSpec::mutate(
+        "inspection_template.update",
+        "Edit inspection template",
+        Tool::Inspections,
+        Access::Project(Level::Standard),
+        "project: project id; id: template id; name?, kind?: text; items?: text, one checklist line per line (`# ` starts a section). Inspections already started keep the checklist they were made with.",
+        template_update,
+    ),
+    CommandSpec::mutate(
+        "inspection_template.copy",
+        "Copy inspection template from another project",
+        Tool::Inspections,
+        Access::Project(Level::Standard),
+        "project: project id (the copy goes here); from_project: project id; id: template id in that project (you need Read access to inspections there)",
+        template_copy,
+    ),
+    CommandSpec::mutate(
         "inspection_template.delete",
         "Delete inspection template",
         Tool::Inspections,
@@ -242,6 +258,51 @@ fn template_create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     }
     let id = add_template(ctx, project, name, p.line_or_empty("kind", 100)?, items);
     Ok(json!({ "id": id }))
+}
+
+fn template_update(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let id: Id<InspectionTemplate> = p.id("id")?;
+    let mut t = in_project(&ctx.state.inspection_templates, project, id, "inspection template")?.clone();
+    if p.present("name") {
+        let name = p.req_line("name", text::SHORT)?;
+        if ctx
+            .state
+            .inspection_templates
+            .iter()
+            .any(|o| o.id != id && o.project == project && o.deleted.is_none() && o.name.eq_ignore_ascii_case(&name))
+        {
+            return Err(EngineError::conflict(format!("there is already a template called {name}")));
+        }
+        t.name = name;
+    }
+    if p.present("kind") {
+        t.kind = p.line_or_empty("kind", 100)?;
+    }
+    if p.present("items") {
+        let items = parse_items(p, "items", &p.req_text("items", 100_000)?)?;
+        if items.is_empty() {
+            return Err(p.bad("items", "needs at least one checklist line"));
+        }
+        t.items = items;
+    }
+    ctx.state.inspection_templates.put(t);
+    Ok(json!({ "id": id }))
+}
+
+fn template_copy(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let from: Id<Project> = p.id("from_project")?;
+    let id: Id<InspectionTemplate> = p.id("id")?;
+    if view::level(ctx.state, ctx.actor, from, Tool::Inspections) < Level::Read {
+        return Err(EngineError::not_found("template not found"));
+    }
+    let source = in_project(&ctx.state.inspection_templates, from, id, "inspection template")?.clone();
+    if template_exists(ctx, project, &source.name) {
+        return Err(EngineError::conflict(format!("there is already a template called {}", source.name)));
+    }
+    let new = add_template(ctx, project, source.name, source.kind, source.items);
+    Ok(json!({ "id": new }))
 }
 
 fn template_delete(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {

@@ -63,3 +63,26 @@ fn draft_edit_submit_and_reopen() {
     w.ok(w.admin(), "daily_log.restore", json!({"project": p, "id": id}));
     w.assert_replay();
 }
+
+#[test]
+fn copy_previous_and_submit_notifies_admins() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let sup = w.member(p, "Eli", "Engineer", "Project engineer");
+    let unread = |w: &mut World, who| w.ok(who, "notification.list", json!({"unread": true})).as_array().unwrap().len();
+
+    let first = w.ok(sup, "daily_log.create", json!({"project": p, "date": "2026-10-12", "manpower": [{"company": "Keystone", "workers": 6, "hours": 8}], "equipment": [{"name": "Excavator", "hours": 5}], "deliveries": [{"description": "Rebar"}]}))["id"].as_u64().unwrap();
+    w.ok(sup, "daily_log.submit", json!({"project": p, "id": first}));
+    assert_eq!(unread(&mut w, pm), 1, "the project manager is told it is in");
+    assert_eq!(unread(&mut w, sup), 0, "not the person who submitted");
+
+    let next = w.ok(sup, "daily_log.create", json!({"project": p, "date": "2026-10-13", "copy_previous": true, "work_performed": "More"}))["id"]
+        .as_u64()
+        .unwrap();
+    let log = w.engine.state().daily_logs.iter().find(|l| l.id.raw() == next).unwrap().clone();
+    assert_eq!((log.manpower.len(), log.equipment.len(), log.deliveries.len()), (1, 1, 0), "crews and equipment come along, deliveries don't");
+    let earlier = w.ok(sup, "daily_log.create", json!({"project": p, "date": "2026-10-01", "copy_previous": true}))["id"].as_u64().unwrap();
+    assert!(w.engine.state().daily_logs.iter().find(|l| l.id.raw() == earlier).unwrap().manpower.is_empty(), "nothing earlier to copy");
+    w.assert_replay();
+}

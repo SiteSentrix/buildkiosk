@@ -26,7 +26,8 @@ use crate::daily_log::DailyLog;
 
 // -- financials
 use crate::finance::{
-    BudgetChange, BudgetLine, ChangeEvent, Commitment, CommitmentChange, CommitmentInvoice, DirectCost, OwnerInvoice, PrimeChange, PrimeContract,
+    BudgetChange, BudgetLine, BudgetSnapshot, ChangeEvent, Commitment, CommitmentChange, CommitmentInvoice, DirectCost, OwnerInvoice, PrimeChange,
+    PrimeContract,
 };
 
 // -- documents
@@ -143,6 +144,7 @@ tables! {
     change_events: ChangeEvent,
     commitment_changes: CommitmentChange,
     budget_changes: BudgetChange,
+    budget_snapshots: BudgetSnapshot,
     prime_contracts: PrimeContract,
     prime_changes: PrimeChange,
     owner_invoices: OwnerInvoice,

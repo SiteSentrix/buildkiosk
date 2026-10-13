@@ -724,7 +724,9 @@ async fn inspection_answers(State(app): State<Shared>, headers: HeaderMap, Path(
 }
 
 async fn budget_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
-    page(&app, &headers, &q, |r, _| buildkiosk_web::finance::budget(r, Id::new(id)))
+    page(&app, &headers, &q, |r, _| {
+        buildkiosk_web::finance::budget(r, Id::new(id), q.get("compare").and_then(|c| c.parse::<u64>().ok()).map(Id::new))
+    })
 }
 
 async fn budget_csv(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>) -> Response {

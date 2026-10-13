@@ -5,6 +5,7 @@
 
 use buildkiosk_core::{Date, Id, text};
 use buildkiosk_model::common::FileRef;
+use buildkiosk_model::directory::{DistributionGroup, Person};
 use buildkiosk_model::drawing::{Discipline, Drawing, DrawingRevision};
 use buildkiosk_model::project::Project;
 use buildkiosk_model::{Choice, Level, Tool};
@@ -31,6 +32,14 @@ pub const COMMANDS: &[CommandSpec] = &[
         Access::Project(Level::Standard),
         "project: project id; id: drawing id; revision: label; date?: YYYY-MM-DD; set?: text; note?: text; sha256?: 64 hex digits; name?: file name; size?: bytes; mime?: media type (the file may come later: it can't be added afterwards)",
         add_revision,
+    ),
+    CommandSpec::mutate(
+        "drawing.publish",
+        "Tell people a sheet revision was issued",
+        Tool::Drawings,
+        Access::Project(Level::Standard),
+        "project: project id; id: drawing id; people?: [person ids]; groups?: [distribution group ids] (their members are told too); message?: text (the newest revision is announced)",
+        publish,
     ),
     CommandSpec::mutate(
         "drawing.update",
@@ -173,6 +182,42 @@ fn add_revision(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     let id = d.id;
     ctx.state.drawings.put(d);
     Ok(json!({ "id": id }))
+}
+
+fn publish(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let d = load(ctx, p)?;
+    let Some(rev) = d.current() else { return Err(EngineError::conflict(format!("{} has no revision to issue yet", d.number))) };
+    let mut people: Vec<Id<Person>> = p.ids("people")?;
+    ctx.check_people(&people)?;
+    let groups: Vec<Id<DistributionGroup>> = p.ids("groups")?;
+    for g in groups {
+        let group = ctx
+            .state
+            .groups
+            .get(g)
+            .filter(|x| x.deleted.is_none() && x.project.is_none_or(|gp| gp == d.project))
+            .ok_or_else(|| p.bad("groups", format!("group {g} not found")))?;
+        for m in &group.members {
+            if !people.contains(m) && people.len() < 200 {
+                people.push(*m);
+            }
+        }
+    }
+    if people.is_empty() {
+        return Err(p.bad("people", "choose at least one person or group to tell"));
+    }
+    let message = p.line_or_empty("message", 300)?;
+    let text = format!(
+        "Sheet {}{} revision {} was issued{}{}",
+        d.number,
+        if d.title.is_empty() { String::new() } else { format!(" ({})", d.title) },
+        rev.label,
+        if rev.set.is_empty() { String::new() } else { format!(" in {}", rev.set) },
+        if message.is_empty() { String::new() } else { format!(": {message}") }
+    );
+    let link = format!("/projects/{}/drawings/{}", d.project, d.id);
+    super::notification::notify(ctx, &people, d.project, &text, &link);
+    Ok(json!({ "id": d.id, "told": people.len() }))
 }
 
 fn update(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {

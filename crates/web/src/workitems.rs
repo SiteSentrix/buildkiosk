@@ -499,6 +499,11 @@ pub fn detail<T: WorkPage>(req: &Req<'_>, id: Id<Project>, iid: Id<T>, history: 
                     dl class="facts" {
                         dt { "Priority" } dd { (priority_tag(i.priority)) }
                         dt { "Location" } dd { (dash(&i.location)) }
+                        @if !i.drawing_number.is_empty() {
+                            dt { "Drawing sheet" } dd {
+                                @if let Some(d) = state.drawings.iter().find(|d| d.project == id && d.deleted.is_none() && d.number.eq_ignore_ascii_case(&i.drawing_number)) { a href=(format!("/projects/{id}/drawings/{}", d.id)) { (i.drawing_number) } } @else { (i.drawing_number) }
+                            }
+                        }
                         dt { (T::KIND_LABEL) } dd { (dash(&i.kind)) }
                         (i.extra_facts())
                         dt { "Manager" } dd { @if let Some(m) = i.manager { (view::person_name(state, m)) } @else { "—" } }
@@ -581,6 +586,10 @@ pub fn form<T: WorkPage>(req: &Req<'_>, id: Id<Project>, existing: Option<Id<T>>
                     (field("Title", "title", true, true, html! { input type="text" id="title" name="title" required maxlength="200" value=(text(|i| i.title.clone())); }))
                     (field("Description", "description", false, true, html! { textarea id="description" name="description" class="short" { (text(|i| i.description.clone())) } }))
                     (field("Location", "location", false, false, html! { input type="text" id="location" name="location" value=(text(|i| i.location.clone())); }))
+                    (field("Drawing sheet", "drawing_number", false, false, html! {
+                        input type="text" id="drawing_number" name="drawing_number" list="sheet-numbers" value=(text(|i| i.drawing_number.clone()));
+                        datalist id="sheet-numbers" { @for d in req.engine.state().drawings.iter().filter(|d| d.project == id && d.deleted.is_none()) { option value=(d.number) { (d.title) } } }
+                    }))
                     @let types = T::types(p);
                     @let kind = text(|i| i.kind.clone());
                     @if types.is_empty() {

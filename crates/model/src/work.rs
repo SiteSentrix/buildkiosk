@@ -41,6 +41,9 @@ pub struct WorkCore {
     pub description: String,
     #[serde(default)]
     pub location: String,
+    /// The drawing sheet number it refers to ("A-101"); the sheet's page lists it.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub drawing_number: String,
     /// Free text: the trade, category or kind of work.
     #[serde(default)]
     pub kind: String,

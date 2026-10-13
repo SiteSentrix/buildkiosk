@@ -92,3 +92,40 @@ fn private_folders_hide_their_contents() {
     w.ok(sub, "document.get", json!({"project": p, "id": d}));
     w.assert_replay();
 }
+
+#[test]
+fn folders_move_without_loops_or_clashes() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let sup = w.member(p, "Eli", "Engineer", "Project engineer");
+    let id = |w: &mut World, name: &str, parent: Option<u64>| {
+        let mut params = json!({"project": p, "name": name});
+        if let Some(parent) = parent {
+            params["parent"] = json!(parent);
+        }
+        w.ok(sup, "folder.create", params)["id"].as_u64().unwrap()
+    };
+    let a = id(&mut w, "A", None);
+    let b = id(&mut w, "B", Some(a));
+    let c = id(&mut w, "C", Some(b));
+    let other = id(&mut w, "Other", None);
+    let parent_of = |w: &World, f: u64| w.engine.state().folders.iter().find(|x| x.id.raw() == f).unwrap().parent.map(|x| x.raw());
+
+    w.err(sup, "folder.update", json!({"project": p, "id": a, "parent": a}));
+    w.err(sup, "folder.update", json!({"project": p, "id": a, "parent": c}));
+    w.ok(sup, "folder.update", json!({"project": p, "id": b, "parent": other}));
+    assert_eq!((parent_of(&w, b), parent_of(&w, c)), (Some(other), Some(b)), "the folder keeps what is inside it");
+    w.ok(sup, "folder.update", json!({"project": p, "id": c, "parent": ""}));
+    assert_eq!(parent_of(&w, c), None);
+    id(&mut w, "B", Some(a));
+    w.err(sup, "folder.update", json!({"project": p, "id": b, "parent": a}));
+    w.err(sup, "folder.update", json!({"project": p, "id": b, "parent": 9999}));
+
+    // Depth limit: a tall chain can't be hung under a deep folder.
+    let mut top = id(&mut w, "L0", None);
+    for n in 1..11 {
+        top = id(&mut w, &format!("L{n}"), Some(top));
+    }
+    w.err(sup, "folder.update", json!({"project": p, "id": a, "parent": top}));
+    w.assert_replay();
+}

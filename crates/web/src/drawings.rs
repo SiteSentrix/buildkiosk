@@ -11,7 +11,7 @@ use maud::{Markup, html};
 
 use crate::icons::tool_icon;
 use crate::layout::{self, Nav, Req, button_form, command_form, csv_cell, empty, field};
-use crate::pages::{dash, human_size, not_found, project_for};
+use crate::pages::{dash, human_size, not_found, project_for, user_options};
 
 fn discipline_select(selected: Option<Discipline>, any: bool) -> Markup {
     html! {
@@ -83,6 +83,21 @@ pub fn page(req: &Req<'_>, id: Id<Project>, q: &HashMap<String, String>) -> Mark
             }
         }
         @if can_add {
+            div class="card" {
+                h2 { "Upload a set of sheets" }
+                p class="muted" { "Name each file with its sheet number first, such as “E-101 Power plan.pdf”. New sheet numbers are added to the log (the discipline is guessed from the letters); sheets already logged get a new revision." }
+                form method="post" action=(format!("{base}/upload-set")) enctype="multipart/form-data" class="stack" {
+                    input type="hidden" name="_csrf" value=(req.csrf);
+                    div class="form-grid" {
+                        (field("Revision", "set_revision", true, false, html! { input type="text" id="set_revision" name="revision" required placeholder="A, 2, Addendum 3"; }))
+                        (field("Set", "set_name", false, false, html! { input type="text" id="set_name" name="set" placeholder="Permit set"; }))
+                        (field("Issue date", "set_date", false, false, html! { input type="date" id="set_date" name="date"; }))
+                        (field("Sheet files", "set_files", true, false, html! { input type="file" id="set_files" name="file" multiple required; }))
+                    }
+                    div class="form-actions" { button type="submit" class="btn primary" { "Upload the set" } }
+                }
+                p class="muted small" { "Up to 50 files, 25 MB each and 100 MB in all." }
+            }
             div class="card" {
                 h2 { "Add a sheet" }
                 form method="post" action=(format!("{base}/upload")) enctype="multipart/form-data" class="stack" {
@@ -159,6 +174,39 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, did: Id<Drawing>) -> Markup {
                         }
                     }
                 }
+            }
+        }
+        @let linked_rfis: Vec<_> = view::rfis_for(state, req.actor(), id).into_iter().filter(|r| !r.drawing_number.is_empty() && r.drawing_number.eq_ignore_ascii_case(&d.number)).collect();
+        @let linked_punch: Vec<_> = buildkiosk_engine::workitem::items_for::<buildkiosk_engine::model::punch::PunchItem>(state, req.actor(), id).into_iter().filter(|i| i.drawing_number.eq_ignore_ascii_case(&d.number)).collect();
+        @let linked_obs: Vec<_> = buildkiosk_engine::workitem::items_for::<buildkiosk_engine::model::observation::Observation>(state, req.actor(), id).into_iter().filter(|i| i.drawing_number.eq_ignore_ascii_case(&d.number)).collect();
+        @if !linked_rfis.is_empty() || !linked_punch.is_empty() || !linked_obs.is_empty() {
+            div class="card" {
+                h2 { "Linked to this sheet" }
+                ul class="plain" {
+                    @for r in &linked_rfis { li { a href=(format!("/projects/{id}/rfis/{}", r.id)) { "RFI #" (r.number) ": " (r.subject) } } }
+                    @for i in &linked_punch { li { a href=(format!("/projects/{id}/punch-list/{}", i.id)) { "Punch item #" (i.number) ": " (i.title) } } }
+                    @for i in &linked_obs { li { a href=(format!("/projects/{id}/observations/{}", i.id)) { "Observation #" (i.number) ": " (i.title) } } }
+                }
+            }
+        }
+        @if can_edit && !d.revisions.is_empty() {
+            @let groups: Vec<_> = state.groups.iter().filter(|g| g.deleted.is_none() && g.project.is_none_or(|p| p == id)).collect();
+            div class="card" {
+                h2 { "Tell people the current revision was issued" }
+                (command_form(req, "drawing.publish", &here, &here, html! {
+                    input type="hidden" name="project" value=(id);
+                    input type="hidden" name="id" value=(did);
+                    input type="hidden" name="people[]" value="";
+                    details class="multi" {
+                        summary { "Choose people" }
+                        div class="options" { @for x in user_options(req, id, true) { label { input type="checkbox" name="people[]" value=(x.id); (x.name()) } } }
+                    }
+                    @if !groups.is_empty() {
+                        (field("Or a group", "publish_group", false, false, html! { select id="publish_group" name="groups[]" { option value="" { "—" } @for g in &groups { option value=(g.id) { (g.name) " (" (g.members.len()) ")" } } } }))
+                    }
+                    (field("Message", "publish_message", false, false, html! { input type="text" id="publish_message" name="message" maxlength="300" placeholder="What changed, or what to do about it"; }))
+                    div class="form-actions" { button type="submit" class="btn" { "Send notifications" } }
+                }))
             }
         }
         @if can_edit {

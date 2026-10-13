@@ -27,6 +27,68 @@ fn trail<'a>(state: &'a buildkiosk_engine::model::CompanyState, folder: &'a Fold
     out
 }
 
+/// The folder's full path, "Contracts / Signed".
+fn folder_path(state: &buildkiosk_engine::model::CompanyState, f: &Folder) -> String {
+    trail(state, f).iter().map(|x| x.name.as_str()).collect::<Vec<_>>().join(" / ")
+}
+
+/// The folders `folder` could be moved into: any visible folder that isn't it or inside it.
+fn move_targets<'a>(
+    state: &'a buildkiosk_engine::model::CompanyState,
+    actor: buildkiosk_engine::Actor,
+    project: Id<Project>,
+    folder: &Folder,
+) -> Vec<&'a Folder> {
+    let mut list: Vec<&Folder> = state
+        .folders
+        .iter()
+        .filter(|f| f.project == project && f.deleted.is_none() && f.id != folder.id && view::can_see_folder(state, actor, f))
+        .filter(|f| !trail(state, f).iter().any(|x| x.id == folder.id))
+        .collect();
+    list.sort_by_key(|f| folder_path(state, f).to_lowercase());
+    list
+}
+
+/// Deleted documents, for admins to restore.
+pub fn trash(req: &Req<'_>, id: Id<Project>) -> Markup {
+    let Some(p) = project_for(req, id) else { return not_found(req) };
+    let state = req.engine.state();
+    if view::level(state, req.actor(), id, Tool::Documents) != Level::Admin {
+        return not_found(req);
+    }
+    let base = format!("/projects/{id}/documents");
+    let here = format!("{base}/trash");
+    let mut docs: Vec<&Document> = state.documents.iter().filter(|d| d.project == id && d.deleted.is_some()).collect();
+    docs.sort_by_key(|d| std::cmp::Reverse(d.deleted.map(|s| s.at)));
+    let body = html! {
+        div class="page-head" {
+            div { h1 { "Deleted files" } div class="sub" { (p.name) " · only Documents admins see this" } }
+            div class="actions" { a class="btn" href=(base.clone()) { "Back to documents" } }
+        }
+        @if docs.is_empty() {
+            div class="card" { (empty(tool_icon(Tool::Documents), "Nothing deleted", "Deleted documents wait here until an admin restores them.")) }
+        } @else {
+            div class="table-wrap" { table class="data" {
+                thead { tr { th { "Title" } th { "Was in" } th { "Deleted" } th { "By" } th {} } }
+                tbody { @for d in &docs { tr {
+                    td { (d.title) }
+                    td { @if let Some(f) = d.folder.and_then(|f| state.folders.get(f)) { (folder_path(state, f)) } @else { span class="muted" { "Top level" } } }
+                    td class="nowrap" { @if let Some(s) = d.deleted { (req.when(s.at)) } }
+                    td { @if let Some(b) = d.deleted.and_then(|s| s.by) { (view::person_name(state, b)) } }
+                    td class="right" { (button_form(req, "document.restore", &here, &[("project", id.to_string()), ("id", d.id.to_string())], "Restore", "small")) }
+                } } }
+            } }
+        }
+    };
+    layout::app(
+        req,
+        "Deleted files",
+        Nav::Documents(id),
+        &[("Projects", Some("/".into())), (&p.name, Some(format!("/projects/{id}"))), ("Documents", Some(base)), ("Deleted", None)],
+        body,
+    )
+}
+
 pub fn page(req: &Req<'_>, id: Id<Project>, folder: Option<Id<Folder>>, q: &str) -> Markup {
     let Some(p) = project_for(req, id) else { return not_found(req) };
     let state = req.engine.state();
@@ -76,6 +138,10 @@ pub fn page(req: &Req<'_>, id: Id<Project>, folder: Option<Id<Folder>>, q: &str)
     let body = html! {
         div class="page-head" {
             div { h1 { "Documents" } div class="sub" { "Project files in folders, each with its versions" } }
+            div class="actions" {
+                a class="btn" href=(match current { Some(c) => format!("{base}/zip?folder={}", c.id), None => format!("{base}/zip") }) { "Download all as zip" }
+                @if admin { a class="btn" href=(format!("{base}/trash")) { "Deleted files" } }
+            }
         }
         form method="get" action=(base) class="filters" {
             @if let Some(c) = current { input type="hidden" name="folder" value=(c.id); }
@@ -138,6 +204,16 @@ pub fn page(req: &Req<'_>, id: Id<Project>, folder: Option<Id<Folder>>, q: &str)
                     div class="form-actions" { button type="submit" class="btn primary" { "Upload" } }
                 }
                 p class="muted small" { "Files can be at most 25 MB." }
+                details class="disclosure" {
+                    summary { "Upload several files at once" }
+                    form method="post" action=(format!("{base}/upload-many")) enctype="multipart/form-data" class="stack" {
+                        input type="hidden" name="_csrf" value=(req.csrf);
+                        @if let Some(c) = current { input type="hidden" name="folder" value=(c.id); }
+                        (field("Files", "files", true, false, html! { input type="file" id="files" name="file" multiple required; }))
+                        div class="form-actions" { button type="submit" class="btn primary" { "Upload files" } }
+                    }
+                    p class="muted small" { "Up to 50 files, 25 MB each and 100 MB in all. Each file becomes a document titled with its file name." }
+                }
             }
             div class="card" {
                 h2 { "New folder" }
@@ -189,6 +265,20 @@ pub fn page(req: &Req<'_>, id: Id<Project>, folder: Option<Id<Folder>>, q: &str)
                             }
                             div class="form-actions" { button type="submit" class="btn primary" { "Save" } }
                         }))
+                        @let targets = move_targets(state, actor, id, c);
+                        @if !targets.is_empty() || c.parent.is_some() {
+                            (command_form(req, "folder.update", &here, &here, html! {
+                                input type="hidden" name="project" value=(id);
+                                input type="hidden" name="id" value=(c.id);
+                                div class="form-grid" {
+                                    (field("Move this folder into", "move_to", false, false, html! { select id="move_to" name="parent" {
+                                        option value="" selected[c.parent.is_none()] { "Top level" }
+                                        @for t in &targets { option value=(t.id) selected[c.parent == Some(t.id)] { (folder_path(state, t)) } }
+                                    } }))
+                                }
+                                div class="form-actions" { button type="submit" class="btn" { "Move" } }
+                            }))
+                        }
                         @if admin && docs.is_empty() && subfolders.is_empty() {
                             @let up = c.parent.map(|p| format!("{base}?folder={p}")).unwrap_or_else(|| base.clone());
                             (button_form(req, "folder.delete", &up, &[("project", id.to_string()), ("id", c.id.to_string())], "Delete this folder", "small danger"))

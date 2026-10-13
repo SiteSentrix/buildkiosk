@@ -6,6 +6,7 @@
 
 mod auth;
 mod mail;
+mod zip;
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -43,6 +44,11 @@ use auth::{CSRF_COOKIE, RateLimit, SESSION_COOKIE};
 
 /// Largest form or API body accepted.
 const MAX_BODY: usize = 1024 * 1024;
+/// Largest total of a multi-file upload.
+const MAX_BULK: usize = 100 * 1024 * 1024;
+/// Most files in one multi-file upload, and the most bytes in one zip download.
+const MAX_BULK_FILES: usize = 50;
+const MAX_ZIP: u64 = 200 * 1024 * 1024;
 /// Largest file upload.
 const MAX_UPLOAD: usize = 25 * 1024 * 1024;
 
@@ -301,11 +307,15 @@ pub fn router(app: Shared) -> Router {
             .route("/projects/{id}/drawings", get(drawings_page))
             .route("/projects/{id}/drawings.csv", get(drawings_csv))
             .route("/projects/{id}/drawings/upload", post(drawing_upload_new).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
+            .route("/projects/{id}/drawings/upload-set", post(drawing_upload_set).layer(DefaultBodyLimit::max(MAX_BULK + 64 * 1024)))
             .route("/projects/{id}/drawings/{did}", get(drawing_page))
             .route("/projects/{id}/drawings/{did}/upload", post(drawing_upload_revision).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
             .route("/projects/{id}/drawings/{did}/files/{sha}", get(drawing_download))
             .route("/projects/{id}/documents", get(documents_page))
             .route("/projects/{id}/documents/upload", post(document_upload_new).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
+            .route("/projects/{id}/documents/upload-many", post(document_upload_many).layer(DefaultBodyLimit::max(MAX_BULK + 64 * 1024)))
+            .route("/projects/{id}/documents/zip", get(documents_zip))
+            .route("/projects/{id}/documents/trash", get(documents_trash))
             .route("/projects/{id}/documents/{did}", get(document_page))
             .route("/projects/{id}/documents/{did}/upload", post(document_upload_version).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
             .route("/projects/{id}/documents/{did}/files/{sha}", get(document_download))
@@ -1274,6 +1284,166 @@ async fn document_upload_version(State(app): State<Shared>, headers: HeaderMap, 
     document_upload(app, headers, id, Some(did), multipart).await
 }
 
+async fn documents_trash(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::documents::trash(r, Id::new(id)))
+}
+
+/// Several files at once into one folder: a multipart form with `_csrf`, `folder` and many `file`s.
+async fn document_upload_many(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, mut multipart: Multipart) -> Response {
+    let base = format!("/projects/{id}/documents");
+    let (mut token, mut folder) = (String::new(), String::new());
+    let mut files: Vec<UploadFile> = Vec::new();
+    let mut total = 0usize;
+    loop {
+        let field = match multipart.next_field().await {
+            Ok(Some(f)) => f,
+            Ok(None) => break,
+            Err(_) => return redirect(&with_flash(&base, false, "The upload failed or was larger than 100 MB.")),
+        };
+        let name = field.name().unwrap_or("").to_string();
+        let filename = field.file_name().unwrap_or("file").to_string();
+        let mime = field.content_type().unwrap_or("application/octet-stream").to_string();
+        let Ok(bytes) = field.bytes().await else { return redirect(&with_flash(&base, false, "The upload failed or was larger than 100 MB.")) };
+        match name.as_str() {
+            "_csrf" => token = String::from_utf8_lossy(&bytes).into_owned(),
+            "folder" => folder = String::from_utf8_lossy(&bytes).trim().to_string(),
+            "file" if !bytes.is_empty() => {
+                total = total.saturating_add(bytes.len());
+                if files.len() >= MAX_BULK_FILES || total > MAX_BULK || bytes.len() > MAX_UPLOAD {
+                    return redirect(&with_flash(&base, false, &format!("At most {MAX_BULK_FILES} files, 25 MB each and 100 MB in all.")));
+                }
+                files.push((filename, mime, bytes));
+            }
+            _ => {}
+        }
+    }
+    let back = if folder.parse::<u64>().is_ok() { format!("{base}?folder={folder}") } else { base.clone() };
+    let mut inner = app.lock();
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    if !auth::csrf_ok(app.secret(), &s.cookie, &token) {
+        return plain(StatusCode::FORBIDDEN, "The form expired. Go back, reload the page and try again.");
+    }
+    if files.is_empty() {
+        return redirect(&with_flash(&back, false, "Choose at least one file."));
+    }
+    let (mut added, mut failed) = (0usize, Vec::new());
+    for (name, mime, bytes) in &files {
+        let stored = match store_blob(&mut inner, bytes) {
+            Ok(x) => x,
+            Err(msg) => {
+                failed.push(format!("{name}: {msg}"));
+                continue;
+            }
+        };
+        let params = json!({"project": id, "folder": folder, "sha256": stored.0, "name": name, "size": stored.1, "mime": mime});
+        match inner.run(Actor::Person(s.person), "document.add", &params) {
+            Ok(_) => added += 1,
+            Err(e) => failed.push(format!("{name}: {e}")),
+        }
+    }
+    if failed.is_empty() {
+        redirect(&with_flash(&back, true, &format!("Uploaded {added} file{}.", if added == 1 { "" } else { "s" })))
+    } else {
+        let first: Vec<String> = failed.iter().take(3).cloned().collect();
+        redirect(&with_flash(&back, false, &format!("Uploaded {added} of {}. Not uploaded: {}", files.len(), first.join("; "))))
+    }
+}
+
+/// A folder (with everything below it), or every document, as one zip file of current versions.
+async fn documents_zip(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    let folder: Option<u64> = q.get("folder").and_then(|f| f.parse().ok());
+    // (path inside the zip, file on disk, size)
+    let (name, files) = {
+        let inner = app.lock();
+        let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+        let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+        let state = t.engine.state();
+        let actor = Actor::Person(s.person);
+        if view::level(state, actor, Id::new(id), Tool::Documents) < Level::Read
+            || state.projects.get(Id::new(id)).is_none_or(|p| p.deleted.is_some())
+        {
+            return plain(StatusCode::NOT_FOUND, "Not found");
+        }
+        let root: Option<Id<buildkiosk_engine::model::document::Folder>> = folder.map(Id::new);
+        if let Some(r) = root
+            && !state.folders.get(r).is_some_and(|f| f.project == Id::new(id) && f.deleted.is_none() && view::can_see_folder(state, actor, f))
+        {
+            return plain(StatusCode::NOT_FOUND, "Not found");
+        }
+        // The folder path of a document, relative to the folder being downloaded.
+        let path_of = |mut at: Option<Id<buildkiosk_engine::model::document::Folder>>| -> Option<Vec<String>> {
+            let mut segs = Vec::new();
+            for _ in 0..=view::MAX_FOLDER_DEPTH {
+                match at {
+                    None => {
+                        segs.reverse();
+                        return if root.is_none() { Some(segs) } else { None };
+                    }
+                    Some(f) if Some(f) == root => {
+                        segs.reverse();
+                        return Some(segs);
+                    }
+                    Some(f) => {
+                        let fx = state.folders.get(f)?;
+                        segs.push(zip::clean_segment(&fx.name));
+                        at = fx.parent;
+                    }
+                }
+            }
+            None
+        };
+        let mut used: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut files: Vec<(String, std::path::PathBuf, u64)> = Vec::new();
+        let mut docs: Vec<_> =
+            state.documents.iter().filter(|d| d.project == Id::new(id) && d.deleted.is_none() && view::can_see_document(state, actor, d)).collect();
+        docs.sort_by_key(|d| d.id.raw());
+        for d in docs {
+            let (Some(segs), Some(cur)) = (path_of(d.folder), d.current()) else { continue };
+            let Some(disk) = t.store.blobs.path(&cur.file.sha256) else { continue };
+            let mut name = zip::clean_segment(&cur.file.name);
+            let dir = segs.join("/");
+            let full = |n: &str| if dir.is_empty() { n.to_string() } else { format!("{dir}/{n}") };
+            let mut n = 1;
+            while !used.insert(full(&name).to_lowercase()) {
+                n += 1;
+                name = match cur.file.name.rsplit_once('.') {
+                    Some((stem, ext)) => format!("{} ({n}).{}", zip::clean_segment(stem), zip::clean_segment(ext)),
+                    None => format!("{} ({n})", zip::clean_segment(&cur.file.name)),
+                };
+            }
+            files.push((full(&name), disk, cur.file.size));
+        }
+        let label = match root.and_then(|r| state.folders.get(r)) {
+            Some(f) => zip::clean_segment(&f.name),
+            None => state.projects.get(Id::new(id)).map(|p| zip::clean_segment(&p.name)).unwrap_or_else(|| "documents".into()),
+        };
+        (label, files)
+    };
+    if files.is_empty() {
+        return redirect(&with_flash(&format!("/projects/{id}/documents"), false, "There are no documents to download."));
+    }
+    if files.iter().map(|f| f.2).sum::<u64>() > MAX_ZIP {
+        return redirect(&with_flash(&format!("/projects/{id}/documents"), false, "That is more than 200 MB. Download a smaller folder."));
+    }
+    let built = tokio::task::spawn_blocking(move || {
+        let mut entries = Vec::new();
+        for (path, disk, _) in files {
+            entries.push(zip::Entry { name: path, data: std::fs::read(disk).ok()? });
+        }
+        zip::build(&entries)
+    })
+    .await
+    .ok()
+    .flatten();
+    let Some(bytes) = built else { return plain(StatusCode::INTERNAL_SERVER_ERROR, "The zip file could not be made.") };
+    let mut res = bytes.into_response();
+    res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("application/zip"));
+    if let Ok(v) = HeaderValue::from_str(&format!("attachment; filename=\"{}.zip\"", safe_filename(&name))) {
+        res.headers_mut().insert("content-disposition", v);
+    }
+    res
+}
+
 type UploadFile = (String, String, Bytes);
 
 /// The text fields and the (first) file of a multipart form.
@@ -1801,6 +1971,137 @@ async fn drawings_csv(State(app): State<Shared>, headers: HeaderMap, Path(id): P
     res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("text/csv; charset=utf-8"));
     res.headers_mut().insert("content-disposition", HeaderValue::from_static("attachment; filename=\"drawings.csv\""));
     res
+}
+
+/// The sheet number and title in a file name: "A-101 Floor plan.pdf" is sheet A-101, "Floor plan".
+fn sheet_from_file_name(file: &str) -> (String, String) {
+    let stem = file.rsplit_once('.').map(|(s, _)| s).unwrap_or(file).trim();
+    let (number, rest) = match stem.find([' ', '_']) {
+        Some(at) => (stem.get(..at).unwrap_or(stem), stem.get(at..).unwrap_or("")),
+        None => (stem, ""),
+    };
+    let title = rest.trim_matches(|c: char| c.is_whitespace() || c == '_' || c == '-').replace('_', " ");
+    (number.chars().take(50).collect(), title.chars().take(200).collect())
+}
+
+/// The discipline a sheet number's letters suggest ("S-201" is structural).
+fn discipline_for_sheet(number: &str) -> &'static str {
+    let upper = number.to_ascii_uppercase();
+    if upper.starts_with("FP") {
+        return "fire_protection";
+    }
+    match upper.chars().next() {
+        Some('A') => "architectural",
+        Some('S') => "structural",
+        Some('M') => "mechanical",
+        Some('P') => "plumbing",
+        Some('E') => "electrical",
+        Some('C') => "civil",
+        Some('L') => "landscape",
+        Some('I') => "interior",
+        _ => "general",
+    }
+}
+
+/// A set of sheets at once: each file becomes a sheet named by its file name (or a new revision of
+/// a sheet already logged). A multipart form with `_csrf`, `revision`, `set`, `date` and many `file`s.
+async fn drawing_upload_set(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, mut multipart: Multipart) -> Response {
+    let back = format!("/projects/{id}/drawings");
+    let failed_upload = "The upload failed or was larger than 100 MB.";
+    let mut fields: HashMap<String, String> = HashMap::new();
+    let mut files: Vec<UploadFile> = Vec::new();
+    let mut total = 0usize;
+    loop {
+        let field = match multipart.next_field().await {
+            Ok(Some(f)) => f,
+            Ok(None) => break,
+            Err(_) => return redirect(&with_flash(&back, false, failed_upload)),
+        };
+        let name = field.name().unwrap_or("").to_string();
+        let filename = field.file_name().unwrap_or("file").to_string();
+        let mime = field.content_type().unwrap_or("application/octet-stream").to_string();
+        let Ok(bytes) = field.bytes().await else { return redirect(&with_flash(&back, false, failed_upload)) };
+        if name == "file" {
+            if bytes.is_empty() {
+                continue;
+            }
+            total = total.saturating_add(bytes.len());
+            if files.len() >= MAX_BULK_FILES || total > MAX_BULK || bytes.len() > MAX_UPLOAD {
+                return redirect(&with_flash(&back, false, &format!("At most {MAX_BULK_FILES} sheets, 25 MB each and 100 MB in all.")));
+            }
+            files.push((filename, mime, bytes));
+        } else if bytes.len() <= 2_000 {
+            fields.insert(name, String::from_utf8_lossy(&bytes).into_owned());
+        }
+    }
+    let mut inner = app.lock();
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    if !auth::csrf_ok(app.secret(), &s.cookie, fields.get("_csrf").map(String::as_str).unwrap_or_default()) {
+        return plain(StatusCode::FORBIDDEN, "The form expired. Go back, reload the page and try again.");
+    }
+    if files.is_empty() {
+        return redirect(&with_flash(&back, false, "Choose at least one sheet file."));
+    }
+    let get = |k: &str| fields.get(k).map(|v| v.trim().to_string()).unwrap_or_default();
+    let revision = Some(get("revision")).filter(|r| !r.is_empty()).unwrap_or_else(|| "1".into());
+    let actor = Actor::Person(s.person);
+    let (mut added, mut revised, mut failed) = (0usize, 0usize, Vec::new());
+    for (file, mime, bytes) in &files {
+        let (number, title) = sheet_from_file_name(file);
+        let (sha256, size) = match store_blob(&mut inner, bytes) {
+            Ok(x) => x,
+            Err(msg) => {
+                failed.push(format!("{file}: {msg}"));
+                continue;
+            }
+        };
+        let existing = inner.tenant.as_ref().and_then(|t| {
+            t.engine
+                .state()
+                .drawings
+                .iter()
+                .find(|d| d.project == Id::new(id) && d.deleted.is_none() && d.number.eq_ignore_ascii_case(&number))
+                .map(|d| d.id.raw())
+        });
+        let mut params = Map::new();
+        for (k, v) in [
+            ("revision", json!(revision)),
+            ("set", json!(get("set"))),
+            ("date", json!(get("date"))),
+            ("sha256", json!(sha256)),
+            ("name", json!(file)),
+            ("size", json!(size)),
+            ("mime", json!(mime)),
+        ] {
+            params.insert(k.into(), v);
+        }
+        params.insert("project".into(), json!(id));
+        let command = match existing {
+            Some(did) => {
+                params.insert("id".into(), json!(did));
+                "drawing.add_revision"
+            }
+            None => {
+                params.insert("number".into(), json!(number));
+                params.insert("title".into(), json!(title));
+                params.insert("discipline".into(), json!(discipline_for_sheet(&number)));
+                "drawing.add"
+            }
+        };
+        let params = Value::Object(params);
+        match inner.run(actor, command, &params) {
+            Ok(_) if existing.is_some() => revised += 1,
+            Ok(_) => added += 1,
+            Err(e) => failed.push(format!("{file}: {e}")),
+        }
+    }
+    let summary = format!("{added} new sheet{} and {revised} new revision{}", if added == 1 { "" } else { "s" }, if revised == 1 { "" } else { "s" });
+    if failed.is_empty() {
+        redirect(&with_flash(&back, true, &format!("Uploaded {summary}.")))
+    } else {
+        let first: Vec<String> = failed.iter().take(3).cloned().collect();
+        redirect(&with_flash(&back, false, &format!("Uploaded {summary}. Not uploaded: {}", first.join("; "))))
+    }
 }
 
 async fn drawing_upload_new(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, multipart: Multipart) -> Response {

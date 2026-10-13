@@ -54,6 +54,7 @@ impl WorkItem for Incident {
                 title: String::new(),
                 description: String::new(),
                 location: String::new(),
+                drawing_number: String::new(),
                 kind: String::new(),
                 priority: Priority::default(),
                 status: WorkStatus::Open,

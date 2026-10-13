@@ -60,5 +60,17 @@ Client configuration (the shape most MCP clients use):
 }
 ```
 
-Like the HTTP API, this holds the data directory's lock while it runs, so run it instead of (not beside) `serve`
-for now. Serving MCP from the web server process is on the list in `docs/gaps.md`.
+The standard-input server holds the data directory's lock while it runs, so run it instead of (not beside)
+`serve`. To reach a running server instead, use MCP over HTTP.
+
+### MCP over HTTP
+
+A running `buildkiosk serve` also answers MCP at `POST /mcp`: one JSON-RPC message (or a batch) per request, with an
+API token (made on your My account page, which you reach from your name in the top bar, or with `buildkiosk token ...` while the server is stopped) as
+`Authorization: Bearer <token>`. It acts as the person who owns the token, runs the same tools as the
+standard-input server, and answers `202` with no body to a notification. Put it behind HTTPS (see
+[`deployment.md`](deployment.md)): the token is a bearer secret.
+
+```json
+{ "mcpServers": { "buildkiosk": { "type": "http", "url": "https://buildkiosk.example.com/mcp", "headers": { "Authorization": "Bearer bk_…" } } } }
+```

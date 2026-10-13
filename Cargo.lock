@@ -288,6 +288,7 @@ dependencies = [
  "base64",
  "buildkiosk-core",
  "buildkiosk-engine",
+ "buildkiosk-mcp",
  "buildkiosk-store",
  "buildkiosk-testkit",
  "buildkiosk-web",

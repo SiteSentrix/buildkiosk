@@ -62,6 +62,20 @@ companies/<slug>/blobs/       uploaded files
 companies/<slug>/credentials.json password hashes, API tokens, sessions
 ```
 
+## Email
+
+BuildKiosk sends each in-app notification as an email through your own SMTP server. A company admin sets it up
+under My account → Set up outgoing email (`/admin/email`): host, port, encryption (STARTTLS, TLS or none for a
+trusted local relay), user name and password, the sender address, and the public address of the server (used for
+links in messages). The **Send a test email** button mails the admin's own address.
+
+- The settings, including the SMTP password, are stored in `credentials.json` next to the journal, never in the
+  journal. Back that file up like the rest of the data directory.
+- The server checks for new notifications every 20 seconds. Turning email on does not send the backlog. A message
+  that can't be sent is retried on the next pass; the log shows the reason.
+- People turn their own emails off on My account. Only people who can sign in, are active and have an email
+  address receive them.
+
 ## Backups
 
 Stop the server, then:

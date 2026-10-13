@@ -14,10 +14,10 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 | Directory | company directory page: people, companies, permission templates (view), add forms, admin sets passwords |
 | Server | signed session cookies, CSRF on every form, `POST /do/{command}`, `POST /api/v1/commands/{id}` (bearer token) |
 | App | `serve`, `demo`, `run`, `commands`, `token`, `mcp`, `backup`, `check` |
-| Not yet | file attachments, submittals and every other tool, email notifications |
+| Not yet | file attachments, submittals and every other tool |
 
 ## Upcoming
-1. Finish RFIs: files on responses, PDF export, email notifications.
+1. Finish RFIs: files on responses.
 2. Next tools in the order of `docs/gaps.md` (then the financial remainder; financials still to do: forecasting, budget snapshots).
 
 ## Progress log
@@ -58,6 +58,7 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 - 2026-10-12: Punch list — assign, work done, review, send back, close, reopen; comments, files, notifications, CSV.
 - 2026-10-12: Daily log — weather, manpower, equipment, deliveries, visitors, notes; draft, submit, reopen.
 - 2026-10-12: RFI notifications.
+- 2026-10-13: Email — notifications are emailed through the company's own SMTP server (settings and test send on an admin page, per-person opt-out, links back to the app, nothing sent twice).
 - 2026-10-12: Submittals round 2 — ordered reviews, register import/export, specification sections, files on reviews, in-app notifications.
 - 2026-10-12: Submittals — review workflow with revisions, files, history.
 - 2026-10-12: Directory page (people, companies, templates), admins set passwords, edit/deactivate/remove people.

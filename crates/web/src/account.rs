@@ -12,8 +12,73 @@ pub struct TokenRow {
     pub created: buildkiosk_core::Timestamp,
 }
 
+/// What the account page needs to know about email.
+pub struct MailPref {
+    /// The company has set up outgoing email.
+    pub configured: bool,
+    /// This person receives notification emails.
+    pub on: bool,
+}
+
+/// Outgoing email settings as the admin page shows them (the password is never sent back).
+#[derive(Default)]
+pub struct MailForm {
+    pub host: String,
+    pub port: String,
+    pub security: String,
+    pub username: String,
+    pub has_password: bool,
+    pub from: String,
+    pub base_url: String,
+    pub configured: bool,
+}
+
+/// The company admin's page for outgoing email.
+pub fn mail_page(req: &Req<'_>, m: &MailForm) -> Markup {
+    let sel = |v: &str| m.security == v || (m.security.is_empty() && v == "starttls");
+    let body = html! {
+        div class="page-head" { div { h1 { "Email" } div class="sub" { "Send notifications to people's inboxes" } } }
+        div class="card" {
+            p class="muted" { "BuildKiosk sends each notification as an email through your own mail server (SMTP). People can turn it off on their account page. Nothing is sent until this is filled in." }
+            form method="post" action="/admin/email" class="stack" {
+                input type="hidden" name="_csrf" value=(req.csrf);
+                div class="form-grid" {
+                    (field("Mail server", "host", true, false, html! { input type="text" id="host" name="host" value=(m.host) required placeholder="smtp.example.com"; }))
+                    (field("Port", "port", true, false, html! { input type="text" id="port" name="port" value=(m.port) required placeholder="587"; }))
+                    (field("Encryption", "security", false, false, html! { select id="security" name="security" {
+                        option value="starttls" selected[sel("starttls")] { "STARTTLS (usual, port 587)" }
+                        option value="tls" selected[sel("tls")] { "TLS (port 465)" }
+                        option value="none" selected[sel("none")] { "None (trusted local relay only)" }
+                    } }))
+                    (field("User name", "username", false, false, html! { input type="text" id="username" name="username" value=(m.username) autocomplete="off"; }))
+                    (field("Password", "password", false, false, html! { input type="password" id="password" name="password" autocomplete="new-password" placeholder=(if m.has_password { "(unchanged)" } else { "" }); }))
+                    (field("Send from", "from", true, false, html! { input type="text" id="from" name="from" value=(m.from) required placeholder="BuildKiosk <noreply@example.com>"; }))
+                    (field("Address of this server", "base_url", false, false, html! { input type="text" id="base_url" name="base_url" value=(m.base_url) placeholder="https://buildkiosk.example.com"; }))
+                }
+                p class="muted small" { "The address of this server is used for the links in messages." }
+                div class="form-actions" { button type="submit" class="btn primary" { "Save" } }
+            }
+        }
+        @if m.configured {
+            div class="card" {
+                h2 { "Test it" }
+                form method="post" action="/admin/email/test" class="stack" {
+                    input type="hidden" name="_csrf" value=(req.csrf);
+                    p class="muted" { "Sends a short message to your own address." }
+                    div class="form-actions" { button type="submit" class="btn" { "Send a test email" } }
+                }
+                form method="post" action="/admin/email/clear" class="stack" {
+                    input type="hidden" name="_csrf" value=(req.csrf);
+                    div class="form-actions" { button type="submit" class="btn danger" { "Turn email off" } }
+                }
+            }
+        }
+    };
+    layout::app(req, "Email", Nav::Account, &[("Email", None)], body)
+}
+
 /// `new_token` is shown once, right after it is made.
-pub fn page(req: &Req<'_>, tokens: &[TokenRow], new_token: Option<&str>) -> Markup {
+pub fn page(req: &Req<'_>, tokens: &[TokenRow], new_token: Option<&str>, mail: &MailPref) -> Markup {
     let state = req.engine.state();
     let me = state.people.get(req.person);
     let name = view::person_name(state, req.person);
@@ -31,6 +96,19 @@ pub fn page(req: &Req<'_>, tokens: &[TokenRow], new_token: Option<&str>) -> Mark
                 p class="muted small" { "Changing it signs you out everywhere else." }
                 div class="form-actions" { button type="submit" class="btn primary" { "Change password" } }
             }
+        }
+        @if mail.configured {
+            div class="card" {
+                h2 { "Email" }
+                form method="post" action="/account/email" class="stack" {
+                    input type="hidden" name="_csrf" value=(req.csrf);
+                    label class="check" { input type="checkbox" name="on" value="1" checked[mail.on]; " Email me my notifications" }
+                    div class="form-actions" { button type="submit" class="btn" { "Save" } }
+                }
+            }
+        }
+        @if me.is_some_and(|p| p.company_admin) {
+            p class="muted" { a href="/admin/email" { "Set up outgoing email" } }
         }
         div class="card" {
             h2 { "API tokens" }

@@ -1867,3 +1867,120 @@ async fn refused_saves_keep_what_was_typed() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// A minimal SMTP server that accepts every message and returns what it received.
+fn fake_smtp() -> (u16, std::sync::mpsc::Receiver<String>) {
+    use std::io::{BufRead, BufReader, Write};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        for stream in listener.incoming() {
+            let Ok(stream) = stream else { return };
+            let mut out = stream.try_clone().unwrap();
+            let mut reader = BufReader::new(stream);
+            let _ = out.write_all(b"220 fake ready\r\n");
+            let (mut data, mut in_data, mut got) = (false, false, String::new());
+            let mut line = String::new();
+            loop {
+                line.clear();
+                if reader.read_line(&mut line).unwrap_or(0) == 0 {
+                    break;
+                }
+                if in_data {
+                    if line == ".\r\n" {
+                        in_data = false;
+                        data = true;
+                        let _ = out.write_all(b"250 queued\r\n");
+                    } else {
+                        got.push_str(&line);
+                    }
+                    continue;
+                }
+                let up = line.to_ascii_uppercase();
+                let reply: &[u8] = if up.starts_with("EHLO") {
+                    b"250 fake\r\n"
+                } else if up.starts_with("DATA") {
+                    in_data = true;
+                    b"354 go\r\n"
+                } else if up.starts_with("QUIT") {
+                    let _ = out.write_all(b"221 bye\r\n");
+                    break;
+                } else {
+                    b"250 ok\r\n"
+                };
+                let _ = out.write_all(reply);
+            }
+            if data {
+                let _ = tx.send(got);
+            }
+        }
+    });
+    (port, rx)
+}
+
+#[tokio::test]
+async fn notifications_are_emailed() {
+    let dir = temp("email");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str, who: &str| Request::get(uri.to_string()).header("cookie", who.to_string()).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/", &ada)).await;
+    let csrf = field(&home, "_csrf");
+    let run = |cmd: &str, body: String| post(&format!("/do/{cmd}"), &ada, format!("_csrf={csrf}&{body}"));
+    send(&app, run("project.create", "name=P".into())).await;
+    send(&app, run("person.create", "first_name=Bo&last_name=Builder&email=bo%40example.com&is_user=true".into())).await;
+    send(&app, run("member.add", "project=1&person=2&template=5".into())).await;
+    send(&app, post("/people/2/password", &ada, format!("_csrf={csrf}&password=bo-secret-password"))).await;
+
+    // Nothing is configured: the page asks, a bad form is refused, a notification waits.
+    let (_, _, page) = send(&app, get("/admin/email", &ada)).await;
+    assert!(page.contains("smtp.example.com"));
+    let (port, rx) = fake_smtp();
+    let form = |host: &str, from: &str| {
+        format!("_csrf={csrf}&host={host}&port={port}&security=none&username=&password=&from={from}&base_url=https%3A%2F%2Fbk.example.com%2F")
+    };
+    let (_, h, _) = send(&app, post("/admin/email", &ada, form("127.0.0.1", "not+an+address"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("error="));
+    let (_, h, _) = send(&app, post("/admin/email", &ada, form("127.0.0.1", "BuildKiosk+%3Cnoreply%40example.com%3E"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="));
+    assert_eq!(app.lock().creds.smtp.as_ref().unwrap().base_url, "https://bk.example.com");
+
+    // The test button reaches the server.
+    let (_, h, _) = send(&app, post("/admin/email/test", &ada, format!("_csrf={csrf}"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{:?}", h.get(LOCATION));
+    let got = rx.recv_timeout(Duration::from_secs(10)).unwrap();
+    assert!(got.contains("BuildKiosk test email") && got.contains("ada@example.com"), "{got}");
+
+    // A notification for Bo goes out once, with a link; turning email off stops it.
+    send(&app, run("spec.import", "project=1&text=05+12+00%2CStructural+steel".into())).await;
+    send(&app, run("submittal.import", "project=1&text=title%2Cspec_section%0AAnchor+bolts%2C05+12+00".into())).await;
+    send(&app, run("submittal.update", "project=1&id=1&reviewers%5B%5D=2&ordered=true".into())).await;
+    send(&app, run("submittal.open", "project=1&id=1".into())).await;
+    let a = app.clone();
+    assert_eq!(tokio::task::spawn_blocking(move || mail_pass(&a)).await.unwrap(), 1);
+    let got = rx.recv_timeout(Duration::from_secs(10)).unwrap();
+    assert!(got.contains("bo@example.com") && got.contains("https://bk.example.com/projects/1/submittals/1"), "{got}");
+    let a = app.clone();
+    assert_eq!(tokio::task::spawn_blocking(move || mail_pass(&a)).await.unwrap(), 0, "already sent");
+
+    let (_, h, page) = send(&app, Request::get("/login").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let login = format!("_csrf={}&email=bo%40example.com&password=bo-secret-password", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/login", &anon, login)).await;
+    let bo = cookies(&h);
+    let (_, _, acct) = send(&app, get("/account", &bo)).await;
+    let bo_csrf = field(&acct, "_csrf");
+    send(&app, post("/account/email", &bo, format!("_csrf={bo_csrf}"))).await;
+    assert!(app.lock().creds.email_off.contains(&2));
+    // Only admins reach the settings.
+    let (_, h, _) = send(&app, get("/admin/email", &bo)).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().starts_with("/account?"));
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

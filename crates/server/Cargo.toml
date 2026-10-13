@@ -11,6 +11,7 @@ repository.workspace = true
 buildkiosk-core = { workspace = true }
 buildkiosk-engine = { workspace = true }
 buildkiosk-mcp = { workspace = true }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
 lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "builder", "hostname", "rustls-tls"] }
 buildkiosk-store = { workspace = true }
 buildkiosk-web = { workspace = true }

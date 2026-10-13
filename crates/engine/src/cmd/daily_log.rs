@@ -55,6 +55,22 @@ pub const COMMANDS: &[CommandSpec] = &[
         "project: project id; from?, to?: YYYY-MM-DD; status?: draft|submitted; deleted?: bool (recycle bin, admins)",
         list,
     ),
+    CommandSpec::mutate(
+        "daily_log.attach",
+        "Attach file to daily log",
+        Tool::DailyLog,
+        Access::Project(Level::Standard),
+        "project, id: ids; sha256: text (of an uploaded file); name: text; size: integer (bytes); mime?: text (up to 30 files)",
+        attach,
+    ),
+    CommandSpec::mutate(
+        "daily_log.detach",
+        "Remove attachment from daily log",
+        Tool::DailyLog,
+        Access::Project(Level::Standard),
+        "project, id: ids; sha256: text",
+        detach,
+    ),
     CommandSpec::query("daily_log.get", "Show daily log", Tool::DailyLog, Access::Project(Level::Read), "project, id: ids", get),
 ];
 
@@ -205,6 +221,7 @@ fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         manpower: Vec::new(),
         equipment: Vec::new(),
         deliveries: Vec::new(),
+        attachments: Vec::new(),
         visitors: Vec::new(),
         submitted: None,
         created: stamp,
@@ -276,6 +293,42 @@ fn submit(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     let (project, text, link) = (log.project, format!("{} was submitted", log.label()), format!("/projects/{}/daily-logs/{id}", log.project));
     ctx.state.daily_logs.put(log);
     super::notification::notify(ctx, &managers, project, &text, &link);
+    Ok(json!({ "id": id }))
+}
+
+fn attach(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut log = load(ctx, p)?;
+    if !can_edit(ctx.state, ctx.actor, &log) {
+        return Err(EngineError::forbidden("only the author of a draft or a daily log admin can add files to this daily log"));
+    }
+    let file = super::submittal::file_ref(p)?;
+    if log.attachments.iter().any(|a| a.sha256 == file.sha256) {
+        return Ok(json!({ "id": log.id }));
+    }
+    if log.attachments.len() >= 30 {
+        return Err(EngineError::conflict("this daily log already has 30 files"));
+    }
+    log.attachments.push(file);
+    log.updated = ctx.stamp();
+    let id = log.id;
+    ctx.state.daily_logs.put(log);
+    Ok(json!({ "id": id }))
+}
+
+fn detach(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut log = load(ctx, p)?;
+    if !can_edit(ctx.state, ctx.actor, &log) {
+        return Err(EngineError::forbidden("only the author of a draft or a daily log admin can remove files from this daily log"));
+    }
+    let sha256 = p.req_line("sha256", 64)?.to_ascii_lowercase();
+    let before = log.attachments.len();
+    log.attachments.retain(|a| a.sha256 != sha256);
+    if log.attachments.len() == before {
+        return Err(EngineError::not_found("that file is not attached to this daily log"));
+    }
+    log.updated = ctx.stamp();
+    let id = log.id;
+    ctx.state.daily_logs.put(log);
     Ok(json!({ "id": id }))
 }
 

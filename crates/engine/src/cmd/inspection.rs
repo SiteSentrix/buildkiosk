@@ -14,7 +14,7 @@
 use buildkiosk_core::{Id, text};
 use buildkiosk_model::Choice;
 use buildkiosk_model::directory::Person;
-use buildkiosk_model::inspection::{Answer, ChecklistItem, Inspection, InspectionStatus, InspectionTemplate, TemplateItem};
+use buildkiosk_model::inspection::{Answer, ChecklistItem, Inspection, InspectionStatus, InspectionTemplate, Signature, TemplateItem};
 use buildkiosk_model::project::Project;
 use buildkiosk_model::punch::PunchItem;
 use buildkiosk_model::{Level, Tool};
@@ -83,7 +83,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         Tool::Inspections,
         Access::Project(Level::Standard),
         "project: project id; template?: template id (copies its checklist); items?: text, checklist lines when no template is used; title?: text (default: the template's name); \
-         kind?, location?: text; inspector?: person id; manager?: person id (default: you); scheduled?: YYYY-MM-DD",
+         kind?, location?: text; inspector?: person id; manager?: person id (default: you); scheduled?: YYYY-MM-DD; require_signature?: bool (the inspector must type their name to complete it); repeat_days?: integer 1..365 (completing it starts the next one that many days later)",
         create,
     ),
     CommandSpec::mutate(
@@ -91,7 +91,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Edit inspection",
         Tool::Inspections,
         Access::Project(Level::Standard),
-        "project, id: ids; title?, kind?, location?: text; inspector?, manager?: person id; scheduled?: YYYY-MM-DD",
+        "project, id: ids; title?, kind?, location?: text; inspector?, manager?: person id; scheduled?: YYYY-MM-DD; require_signature?: bool; repeat_days?: integer (blank or 0 for none)",
         update,
     ),
     CommandSpec::mutate(
@@ -107,7 +107,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Complete inspection",
         Tool::Inspections,
         Access::Project(Level::Standard),
-        "project, id: ids (every line must be answered)",
+        "project, id: ids; signature?: text (the inspector's typed name; required when the inspection requires a signature). Every line must be answered. A repeating inspection starts the next one.",
         complete,
     ),
     CommandSpec::mutate("inspection.reopen", "Reopen inspection", Tool::Inspections, Access::Project(Level::Standard), "project, id: ids", reopen),
@@ -126,6 +126,22 @@ pub const COMMANDS: &[CommandSpec] = &[
         Access::Project(Level::Standard),
         "project, id: ids; sha256: text (of an uploaded file); name: text; size: integer (bytes); mime?: text",
         attach,
+    ),
+    CommandSpec::mutate(
+        "inspection.attach_line",
+        "Attach file to a checklist line",
+        Tool::Inspections,
+        Access::Project(Level::Standard),
+        "project, id: ids; line: line number from 1; sha256, name, size, mime?: as for inspection.attach (at most 5 files per line)",
+        attach_line,
+    ),
+    CommandSpec::mutate(
+        "inspection.detach_line",
+        "Remove file from a checklist line",
+        Tool::Inspections,
+        Access::Project(Level::Standard),
+        "project, id: ids; line: line number from 1; sha256: text",
+        detach_line,
     ),
     CommandSpec::mutate(
         "inspection.detach",
@@ -379,6 +395,14 @@ fn person_field(ctx: &Ctx<'_>, p: &Params<'_>, key: &str) -> Result<Option<Id<Pe
     Ok(v)
 }
 
+/// `repeat_days`: blank or 0 for none, else 1 to 365.
+fn repeat_days(p: &Params<'_>) -> Result<Option<u32>> {
+    if !p.present("repeat_days") {
+        return Ok(None);
+    }
+    Ok(p.int("repeat_days", 0..=365)?.filter(|d| *d > 0).and_then(|d| u32::try_from(d).ok()))
+}
+
 fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     let project: Id<Project> = p.id("project")?;
     let template = match p.opt_id::<InspectionTemplate>("template")? {
@@ -424,9 +448,13 @@ fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         scheduled: p.date("scheduled")?,
         items: items
             .into_iter()
-            .map(|t| ChecklistItem { section: t.section, text: t.text, answer: None, note: String::new(), punch: None })
+            .map(|t| ChecklistItem { section: t.section, text: t.text, answer: None, note: String::new(), punch: None, attachments: Vec::new() })
             .collect(),
         completed: None,
+        require_signature: p.flag_or("require_signature", false)?,
+        signed: None,
+        repeat_days: repeat_days(p)?,
+        next: None,
         attachments: Vec::new(),
         created: stamp,
         updated: stamp,
@@ -462,6 +490,12 @@ fn update(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     }
     if p.present("scheduled") {
         i.scheduled = p.date("scheduled")?;
+    }
+    if let Some(r) = p.flag("require_signature")? {
+        i.require_signature = r;
+    }
+    if p.present("repeat_days") {
+        i.repeat_days = repeat_days(p)?;
     }
     let id = i.id;
     if i != before {
@@ -525,10 +559,50 @@ fn complete(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     if left > 0 {
         return Err(EngineError::conflict(format!("{left} checklist line{} still need an answer", if left == 1 { "" } else { "s" })));
     }
+    let signature = p.line_or_empty("signature", 100)?;
+    if i.require_signature && signature.is_empty() {
+        return Err(EngineError::conflict(format!("{} must be signed: type your full name to sign it", i.label())));
+    }
     i.status = InspectionStatus::Completed;
     i.completed = Some(ctx.stamp());
+    i.signed = (!signature.is_empty()).then(|| Signature { name: signature, by: ctx.person(), at: ctx.at });
     i.updated = ctx.stamp();
     let id = i.id;
+    // A repeating inspection starts its successor once.
+    if let (Some(days), None) = (i.repeat_days, i.next) {
+        let next_id = ctx.state.inspections.alloc();
+        let number = ctx.state.inspections.iter().filter(|x| x.project == i.project).map(|x| x.number).max().unwrap_or(0).saturating_add(1);
+        let stamp = ctx.stamp();
+        let due = ctx.today().add_days(i64::from(days));
+        let successor = Inspection {
+            id: next_id,
+            number,
+            status: InspectionStatus::Open,
+            scheduled: due,
+            items: i
+                .items
+                .iter()
+                .map(|x| ChecklistItem { answer: None, note: String::new(), punch: None, attachments: Vec::new(), ..x.clone() })
+                .collect(),
+            completed: None,
+            signed: None,
+            next: None,
+            attachments: Vec::new(),
+            created: stamp,
+            updated: stamp,
+            deleted: None,
+            ..i.clone()
+        };
+        notify(
+            ctx,
+            &successor.inspector.into_iter().collect::<Vec<_>>(),
+            i.project,
+            &format!("{} was scheduled for you: {}", successor.label(), successor.title),
+            &link(&successor),
+        );
+        ctx.state.inspections.put(successor);
+        i.next = Some(next_id);
+    }
     let outcome = if i.failed() == 0 { "no failed lines".to_string() } else { format!("{} failed", i.failed()) };
     notify(ctx, &i.manager.into_iter().collect::<Vec<_>>(), i.project, &format!("{} was completed ({outcome}): {}", i.label(), i.title), &link(&i));
     ctx.state.inspections.put(i);
@@ -545,6 +619,7 @@ fn reopen(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     }
     i.status = InspectionStatus::Open;
     i.completed = None;
+    i.signed = None;
     i.updated = ctx.stamp();
     let id = i.id;
     ctx.state.inspections.put(i);
@@ -603,6 +678,50 @@ fn attach(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         return Err(EngineError::conflict(format!("{} already has {MAX_ATTACHMENTS} files", i.label())));
     }
     i.attachments.push(file);
+    i.updated = ctx.stamp();
+    let id = i.id;
+    ctx.state.inspections.put(i);
+    Ok(json!({ "id": id }))
+}
+
+fn attach_line(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut i = load(ctx, p)?;
+    if !can_answer(ctx.state, ctx.actor, &i) {
+        return Err(EngineError::forbidden(format!("only the inspector or manager of {} can add files to its lines", i.label())));
+    }
+    let line = p.int("line", 1..=300)?.ok_or_else(|| p.bad("line", "is required"))?;
+    let file = file_ref(p)?;
+    let Some(item) = i.items.get_mut(usize::try_from(line).unwrap_or(0).saturating_sub(1)) else {
+        return Err(p.bad("line", format!("there is no line {line}")));
+    };
+    if item.attachments.iter().any(|a| a.sha256 == file.sha256) {
+        return Ok(json!({ "id": i.id }));
+    }
+    if item.attachments.len() >= 5 {
+        return Err(EngineError::conflict(format!("line {line} already has 5 files")));
+    }
+    item.attachments.push(file);
+    i.updated = ctx.stamp();
+    let id = i.id;
+    ctx.state.inspections.put(i);
+    Ok(json!({ "id": id }))
+}
+
+fn detach_line(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut i = load(ctx, p)?;
+    if !can_answer(ctx.state, ctx.actor, &i) {
+        return Err(EngineError::forbidden(format!("only the inspector or manager of {} can remove files from its lines", i.label())));
+    }
+    let line = p.int("line", 1..=300)?.ok_or_else(|| p.bad("line", "is required"))?;
+    let sha256 = p.req_line("sha256", 64)?.to_ascii_lowercase();
+    let Some(item) = i.items.get_mut(usize::try_from(line).unwrap_or(0).saturating_sub(1)) else {
+        return Err(p.bad("line", format!("there is no line {line}")));
+    };
+    let before = item.attachments.len();
+    item.attachments.retain(|a| a.sha256 != sha256);
+    if item.attachments.len() == before {
+        return Err(EngineError::not_found("that file is not attached to this line"));
+    }
     i.updated = ctx.stamp();
     let id = i.id;
     ctx.state.inspections.put(i);

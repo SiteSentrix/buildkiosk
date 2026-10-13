@@ -65,6 +65,19 @@ pub struct ChecklistItem {
     /// The punch item raised for this failed line, if any.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub punch: Option<Id<PunchItem>>,
+    /// Photos or other files that show what was found on this line.
+    #[serde(default)]
+    pub attachments: Vec<FileRef>,
+}
+
+/// A typed-name sign-off on a completed inspection.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Signature {
+    /// The name the signer typed.
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub by: Option<Id<Person>>,
+    pub at: buildkiosk_core::Timestamp,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -93,6 +106,17 @@ pub struct Inspection {
     pub items: Vec<ChecklistItem>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub completed: Option<Stamp>,
+    /// The inspector must sign (type their name) to complete it.
+    #[serde(default)]
+    pub require_signature: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signed: Option<Signature>,
+    /// Completing it starts the next one this many days later.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub repeat_days: Option<u32>,
+    /// The inspection started by repeating this one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next: Option<Id<Inspection>>,
     #[serde(default)]
     pub attachments: Vec<FileRef>,
     pub created: Stamp,

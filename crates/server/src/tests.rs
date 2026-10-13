@@ -459,6 +459,27 @@ async fn daily_log_form_saves_lists_and_submits() {
     for want in ["Northline", "Keystone", "Excavator", "Rebar", "Inspector", "Submitted", "10", "78"] {
         assert!(detail.contains(want), "{want} missing");
     }
+    // Files on the log.
+    let upload = |token: &str| {
+        let body = format!(
+            "--B\r\nContent-Disposition: form-data; name=\"_csrf\"\r\n\r\n{token}\r\n--B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"site.jpg\"\r\nContent-Type: image/jpeg\r\n\r\nsite-photo\r\n--B--\r\n"
+        );
+        Request::post("/projects/1/daily-logs/1/upload")
+            .header("cookie", &ada)
+            .header("content-type", "multipart/form-data; boundary=B")
+            .body(Body::from(body))
+            .unwrap()
+    };
+    let (st, ..) = send(&app, upload("bad")).await;
+    assert_eq!(st, StatusCode::FORBIDDEN);
+    let (_, h, _) = send(&app, upload(&csrf)).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, detail) = send(&app, get("/projects/1/daily-logs/1")).await;
+    let href =
+        detail.split("href=\"").filter(|x| x.contains("/files/")).find(|x| x.contains("site.jpg")).unwrap().split('"').next().unwrap().to_string();
+    let (st, _, bytes) = send(&app, get(&href)).await;
+    assert_eq!((st, bytes.as_str()), (StatusCode::OK, "site-photo"));
+
     // Copy yesterday's crews, and the weekly summary with its PDF.
     let (_, _, plain_form) = send(&app, get("/projects/1/daily-logs/new")).await;
     assert!(plain_form.contains("Copy crews and equipment from") && !plain_form.contains("value=\"Northline\""));
@@ -707,6 +728,44 @@ async fn inspection_checklist_in_the_browser_flow() {
     assert!(list.contains("Framing walk-through") && list.contains("7 of 7"));
     let (_, _, csv) = send(&app, get("/projects/1/inspections.csv")).await;
     assert!(csv.contains("Framing walk-through"));
+
+    // A signed, repeating inspection with a photo on a line, and the section scores.
+    let (_, h, _) = send(&app, post("/do/inspection.create", &ada, format!("_csrf={csrf}&_next=/projects/1/inspections/%7Bid%7D&project=1&title=Weekly+walk&items=%23+Site%0AFences+up%0AExits+clear&require_signature=true&repeat_days=7&inspector=1"))).await;
+    let loc = h.get(LOCATION).unwrap().to_str().unwrap().split('?').next().unwrap().to_string();
+    let (_, _, detail) = send(&app, get(&loc)).await;
+    assert!(
+        detail.contains("name=\"signature\"")
+            && detail.contains("Every 7 days")
+            && detail.contains("Sections")
+            && detail.contains("Add a photo to a line"),
+        "{detail}"
+    );
+    let line_upload = |token: &str| {
+        let body = format!(
+            "--B\r\nContent-Disposition: form-data; name=\"_csrf\"\r\n\r\n{token}\r\n--B\r\nContent-Disposition: form-data; name=\"line\"\r\n\r\n2\r\n--B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"pallets.jpg\"\r\nContent-Type: image/jpeg\r\n\r\nphoto-bytes\r\n--B--\r\n"
+        );
+        Request::post(format!("{loc}/line-file"))
+            .header("cookie", &ada)
+            .header("content-type", "multipart/form-data; boundary=B")
+            .body(Body::from(body))
+            .unwrap()
+    };
+    let (st, ..) = send(&app, line_upload("bad")).await;
+    assert_eq!(st, StatusCode::FORBIDDEN);
+    let (_, h, _) = send(&app, line_upload(&csrf)).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, detail) = send(&app, get(&loc)).await;
+    let href =
+        detail.split("href=\"").filter(|x| x.contains("/files/")).find(|x| x.contains("pallets.jpg")).unwrap().split('"').next().unwrap().to_string();
+    let (st, _, bytes) = send(&app, get(&href)).await;
+    assert_eq!((st, bytes.as_str()), (StatusCode::OK, "photo-bytes"));
+    let answers = format!("_csrf={csrf}&line.0.answer=pass&line.1.answer=fail&line.1.note=Blocked&_complete=1");
+    let (_, h, _) = send(&app, post(&format!("{loc}/answers"), &ada, answers.clone())).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("error="), "unsigned");
+    let (_, h, _) = send(&app, post(&format!("{loc}/answers"), &ada, format!("{answers}&signature=Ada+Admin"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, detail) = send(&app, get(&loc)).await;
+    assert!(detail.contains("Ada Admin") && detail.contains("Next inspection"), "{detail}");
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -1402,7 +1461,7 @@ async fn photos_upload_gallery_and_inline_image() {
     assert!(loc.contains("ok=") && loc.contains("2+added") || loc.contains("2%20added"), "{loc}");
     let (_, _, gallery) = send(&app, get("/projects/1/photos?album=foundations")).await;
     assert!(
-        gallery.contains("/projects/1/photos/1/image") && gallery.contains("/projects/1/photos/2/image") && !gallery.contains("photos/3/"),
+        gallery.contains("/projects/1/photos/1/thumb") && gallery.contains("/projects/1/photos/2/thumb") && !gallery.contains("photos/3/"),
         "{gallery}"
     );
     let (st, h, body) = send(&app, get("/projects/1/photos/1/image")).await;
@@ -1415,6 +1474,34 @@ async fn photos_upload_gallery_and_inline_image() {
     assert_eq!(st, StatusCode::SEE_OTHER, "signed-out people don't see photos");
     let (_, _, detail) = send(&app, get("/projects/1/photos/1")).await;
     assert!(detail.contains("Forms") && detail.contains("Download original"));
+
+    // A real, large picture gets a real, small thumbnail; one that can't be decoded falls back to itself.
+    let mut big = Vec::new();
+    image::DynamicImage::ImageRgb8(image::RgbImage::from_fn(1600, 1200, |x, y| image::Rgb([(x % 251) as u8, (y % 241) as u8, 90])))
+        .write_to(&mut std::io::Cursor::new(&mut big), image::ImageFormat::Png)
+        .unwrap();
+    let mut body: Vec<u8> = Vec::new();
+    body.extend_from_slice(format!("--B\r\nContent-Disposition: form-data; name=\"_csrf\"\r\n\r\n{csrf}\r\n").as_bytes());
+    body.extend_from_slice(b"--B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"big.png\"\r\nContent-Type: image/png\r\n\r\n");
+    body.extend_from_slice(&big);
+    body.extend_from_slice(b"\r\n--B--\r\n");
+    let req = Request::post("/projects/1/photos/upload")
+        .header("cookie", &ada)
+        .header("content-type", "multipart/form-data; boundary=B")
+        .body(Body::from(body))
+        .unwrap();
+    let (_, h, _) = send(&app, req).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="));
+    let res = router(app.clone()).oneshot(get("/projects/1/photos/3/thumb")).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let thumb = res.into_body().collect().await.unwrap().to_bytes();
+    let decoded = image::load_from_memory(&thumb).unwrap();
+    assert!(decoded.width() <= 360 && decoded.height() <= 360 && decoded.width() >= 300, "{}x{}", decoded.width(), decoded.height());
+    assert!(thumb.len() < big.len() / 3, "{} vs {}", thumb.len(), big.len());
+    let (st, h, _) = send(&app, get("/projects/1/photos/1/thumb")).await;
+    assert_eq!((st, h.get("content-type").unwrap().to_str().unwrap()), (StatusCode::OK, "image/png"), "an undecodable picture is sent as it is");
+    let (st, ..) = send(&app, Request::get("/projects/1/photos/3/thumb").body(Body::empty()).unwrap()).await;
+    assert_eq!(st, StatusCode::SEE_OTHER, "signed-out people don't see thumbnails");
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }

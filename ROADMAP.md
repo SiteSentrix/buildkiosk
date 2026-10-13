@@ -45,6 +45,7 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 - 2026-10-13: timesheets, more: pay rates, overtime rules, crew entries, labour cost report, posting labour to direct costs.
 - 2026-10-13: forms, more: conditional questions, typed-name signatures, template copy across projects, recurring forms, cross-form report.
 - 2026-10-13: correspondence, more: configurable types with their own numbering, links to RFIs and documents, letter print, incoming mail and pasted emails.
+- 2026-10-13: photos, more: tags to RFIs, observations and punch items, slideshow, album zip, upright thumbnails, picture metadata.
 - 2026-10-13: portfolio table on the Projects page and `report.portfolio`.
 - 2026-10-13: project report across tools (open and past-due counts) and a "waiting on me" list on the project home; `report.summary` and `report.waiting_on_me` queries.
 - 2026-10-13: timesheets (hours by day and cost code, weekly submit, approve and send back, CSV).

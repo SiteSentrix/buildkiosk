@@ -6,14 +6,17 @@
 
 use buildkiosk_core::{Id, text};
 use buildkiosk_model::common::FileRef;
+use buildkiosk_model::observation::Observation;
 use buildkiosk_model::photo::{IMAGE_TYPES, Photo};
 use buildkiosk_model::project::Project;
+use buildkiosk_model::punch::PunchItem;
 use buildkiosk_model::{Level, Tool};
 use serde_json::{Value, json};
 
 use super::{Access, CommandSpec};
 use crate::ctx::in_project;
-use crate::view::json;
+use crate::view::{self, json};
+use crate::workitem::WorkItem;
 use crate::{Ctx, EngineError, Params, Read, Result, View};
 
 pub const COMMANDS: &[CommandSpec] = &[
@@ -22,7 +25,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Add photo",
         Tool::Photos,
         Access::Project(Level::Standard),
-        "project: project id; sha256: 64 hex digits; name: file name; size: bytes; mime: image/jpeg|image/png|image/gif|image/webp; caption?: text; album?: text; location?: text; taken?: YYYY-MM-DD (default today)",
+        "project: project id; sha256: 64 hex digits; name: file name; size: bytes; mime: image/jpeg|image/png|image/gif|image/webp; caption?: text; album?: text; location?: text; taken?: YYYY-MM-DD (default today); width?, height?: pixels; camera?: text",
         add,
     ),
     CommandSpec::mutate(
@@ -41,13 +44,21 @@ pub const COMMANDS: &[CommandSpec] = &[
         "project, id: ids (the person who added it, or an admin)",
         delete,
     ),
+    CommandSpec::mutate(
+        "photo.link",
+        "Tag photo to an item",
+        Tool::Photos,
+        Access::Project(Level::Standard),
+        "project, id: ids of the photo; kind: rfi|observation|punch and item: the item's id (or one tag such as `rfi:12`); remove?: bool (the person who added the photo, or an admin; you must be able to see the item)",
+        link,
+    ),
     CommandSpec::mutate("photo.restore", "Restore photo", Tool::Photos, Access::Project(Level::Admin), "project, id: ids", restore),
     CommandSpec::query(
         "photo.list",
         "List photos",
         Tool::Photos,
         Access::Project(Level::Read),
-        "project: project id; album?: text; q?: text (caption, album or place); deleted?: bool (admins)",
+        "project: project id; album?: text; q?: text (caption, album or place); rfi?, observation?, punch?: item id (photos tagged to it); deleted?: bool (admins)",
         list,
     ),
     CommandSpec::query("photo.get", "Show photo", Tool::Photos, Access::Project(Level::Read), "project, id: ids", get),
@@ -99,6 +110,12 @@ fn add(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         album: p.line_or_empty("album", 100)?,
         location: p.line_or_empty("location", text::SHORT)?,
         taken,
+        width: u32::try_from(p.int("width", 0..=100_000)?.unwrap_or(0)).unwrap_or(0),
+        height: u32::try_from(p.int("height", 0..=100_000)?.unwrap_or(0)).unwrap_or(0),
+        camera: p.line_or_empty("camera", 100)?,
+        rfis: Vec::new(),
+        observations: Vec::new(),
+        punch_items: Vec::new(),
         created: stamp,
         updated: stamp,
         deleted: None,
@@ -122,6 +139,75 @@ fn update(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     }
     if p.present("taken") {
         ph.taken = p.date("taken")?;
+    }
+    ph.updated = ctx.stamp();
+    let id = ph.id;
+    ctx.state.photos.put(ph);
+    Ok(json!({ "id": id }))
+}
+
+const MAX_TAGS: usize = 50;
+
+fn link(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut ph = load(ctx, p)?;
+    if !can_change(ctx, &ph) {
+        return Err(EngineError::forbidden("only the person who added a photo or a Photos admin can tag it"));
+    }
+    // Either `kind` and `item`, or one `tag` such as `rfi:12` (what a page's drop-down sends).
+    let (kind, item) = match p.line("tag", 40)?.filter(|t| !t.is_empty()) {
+        Some(t) => {
+            let (k, n) = t.split_once(':').ok_or_else(|| p.bad("tag", "must look like rfi:12"))?;
+            (k.to_string(), n.trim().parse::<u64>().map_err(|_| p.bad("tag", "must look like rfi:12"))?)
+        }
+        None => (p.req_line("kind", 20)?, p.id::<Photo>("item")?.raw()),
+    };
+    let remove = p.flag("remove")?.unwrap_or(false);
+    let project = ph.project;
+    let missing = |what: &str| EngineError::not_found(format!("{what} not found in this project"));
+    match kind.as_str() {
+        "rfi" => {
+            let id: Id<buildkiosk_model::rfi::Rfi> = Id::new(item);
+            let ok = in_project(&ctx.state.rfis, project, id, "RFI")
+                .ok()
+                .is_some_and(|r| r.deleted.is_none() && view::can_see_rfi(ctx.state, ctx.actor, r));
+            if !remove && !ok {
+                return Err(missing("RFI"));
+            }
+            ph.rfis.retain(|x| *x != id);
+            if !remove {
+                ph.rfis.push(id);
+            }
+        }
+        "observation" => {
+            let id: Id<Observation> = Id::new(item);
+            let ok = in_project(&ctx.state.observations, project, id, "observation")
+                .ok()
+                .is_some_and(|o| o.deleted.is_none() && o.visible_to(ctx.state, ctx.actor));
+            if !remove && !ok {
+                return Err(missing("observation"));
+            }
+            ph.observations.retain(|x| *x != id);
+            if !remove {
+                ph.observations.push(id);
+            }
+        }
+        "punch" => {
+            let id: Id<PunchItem> = Id::new(item);
+            let ok = in_project(&ctx.state.punch_items, project, id, "punch item")
+                .ok()
+                .is_some_and(|o| o.deleted.is_none() && o.visible_to(ctx.state, ctx.actor));
+            if !remove && !ok {
+                return Err(missing("punch item"));
+            }
+            ph.punch_items.retain(|x| *x != id);
+            if !remove {
+                ph.punch_items.push(id);
+            }
+        }
+        other => return Err(p.bad("kind", format!("`{other}` is not rfi, observation or punch"))),
+    }
+    if ph.rfis.len() + ph.observations.len() + ph.punch_items.len() > MAX_TAGS {
+        return Err(EngineError::conflict(format!("a photo can be tagged to at most {MAX_TAGS} items")));
     }
     ph.updated = ctx.stamp();
     let id = ph.id;
@@ -168,8 +254,16 @@ fn list(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
     }
     let album = p.line("album", 100)?.filter(|a| !a.is_empty());
     let q = p.line("q", 200)?.map(|s| s.to_lowercase()).filter(|s| !s.is_empty());
+    let rfi: Option<Id<buildkiosk_model::rfi::Rfi>> = p.opt_id("rfi")?;
+    let obs: Option<Id<Observation>> = p.opt_id("observation")?;
+    let punch: Option<Id<PunchItem>> = p.opt_id("punch")?;
     let list: Vec<&Photo> = visible(v.state, project)
         .into_iter()
+        .filter(|x| {
+            rfi.is_none_or(|r| x.rfis.contains(&r))
+                && obs.is_none_or(|o| x.observations.contains(&o))
+                && punch.is_none_or(|u| x.punch_items.contains(&u))
+        })
         .filter(|x| album.as_ref().is_none_or(|a| x.album.eq_ignore_ascii_case(a)))
         .filter(|x| {
             q.as_ref().is_none_or(|q| {

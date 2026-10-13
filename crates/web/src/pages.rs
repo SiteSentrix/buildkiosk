@@ -438,6 +438,7 @@ pub fn rfi_detail(req: &Req<'_>, id: Id<Project>, rfi_id: Id<Rfi>, history: &[Jo
         div class="detail" {
             div {
                 div class="card" { h2 { "Question" } p class="prose" { @if r.question.is_empty() { span class="muted" { "No question text." } } @else { (r.question) } } }
+                (crate::photos::tagged_card(req, id, "rfi", r.id.raw()))
                 div class="card" {
                     h2 { "Responses" }
                     @if r.responses.is_empty() { p class="muted" { "No responses yet." } }

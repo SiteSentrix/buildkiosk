@@ -248,6 +248,11 @@ fn initials(name: &str) -> String {
 
 /// The full page: top bar, sidebar, flash message and content.
 pub fn app(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Option<String>)], body: Markup) -> Markup {
+    app_with_head(req, title, nav, crumbs, body, html! {})
+}
+
+/// The full page with extra elements in the head (a slideshow asks the browser to move on after a few seconds).
+pub fn app_with_head(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Option<String>)], body: Markup, extra_head: Markup) -> Markup {
     let state = req.engine.state();
     let me = view::person_name(state, req.person);
     let company = state.company().map(|c| c.name.clone()).unwrap_or_default();
@@ -291,7 +296,7 @@ pub fn app(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Option<String>
     html! {
         (DOCTYPE)
         html lang="en" {
-            head { (head(title)) }
+            head { (head(title)) (extra_head) }
             body {
                 a class="skip" href="#main" { "Skip to content" }
                 input type="checkbox" id="nav-toggle" class="nav-toggle";

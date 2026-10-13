@@ -1936,6 +1936,54 @@ async fn photos_upload_gallery_and_inline_image() {
     assert_eq!((st, h.get("content-type").unwrap().to_str().unwrap()), (StatusCode::OK, "image/png"), "an undecodable picture is sent as it is");
     let (st, ..) = send(&app, Request::get("/projects/1/photos/3/thumb").body(Body::empty()).unwrap()).await;
     assert_eq!(st, StatusCode::SEE_OTHER, "signed-out people don't see thumbnails");
+
+    // The picture's size is recorded; a sideways phone picture (EXIF orientation 6) gets an upright thumbnail,
+    // and the camera's date and name are read from it.
+    let photo4 = app.lock().tenant.as_ref().unwrap().engine.state().photos.get(buildkiosk_core::Id::new(3)).unwrap().clone();
+    assert_eq!((photo4.width, photo4.height), (1600, 1200));
+    let mut jpeg = Vec::new();
+    image::DynamicImage::ImageRgb8(image::RgbImage::from_fn(800, 400, |x, _| image::Rgb([(x % 251) as u8, 120, 90])))
+        .write_to(&mut std::io::Cursor::new(&mut jpeg), image::ImageFormat::Jpeg)
+        .unwrap();
+    let mut tiff: Vec<u8> = b"MM\0*\0\0\0\x08".to_vec();
+    tiff.extend([0, 1, 0x01, 0x12, 0, 3, 0, 0, 0, 1, 0, 6, 0, 0, 0, 0, 0, 0]);
+    let mut seg = b"Exif\0\0".to_vec();
+    seg.extend(tiff);
+    let mut with_exif = vec![0xFF, 0xD8, 0xFF, 0xE1];
+    with_exif.extend(((seg.len() + 2) as u16).to_be_bytes());
+    with_exif.extend(seg);
+    with_exif.extend(&jpeg[2..]);
+    let mut body: Vec<u8> = Vec::new();
+    body.extend_from_slice(format!("--B\r\nContent-Disposition: form-data; name=\"_csrf\"\r\n\r\n{csrf}\r\n").as_bytes());
+    body.extend_from_slice(b"--B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"side.jpg\"\r\nContent-Type: image/jpeg\r\n\r\n");
+    body.extend_from_slice(&with_exif);
+    body.extend_from_slice(b"\r\n--B--\r\n");
+    let req = Request::post("/projects/1/photos/upload")
+        .header("cookie", &ada)
+        .header("content-type", "multipart/form-data; boundary=B")
+        .body(Body::from(body))
+        .unwrap();
+    send(&app, req).await;
+    let res = router(app.clone()).oneshot(get("/projects/1/photos/4/thumb")).await.unwrap();
+    let thumb = res.into_body().collect().await.unwrap().to_bytes();
+    let decoded = image::load_from_memory(&thumb).unwrap();
+    assert!(decoded.height() > decoded.width(), "turned upright: {}x{}", decoded.width(), decoded.height());
+
+    // Tag a photo to a punch item and see it on the item's page; slideshow and zip.
+    send(&app, post("/do/punch.create", &ada, format!("_csrf={csrf}&project=1&title=Touch+up+paint"))).await;
+    send(&app, post("/do/photo.link", &ada, format!("_csrf={csrf}&project=1&id=3&tag=punch%3A1"))).await;
+    let (_, _, punch) = send(&app, get("/projects/1/punch-list/1")).await;
+    assert!(punch.contains("/projects/1/photos/3/thumb"), "{punch}");
+    let (_, _, detail) = send(&app, get("/projects/1/photos/3")).await;
+    assert!(detail.contains("Touch up paint") && detail.contains("1600 × 1200 px"), "{detail}");
+    let (_, _, show) = send(&app, get("/projects/1/photos/slideshow?i=1")).await;
+    assert!(show.contains("Picture 2 of 4") && !show.contains("http-equiv=\"refresh\""), "{show}");
+    let (_, _, play) = send(&app, get("/projects/1/photos/slideshow?i=1&play=1")).await;
+    assert!(play.contains("http-equiv=\"refresh\"") && play.contains("i=2") && play.contains("Pause"), "{play}");
+    let res = router(app.clone()).oneshot(get("/projects/1/photos/album.zip?album=foundations")).await.unwrap();
+    assert_eq!(res.headers().get("content-type").unwrap(), "application/zip");
+    let zip = res.into_body().collect().await.unwrap().to_bytes();
+    assert!(zip.starts_with(b"PK"), "a zip file");
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }

@@ -71,6 +71,10 @@ impl WorkPage for PunchItem {
     fn nav(project: Id<Project>) -> Nav {
         Nav::Punch(project)
     }
+
+    fn extra_cards(&self, req: &Req<'_>) -> Markup {
+        crate::photos::tagged_card(req, self.project, "punch", self.id.raw())
+    }
 }
 
 impl WorkPage for Task {
@@ -261,8 +265,11 @@ impl WorkPage for Observation {
         &project.observation_types
     }
 
-    fn extra_cards(&self, _req: &Req<'_>) -> Markup {
-        html! { @if !self.corrective_action.is_empty() { div class="card" { h2 { "Corrective action" } p class="prose" { (self.corrective_action) } } } }
+    fn extra_cards(&self, req: &Req<'_>) -> Markup {
+        html! {
+            @if !self.corrective_action.is_empty() { div class="card" { h2 { "Corrective action" } p class="prose" { (self.corrective_action) } } }
+            (crate::photos::tagged_card(req, self.project, "observation", self.id.raw()))
+        }
     }
 
     fn extra_facts(&self, _req: &Req<'_>) -> Markup {

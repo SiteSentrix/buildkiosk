@@ -999,3 +999,39 @@ async fn drawings_log_revisions_and_csv() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn schedule_page_gantt_and_csv() {
+    let dir = temp("schedule");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let session = cookies(&h);
+    let (_, _, home) = send(&app, Request::get("/").header("cookie", &session).body(Body::empty()).unwrap()).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &session, format!("_csrf={csrf}&name=P"))).await;
+    let (_, h, _) = send(
+        &app,
+        post("/do/schedule.add", &session, format!("_csrf={csrf}&project=1&name=Excavate&start=2026-10-12&days=3&milestone=false&parent=&company=&predecessors=&percent=&notes=&_next=%2Fprojects%2F1%2Fschedule&_back=%2Fprojects%2F1%2Fschedule")),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    send(&app, post("/do/schedule.add", &session, format!("_csrf={csrf}&project=1&name=Foundations&start=2026-10-15&days=4&predecessors=1"))).await;
+
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &session).body(Body::empty()).unwrap();
+    let (st, _, page) = send(&app, get("/projects/1/schedule")).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(page.contains("Excavate") && page.contains("Foundations") && page.contains("class=\"bar critical\""), "{page}");
+    let (_, _, edit) = send(&app, get("/projects/1/schedule/2")).await;
+    assert!(edit.contains("Edit task") && edit.contains("value=\"1\""));
+    let (_, _, crit) = send(&app, get("/projects/1/schedule?show=late")).await;
+    assert!(crit.contains("Excavate"), "late tasks are listed (dates are in the past)");
+    let (st, h, csv) = send(&app, get("/projects/1/schedule.csv")).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(h.get("content-disposition").is_some() && csv.contains("Foundations,2026-10-15,2026-10-20,4"), "{csv}");
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

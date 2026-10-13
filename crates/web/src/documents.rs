@@ -77,7 +77,7 @@ pub fn page(req: &Req<'_>, id: Id<Project>, folder: Option<Id<Folder>>, q: &str)
         div class="page-head" {
             div { h1 { "Documents" } div class="sub" { "Project files in folders, each with its versions" } }
         }
-        form method="get" action=(base) class="toolbar" {
+        form method="get" action=(base) class="filters" {
             @if let Some(c) = current { input type="hidden" name="folder" value=(c.id); }
             input type="search" name="q" value=(q) placeholder="Search every folder by title or file name" aria-label="Search documents";
             button type="submit" class="btn" { "Search" }
@@ -95,7 +95,7 @@ pub fn page(req: &Req<'_>, id: Id<Project>, folder: Option<Id<Folder>>, q: &str)
                     @for f in &subfolders {
                         li {
                             a href=(format!("{base}?folder={}", f.id)) { (tool_icon(Tool::Documents).svg()) " " (f.name) }
-                            @if f.private { " " span class="chip" { "Private" } }
+                            @if f.private { " " span class="pill blue" { "Private" } }
                         }
                     }
                 }
@@ -237,7 +237,7 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, did: Id<Document>) -> Markup {
                     tbody {
                         @for v in d.versions.iter().rev() {
                             tr {
-                                td { "v" (v.number) @if v.number == d.current().map_or(0, |c| c.number) { " " span class="chip" { "Current" } } }
+                                td { "v" (v.number) @if v.number == d.current().map_or(0, |c| c.number) { " " span class="pill blue" { "Current" } } }
                                 td { a href=(format!("{here}/files/{}", v.file.sha256)) { (v.file.name) } }
                                 td class="right nowrap" { (human_size(v.file.size)) }
                                 td class="nowrap" { (req.when(v.at)) }

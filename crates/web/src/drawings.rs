@@ -49,7 +49,7 @@ pub fn page(req: &Req<'_>, id: Id<Project>, q: &HashMap<String, String>) -> Mark
             div { h1 { "Drawings" } div class="sub" { "The sheet log: each sheet with its revisions; the newest revision is current" } }
             div class="actions" { a class="btn" href=(format!("{base}.csv")) { "Export CSV" } }
         }
-        form method="get" action=(base) class="toolbar" {
+        form method="get" action=(base) class="filters" {
             input type="search" name="q" value=(text) placeholder="Search sheet number or title" aria-label="Search drawings";
             select name="discipline" aria-label="Discipline" { (discipline_select(disc, true)) }
             select name="area" aria-label="Area" {
@@ -146,7 +146,7 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, did: Id<Drawing>) -> Markup {
                         tbody {
                             @for (i, r) in d.revisions.iter().enumerate().rev() {
                                 tr {
-                                    td class="nowrap" { (r.label) @if i + 1 == d.revisions.len() { " " span class="chip" { "Current" } } }
+                                    td class="nowrap" { (r.label) @if i + 1 == d.revisions.len() { " " span class="pill blue" { "Current" } } }
                                     td class="nowrap" { (r.date.map(|x| x.to_string()).unwrap_or_default()) }
                                     td { (dash(&r.set)) }
                                     td { @if let Some(f) = &r.file { a href=(format!("{here}/files/{}", f.sha256)) { (f.name) } } @else { span class="muted" { "no file" } } }

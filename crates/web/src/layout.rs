@@ -58,6 +58,7 @@ pub enum Nav {
     Specs(Id<Project>),
     Documents(Id<Project>),
     Drawings(Id<Project>),
+    Schedule(Id<Project>),
     DailyLogs(Id<Project>),
     Punch(Id<Project>),
     Observations(Id<Project>),
@@ -123,6 +124,7 @@ pub fn app(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Option<String>
         | Nav::Specs(p)
         | Nav::Documents(p)
         | Nav::Drawings(p)
+        | Nav::Schedule(p)
         | Nav::Inspections(p)
         | Nav::Budget(p)
         | Nav::Commitments(p)
@@ -193,6 +195,9 @@ pub fn app(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Option<String>
                                 a href=(format!("/projects/{}/rfis", p.id)) class=(if matches!(nav, Nav::Rfis(_)) { "active" } else { "" }) { (tool_icon(Tool::Rfis).svg()) "RFIs" }
                                 a href=(format!("/projects/{}/submittals", p.id)) class=(if matches!(nav, Nav::Submittals(_)) { "active" } else { "" }) { (tool_icon(Tool::Submittals).svg()) "Submittals" }
                                 a href=(format!("/projects/{}/specifications", p.id)) class=(if matches!(nav, Nav::Specs(_)) { "active" } else { "" }) { (tool_icon(Tool::Specifications).svg()) "Specifications" }
+                                @if view::level(state, req.actor(), p.id, Tool::Schedule) >= buildkiosk_engine::model::Level::Read {
+                                    a href=(format!("/projects/{}/schedule", p.id)) class=(if matches!(nav, Nav::Schedule(_)) { "active" } else { "" }) { (tool_icon(Tool::Schedule).svg()) "Schedule" }
+                                }
                                 @if view::level(state, req.actor(), p.id, Tool::Drawings) >= buildkiosk_engine::model::Level::Read {
                                     a href=(format!("/projects/{}/drawings", p.id)) class=(if matches!(nav, Nav::Drawings(_)) { "active" } else { "" }) { (tool_icon(Tool::Drawings).svg()) "Drawings" }
                                 }

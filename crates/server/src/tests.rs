@@ -1360,3 +1360,33 @@ async fn forms_template_fill_and_submit() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn timesheets_week_submit_and_approve() {
+    let dir = temp("timesheets");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=P"))).await;
+    let (_, _, page) = send(&app, get("/projects/1/timesheets?week=2026-10-14")).await;
+    assert!(page.contains("Week of Oct 12, 2026") && page.contains("Log hours"), "{page}");
+    send(&app, post("/do/timesheet.add", &ada, format!("_csrf={csrf}&project=1&date=2026-10-13&hours=7.5&cost_code=&description=Footings"))).await;
+    let (_, _, page) = send(&app, get("/projects/1/timesheets?week=2026-10-12")).await;
+    assert!(page.contains("Footings") && page.contains("7.5") && page.contains("Submit the week"));
+    send(&app, post("/do/timesheet.submit", &ada, format!("_csrf={csrf}&project=1&from=2026-10-12&to=2026-10-18"))).await;
+    let (_, _, page) = send(&app, get("/projects/1/timesheets?week=2026-10-12")).await;
+    assert!(page.contains("Waiting for approval") && page.contains("Approve"));
+    send(&app, post("/do/timesheet.approve", &ada, format!("_csrf={csrf}&project=1&person=1&from=2026-10-12&to=2026-10-18"))).await;
+    let (st, h, csv) = send(&app, get("/projects/1/timesheets.csv?week=2026-10-12")).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(h.get("content-disposition").is_some() && csv.contains("2026-10-13,Ada Admin,7.5") && csv.contains("Approved"), "{csv}");
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

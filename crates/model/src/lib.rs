@@ -32,6 +32,7 @@ pub mod state;
 pub mod submittal;
 pub mod table;
 pub mod task;
+pub mod timesheet;
 pub mod tool;
 pub mod transmittal;
 pub mod work;

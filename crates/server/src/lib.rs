@@ -188,6 +188,8 @@ pub fn router(app: Shared) -> Router {
         .route("/projects/{id}/forms/{rid}", get(form_page))
         .route("/projects/{id}/forms/{rid}/upload", post(form_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
         .route("/projects/{id}/forms/{rid}/files/{sha}", get(form_download))
+        .route("/projects/{id}/timesheets", get(timesheets_page))
+        .route("/projects/{id}/timesheets.csv", get(timesheets_csv))
         .route("/projects/{id}/schedule", get(schedule_page))
         .route("/projects/{id}/schedule.csv", get(schedule_csv))
         .route("/projects/{id}/schedule/{tid}", get(schedule_task_page))
@@ -1268,6 +1270,24 @@ async fn form_download(State(app): State<Shared>, headers: HeaderMap, Path((id, 
 
 async fn form_upload(State(app): State<Shared>, headers: HeaderMap, Path((id, rid)): Path<(u64, u64)>, multipart: Multipart) -> Response {
     file_upload(app, headers, Kind::FORM, id, rid, multipart).await
+}
+
+async fn timesheets_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    let week = q.get("week").and_then(|w| buildkiosk_core::Date::parse(w));
+    page(&app, &headers, &q, |r, _| buildkiosk_web::timesheets::page(r, Id::new(id), week))
+}
+
+async fn timesheets_csv(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    let week = q.get("week").and_then(|w| buildkiosk_core::Date::parse(w));
+    let inner = app.lock();
+    let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    let req = Req { engine: &t.engine, person: s.person, csrf: "", now: Timestamp::from_millis(now_ms()), flash: None };
+    let Some(csv) = buildkiosk_web::timesheets::csv(&req, Id::new(id), week) else { return plain(StatusCode::NOT_FOUND, "Not found") };
+    let mut res = csv.into_response();
+    res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("text/csv; charset=utf-8"));
+    res.headers_mut().insert("content-disposition", HeaderValue::from_static("attachment; filename=\"timesheets.csv\""));
+    res
 }
 
 async fn schedule_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {

@@ -21,6 +21,7 @@ use crate::schedule::ScheduleTask;
 use crate::spec::SpecSection;
 use crate::submittal::Submittal;
 use crate::task::Task;
+use crate::timesheet::TimeEntry;
 use crate::transmittal::Transmittal;
 
 // -- quality and safety
@@ -149,6 +150,7 @@ tables! {
 
     // -- field
     daily_logs: DailyLog,
+    time_entries: TimeEntry,
     schedule_tasks: ScheduleTask,
 
     // -- financials

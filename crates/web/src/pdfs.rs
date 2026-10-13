@@ -321,6 +321,9 @@ pub fn estimate(req: &Req<'_>, id: Id<Project>, eid: Id<buildkiosk_engine::model
             ]
         })
         .collect();
+    for a in e.alternates.iter().filter(|a| a.accepted) {
+        rows.push(vec![code(a.cost_code), format!("Alternate: {}", a.name), String::new(), String::new(), String::new(), a.amount.to_string()]);
+    }
     if let Some(t) = e.totals() {
         rows.push(vec![String::new(), "Subtotal".into(), String::new(), String::new(), String::new(), t.subtotal.to_string()]);
         for (m, a) in e.markups.iter().zip(&t.markups) {
@@ -329,6 +332,12 @@ pub fn estimate(req: &Req<'_>, id: Id<Project>, eid: Id<buildkiosk_engine::model
         rows.push(vec![String::new(), "Total".into(), String::new(), String::new(), String::new(), t.total.to_string()]);
     }
     doc.blocks.push(table(&["Cost code", "Description", "Qty", "Unit", "Unit cost", "Amount"], &[3.0, 3.5, 1.0, 0.8, 1.5, 1.7], &[2, 4, 5], rows));
+    let open: Vec<_> = e.alternates.iter().filter(|a| !a.accepted).collect();
+    if !open.is_empty() {
+        doc.blocks.push(Block::Heading("Alternates not included".into()));
+        let alt_rows = open.iter().map(|a| vec![a.name.clone(), a.description.clone(), a.amount.to_string()]).collect();
+        doc.blocks.push(table(&["Alternate", "Description", "Add / deduct"], &[3.0, 4.5, 1.8], &[2], alt_rows));
+    }
     Some((file_name(&e.label()), render(&doc)))
 }
 

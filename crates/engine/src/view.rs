@@ -216,6 +216,13 @@ impl BudgetRow {
     }
 }
 
+/// The company's standard cost codes (the ones that belong to no single project), by code.
+pub fn company_cost_codes(state: &CompanyState) -> Vec<&CostCode> {
+    let mut list: Vec<&CostCode> = state.cost_codes.iter().filter(|c| c.deleted.is_none() && c.project.is_none()).collect();
+    list.sort_by(|a, b| a.code.cmp(&b.code));
+    list
+}
+
 /// A cost code usable in a project: a company-wide code or one of the project's own.
 pub fn project_cost_codes(state: &CompanyState, project: Id<Project>) -> Vec<&CostCode> {
     let mut list: Vec<&CostCode> =

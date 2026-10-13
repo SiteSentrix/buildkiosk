@@ -288,6 +288,57 @@ pub fn correspondence(req: &Req<'_>, id: Id<Project>, cid: Id<buildkiosk_engine:
     Some((file_name(&c.label()), render(&doc)))
 }
 
+/// The item set out as a letter: date, addressees, a subject line, the text, enclosures and the author's name.
+pub fn correspondence_letter(req: &Req<'_>, id: Id<Project>, cid: Id<buildkiosk_engine::model::correspondence::Correspondence>) -> Option<Pdf> {
+    let state = req.engine.state();
+    let p = project_of(req, id, Tool::Correspondence)?;
+    let c = state
+        .correspondence
+        .get(cid)
+        .filter(|c| c.project == id && c.deleted.is_none() && buildkiosk_engine::cmd::correspondence::can_see(state, req.actor(), c))?;
+    let kind = if c.kind.is_empty() { "Letter".to_string() } else { c.kind.clone() };
+    let (mut doc, _) = start(req, p, format!("{kind} {}", c.label()), &c.date.pretty());
+    let mut facts = vec![("Date".to_string(), c.date.pretty()), ("To".to_string(), names(state, &c.to))];
+    if !c.cc.is_empty() {
+        facts.push(("Copy".into(), names(state, &c.cc)));
+    }
+    if let Some(s) = &c.incoming {
+        facts.insert(0, ("From".into(), if s.email.is_empty() { s.name.clone() } else { format!("{} <{}>", s.name, s.email) }));
+    }
+    facts.push(("Re".into(), c.subject.clone()));
+    let rfis: Vec<String> = c
+        .rfis
+        .iter()
+        .filter_map(|r| state.rfis.get(*r))
+        .filter(|r| r.project == id && view::can_see_rfi(state, req.actor(), r))
+        .map(|r| format!("RFI #{} {}", r.number, r.subject))
+        .collect();
+    if !rfis.is_empty() {
+        facts.push(("Refers to".into(), rfis.join("; ")));
+    }
+    if let Some(d) = c.reply_by {
+        facts.push(("Reply requested by".into(), d.pretty()));
+    }
+    doc.blocks.push(Block::Facts(facts));
+    doc.blocks.push(Block::Space);
+    for para in c.body.split("\n\n") {
+        if !para.trim().is_empty() {
+            doc.blocks.push(Block::Paragraph(para.trim().to_string()));
+        }
+    }
+    doc.blocks.push(Block::Space);
+    if c.incoming.is_none() {
+        doc.blocks.push(Block::Paragraph("Sincerely,".into()));
+        doc.blocks.push(Block::Space);
+        doc.blocks.push(Block::Paragraph(person(state, c.created.by)));
+    }
+    if !c.attachments.is_empty() {
+        doc.blocks.push(Block::Space);
+        doc.blocks.push(Block::Paragraph(format!("Enclosures: {}", c.attachments.iter().map(|a| a.name.as_str()).collect::<Vec<_>>().join(", "))));
+    }
+    Some((file_name(&format!("{} letter", c.label())), render(&doc)))
+}
+
 pub fn estimate(req: &Req<'_>, id: Id<Project>, eid: Id<buildkiosk_engine::model::estimate::Estimate>) -> Option<Pdf> {
     let state = req.engine.state();
     let p = project_of(req, id, Tool::Estimating)?;

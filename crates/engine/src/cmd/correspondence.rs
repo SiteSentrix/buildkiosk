@@ -5,11 +5,13 @@
 //! unless marked private (then only the author, the recipients and admins). The author and the
 //! recipients may reply while it is open; the author or an admin closes and reopens it.
 
-use buildkiosk_core::{Id, text};
+use buildkiosk_core::{Date, Id, text};
 use buildkiosk_model::common::FileRef;
-use buildkiosk_model::correspondence::{Correspondence, CorrespondenceStatus, Reply};
+use buildkiosk_model::correspondence::{Correspondence, CorrespondenceStatus, CorrespondenceType, Reply, Sender};
 use buildkiosk_model::directory::Person;
+use buildkiosk_model::document::Document;
 use buildkiosk_model::project::Project;
+use buildkiosk_model::rfi::Rfi;
 use buildkiosk_model::{Level, Tool};
 use serde_json::{Value, json};
 
@@ -25,7 +27,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Create correspondence",
         Tool::Correspondence,
         Access::Project(Level::Standard),
-        "project: project id; subject: text; kind?: text (Letter, Notice, Email…); date?: YYYY-MM-DD (default today); to?: [person ids]; cc?: [person ids]; reply_by?: YYYY-MM-DD; body?: text; private?: bool",
+        "project: project id; subject: text; kind?: text (Letter, Notice, Email…); date?: YYYY-MM-DD (default today); to?: [person ids]; cc?: [person ids]; reply_by?: YYYY-MM-DD; body?: text; private?: bool; rfis?: [RFI ids]; documents?: [document ids] (links). When the project has configured types, kind must be one of them and the item gets that type's next reference (LTR-003)",
         create,
     ),
     CommandSpec::mutate(
@@ -35,6 +37,46 @@ pub const COMMANDS: &[CommandSpec] = &[
         Access::Project(Level::Standard),
         "project, id: ids; then any correspondence.create field (drafts only, unless an admin)",
         update,
+    ),
+    CommandSpec::mutate(
+        "correspondence.file_incoming",
+        "File incoming correspondence",
+        Tool::Correspondence,
+        Access::Project(Level::Standard),
+        "project: project id; subject: text; from_name: who sent it (outside the company); from_email?: text; to: [person ids who should see it]; then any correspondence.create field (it is filed as open, with the people in `to` notified)",
+        file_incoming,
+    ),
+    CommandSpec::mutate(
+        "correspondence.import_email",
+        "File an email",
+        Tool::Correspondence,
+        Access::Project(Level::Standard),
+        "project: project id; raw: the email as saved by a mail program (.eml text: headers, blank line, body; plain text or quoted-printable); kind?: text; to?: [person ids] (default: the project people whose address is in To or Cc)",
+        import_email,
+    ),
+    CommandSpec::mutate(
+        "correspondence_type.save",
+        "Save correspondence type",
+        Tool::Correspondence,
+        Access::Project(Level::Admin),
+        "project: project id; id?: type id (changes it); name: text (Letter, Notice…); prefix: 1 to 8 letters or digits that start references (LTR)",
+        type_save,
+    ),
+    CommandSpec::mutate(
+        "correspondence_type.delete",
+        "Delete correspondence type",
+        Tool::Correspondence,
+        Access::Project(Level::Admin),
+        "project, id: ids (items already filed keep their reference)",
+        type_delete,
+    ),
+    CommandSpec::query(
+        "correspondence_type.list",
+        "List correspondence types",
+        Tool::Correspondence,
+        Access::Project(Level::Read),
+        "project: project id",
+        type_list,
     ),
     CommandSpec::mutate(
         "correspondence.send",
@@ -114,6 +156,7 @@ pub const COMMANDS: &[CommandSpec] = &[
 const MAX_PEOPLE: usize = 100;
 const MAX_ATTACHMENTS: usize = 50;
 const MAX_REPLIES: usize = 500;
+const MAX_LINKS: usize = 50;
 
 pub fn can_see(state: &buildkiosk_model::CompanyState, actor: Actor, c: &Correspondence) -> bool {
     let lvl = view::level(state, actor, c.project, Tool::Correspondence);
@@ -195,38 +238,142 @@ fn apply(ctx: &Ctx<'_>, p: &Params<'_>, c: &mut Correspondence) -> Result<()> {
     if let Some(x) = p.flag("private")? {
         c.private = x;
     }
+    if p.present("rfis") {
+        let mut ids = p.ids::<Rfi>("rfis")?;
+        ids.sort();
+        ids.dedup();
+        if ids.len() > MAX_LINKS {
+            return Err(p.bad("rfis", format!("lists more than {MAX_LINKS} RFIs")));
+        }
+        for id in &ids {
+            let ok = in_project(&ctx.state.rfis, c.project, *id, "RFI")
+                .ok()
+                .is_some_and(|r| r.deleted.is_none() && view::can_see_rfi(ctx.state, ctx.actor, r));
+            if !ok {
+                return Err(p.bad("rfis", format!("RFI {id} not found in this project")));
+            }
+        }
+        c.rfis = ids;
+    }
+    if p.present("documents") {
+        let mut ids = p.ids::<Document>("documents")?;
+        ids.sort();
+        ids.dedup();
+        if ids.len() > MAX_LINKS {
+            return Err(p.bad("documents", format!("lists more than {MAX_LINKS} documents")));
+        }
+        for id in &ids {
+            let ok = in_project(&ctx.state.documents, c.project, *id, "document")
+                .ok()
+                .is_some_and(|d| d.deleted.is_none() && view::can_see_document(ctx.state, ctx.actor, d));
+            if !ok {
+                return Err(p.bad("documents", format!("document {id} not found in this project")));
+            }
+        }
+        c.documents = ids;
+    }
     Ok(())
+}
+
+/// The project's configured types, by name.
+pub fn types(state: &buildkiosk_model::CompanyState, project: Id<Project>) -> Vec<&CorrespondenceType> {
+    let mut v: Vec<&CorrespondenceType> = state.correspondence_types.iter().filter(|t| t.project == project && t.deleted.is_none()).collect();
+    v.sort_by_key(|t| t.name.to_lowercase());
+    v
+}
+
+/// Files the item under the configured type its `kind` names and gives it that type's next reference. A project
+/// with no types keeps the free-text kind and the plain number.
+fn assign_type(ctx: &Ctx<'_>, p: &Params<'_>, c: &mut Correspondence) -> Result<()> {
+    let list = types(ctx.state, c.project);
+    if list.is_empty() {
+        return Ok(());
+    }
+    let Some(t) = list.iter().find(|t| t.name.eq_ignore_ascii_case(c.kind.trim())) else {
+        let names: Vec<&str> = list.iter().map(|t| t.name.as_str()).collect();
+        return Err(p.bad("kind", format!("choose one of the project's types: {}", names.join(", "))));
+    };
+    if c.type_id != Some(t.id) {
+        let n = ctx
+            .state
+            .correspondence
+            .iter()
+            .filter(|x| x.project == c.project && x.type_id == Some(t.id) && x.id != c.id)
+            .map(|x| x.type_number)
+            .max()
+            .unwrap_or(0)
+            .saturating_add(1);
+        c.type_id = Some(t.id);
+        c.type_number = n;
+        c.reference = format!("{}-{n:03}", t.prefix);
+    }
+    c.kind = t.name.clone();
+    Ok(())
+}
+
+fn type_save(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let name = p.req_line("name", 50)?;
+    let prefix = p.req_line("prefix", 8)?.to_ascii_uppercase();
+    if !prefix.bytes().all(|b| b.is_ascii_alphanumeric()) {
+        return Err(p.bad("prefix", "may hold only letters and digits"));
+    }
+    let existing = p.opt_id::<CorrespondenceType>("id")?;
+    if let Some(id) = existing {
+        let t = in_project(&ctx.state.correspondence_types, project, id, "correspondence type")?;
+        if t.deleted.is_some() {
+            return Err(EngineError::not_found(format!("correspondence type {id} not found in this project")));
+        }
+    }
+    let others = types(ctx.state, project);
+    if others.iter().any(|t| Some(t.id) != existing && t.name.eq_ignore_ascii_case(&name)) {
+        return Err(p.bad("name", "is already a type of this project"));
+    }
+    if others.iter().any(|t| Some(t.id) != existing && t.prefix == prefix) {
+        return Err(p.bad("prefix", "is already used by another type"));
+    }
+    if existing.is_none() && others.len() >= 30 {
+        return Err(EngineError::conflict("a project keeps at most 30 correspondence types"));
+    }
+    let stamp = ctx.stamp();
+    let id = match existing {
+        Some(id) => {
+            ctx.state.correspondence_types.update(id, |t| (t.name, t.prefix) = (name, prefix));
+            id
+        }
+        None => {
+            let id = ctx.state.correspondence_types.alloc();
+            ctx.state.correspondence_types.put(CorrespondenceType { id, project, name, prefix, created: stamp, deleted: None });
+            id
+        }
+    };
+    Ok(json!({ "id": id }))
+}
+
+fn type_delete(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let id: Id<CorrespondenceType> = p.id("id")?;
+    if in_project(&ctx.state.correspondence_types, project, id, "correspondence type")?.deleted.is_some() {
+        return Err(EngineError::not_found(format!("correspondence type {id} not found in this project")));
+    }
+    let stamp = ctx.stamp();
+    ctx.state.correspondence_types.update(id, |t| t.deleted = Some(stamp));
+    Ok(json!({ "id": id }))
+}
+
+fn type_list(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
+    json(&types(v.state, p.id("project")?))
 }
 
 fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     let project: Id<Project> = p.id("project")?;
-    let number = ctx.state.correspondence.iter().filter(|c| c.project == project).map(|c| c.number).max().unwrap_or(0).saturating_add(1);
-    let stamp = ctx.stamp();
-    let mut c = Correspondence {
-        id: ctx.state.correspondence.peek_next(),
-        project,
-        number,
-        subject: String::new(),
-        kind: String::new(),
-        status: CorrespondenceStatus::Draft,
-        to: Vec::new(),
-        cc: Vec::new(),
-        date: ctx.today(),
-        reply_by: None,
-        body: String::new(),
-        replies: Vec::new(),
-        attachments: Vec::new(),
-        private: false,
-        sent: None,
-        closed: None,
-        created: stamp,
-        updated: stamp,
-        deleted: None,
-    };
+    let mut c = blank(ctx, project);
+    let number = c.number;
     apply(ctx, p, &mut c)?;
     if c.subject.is_empty() {
         return Err(p.bad("subject", "is required"));
     }
+    assign_type(ctx, p, &mut c)?;
     let id = ctx.state.correspondence.alloc();
     c.id = id;
     ctx.state.correspondence.put(c);
@@ -238,7 +385,11 @@ fn update(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     if !can_edit(ctx, &c) {
         return Err(EngineError::forbidden(format!("you can't edit {}", c.label())));
     }
+    let old_kind = c.kind.clone();
     apply(ctx, p, &mut c)?;
+    if p.present("kind") && (c.kind != old_kind || c.type_id.is_none()) {
+        assign_type(ctx, p, &mut c)?;
+    }
     c.updated = ctx.stamp();
     let id = c.id;
     ctx.state.correspondence.put(c);
@@ -426,4 +577,250 @@ fn get(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
         return Err(EngineError::not_found(format!("correspondence {id} not found in this project")));
     }
     json(c)
+}
+
+// -- incoming
+
+fn file_new(ctx: &mut Ctx<'_>, p: &Params<'_>, mut c: Correspondence, notify_to: bool) -> Result<Value> {
+    assign_type(ctx, p, &mut c)?;
+    let stamp = ctx.stamp();
+    c.status = CorrespondenceStatus::Open;
+    c.sent = Some(stamp);
+    let id = ctx.state.correspondence.alloc();
+    c.id = id;
+    let (to, cc, project, l, number) = (c.to.clone(), c.cc.clone(), c.project, link(&c), c.number);
+    let text = format!("{} came in from {}: {}", c.label(), c.incoming.as_ref().map(|s| s.name.as_str()).unwrap_or("outside"), c.subject);
+    ctx.state.correspondence.put(c);
+    if notify_to {
+        notify(ctx, &to, project, &text, &l);
+        notify(ctx, &cc, project, &text, &l);
+    }
+    Ok(json!({ "id": id, "number": number }))
+}
+
+fn blank(ctx: &Ctx<'_>, project: Id<Project>) -> Correspondence {
+    let number = ctx.state.correspondence.iter().filter(|c| c.project == project).map(|c| c.number).max().unwrap_or(0).saturating_add(1);
+    let stamp = ctx.stamp();
+    Correspondence {
+        id: ctx.state.correspondence.peek_next(),
+        project,
+        number,
+        subject: String::new(),
+        kind: String::new(),
+        status: CorrespondenceStatus::Draft,
+        to: Vec::new(),
+        cc: Vec::new(),
+        date: ctx.today(),
+        reply_by: None,
+        body: String::new(),
+        replies: Vec::new(),
+        attachments: Vec::new(),
+        private: false,
+        type_id: None,
+        type_number: 0,
+        reference: String::new(),
+        rfis: Vec::new(),
+        documents: Vec::new(),
+        incoming: None,
+        sent: None,
+        closed: None,
+        created: stamp,
+        updated: stamp,
+        deleted: None,
+    }
+}
+
+fn file_incoming(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let mut c = blank(ctx, project);
+    apply(ctx, p, &mut c)?;
+    if c.subject.is_empty() {
+        return Err(p.bad("subject", "is required"));
+    }
+    if c.to.is_empty() {
+        return Err(p.bad("to", "name at least one person who should see it"));
+    }
+    c.incoming = Some(Sender { name: p.req_line("from_name", 200)?, email: p.line_or_empty("from_email", 200)? });
+    file_new(ctx, p, c, true)
+}
+
+/// The parts of an email the importer reads.
+#[derive(Debug, Default, PartialEq)]
+pub struct ParsedEmail {
+    pub from_name: String,
+    pub from_email: String,
+    pub to: Vec<String>,
+    pub cc: Vec<String>,
+    pub subject: String,
+    pub date: Option<Date>,
+    pub body: String,
+}
+
+fn headers_of(block: &str) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = Vec::new();
+    for line in block.lines() {
+        if line.starts_with([' ', '\t']) {
+            if let Some(last) = out.last_mut() {
+                last.1.push(' ');
+                last.1.push_str(line.trim());
+            }
+        } else if let Some((k, v)) = line.split_once(':') {
+            out.push((k.trim().to_ascii_lowercase(), v.trim().to_string()));
+        }
+    }
+    out
+}
+
+fn header<'a>(h: &'a [(String, String)], key: &str) -> &'a str {
+    h.iter().find(|(k, _)| k == key).map(|(_, v)| v.as_str()).unwrap_or("")
+}
+
+/// "Jo Smith <jo@example.com>" → ("Jo Smith", "jo@example.com"); a bare address → ("", address).
+fn address(raw: &str) -> (String, String) {
+    let raw = raw.trim();
+    match (raw.rfind('<'), raw.rfind('>')) {
+        (Some(a), Some(b)) if a < b => {
+            let name = raw.get(..a).unwrap_or("").trim().trim_matches('"').trim().to_string();
+            let email = raw.get(a + 1..b).unwrap_or("").trim().to_string();
+            (name, email)
+        }
+        _ => (String::new(), raw.to_string()),
+    }
+}
+
+fn address_list(raw: &str) -> Vec<String> {
+    raw.split(',').map(|a| address(a).1.to_lowercase()).filter(|a| a.contains('@')).collect()
+}
+
+fn decode_quoted_printable(raw: &str) -> String {
+    let bytes = raw.as_bytes();
+    let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while let Some(&b) = bytes.get(i) {
+        if b == b'=' {
+            if bytes.get(i + 1) == Some(&b'\n') {
+                i += 2;
+                continue;
+            }
+            if bytes.get(i + 1) == Some(&b'\r') && bytes.get(i + 2) == Some(&b'\n') {
+                i += 3;
+                continue;
+            }
+            let hex = bytes.get(i + 1..i + 3).and_then(|h| std::str::from_utf8(h).ok()).and_then(|h| u8::from_str_radix(h, 16).ok());
+            if let Some(v) = hex {
+                out.push(v);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(b);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// "Tue, 13 Oct 2026 09:15:00 -0500" → 2026-10-13.
+fn email_date(raw: &str) -> Option<Date> {
+    let toks: Vec<&str> = raw.split_whitespace().map(|t| t.trim_end_matches(',')).collect();
+    let months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+    for w in toks.windows(3) {
+        let (Some(&d), Some(&m), Some(&y)) = (w.first(), w.get(1), w.get(2)) else { continue };
+        let (Ok(day), Ok(year)) = (d.parse::<u32>(), y.parse::<i32>()) else { continue };
+        let Some(month) = months.iter().position(|x| m.len() >= 3 && m.get(..3).is_some_and(|p| p.eq_ignore_ascii_case(x))) else { continue };
+        return Date::from_ymd(year, u32::try_from(month).unwrap_or(0) + 1, day);
+    }
+    None
+}
+
+/// Reads a saved email: the headers, and the plain-text body (the first text part of a multipart message).
+pub fn parse_email(raw: &str) -> ParsedEmail {
+    let norm = raw.replace("\r\n", "\n");
+    let (head, body) = norm.split_once("\n\n").unwrap_or((norm.as_str(), ""));
+    let h = headers_of(head);
+    let (from_name, from_email) = address(header(&h, "from"));
+    let ctype = header(&h, "content-type").to_string();
+    let mut text_body = body.to_string();
+    let mut encoding = header(&h, "content-transfer-encoding").to_ascii_lowercase();
+    if ctype.to_ascii_lowercase().contains("multipart")
+        && let Some(b) = ctype.split("boundary=").nth(1)
+    {
+        let boundary = b.split(';').next().unwrap_or("").trim().trim_matches('"').to_string();
+        if !boundary.is_empty() {
+            let marker = format!("--{boundary}");
+            for part in body.split(marker.as_str()).skip(1) {
+                let (ph, pb) = part.trim_start_matches('\n').split_once("\n\n").unwrap_or(("", part));
+                let ph = headers_of(ph);
+                let ct = header(&ph, "content-type").to_ascii_lowercase();
+                if ct.is_empty() || ct.starts_with("text/plain") {
+                    text_body = pb.to_string();
+                    encoding = header(&ph, "content-transfer-encoding").to_ascii_lowercase();
+                    break;
+                }
+            }
+        }
+    }
+    let body = if encoding == "quoted-printable" {
+        decode_quoted_printable(&text_body)
+    } else if encoding == "base64" {
+        "(The message text is encoded in a way BuildKiosk does not read; open the original email.)".to_string()
+    } else {
+        text_body
+    };
+    ParsedEmail {
+        from_name,
+        from_email,
+        to: address_list(header(&h, "to")),
+        cc: address_list(header(&h, "cc")),
+        subject: header(&h, "subject").to_string(),
+        date: email_date(header(&h, "date")),
+        body: body.trim().to_string(),
+    }
+}
+
+fn import_email(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let raw = p.req_text("raw", 500_000)?;
+    let e = parse_email(&raw);
+    if e.subject.is_empty() && e.body.is_empty() {
+        return Err(p.bad("raw", "does not look like an email (no Subject line or text)"));
+    }
+    let find = |addr: &str| {
+        ctx.state.people.iter().find(|x| x.deleted.is_none() && x.email.as_deref().is_some_and(|m| m.eq_ignore_ascii_case(addr))).map(|x| x.id)
+    };
+    let mut c = blank(ctx, project);
+    if p.present("to") {
+        c.to = people(ctx, p, "to")?;
+    } else {
+        c.to = e.to.iter().filter_map(|a| find(a)).collect();
+    }
+    c.cc = e.cc.iter().filter_map(|a| find(a)).filter(|x| !c.to.contains(x)).collect();
+    c.to.sort();
+    c.to.dedup();
+    if c.to.is_empty() && c.cc.is_empty() {
+        return Err(p.bad("to", "none of the addresses in To or Cc belong to people on this company; name who should see it with `to`"));
+    }
+    if c.to.is_empty() {
+        c.to = std::mem::take(&mut c.cc);
+    }
+    c.subject = text::line(&e.subject, text::SHORT).map_err(|er| p.bad("raw", format!("subject: {er}")))?;
+    if c.subject.is_empty() {
+        c.subject = "(no subject)".into();
+    }
+    c.kind = if p.present("kind") { p.line_or_empty("kind", 50)? } else { "Email".into() };
+    if let Some(d) = e.date {
+        c.date = d;
+    }
+    c.body = text::multiline(&e.body, text::LONG).map_err(|er| p.bad("raw", format!("text: {er}")))?;
+    let name = if e.from_name.is_empty() { e.from_email.clone() } else { e.from_name.clone() };
+    c.incoming = Some(Sender { name: text::line(&name, 200).unwrap_or_default(), email: text::line(&e.from_email, 200).unwrap_or_default() });
+    // The kind falls back to the first configured type when the project has types but none named Email.
+    if !p.present("kind") {
+        let list = types(ctx.state, project);
+        if !list.iter().any(|t| t.name.eq_ignore_ascii_case(&c.kind))
+            && let Some(t) = list.first()
+        {
+            c.kind = t.name.clone();
+        }
+    }
+    file_new(ctx, p, c, true)
 }

@@ -197,6 +197,24 @@ a.stat:hover{border-color:var(--primary)}
 .matrix td,.matrix th{padding:6px 10px}
 .matrix select{width:auto;padding:4px 8px}
 
+.gantt{min-width:980px}
+.gantt th.timeline,.gantt td.timeline{width:55%;padding:0}
+.gantt .track,.gantt .months{min-width:480px}
+.gantt .months,.gantt .track{display:block;width:100%;min-width:480px}
+.gantt .months{height:20px}
+.gantt .months text{font-size:11px;font-weight:600;fill:var(--muted)}
+.gantt .months .tick{stroke:var(--border)}
+.gantt .track{height:30px}
+.gantt tr.summary td{background:var(--surface-2);font-weight:650}
+.gantt .bar{fill:var(--primary-soft);stroke:var(--primary)}
+.gantt .bar.critical{fill:var(--danger-soft);stroke:var(--danger)}
+.gantt .bar.summary{fill:var(--text);stroke:var(--text)}
+.gantt .done{fill:var(--primary)}
+.gantt .done.critical{fill:var(--danger)}
+.gantt .diamond{fill:var(--text)}
+.gantt .diamond.critical{fill:var(--danger)}
+.gantt .today{stroke:var(--accent);stroke-width:2;stroke-dasharray:4 3;vector-effect:non-scaling-stroke}
+.gantt td.d1{padding-left:32px}.gantt td.d2{padding-left:50px}.gantt td.d3{padding-left:68px}.gantt td.d4{padding-left:86px}.gantt td.d5{padding-left:104px}.gantt td.d6{padding-left:122px}.gantt td.d7{padding-left:140px}.gantt td.d8{padding-left:158px}
 .auth-wrap{min-height:100vh;display:grid;place-items:center;padding:24px}
 .auth-card{width:100%;max-width:420px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:28px}
 .auth-card .brand{color:var(--text);margin-bottom:18px}

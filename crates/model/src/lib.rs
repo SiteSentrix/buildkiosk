@@ -21,6 +21,7 @@ pub mod perm;
 pub mod project;
 pub mod punch;
 pub mod rfi;
+pub mod schedule;
 pub mod spec;
 pub mod state;
 pub mod submittal;

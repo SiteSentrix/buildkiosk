@@ -155,6 +155,9 @@ pub fn router(app: Shared) -> Router {
         .route("/projects/{id}/daily-logs/{lid}/edit", get(daily_log_edit))
         .route("/projects/{id}/daily-logs/{lid}/save", post(daily_log_save))
         .route("/projects/{id}/specifications", get(specifications))
+        .route("/projects/{id}/schedule", get(schedule_page))
+        .route("/projects/{id}/schedule.csv", get(schedule_csv))
+        .route("/projects/{id}/schedule/{tid}", get(schedule_task_page))
         .route("/projects/{id}/drawings", get(drawings_page))
         .route("/projects/{id}/drawings.csv", get(drawings_csv))
         .route("/projects/{id}/drawings/upload", post(drawing_upload_new).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
@@ -946,6 +949,27 @@ fn store_blob(inner: &mut Inner, bytes: &Bytes) -> Result<(String, u64), String>
     }
     let t = inner.tenant.as_mut().ok_or("The company is not set up.")?;
     t.store.blobs.put(bytes).map_err(|e| e.to_string())
+}
+
+async fn schedule_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    let show = q.get("show").cloned().unwrap_or_default();
+    page(&app, &headers, &q, |r, _| buildkiosk_web::schedule::page(r, Id::new(id), &show))
+}
+
+async fn schedule_task_page(State(app): State<Shared>, headers: HeaderMap, Path((id, tid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::schedule::detail(r, Id::new(id), Id::new(tid)))
+}
+
+async fn schedule_csv(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>) -> Response {
+    let inner = app.lock();
+    let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    let req = Req { engine: &t.engine, person: s.person, csrf: "", now: Timestamp::from_millis(now_ms()), flash: None };
+    let Some(csv) = buildkiosk_web::schedule::csv(&req, Id::new(id)) else { return plain(StatusCode::NOT_FOUND, "Not found") };
+    let mut res = csv.into_response();
+    res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("text/csv; charset=utf-8"));
+    res.headers_mut().insert("content-disposition", HeaderValue::from_static("attachment; filename=\"schedule.csv\""));
+    res
 }
 
 async fn drawings_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {

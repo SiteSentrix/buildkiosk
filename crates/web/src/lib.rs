@@ -17,6 +17,7 @@ pub mod invoicing;
 pub mod layout;
 pub mod linedocs;
 pub mod pages;
+pub mod schedule;
 pub mod specs;
 pub mod style;
 pub mod submittals;

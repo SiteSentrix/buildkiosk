@@ -152,6 +152,36 @@ pub fn create(dir: &str) -> Result<(), String> {
             "drawing.add_revision",
             json!({"project": pid, "id": id_of(&plan, "id")?, "revision": "A", "date": "2026-09-14", "set": "Bulletin 1", "note": "Door 104 moved to the east wall"}),
         )?;
+        // A small schedule starting on the Monday of the current week.
+        let today = now().date_at(0);
+        let monday = today.add_days(-i64::from(today.weekday() as u8)).unwrap_or(today);
+        let site = exec(&mut t, pm, "schedule.add", json!({"project": pid, "name": "Site work", "start": monday.to_string(), "days": 1}))?;
+        let site = id_of(&site, "id")?;
+        for (name, days, preds, parent, pct) in [
+            ("Clear and grub", 3, "", Some(site), 100),
+            ("Excavate and grade", 4, "2", Some(site), 60),
+            ("Foundations", 8, "3", None, 0),
+            ("Structural steel", 10, "4", None, 0),
+            ("Rooftop units set", 2, "5", None, 0),
+            ("Interior rough-in", 12, "5", None, 0),
+            ("Permit close-out paperwork", 3, "", None, 0),
+        ] {
+            let start = monday.to_string();
+            exec(
+                &mut t,
+                pm,
+                "schedule.add",
+                json!({"project": pid, "name": name, "start": start, "days": days, "predecessors": preds, "parent": parent, "percent": pct}),
+            )?;
+        }
+        exec(
+            &mut t,
+            pm,
+            "schedule.add",
+            json!({"project": pid, "name": "Substantial completion", "start": monday.to_string(), "milestone": true, "predecessors": "6, 7"}),
+        )?;
+        exec(&mut t, pm, "schedule.recalculate", json!({"project": pid}))?;
+        exec(&mut t, pm, "schedule.baseline", json!({"project": pid}))?;
         let eng = Actor::Person(Id::new(person(2)));
         let log = exec(
             &mut t,

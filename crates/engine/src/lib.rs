@@ -19,6 +19,7 @@ pub mod guard;
 pub mod invoicedoc;
 pub mod journal;
 pub mod params;
+pub mod sched;
 pub mod view;
 pub mod workitem;
 

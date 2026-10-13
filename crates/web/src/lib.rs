@@ -24,6 +24,7 @@ pub mod linedocs;
 pub mod meetings;
 pub mod pages;
 pub mod photos;
+pub mod prequal;
 pub mod reports;
 pub mod schedule;
 pub mod specs;

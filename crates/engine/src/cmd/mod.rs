@@ -9,6 +9,7 @@ pub mod directory;
 pub mod meta;
 pub mod notification;
 pub mod perm;
+pub mod prequal;
 pub mod project;
 pub mod report;
 pub mod rfi;
@@ -130,6 +131,7 @@ const MODULES: &[&[CommandSpec]] = &[
     company::COMMANDS,
     directory::COMMANDS,
     perm::COMMANDS,
+    prequal::COMMANDS,
     project::COMMANDS,
     report::COMMANDS,
     rfi::COMMANDS,

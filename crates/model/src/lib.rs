@@ -15,6 +15,7 @@ pub mod document;
 pub mod drawing;
 pub mod finance;
 pub mod inspection;
+pub mod meeting;
 pub mod notification;
 pub mod observation;
 pub mod perm;

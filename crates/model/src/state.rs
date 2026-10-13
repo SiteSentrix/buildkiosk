@@ -12,6 +12,7 @@ use crate::table::{Table, TableChange, TableData};
 // -- project management
 use crate::document::{Document, Folder};
 use crate::drawing::Drawing;
+use crate::meeting::Meeting;
 use crate::schedule::ScheduleTask;
 use crate::spec::SpecSection;
 use crate::submittal::Submittal;
@@ -127,6 +128,7 @@ tables! {
     // -- project management
     submittals: Submittal,
     transmittals: Transmittal,
+    meetings: Meeting,
     spec_sections: SpecSection,
 
     // -- quality and safety

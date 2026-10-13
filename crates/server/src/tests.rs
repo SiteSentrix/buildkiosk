@@ -1147,3 +1147,39 @@ async fn transmittal_form_send_and_files() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn meeting_form_issue_and_actions() {
+    let dir = temp("meetings");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=P"))).await;
+    let (_, _, new) = send(&app, get("/projects/1/meetings/new")).await;
+    assert!(new.contains("agenda.0.title") && new.contains("actions.0.assignee"));
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/do/meeting.create",
+            &ada,
+            format!("_csrf={csrf}&_next=/projects/1/meetings/%7Bid%7D&_back=/projects/1/meetings/new&project=1&title=Kickoff&date=2026-10-20&time=9+AM&category=&location=&minutes=&invitees%5B%5D=&invitees%5B%5D=1&agenda.0.title=Look-ahead&agenda.0.notes=&actions.0.description=Order+steel&actions.0.assignee=1&actions.0.due=2026-10-27"),
+        ),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().starts_with("/projects/1/meetings/1?ok="), "{h:?}");
+    let (_, _, detail) = send(&app, get("/projects/1/meetings/1")).await;
+    assert!(detail.contains("Look-ahead") && detail.contains("Order steel") && detail.contains("Mark done") && detail.contains("Issue minutes"));
+    send(&app, post("/do/meeting.set_action", &ada, format!("_csrf={csrf}&project=1&id=1&index=0&done=true"))).await;
+    send(&app, post("/do/meeting.issue", &ada, format!("_csrf={csrf}&project=1&id=1"))).await;
+    let (_, _, list) = send(&app, get("/projects/1/meetings")).await;
+    assert!(list.contains("Kickoff") && list.contains("Minutes issued") && !list.contains("Open action items"), "{list}");
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

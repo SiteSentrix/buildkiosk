@@ -152,6 +152,23 @@ pub fn create(dir: &str) -> Result<(), String> {
             "drawing.add_revision",
             json!({"project": pid, "id": id_of(&plan, "id")?, "revision": "A", "date": "2026-09-14", "set": "Bulletin 1", "note": "Door 104 moved to the east wall"}),
         )?;
+        let meeting = exec(
+            &mut t,
+            pm,
+            "meeting.create",
+            json!({"project": pid, "title": "Weekly coordination", "date": now().date_at(0).to_string(), "category": "Coordination", "time": "9:00 AM", "location": "Site trailer",
+                   "invitees": [person(1), person(2), person(4)],
+                   "agenda": [{"title": "Three-week look-ahead", "notes": "Steel arrives the week after next."}, {"title": "Open RFIs", "notes": "Door hardware answer needed."}],
+                   "actions": [{"description": "Confirm the steel delivery date", "assignee": person(2)}, {"description": "Answer the door hardware RFI", "assignee": person(4)}]}),
+        )?;
+        exec(&mut t, pm, "meeting.issue", json!({"project": pid, "id": id_of(&meeting, "id")?}))?;
+        let transmittal = exec(
+            &mut t,
+            pm,
+            "transmittal.create",
+            json!({"project": pid, "subject": "Bulletin 1 drawings", "purpose": "for_review", "to": [person(4)], "items": [{"description": "Revised sheet A-101", "copies": 2}]}),
+        )?;
+        exec(&mut t, pm, "transmittal.send", json!({"project": pid, "id": id_of(&transmittal, "id")?}))?;
         // A small schedule starting on the Monday of the current week.
         let today = now().date_at(0);
         let monday = today.add_days(-i64::from(today.weekday() as u8)).unwrap_or(today);

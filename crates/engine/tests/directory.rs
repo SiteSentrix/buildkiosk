@@ -160,3 +160,39 @@ fn disabled_people_lose_access() {
     let e = w.err(sub, "me.get", json!({}));
     assert!(matches!(e, EngineError::Forbidden(_)), "{e}");
 }
+
+#[test]
+fn duplicate_companies_merge() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let admin = w.admin();
+    let id = |v: serde_json::Value| v["id"].as_u64().unwrap();
+    let keep = id(w.ok(admin, "vendor.create", json!({"name": "Keystone Concrete", "kind": "subcontractor"})));
+    let dup =
+        id(w.ok(admin, "vendor.create", json!({"name": "Keystone Concrete Inc", "kind": "subcontractor", "phone": "555-0111", "trade": "Concrete"})));
+    let person = id(w.ok(admin, "person.create", json!({"first_name": "Cy", "last_name": "Crew", "vendor": dup})));
+    let commitment = id(w.ok(admin, "commitment.create", json!({"project": p, "title": "Slab", "vendor": dup})));
+    w.ok(admin, "prequal.save", json!({"vendor": dup, "notes": "from the duplicate"}));
+    let pkg = id(w.ok(admin, "bid_package.create", json!({"project": p, "title": "Concrete", "invite": [keep, dup]})));
+    w.ok(admin, "bid_package.open", json!({"project": p, "id": pkg}));
+    w.ok(admin, "bid_package.record_bid", json!({"project": p, "id": pkg, "vendor": dup, "amount": "100"}));
+
+    w.err(pm, "vendor.merge", json!({"from": dup, "into": keep}));
+    w.err(admin, "vendor.merge", json!({"from": dup, "into": dup}));
+    w.err(admin, "vendor.merge", json!({"from": dup, "into": 9999}));
+    let out = w.ok(admin, "vendor.merge", json!({"from": dup, "into": keep}));
+    assert!(out["records_moved"].as_u64().unwrap() >= 3);
+    w.err(admin, "vendor.merge", json!({"from": dup, "into": keep}));
+
+    let s = w.engine.state();
+    assert_eq!(s.people.get(buildkiosk_core::Id::new(person)).unwrap().vendor.map(|v| v.raw()), Some(keep));
+    assert_eq!(s.commitments.get(buildkiosk_core::Id::new(commitment)).unwrap().vendor.map(|v| v.raw()), Some(keep));
+    let k = s.vendors.get(buildkiosk_core::Id::new(keep)).unwrap();
+    assert_eq!((k.phone.as_str(), k.trade.as_str()), ("555-0111", "Concrete"), "blanks are filled from the duplicate");
+    assert!(s.vendors.get(buildkiosk_core::Id::new(dup)).unwrap().deleted.is_some());
+    let b = s.bid_packages.iter().next().unwrap();
+    assert_eq!((b.invited.len(), b.bids.len(), b.bids[0].vendor.raw()), (1, 1, keep));
+    assert_eq!(s.prequalifications.iter().filter(|q| q.deleted.is_none() && q.vendor.raw() == keep).count(), 1);
+    w.assert_replay();
+}

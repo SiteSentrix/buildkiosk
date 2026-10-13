@@ -181,7 +181,10 @@ pub fn router(app: Shared) -> Router {
             .route("/admin/email/test", post(mail_test))
             .route("/admin/email/clear", post(mail_clear))
             .route("/projects/{id}", get(project_home))
+            .route("/settings", get(company_settings))
+            .route("/projects/{id}/settings", get(project_settings))
             .route("/projects/{id}/team", get(team))
+            .route("/projects/{id}/team/{person}", get(member_access))
             .route("/projects/{id}/rfis", get(rfi_list))
             .route("/projects/{id}/rfis/new", get(rfi_new))
             .route("/projects/{id}/submittals", get(submittal_list))
@@ -611,6 +614,18 @@ async fn project_home(State(app): State<Shared>, headers: HeaderMap, Path(id): P
 
 async fn team(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
     page(&app, &headers, &q, |r, _| pages::team(r, Id::new(id)))
+}
+
+async fn company_settings(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::settings::company(r))
+}
+
+async fn project_settings(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::settings::project(r, Id::new(id)))
+}
+
+async fn member_access(State(app): State<Shared>, headers: HeaderMap, Path((id, person)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| pages::member_access(r, Id::new(id), Id::new(person)))
 }
 
 async fn rfi_list(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
@@ -2270,7 +2285,7 @@ fn form_params(form: &[(String, String)]) -> Value {
         if k.starts_with('_') {
             continue;
         }
-        if let Some((object, key)) = ["answers", "levels"].iter().find_map(|o| k.strip_prefix(&format!("{o}.")).map(|rest| (*o, rest))) {
+        if let Some((object, key)) = ["answers", "levels", "overrides"].iter().find_map(|o| k.strip_prefix(&format!("{o}.")).map(|rest| (*o, rest))) {
             // `answers.f1` and `levels.rfis` style fields become `answers: {f1: ...}` and `levels: {rfis: ...}`.
             let entry = objects.entry(object).or_default();
             if entry.len() < 200 {

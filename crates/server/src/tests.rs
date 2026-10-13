@@ -247,6 +247,42 @@ async fn team_permissions_can_be_changed() {
     assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="));
     let (_, _, team) = send(&app, Request::get("/projects/1/team").header("cookie", &session).body(Body::empty()).unwrap()).await;
     assert!(team.contains("Superintendent") && team.contains("Project admin"));
+
+    // Per-tool overrides: page lists the tools, a saved override sticks, "inherit" clears it.
+    send(&app, post("/do/member.update", &session, format!("_csrf={csrf}&project=1&person=2&project_admin=false"))).await;
+    let (st, _, access) = send(&app, Request::get("/projects/1/team/2").header("cookie", &session).body(Body::empty()).unwrap()).await;
+    assert!(st == StatusCode::OK && access.contains("overrides.rfis") && access.contains("Use the template"), "{access}");
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/do/member.update",
+            &session,
+            format!(
+                "_csrf={csrf}&_next=/projects/1/team/2&project=1&person=2&overrides.rfis=none&overrides.budget=read&overrides.submittals=inherit"
+            ),
+        ),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, access) = send(&app, Request::get("/projects/1/team/2").header("cookie", &session).body(Body::empty()).unwrap()).await;
+    let row = |key: &str| access.split(&format!("name=\"overrides.{key}\"")).nth(1).unwrap().split("</select>").next().unwrap().to_string();
+    assert!(row("rfis").contains("selected") && row("rfis").contains("value=\"none\" selected"), "{}", row("rfis"));
+    assert!(row("budget").contains("value=\"read\" selected"));
+    assert!(row("submittals").contains("value=\"inherit\" selected"));
+
+    // Project and company settings pages edit through the same commands.
+    let (st, _, ps) = send(&app, Request::get("/projects/1/settings").header("cookie", &session).body(Body::empty()).unwrap()).await;
+    assert!(st == StatusCode::OK && ps.contains("Project settings") && ps.contains("name=\"stage\""), "{ps}");
+    let (_, h, _) = send(&app, post("/do/project.update", &session, format!("_csrf={csrf}&_next=/projects/1/settings&project=1&name=Tower+Two&stage=closeout&value=1250000.50&start=2026-01-05&completion=2026-12-01&active=true"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, ps) = send(&app, Request::get("/projects/1/settings").header("cookie", &session).body(Body::empty()).unwrap()).await;
+    assert!(ps.contains("Tower Two") && ps.contains("1250000.50") && ps.contains("2026-12-01") && ps.contains("value=\"closeout\" selected"), "{ps}");
+    let (st, _, cs) = send(&app, Request::get("/settings").header("cookie", &session).body(Body::empty()).unwrap()).await;
+    assert!(st == StatusCode::OK && cs.contains("Company settings") && cs.contains("Acme"));
+    let (_, h, _) = send(&app, post("/do/company.update", &session, format!("_csrf={csrf}&_next=/settings&phone=555-0100&rfi_due_days=5"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, cs) = send(&app, Request::get("/settings").header("cookie", &session).body(Body::empty()).unwrap()).await;
+    assert!(cs.contains("555-0100"));
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }

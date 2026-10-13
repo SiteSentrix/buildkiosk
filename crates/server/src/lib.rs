@@ -9,7 +9,7 @@ mod auth;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex, MutexGuard};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use axum::Router;
 use axum::body::Bytes;
@@ -45,7 +45,20 @@ const MAX_BODY: usize = 1024 * 1024;
 /// Largest file upload.
 const MAX_UPLOAD: usize = 25 * 1024 * 1024;
 
+/// A form submission that was refused, kept for a few minutes so the form can be filled in again.
+struct Draft {
+    person: u64,
+    /// The `action` of the form that was submitted.
+    action: String,
+    values: Vec<(String, String)>,
+    at: std::time::Instant,
+}
+
+/// How long a refused form is remembered.
+const DRAFT_TTL: Duration = Duration::from_secs(600);
+
 struct Inner {
+    drafts: HashMap<String, Draft>,
     tenant: Option<Tenant>,
     creds: Credentials,
     limiter: RateLimit,
@@ -82,7 +95,7 @@ impl App {
             }
             None => (None, Credentials::default()),
         };
-        Ok(App { data, inner: Mutex::new(Inner { tenant, creds, limiter: RateLimit::default() }), secure: false })
+        Ok(App { data, inner: Mutex::new(Inner { drafts: HashMap::new(), tenant, creds, limiter: RateLimit::default() }), secure: false })
     }
 
     /// Marks the app as served over HTTPS (behind a TLS-terminating proxy): session and CSRF
@@ -104,6 +117,33 @@ impl App {
 }
 
 impl Inner {
+    /// Remembers a refused submission and returns `back` with a `draft` marker so the page it
+    /// leads to can put the typed values back. Passwords and form machinery are never kept.
+    fn draft_path(&mut self, person: u64, action: &str, form: &[(String, String)], back: &str) -> String {
+        let now = std::time::Instant::now();
+        self.drafts.retain(|_, d| now.duration_since(d.at) < DRAFT_TTL);
+        let mut size = 0usize;
+        let values: Vec<(String, String)> = form
+            .iter()
+            .filter(|(k, _)| !k.starts_with('_') && !k.to_ascii_lowercase().contains("password") && k != "current" && k != "confirm")
+            .take(2_000)
+            .filter(|(k, v)| {
+                size += k.len() + v.len();
+                size <= 200_000
+            })
+            .cloned()
+            .collect();
+        if values.is_empty() || self.drafts.len() >= 200 {
+            return back.to_string();
+        }
+        let Ok(raw) = random_bytes::<8>() else { return back.to_string() };
+        let token = hex(&raw);
+        self.drafts.insert(token.clone(), Draft { person, action: action.to_string(), values, at: now });
+        let (path, query) = back.split_once('?').unwrap_or((back, ""));
+        let query: Vec<&str> = query.split('&').filter(|p| !p.is_empty() && !p.starts_with("draft=")).collect();
+        if query.is_empty() { format!("{path}?draft={token}") } else { format!("{path}?{}&draft={token}", query.join("&")) }
+    }
+
     fn run(&mut self, actor: Actor, id: &str, params: &Value) -> Result<Value, EngineError> {
         let Some(t) = self.tenant.as_mut() else { return Err(EngineError::not_found("the company is not set up")) };
         let out = t.engine.execute(&mut t.store, actor, Timestamp::from_millis(now_ms()), id, params)?;
@@ -515,7 +555,17 @@ fn page(app: &App, headers: &HeaderMap, q: &HashMap<String, String>, render: imp
     let Some(s) = session(app, &inner, headers) else { return redirect("/login") };
     let csrf = auth::csrf_token(app.secret(), &s.cookie);
     let req = Req { engine: &t.engine, person: s.person, csrf: &csrf, now: Timestamp::from_millis(now_ms()), flash: flash_from(q) };
-    html(StatusCode::OK, render(&req, t))
+    let markup = render(&req, t);
+    // A refused save sends the person back here with what they typed.
+    let draft = q.get("draft").and_then(|tok| inner.drafts.get(tok)).filter(|d| d.person == s.person.raw() && d.at.elapsed() < DRAFT_TTL);
+    match draft {
+        Some(d) => {
+            let mut res = html(StatusCode::OK, maud::PreEscaped(buildkiosk_web::restore::restore_form(&markup.into_string(), &d.action, &d.values)));
+            res.headers_mut().insert("cache-control", HeaderValue::from_static("no-store"));
+            res
+        }
+        None => html(StatusCode::OK, markup),
+    }
 }
 
 type Q = Query<HashMap<String, String>>;
@@ -655,7 +705,10 @@ fn daily_log_save_impl(app: Shared, headers: HeaderMap, project: u64, log: Optio
     let command = if log.is_some() { "daily_log.update" } else { "daily_log.create" };
     let id = match inner.run(actor, command, &Value::Object(params)) {
         Ok(out) => log.or_else(|| out.get("id").and_then(Value::as_u64)).unwrap_or(0),
-        Err(e) => return redirect(&with_flash(&back, false, &e.to_string())),
+        Err(e) => {
+            let back = inner.draft_path(s.person.raw(), &save_action(&back), &form, &back);
+            return redirect(&with_flash(&back, false, &e.to_string()));
+        }
     };
     let detail = format!("{base}/{id}");
     if !get_form(&form, "_submit").is_empty() {
@@ -770,7 +823,10 @@ fn doc_save_impl<T: LineDoc>(app: Shared, headers: HeaderMap, project: u64, doc:
             let id = doc.or_else(|| out.get("id").and_then(Value::as_u64)).unwrap_or(0);
             redirect(&with_flash(&format!("{base}/{id}"), true, "Saved."))
         }
-        Err(e) => redirect(&with_flash(&back, false, &e.to_string())),
+        Err(e) => {
+            let back = inner.draft_path(s.person.raw(), &save_action(&back), &form, &back);
+            redirect(&with_flash(&back, false, &e.to_string()))
+        }
     }
 }
 
@@ -981,7 +1037,10 @@ fn commitment_save_impl(app: Shared, headers: HeaderMap, project: u64, commitmen
             let id = commitment.or_else(|| out.get("id").and_then(Value::as_u64)).unwrap_or(0);
             redirect(&with_flash(&format!("{base}/{id}"), true, "Commitment saved."))
         }
-        Err(e) => redirect(&with_flash(&back, false, &e.to_string())),
+        Err(e) => {
+            let back = inner.draft_path(s.person.raw(), &save_action(&back), &form, &back);
+            redirect(&with_flash(&back, false, &e.to_string()))
+        }
     }
 }
 
@@ -1025,7 +1084,11 @@ async fn invoice_save<T: InvoicePage>(State(app): State<Shared>, headers: Header
     let params = json!({"project": id, "id": iid, "period_end": get_form(&form, "period_end"), "notes": get_form(&form, "notes"), "lines": lines});
     match inner.run(Actor::Person(s.person), &format!("{}.update", T::PREFIX), &params) {
         Ok(_) => redirect(&with_flash(&back, true, "Amounts saved.")),
-        Err(e) => redirect(&with_flash(&back, false, &e.to_string())),
+        Err(e) => {
+            let action = format!("{back}/save");
+            let back = inner.draft_path(s.person.raw(), &action, &form, &back);
+            redirect(&with_flash(&back, false, &e.to_string()))
+        }
     }
 }
 
@@ -1951,6 +2014,14 @@ async fn account_token_revoke(State(app): State<Shared>, headers: HeaderMap, bod
 /// Turns the posted fields into command parameters: a field named `x[]` collects all its values
 /// into a list (blank ones dropped); any other field takes its last value. Fields starting with
 /// `_` belong to the form machinery.
+/// The `action` of the save form on an edit or new page (`…/edit` and `…/new` post to `…/save`).
+fn save_action(back: &str) -> String {
+    match back.strip_suffix("/edit").or_else(|| back.strip_suffix("/new")) {
+        Some(base) => format!("{base}/save"),
+        None => back.to_string(),
+    }
+}
+
 fn form_params(form: &[(String, String)]) -> Value {
     let mut map = Map::new();
     // `items.0.description` style fields become `items: [{description}]`, in row order.
@@ -2020,7 +2091,10 @@ async fn do_command(State(app): State<Shared>, headers: HeaderMap, Path(command)
             let id = result.get("id").and_then(Value::as_u64).map(|n| n.to_string()).unwrap_or_default();
             redirect(&with_flash(&next.replace("{id}", &id), true, &format!("{}: done.", spec.label)))
         }
-        Err(e) => redirect(&with_flash(&back, false, &e.to_string())),
+        Err(e) => {
+            let back = inner.draft_path(s.person.raw(), &format!("/do/{command}"), &form, &back);
+            redirect(&with_flash(&back, false, &e.to_string()))
+        }
     }
 }
 

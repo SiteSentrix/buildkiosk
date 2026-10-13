@@ -29,6 +29,7 @@ pub mod pdfs;
 pub mod photos;
 pub mod prequal;
 pub mod reports;
+pub mod restore;
 pub mod schedule;
 pub mod specs;
 pub mod style;

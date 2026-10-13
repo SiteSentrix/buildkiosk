@@ -1112,3 +1112,38 @@ async fn commitment_file_upload_and_download() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn transmittal_form_send_and_files() {
+    let dir = temp("transmittals");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=P"))).await;
+    let (_, _, new) = send(&app, get("/projects/1/transmittals/new")).await;
+    assert!(new.contains("items.0.description") && new.contains("Save draft"));
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/do/transmittal.create",
+            &ada,
+            format!("_csrf={csrf}&_next=/projects/1/transmittals/%7Bid%7D&_back=/projects/1/transmittals/new&project=1&subject=Permit+set&purpose=for_review&to%5B%5D=1&to%5B%5D=&cc%5B%5D=&due=&private=false&message=&items.0.description=Drawings&items.0.copies=3&items.1.description=&items.1.copies="),
+        ),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().starts_with("/projects/1/transmittals/1?ok="), "{h:?}");
+    let (_, _, detail) = send(&app, get("/projects/1/transmittals/1")).await;
+    assert!(detail.contains("Drawings") && detail.contains("Send") && detail.contains("Draft"));
+    send(&app, post("/do/transmittal.send", &ada, format!("_csrf={csrf}&project=1&id=1"))).await;
+    let (_, _, list) = send(&app, get("/projects/1/transmittals?status=sent")).await;
+    assert!(list.contains("Permit set") && list.contains("Sent"));
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

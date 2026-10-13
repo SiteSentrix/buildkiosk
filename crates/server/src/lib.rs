@@ -157,6 +157,12 @@ pub fn router(app: Shared) -> Router {
         .route("/projects/{id}/daily-logs/{lid}/edit", get(daily_log_edit))
         .route("/projects/{id}/daily-logs/{lid}/save", post(daily_log_save))
         .route("/projects/{id}/specifications", get(specifications))
+        .route("/projects/{id}/transmittals", get(transmittals_page))
+        .route("/projects/{id}/transmittals/new", get(transmittal_new))
+        .route("/projects/{id}/transmittals/{tid}", get(transmittal_page))
+        .route("/projects/{id}/transmittals/{tid}/edit", get(transmittal_edit))
+        .route("/projects/{id}/transmittals/{tid}/upload", post(transmittal_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
+        .route("/projects/{id}/transmittals/{tid}/files/{sha}", get(transmittal_download))
         .route("/projects/{id}/schedule", get(schedule_page))
         .route("/projects/{id}/schedule.csv", get(schedule_csv))
         .route("/projects/{id}/schedule/{tid}", get(schedule_task_page))
@@ -983,6 +989,33 @@ fn store_blob(inner: &mut Inner, bytes: &Bytes) -> Result<(String, u64), String>
     t.store.blobs.put(bytes).map_err(|e| e.to_string())
 }
 
+async fn transmittals_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    use buildkiosk_engine::model::Choice;
+    let status = q.get("status").and_then(|s| buildkiosk_engine::model::transmittal::TransmittalStatus::parse(s));
+    let text = q.get("q").map(|s| s.chars().take(100).collect::<String>()).unwrap_or_default();
+    page(&app, &headers, &q, |r, _| buildkiosk_web::transmittals::list(r, Id::new(id), status, &text))
+}
+
+async fn transmittal_new(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::transmittals::form(r, Id::new(id), None))
+}
+
+async fn transmittal_page(State(app): State<Shared>, headers: HeaderMap, Path((id, tid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::transmittals::detail(r, Id::new(id), Id::new(tid)))
+}
+
+async fn transmittal_edit(State(app): State<Shared>, headers: HeaderMap, Path((id, tid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::transmittals::form(r, Id::new(id), Some(Id::new(tid))))
+}
+
+async fn transmittal_download(State(app): State<Shared>, headers: HeaderMap, Path((id, tid, sha)): Path<(u64, u64, String)>) -> Response {
+    file_download(app, headers, Kind::TRANSMITTAL, id, tid, sha).await
+}
+
+async fn transmittal_upload(State(app): State<Shared>, headers: HeaderMap, Path((id, tid)): Path<(u64, u64)>, multipart: Multipart) -> Response {
+    file_upload(app, headers, Kind::TRANSMITTAL, id, tid, multipart).await
+}
+
 async fn schedule_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
     let show = q.get("show").cloned().unwrap_or_default();
     page(&app, &headers, &q, |r, _| buildkiosk_web::schedule::page(r, Id::new(id), &show))
@@ -1312,8 +1345,19 @@ async fn set_password(State(app): State<Shared>, headers: HeaderMap, Path(id): P
 /// `_` belong to the form machinery.
 fn form_params(form: &[(String, String)]) -> Value {
     let mut map = Map::new();
+    // `items.0.description` style fields become `items: [{description}]`, in row order.
+    let mut lists: std::collections::BTreeMap<String, std::collections::BTreeMap<usize, Map<String, Value>>> = std::collections::BTreeMap::new();
     for (k, v) in form {
         if k.starts_with('_') {
+            continue;
+        }
+        if let Some((list, rest)) = k.split_once('.')
+            && let Some((index, field)) = rest.split_once('.')
+            && let Ok(index) = index.parse::<usize>()
+        {
+            if index < 1000 && lists.len() < 20 {
+                lists.entry(list.to_string()).or_default().entry(index).or_default().insert(field.to_string(), Value::String(v.clone()));
+            }
             continue;
         }
         match k.strip_suffix("[]") {
@@ -1330,6 +1374,9 @@ fn form_params(form: &[(String, String)]) -> Value {
                 map.insert(k.clone(), Value::String(v.clone()));
             }
         }
+    }
+    for (list, rows) in lists {
+        map.insert(list, Value::Array(rows.into_values().map(Value::Object).collect()));
     }
     Value::Object(map)
 }
@@ -1427,6 +1474,7 @@ impl Kind {
     const RFI: Kind = Kind { attach: "rfi.attach", path: "rfis", files: rfi_files };
     const SUBMITTAL: Kind = Kind { attach: "submittal.attach", path: "submittals", files: submittal_files };
     const INSPECTION: Kind = Kind { attach: "inspection.attach", path: "inspections", files: inspection_files };
+    const TRANSMITTAL: Kind = Kind { attach: "transmittal.attach", path: "transmittals", files: transmittal_files };
     const COMMITMENT: Kind = Kind { attach: "commitment.attach", path: "commitments", files: commitment_files };
     const DRAWING: Kind = Kind { attach: "drawing.add_revision", path: "drawings", files: drawing_files };
     const DOCUMENT: Kind = Kind { attach: "document.add_version", path: "documents", files: document_files };
@@ -1447,6 +1495,14 @@ impl Kind {
     fn files(self, state: &CompanyState, actor: Actor, project: u64, item: u64) -> Option<Vec<FileRef>> {
         (self.files)(state, actor, project, item)
     }
+}
+
+fn transmittal_files(state: &CompanyState, actor: Actor, project: u64, item: u64) -> Option<Vec<FileRef>> {
+    state
+        .transmittals
+        .get(Id::new(item))
+        .filter(|t| t.project == Id::new(project) && buildkiosk_engine::cmd::transmittal::can_see(state, actor, t))
+        .map(|t| t.attachments.clone())
 }
 
 fn commitment_files(state: &CompanyState, actor: Actor, project: u64, item: u64) -> Option<Vec<FileRef>> {

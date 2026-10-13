@@ -15,6 +15,7 @@ use crate::drawing::Drawing;
 use crate::schedule::ScheduleTask;
 use crate::spec::SpecSection;
 use crate::submittal::Submittal;
+use crate::transmittal::Transmittal;
 
 // -- quality and safety
 use crate::inspection::{Inspection, InspectionTemplate};
@@ -125,6 +126,7 @@ tables! {
     rfis: Rfi,
     // -- project management
     submittals: Submittal,
+    transmittals: Transmittal,
     spec_sections: SpecSection,
 
     // -- quality and safety

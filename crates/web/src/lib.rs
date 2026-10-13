@@ -22,6 +22,7 @@ pub mod specs;
 pub mod style;
 pub mod submittals;
 pub mod theme;
+pub mod transmittals;
 pub mod workitems;
 
 pub use layout::{Flash, Req};

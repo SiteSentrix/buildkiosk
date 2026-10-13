@@ -111,6 +111,14 @@ table.data th{text-align:left;font-weight:650;font-size:12px;text-transform:uppe
 .sheet-view img,.sheet-view input[type=image],.sheet-scroll>img{display:block;max-width:none;cursor:crosshair}
 .sheet-scroll>img{cursor:default}
 .sheet-overlay{position:absolute;left:0;top:0;pointer-events:none}
+.classic-only{display:contents}
+.wasm-viewer{display:none}
+.wasm-viewer-on .wasm-viewer{display:block}
+.wasm-viewer-on .classic-only{display:none}
+.wasm-viewer [hidden]{display:none}
+button.chip{font:inherit;font-size:13px;cursor:pointer}
+.wasm-canvas{display:block;width:100%;height:72vh;min-height:320px;border:1px solid var(--border);border-radius:8px;margin-bottom:14px;cursor:grab;touch-action:none;background:#dfe3e8}
+.wasm-canvas.marking{cursor:crosshair}
 .swatch{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px}
 .swatch.red{background:#dc1e1e}.swatch.blue{background:#1e5adc}.swatch.gray{background:#bebebe}
 .notice{padding:8px 12px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border)}

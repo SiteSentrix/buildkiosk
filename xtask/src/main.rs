@@ -23,7 +23,8 @@ commands:
   cleanroom  check for vendor copyright notices and for fixtures exported from other products (AGENTS.md › Clean-room)
   licenses   check that every dependency has a permissive licence (no GPL, LGPL or AGPL)
   layers     enforce the crate dependency layering (docs/architecture.md › Layers)
-  wasm       cargo check --target wasm32-unknown-unknown for the layer 0–5 crates
+  wasm       cargo check --target wasm32-unknown-unknown for the layer 0–5 crates and the viewer
+  viewer     build the browser sheet viewer (WebAssembly) into crates/server/assets/viewer; needs `wasm-bindgen` (cargo install wasm-bindgen-cli)
   stats      count tests and lines of Rust per crate
   ci         fmt --check, clippy -D warnings, test, assets, brands, cleanroom, licenses, layers, wasm (stops at the first failure)
 ";
@@ -38,6 +39,7 @@ fn main() -> ExitCode {
         Some("licenses") => licenses::run(),
         Some("layers") => cmd_layers(),
         Some("wasm") => cmd_wasm(),
+        Some("viewer") => cmd_viewer(),
         Some("stats") => stats::run(&root),
         Some("ci") => cmd_ci(),
         Some("-h" | "--help" | "help") | None => {
@@ -150,9 +152,69 @@ fn cmd_wasm() -> Result<(), String> {
     for pkg in &set {
         c.args(["-p", pkg]);
     }
-    run(c, &format!("cargo check --target wasm32-unknown-unknown -p {}", set.join(" -p ")))?;
-    println!("wasm32-unknown-unknown: ok ({})", set.join(", "));
+    // The browser sheet viewer is layer 6 but is itself WebAssembly.
+    c.args(["-p", VIEWER_PACKAGE]);
+    run(c, &format!("cargo check --target wasm32-unknown-unknown -p {} -p {VIEWER_PACKAGE}", set.join(" -p ")))?;
+    println!("wasm32-unknown-unknown: ok ({}, viewer)", set.join(", "));
     Ok(())
+}
+
+const VIEWER_PACKAGE: &str = "buildkiosk-viewer";
+
+/// Builds the browser viewer and its loader into `crates/server/assets/viewer`, which the server
+/// embeds when it is compiled (and which is not committed). Without these files the server still
+/// works: sheets are shown by the page the server draws.
+///
+/// The loader is made here, not written by hand: `wasm-bindgen` generates `viewer.js` (the glue
+/// that starts the module) and the one line in `start.js` calls it.
+fn cmd_viewer() -> Result<(), String> {
+    let want = viewer_bindgen_version()?;
+    let have = Command::new("wasm-bindgen").arg("--version").output().ok().and_then(|o| String::from_utf8(o.stdout).ok()).unwrap_or_default();
+    if have.split_whitespace().nth(1) != Some(want.as_str()) {
+        return Err(format!(
+            "the viewer needs wasm-bindgen {want} (found: {}); install it with `cargo install wasm-bindgen-cli --version {want} --locked`",
+            if have.trim().is_empty() { "none" } else { have.trim() }
+        ));
+    }
+    let mut c = cargo();
+    c.args(["build", "--release", "--target", "wasm32-unknown-unknown", "-p", VIEWER_PACKAGE]);
+    run(c, "cargo build --release --target wasm32-unknown-unknown -p buildkiosk-viewer")?;
+    let out = root().join("crates/server/assets/viewer");
+    // Start clean so a file from an older build is never served.
+    if out.exists() {
+        std::fs::remove_dir_all(&out).map_err(|e| format!("{}: {e}", out.display()))?;
+    }
+    std::fs::create_dir_all(&out).map_err(|e| format!("{}: {e}", out.display()))?;
+    let mut b = Command::new("wasm-bindgen");
+    b.current_dir(root())
+        .args(["--target", "web", "--no-typescript", "--out-name", "viewer", "--out-dir"])
+        .arg(&out)
+        .arg("target/wasm32-unknown-unknown/release/buildkiosk_viewer.wasm");
+    run(b, "wasm-bindgen --target web")?;
+    std::fs::write(out.join("start.js"), "import init from \"./viewer.js\";\ninit();\n").map_err(|e| format!("start.js: {e}"))?;
+    for f in ["start.js", "viewer.js", "viewer_bg.wasm"] {
+        let size = std::fs::metadata(out.join(f)).map(|m| m.len()).map_err(|e| format!("{f}: {e}"))?;
+        println!("  {f}: {} KB", size / 1024);
+    }
+    println!("viewer: ok. Rebuild the server (cargo build -p buildkiosk --release) to embed it.");
+    Ok(())
+}
+
+/// The `wasm-bindgen` version the viewer is locked to (the command line tool must match it).
+fn viewer_bindgen_version() -> Result<String, String> {
+    let lock = std::fs::read_to_string(root().join("Cargo.lock")).map_err(|e| format!("Cargo.lock: {e}"))?;
+    let mut lines = lock.lines();
+    while let Some(l) = lines.next() {
+        if l == "name = \"wasm-bindgen\"" {
+            let v = lines.next().unwrap_or_default();
+            return v
+                .strip_prefix("version = \"")
+                .and_then(|v| v.strip_suffix('"'))
+                .map(str::to_owned)
+                .ok_or_else(|| "Cargo.lock: unreadable wasm-bindgen entry".into());
+        }
+    }
+    Err("Cargo.lock has no wasm-bindgen entry".into())
 }
 
 fn cmd_ci() -> Result<(), String> {

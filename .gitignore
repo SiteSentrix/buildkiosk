@@ -9,3 +9,5 @@ plan/
 .DS_Store
 # Agent worktrees (parallel work in progress)
 /.claude/worktrees/
+# The browser sheet viewer, built by `cargo xtask viewer` (not committed)
+/crates/server/assets/viewer/

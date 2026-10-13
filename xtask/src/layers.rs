@@ -44,6 +44,8 @@ pub const TABLE: &[(&str, Class)] = &[
     ("web", Class::Layer(6)),
     ("mcp", Class::Layer(6)),
     ("server", Class::Layer(6)),
+    // The browser half of the sheet viewer (WebAssembly); built by `cargo xtask viewer`.
+    ("viewer", Class::Layer(6)),
     // apps and tooling
     ("buildkiosk", Class::Exempt),
     ("xtask", Class::Exempt),

@@ -311,6 +311,19 @@ pub struct PageShape {
     pub pages: usize,
     pub width: f32,
     pub height: f32,
+    /// The browser viewer (WebAssembly) is available and can draw this file, so the page offers it.
+    pub interactive: bool,
+}
+
+/// The markups of a page as the browser viewer reads them (`data-marks`).
+fn marks_json(marks: &[&buildkiosk_engine::model::drawing::Markup]) -> String {
+    let list: Vec<serde_json::Value> = marks
+        .iter()
+        .map(
+            |m| serde_json::json!({ "id": m.id, "kind": m.kind, "x": m.x, "y": m.y, "x2": m.x2, "y2": m.y2, "text": m.text, "resolved": m.resolved }),
+        )
+        .collect();
+    serde_json::to_string(&list).unwrap_or_else(|_| "[]".into())
 }
 
 fn enc(s: &str) -> String {
@@ -379,17 +392,21 @@ pub fn viewer(req: &Req<'_>, id: Id<Project>, did: Id<Drawing>, v: &View, shape:
                     span { (page) " of " (shape.pages) }
                     @if (page as usize) < shape.pages { a class="chip" href=(link(&|n| { n.page = page + 1; n.first = None; })) { "Next ›" } }
                 }
-                span class="muted" { "Zoom" }
-                @for (label, w) in [("Fit", 900u32), ("Large", 1400), ("Detail", 2000)] {
-                    a class=(if width == w { "chip active" } else { "chip" }) href=(link(&|n| { n.width = w; })) { (label) }
+                span class="classic-only" {
+                    span class="muted" { "Zoom" }
+                    @for (label, w) in [("Fit", 900u32), ("Large", 1400), ("Detail", 2000)] {
+                        a class=(if width == w { "chip active" } else { "chip" }) href=(link(&|n| { n.width = w; })) { (label) }
+                    }
                 }
             }
             div class="viewer-bar" {
-                span class="muted" { "Mark up" }
-                a class=(if v.tool.is_empty() { "chip active" } else { "chip" }) href=(link(&|n| { n.tool = String::new(); n.first = None; })) { "View only" }
-                @if can_mark && v.compare.is_empty() {
-                    @for (key, label) in [("pin", "Pin"), ("rect", "Box"), ("arrow", "Arrow"), ("text", "Text")] {
-                        a class=(if v.tool == key { "chip active" } else { "chip" }) href=(link(&|n| { n.tool = key.to_string(); n.first = None; })) { (label) }
+                span class="classic-only" {
+                    span class="muted" { "Mark up" }
+                    a class=(if v.tool.is_empty() { "chip active" } else { "chip" }) href=(link(&|n| { n.tool = String::new(); n.first = None; })) { "View only" }
+                    @if can_mark && v.compare.is_empty() {
+                        @for (key, label) in [("pin", "Pin"), ("rect", "Box"), ("arrow", "Arrow"), ("text", "Text")] {
+                            a class=(if v.tool == key { "chip active" } else { "chip" }) href=(link(&|n| { n.tool = key.to_string(); n.first = None; })) { (label) }
+                        }
                     }
                 }
                 @if d.revisions.len() > 1 {
@@ -407,6 +424,49 @@ pub fn viewer(req: &Req<'_>, id: Id<Project>, did: Id<Drawing>, v: &View, shape:
                 p class="muted" { span class="swatch red" {} " only on revision " (r.label) " · " span class="swatch blue" {} " only on revision " (v.compare) " · " span class="swatch gray" {} " on both. Revisions are laid on top of each other at the page's size; a sheet that moved or was rescaled shows as changed everywhere." }
                 div class="sheet-scroll" { img src=(format!("{here}/compare.png?a={}&b={}&page={page}&w={width}", enc(&v.compare), enc(&r.label))) width=(width) height=(height) alt="Differences between the two revisions"; }
             } @else {
+                @let marks: Vec<_> = r.markups.iter().filter(|m| m.page == page).collect();
+                @if shape.interactive {
+                    script type="module" src="/static/viewer/start.js" {}
+                    div id="wasm-viewer" class="wasm-viewer" data-file=(r.file.as_ref().map(|f| format!("{sheet}/files/{}", f.sha256)).unwrap_or_default()) data-page=(page) data-marks=(marks_json(&marks)) data-can-mark=(if can_mark { "1" } else { "0" }) {
+                        div class="viewer-bar" {
+                            @if can_mark {
+                                span class="muted" { "Tool" }
+                                button type="button" class="chip tool-btn active" data-tool="move" { "Move" }
+                                @for (key, label) in [("pin", "Pin"), ("rect", "Box"), ("arrow", "Arrow"), ("text", "Text")] {
+                                    button type="button" class="chip tool-btn" data-tool=(key) { (label) }
+                                }
+                            }
+                            span class="muted" { "Zoom" }
+                            button type="button" class="chip" data-zoom="out" aria-label="Zoom out" { "−" }
+                            button type="button" class="chip" data-zoom="in" aria-label="Zoom in" { "+" }
+                            button type="button" class="chip" data-zoom="fit" { "Fit" }
+                        }
+                        p id="wasm-hint" class="notice" {}
+                        canvas class="wasm-canvas" role="img" aria-label=(format!("Sheet {} page {page}", d.number)) {}
+                        @if can_mark {
+                            div id="wasm-markup" class="card" hidden {
+                                h2 { "Add markup" }
+                                (command_form(req, "drawing.markup_add", &format!("{here}?{}", { let mut n = v.clone(); n.first = None; n.click = None; n.query() }), &format!("{here}?{}", v.query()), html! {
+                                    input type="hidden" name="project" value=(id);
+                                    input type="hidden" name="id" value=(did);
+                                    input type="hidden" name="revision" value=(r.label);
+                                    input type="hidden" name="page" value=(page);
+                                    input type="hidden" id="mk-kind" name="kind" value="pin";
+                                    input type="hidden" id="mk-x" name="x" value="0";
+                                    input type="hidden" id="mk-y" name="y" value="0";
+                                    input type="hidden" id="mk-x2" name="x2" value="0" disabled;
+                                    input type="hidden" id="mk-y2" name="y2" value="0" disabled;
+                                    (field("Words or note (words are needed for text)", "mk-text", false, true, html! { input type="text" id="mk-text" name="text" maxlength="1000"; }))
+                                    div class="form-actions" {
+                                        button type="button" class="btn" data-action="cancel" { "Cancel" }
+                                        button type="submit" class="btn primary" { "Save markup" }
+                                    }
+                                }))
+                            }
+                        }
+                    }
+                }
+                div class="classic-only" {
                 @let tool_hint = match (v.tool.as_str(), v.first) {
                     ("pin", _) => "Click the picture where the pin goes.",
                     ("text", _) => "Click where the words go.",
@@ -417,7 +477,6 @@ pub fn viewer(req: &Req<'_>, id: Id<Project>, did: Id<Drawing>, v: &View, shape:
                     _ => "",
                 };
                 @if !tool_hint.is_empty() { p class="notice" { (tool_hint) } }
-                @let marks: Vec<_> = r.markups.iter().filter(|m| m.page == page).collect();
                 @let scale = |a: u16, total: u32| (f64::from(a) * f64::from(total) / f64::from(MARKUP_SCALE)).round();
                 @let drawing = html! {
                     svg class="sheet-overlay" width=(width) height=(height) viewBox=(format!("0 0 {width} {height}")) aria-hidden="true" {
@@ -477,6 +536,7 @@ pub fn viewer(req: &Req<'_>, id: Id<Project>, did: Id<Drawing>, v: &View, shape:
                             }
                         }))
                     }
+                }
                 }
                 div class="card" {
                     h2 { "Markups on this page" }

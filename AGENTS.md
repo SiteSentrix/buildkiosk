@@ -107,8 +107,16 @@ time, finished end to end (engine, tests, pages) before the next.
   `crates/web/src/theme.rs`.
 - **Rust only, and no JavaScript at all** (no handwritten JS/TS, no vendored JS libraries). Pages are server-rendered
   HTML with plain forms and are served with `Content-Security-Policy: script-src 'none'`. Interactive pieces that
-  truly need client code (drawing markup, Gantt dragging, offline field mode) will be Rust compiled to WASM on top
-  of the same engine: **never break wasm** (`cargo xtask wasm` builds L0–L5 for `wasm32-unknown-unknown`).
+  truly need client code (Gantt dragging, offline field mode) will be Rust compiled to WASM on top of the same
+  engine: **never break wasm** (`cargo xtask wasm` builds L0–L5 and the viewer for `wasm32-unknown-unknown`).
+  - **The one exception so far (owner decision, 2026-10-13): the browser sheet viewer** (`crates/viewer`, Rust to
+    WebAssembly, built by `cargo xtask viewer`). A browser can't start a module without a script, so
+    `wasm-bindgen` generates the loader at build time; nothing is handwritten or committed (the output goes to the
+    gitignored `crates/server/assets/viewer` and is embedded into the server when it is compiled). Only the viewer
+    page's policy allows scripts (`script-src 'self' 'wasm-unsafe-eval'`, `connect-src 'self'`; no inline scripts,
+    nothing from other hosts); every other page keeps `script-src 'none'`. The server-drawn viewer stays as the
+    fallback, so a build without the module, a browser without WebAssembly, or a file the module can't draw all
+    still work. Any other use of client code needs the owner's decision.
 - **Security basics:** argon2id password hashes, HttpOnly SameSite session cookies, a CSRF token on every form,
   rate-limited sign-in, size limits on every body and upload, uploaded files served as attachments with
   `nosniff`. Never log passwords, tokens or session cookies.

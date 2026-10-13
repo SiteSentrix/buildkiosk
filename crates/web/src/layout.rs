@@ -64,6 +64,7 @@ pub enum Nav {
     Photos(Id<Project>),
     Correspondence(Id<Project>),
     Forms(Id<Project>),
+    Timesheets(Id<Project>),
     Drawings(Id<Project>),
     Schedule(Id<Project>),
     DailyLogs(Id<Project>),
@@ -167,7 +168,8 @@ pub fn app(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Option<String>
         | Nav::Incidents(p)
         | Nav::Photos(p)
         | Nav::Correspondence(p)
-        | Nav::Forms(p) => state.projects.get(p),
+        | Nav::Forms(p)
+        | Nav::Timesheets(p) => state.projects.get(p),
     };
     html! {
         (DOCTYPE)
@@ -239,6 +241,9 @@ pub fn app(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Option<String>
                                 }
                                 @if view::level(state, req.actor(), p.id, Tool::Forms) >= buildkiosk_engine::model::Level::Read {
                                     a href=(format!("/projects/{}/forms", p.id)) class=(if matches!(nav, Nav::Forms(_)) { "active" } else { "" }) { (tool_icon(Tool::Forms).svg()) "Forms" }
+                                }
+                                @if view::level(state, req.actor(), p.id, Tool::Timesheets) >= buildkiosk_engine::model::Level::Standard {
+                                    a href=(format!("/projects/{}/timesheets", p.id)) class=(if matches!(nav, Nav::Timesheets(_)) { "active" } else { "" }) { (tool_icon(Tool::Timesheets).svg()) "Timesheets" }
                                 }
                                 @if view::level(state, req.actor(), p.id, Tool::Meetings) >= buildkiosk_engine::model::Level::Read {
                                     a href=(format!("/projects/{}/meetings", p.id)) class=(if matches!(nav, Nav::Meetings(_)) { "active" } else { "" }) { (tool_icon(Tool::Meetings).svg()) "Meetings" }

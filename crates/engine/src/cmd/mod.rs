@@ -29,6 +29,7 @@ pub mod punch;
 // -- field
 pub mod daily_log;
 pub mod schedule;
+pub mod timesheet;
 
 // -- financials
 pub mod budget;
@@ -144,6 +145,7 @@ const MODULES: &[&[CommandSpec]] = &[
     punch::COMMANDS,
     // -- field
     daily_log::COMMANDS,
+    timesheet::COMMANDS,
     schedule::COMMANDS,
     // -- documents
     document::COMMANDS,

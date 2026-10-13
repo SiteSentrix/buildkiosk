@@ -150,6 +150,7 @@ const MODULES: &[&[CommandSpec]] = &[
     form::COMMANDS,
     action_plan::COMMANDS,
     incident::COMMANDS,
+    incident::LOG,
     inspection::COMMANDS,
     observation::COMMANDS,
     punch::COMMANDS,

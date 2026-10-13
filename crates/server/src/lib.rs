@@ -498,6 +498,27 @@ pub fn router(app: Shared) -> Router {
                 }),
             )
             .route(
+                "/projects/{id}/incidents/{iid}/pdf",
+                get(|s: State<Shared>, h: HeaderMap, Path((id, x)): Path<(u64, u64)>| async move {
+                    pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::incident(r, Id::new(id), Id::new(x)))
+                }),
+            )
+            .route(
+                "/projects/{id}/incidents/log.pdf",
+                get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, Query(q): Q| async move {
+                    let year = q.get("year").and_then(|y| y.trim().parse::<i32>().ok());
+                    pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::injury_log(r, Id::new(id), year))
+                }),
+            )
+            .route(
+                "/projects/{id}/incidents/log",
+                get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, Query(q): Q| async move {
+                    let year = q.get("year").and_then(|y| y.trim().parse::<i32>().ok());
+                    page(&s.0, &h, &q, |r, _| workitems::injury_log(r, Id::new(id), year))
+                }),
+            )
+            .route("/projects/{id}/incidents/log.csv", get(injury_log_csv))
+            .route(
                 "/projects/{id}/budget.pdf",
                 get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>| async move {
                     pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::budget(r, Id::new(id)))
@@ -1224,6 +1245,20 @@ async fn budget_page(State(app): State<Shared>, headers: HeaderMap, Path(id): Pa
             q.get("view").and_then(|c| c.parse::<u64>().ok()).map(Id::new),
         )
     })
+}
+
+async fn injury_log_csv(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    let inner = app.lock();
+    let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    let csrf = auth::csrf_token(app.secret(), &s.cookie);
+    let req = Req { engine: &t.engine, person: s.person, csrf: &csrf, now: Timestamp::from_millis(now_ms()), flash: None };
+    let year = q.get("year").and_then(|y| y.trim().parse::<i32>().ok());
+    let Some(csv) = workitems::injury_log_csv(&req, Id::new(id), year) else { return plain(StatusCode::NOT_FOUND, "Not found") };
+    let mut res = csv.into_response();
+    res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("text/csv; charset=utf-8"));
+    res.headers_mut().insert("content-disposition", HeaderValue::from_static("attachment; filename=\"injury-log.csv\""));
+    res
 }
 
 async fn budget_csv(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {

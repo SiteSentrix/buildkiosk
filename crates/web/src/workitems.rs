@@ -41,6 +41,14 @@ pub trait WorkPage: WorkItem {
     fn extra_cards(&self, _req: &Req<'_>) -> Markup {
         html! {}
     }
+    /// Buttons beside the list's own (kind-specific).
+    fn list_actions(_project: Id<Project>, _req: &Req<'_>) -> Markup {
+        html! {}
+    }
+    /// Buttons on the detail page (kind-specific).
+    fn detail_actions(&self, _req: &Req<'_>) -> Markup {
+        html! {}
+    }
     /// Rows of the details panel (kind-specific).
     fn extra_facts(&self, _req: &Req<'_>) -> Markup {
         html! {}
@@ -186,18 +194,33 @@ impl WorkPage for Incident {
         }
     }
 
-    fn extra_facts(&self, _req: &Req<'_>) -> Markup {
+    fn list_actions(project: Id<Project>, req: &Req<'_>) -> Markup {
+        html! { @if req.allowed("incident.log", Some(project)) { a class="btn" href=(format!("/projects/{project}/incidents/log")) { "Injury log" } } }
+    }
+
+    fn detail_actions(&self, _req: &Req<'_>) -> Markup {
+        html! { a class="btn" href=(format!("/projects/{}/incidents/{}/pdf", self.project, self.id)) { "Printable report" } }
+    }
+
+    fn extra_facts(&self, req: &Req<'_>) -> Markup {
+        let state = req.engine.state();
         html! {
+            @if self.private {
+                dt { "Visibility" } dd { span class="tag" { "Private" } " " (if self.involved.is_empty() { "author, manager and assignees only".to_string() } else { format!("and {}", self.involved.iter().map(|p| view::person_name(state, *p)).collect::<Vec<_>>().join(", ")) }) }
+            }
             dt { "Occurred" } dd { @if let Some(d) = self.occurred { (d.pretty()) } @else { "—" } }
             dt { "Severity" } dd { (self.severity.label()) }
             dt { "Recordable" } dd { (if self.recordable { "Yes" } else { "No" }) }
         }
     }
 
-    fn extra_fields(item: Option<&Self>, _project: Id<Project>, req: &Req<'_>) -> Markup {
+    fn extra_fields(item: Option<&Self>, project: Id<Project>, req: &Req<'_>) -> Markup {
         let occurred = item.map(|i| i.occurred).unwrap_or_else(|| Some(req.today())).map(|d| d.to_string()).unwrap_or_default();
         let severity = item.map(|i| i.severity).unwrap_or_default();
         let recordable = item.is_some_and(|i| i.recordable);
+        let private = item.is_some_and(|i| i.private);
+        let involved: Vec<_> = item.map(|i| i.involved.clone()).unwrap_or_default();
+        let people = user_options(req, project, true);
         let text = |f: fn(&Incident) -> &str| item.map(|i| f(i).to_string()).unwrap_or_default();
         html! {
             (field("Date it happened", "occurred", false, false, html! { input type="date" id="occurred" name="occurred" value=(occurred); }))
@@ -206,6 +229,13 @@ impl WorkPage for Incident {
                 option value="false" selected[!recordable] { "No" }
                 option value="true" selected[recordable] { "Yes, enter it on the injury log" }
             } }))
+            (field("Private", "private", false, false, html! { select id="private" name="private" {
+                option value="false" selected[!private] { "No, everyone with access to incidents sees it" }
+                option value="true" selected[private] { "Yes, only the people below, the manager and the tool's admins" }
+            } }))
+            (field("People who may see it when private", "involved", false, true, html! {
+                div class="options" { @for x in &people { label { input type="checkbox" name="involved[]" value=(x.id) checked[involved.contains(&x.id)]; (x.name()) } } }
+            }))
             (field("People involved and witnesses", "people_involved", false, true, html! { textarea id="people_involved" name="people_involved" class="short" { (text(|i| &i.people_involved)) } }))
             (field("Root cause", "root_cause", false, true, html! { textarea id="root_cause" name="root_cause" class="short" { (text(|i| &i.root_cause)) } }))
             (field("Corrective action", "corrective_action", false, true, html! { textarea id="corrective_action" name="corrective_action" class="short" { (text(|i| &i.corrective_action)) } }))
@@ -442,6 +472,7 @@ pub fn list<T: WorkPage>(req: &Req<'_>, id: Id<Project>, filter: &Filter) -> Mar
             div { h1 { (T::TITLE) } div class="sub" { (T::SUBTITLE) } }
             div class="actions" {
                 @if T::TRENDS { a class="btn" href=(format!("{base}/trends")) { "Trends" } }
+                (T::list_actions(id, req))
                 a class="btn" href=(with_query(format!("{base}.pdf"))) { "PDF" }
                 a class="btn" href=(format!("{base}.csv")) { (Icon::Download.svg()) "Export CSV" }
                 @if req.allowed(&cmd::<T>("create"), Some(id)) { a class="btn primary" href=(format!("{base}/new")) { (Icon::Plus.svg()) (T::ADD) } }
@@ -538,6 +569,7 @@ pub fn detail<T: WorkPage>(req: &Req<'_>, id: Id<Project>, iid: Id<T>, history: 
                 div class="sub" { "Added " (req.when(i.created.at)) @if let Some(b) = i.created.by { " by " (view::person_name(state, b)) } }
             }
             div class="actions" {
+                (i.detail_actions(req))
                 @if editable { a class="btn" href=(format!("{here}/edit")) { "Edit" } }
                 @if standard && i.status == WorkStatus::Open && (assignee || manager_like) { (button_form(req, &cmd::<T>("complete"), &here, &ids, "Mark work done", "primary")) }
                 @if standard && manager_like && i.status != WorkStatus::Closed { (button_form(req, &cmd::<T>("close"), &here, &ids, "Close item", if i.status == WorkStatus::ReadyForReview { "primary" } else { "" })) }
@@ -847,4 +879,120 @@ pub fn my_tasks(req: &Req<'_>, include_closed: bool, all: bool) -> Markup {
         }
     };
     layout::app(req, "My tasks", Nav::MyTasks, &[("Projects", Some("/".to_string())), ("My tasks", None)], body)
+}
+
+/// The injury log of a project for one year: counts, the hours behind the rates, the rates and the recordable cases.
+pub fn injury_log(req: &Req<'_>, id: Id<Project>, year: Option<i32>) -> Markup {
+    let Some(p) = project_for(req, id) else { return not_found(req) };
+    let state = req.engine.state();
+    if view::level(state, req.actor(), id, Tool::Incidents) < Level::Read {
+        return not_found(req);
+    }
+    let year = year.unwrap_or_else(|| req.today().ymd().0);
+    let list = buildkiosk_engine::cmd::incident::incidents_in_year(state, req.actor(), id, year);
+    let recordable: Vec<_> = list.iter().filter(|i| i.recordable).collect();
+    let lost_time = recordable.iter().filter(|i| i.severity.is_lost_time()).count() as u64;
+    let (sheets, other) = buildkiosk_engine::cmd::incident::hours_worked(state, id, year);
+    let tenths = sheets.saturating_add(other);
+    let rate = |cases: u64| buildkiosk_engine::cmd::incident::rate(cases, tenths);
+    let hours = |t: u64| format!("{}.{}", t / 10, t % 10);
+    let base = format!("/projects/{id}/incidents/log");
+    let body = html! {
+        div class="page-head" {
+            div { h1 { "Injury log, " (year) } div class="sub" { "Recordable cases and incident rates for the year, from the incidents you can see" } }
+            div class="actions" {
+                a class="btn" href=(format!("/projects/{id}/incidents")) { "Back to incidents" }
+                a class="btn" href=(format!("{base}.pdf?year={year}")) { "Printable log" }
+                a class="btn" href=(format!("{base}.csv?year={year}")) { (Icon::Download.svg()) "Export CSV" }
+            }
+        }
+        form method="get" action=(base.clone()) class="filters" {
+            label for="year" { "Year" }
+            input type="number" id="year" name="year" value=(year) min="1900" max="2399";
+            button type="submit" class="btn small" { "Show" }
+        }
+        div class="stat-row" {
+            div class="stat" { div class="label" { "Incidents" } div class="value" { (list.len()) } }
+            div class="stat" { div class="label" { "Recordable" } div class="value" { (recordable.len()) } }
+            div class="stat" { div class="label" { "Lost time" } div class="value" { (lost_time) } }
+            div class="stat" { div class="label" { "Hours worked" } div class="value" { (hours(tenths)) } div class="muted small" { (hours(sheets)) " on timesheets, " (hours(other)) " other" } }
+            div class="stat" { div class="label" { "Recordable rate" } div class="value" { @if let Some(r) = rate(recordable.len() as u64) { (r) } @else { "—" } } div class="muted small" { "cases per 200,000 hours" } }
+            div class="stat" { div class="label" { "Lost-time rate" } div class="value" { @if let Some(r) = rate(lost_time) { (r) } @else { "—" } } div class="muted small" { "cases per 200,000 hours" } }
+        }
+        @if tenths == 0 { p class="muted" { "Rates need hours worked: approved timesheets count, and an admin can add the hours of people who aren't on timesheets below." } }
+        div class="card" {
+            h2 { "By severity" }
+            table class="data" {
+                thead { tr { th { "Severity" } th class="num" { "Cases" } } }
+                tbody { @for s in buildkiosk_engine::model::incident::Severity::ALL { tr { td { (s.label()) } td class="num" { (list.iter().filter(|i| i.severity == *s).count()) } } } }
+            }
+        }
+        div class="card" {
+            h2 { "Recordable cases" }
+            @if recordable.is_empty() { p class="muted" { "No recordable cases in " (year) "." } } @else {
+                div class="table-wrap" { table class="data" {
+                    thead { tr { th { "#" } th { "Date" } th { "Case" } th { "Person" } th { "Severity" } th { "Status" } } }
+                    tbody { @for i in &recordable { tr {
+                        td { (i.number) }
+                        td class="nowrap" { @if let Some(d) = i.occurred { (d.pretty()) } }
+                        td { a class="row-link" href=(format!("/projects/{id}/incidents/{}", i.id)) { (i.title) } }
+                        td { (i.people_involved) }
+                        td { (i.severity.label()) }
+                        td { (status_pill(i.status)) }
+                    } } }
+                } }
+            }
+        }
+        @if req.allowed("incident.set_hours", Some(id)) {
+            div class="card" {
+                h2 { "Other hours worked in " (year) }
+                p class="muted small" { "Hours worked by people who aren't on timesheets, such as subcontractors, are added to the approved timesheet hours. Enter 0 to remove them." }
+                (command_form(req, "incident.set_hours", &format!("{base}?year={year}"), &format!("{base}?year={year}"), html! {
+                    input type="hidden" name="project" value=(id);
+                    input type="hidden" name="year" value=(year);
+                    div class="form-grid" {
+                        (field("Hours", "other_hours", true, false, html! { input type="number" id="other_hours" name="hours" min="0" step="1" required value=(p.incident_hours.iter().find(|h| h.year == year).map_or(0, |h| h.hours)); }))
+                    }
+                    div class="form-actions" { button type="submit" class="btn primary" { "Save hours" } }
+                }))
+            }
+        }
+    };
+    layout::app(
+        req,
+        "Injury log",
+        Nav::Incidents(id),
+        &[
+            ("Projects", Some("/".to_string())),
+            (p.name.as_str(), Some(format!("/projects/{id}"))),
+            ("Incidents", Some(format!("/projects/{id}/incidents"))),
+            ("Injury log", None),
+        ],
+        body,
+    )
+}
+
+/// The recordable cases of a year as CSV.
+pub fn injury_log_csv(req: &Req<'_>, id: Id<Project>, year: Option<i32>) -> Option<String> {
+    project_for(req, id)?;
+    let state = req.engine.state();
+    if view::level(state, req.actor(), id, Tool::Incidents) < Level::Read {
+        return None;
+    }
+    let year = year.unwrap_or_else(|| req.today().ymd().0);
+    let mut out = String::from("Case,Date,Title,Person,Severity,Location,Status\r\n");
+    for i in buildkiosk_engine::cmd::incident::incidents_in_year(state, req.actor(), id, year).into_iter().filter(|i| i.recordable) {
+        let cells = [
+            i.number.to_string(),
+            i.occurred.map(|d| d.to_string()).unwrap_or_default(),
+            i.title.clone(),
+            i.people_involved.clone(),
+            i.severity.label().to_string(),
+            i.location.clone(),
+            i.status.label().to_string(),
+        ];
+        out.push_str(&cells.iter().map(|c| layout::csv_cell(c)).collect::<Vec<_>>().join(","));
+        out.push_str("\r\n");
+    }
+    Some(out)
 }

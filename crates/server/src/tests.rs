@@ -1702,6 +1702,36 @@ async fn tasks_use_the_shared_work_pages() {
     let (st, _, form) = send(&app, get("/projects/1/incidents/new")).await;
     assert_eq!(st, StatusCode::OK);
     assert!(form.contains("Report incident") && form.contains("Root cause") && form.contains("Near miss"));
+    assert!(form.contains("name=\"private\"") && form.contains("involved[]"), "{form}");
+
+    // A recordable, private incident: the printable report, the injury log with hours and rates, and the CSV.
+    let (_, h, _) = send(
+        &app,
+        post("/do/incident.create", &ada, format!("_csrf={csrf}&_next=/projects/1/incidents&project=1&title=Fell+from+ladder&severity=lost_time&recordable=true&occurred=2026-06-15&private=true&involved[]=1&people_involved=J.+Smith")),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, detail) = send(&app, get("/projects/1/incidents/1")).await;
+    assert!(detail.contains("Printable report") && detail.contains("Private"), "{detail}");
+    let (st, h, pdf) = send(&app, get("/projects/1/incidents/1/pdf")).await;
+    assert!(st == StatusCode::OK && h.get(CONTENT_TYPE).unwrap() == "application/pdf" && pdf.starts_with("%PDF"));
+    let (_, _, list) = send(&app, get("/projects/1/incidents")).await;
+    assert!(list.contains("Injury log"), "{list}");
+    let (st, _, log) = send(&app, get("/projects/1/incidents/log?year=2026")).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(log.contains("Injury log, 2026") && log.contains("Fell from ladder") && log.contains("Rates need hours"), "{log}");
+    let (_, h, _) =
+        send(&app, post("/do/incident.set_hours", &ada, format!("_csrf={csrf}&_next=/projects/1/incidents/log&project=1&year=2026&hours=10000")))
+            .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, log) = send(&app, get("/projects/1/incidents/log?year=2026")).await;
+    assert!(log.contains("20.00") && !log.contains("Rates need hours"), "1 case in 10,000 hours is 20 per 200,000: {log}");
+    let (st, h, csv) = send(&app, get("/projects/1/incidents/log.csv?year=2026")).await;
+    assert!(st == StatusCode::OK && h.get("content-disposition").is_some() && csv.contains("Fell from ladder"), "{csv}");
+    let (st, h, pdf) = send(&app, get("/projects/1/incidents/log.pdf?year=2026")).await;
+    assert!(st == StatusCode::OK && h.get(CONTENT_TYPE).unwrap() == "application/pdf" && pdf.starts_with("%PDF"));
+    let (_, _, none) = send(&app, get("/projects/1/incidents/log?year=2020")).await;
+    assert!(none.contains("No recordable cases in 2020"), "{none}");
     send(&app, post("/do/task.create", &ada, format!("_csrf={csrf}&_next=/projects/1/tasks&project=1&title=Order+hardware&priority=high"))).await;
     let (_, _, list) = send(&app, get("/projects/1/tasks")).await;
     assert!(list.contains("Order hardware") && list.contains("Tasks"), "{list}");

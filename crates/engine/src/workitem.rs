@@ -54,6 +54,14 @@ pub trait WorkItem: Record + InProject + Trash + Clone + PartialEq + Serialize +
     fn apply_extra(&mut self, _p: &Params<'_>) -> Result<()> {
         Ok(())
     }
+    /// Whether this person may see the item, beyond having access to the tool (tool admins always may).
+    fn visible_to(&self, _state: &CompanyState, _actor: Actor) -> bool {
+        true
+    }
+    /// Runs after the item is created (`before` is `None`) or changed, once it is saved.
+    fn after_save(&self, _before: Option<&Self>, _ctx: &mut Ctx<'_>) -> Result<()> {
+        Ok(())
+    }
     /// Checks the finished item against the rest of the company (links to other records, and so on).
     fn validate(&self, _ctx: &Ctx<'_>) -> Result<()> {
         Ok(())
@@ -80,7 +88,7 @@ fn link<T: WorkItem>(item: &T) -> String {
 /// Whether the actor may see the item: Read access to the tool; admins also see deleted ones.
 pub fn can_see<T: WorkItem>(state: &CompanyState, actor: Actor, item: &T) -> bool {
     let lvl = view::level(state, actor, item.project(), T::TOOL);
-    lvl == Level::Admin || (item.deleted.is_none() && lvl >= Level::Read)
+    lvl == Level::Admin || (item.deleted.is_none() && lvl >= Level::Read && item.visible_to(state, actor))
 }
 
 /// The items of a project the actor may see, in number order (deleted ones left out).
@@ -190,6 +198,7 @@ pub fn create<T: WorkItem>(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     let id = insert(ctx, item.clone());
     item.set_id(id);
     notify(ctx, &item.assignees, project, &format!("{} was assigned to you: {}", label(&item), item.title), &link(&item));
+    item.after_save(None, ctx)?;
     Ok(json!({ "id": id, "number": number }))
 }
 
@@ -269,7 +278,8 @@ pub fn update<T: WorkItem>(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         let newly: Vec<Id<Person>> = item.assignees.iter().copied().filter(|a| !before.assignees.contains(a)).collect();
         notify(ctx, &newly, item.project(), &format!("{} was assigned to you: {}", label(&item), item.title), &link(&item));
         item.updated = ctx.stamp();
-        T::table_mut(ctx.state).put(item);
+        T::table_mut(ctx.state).put(item.clone());
+        item.after_save(Some(&before), ctx)?;
     }
     Ok(json!({ "id": id }))
 }

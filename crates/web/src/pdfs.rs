@@ -724,3 +724,89 @@ pub fn inspection(req: &Req<'_>, id: Id<Project>, iid: Id<buildkiosk_engine::mod
     flush(&mut doc, section, &mut rows);
     Some((file_name(&i.label()), render(&doc)))
 }
+
+/// One incident as a report to print and sign.
+pub fn incident(req: &Req<'_>, id: Id<Project>, iid: Id<buildkiosk_engine::model::incident::Incident>) -> Option<Pdf> {
+    let state = req.engine.state();
+    let p = project_of(req, id, Tool::Incidents)?;
+    let i = state
+        .incidents
+        .get(iid)
+        .filter(|i| i.project == id && buildkiosk_engine::workitem::can_see(state, req.actor(), *i) && i.deleted.is_none())?;
+    let (mut doc, _) = start(req, p, format!("{}: {}", i.label(), i.title), &format!("Status: {}", i.status.label()));
+    doc.blocks.push(Block::Facts(vec![
+        ("Occurred".into(), i.occurred.map(|d| d.pretty()).unwrap_or_else(|| "—".into())),
+        ("Severity".into(), i.severity.label().to_string()),
+        ("Recordable".into(), if i.recordable { "Yes" } else { "No" }.to_string()),
+        ("Type".into(), dash(&i.kind)),
+        ("Location".into(), dash(&i.location)),
+        ("Reported by".into(), person(state, i.created.by)),
+        ("Manager".into(), person(state, i.manager)),
+        ("Assigned to".into(), names(state, &i.assignees)),
+    ]));
+    for (heading, body) in [
+        ("What happened", &i.description),
+        ("People involved and witnesses", &i.people_involved),
+        ("Root cause", &i.root_cause),
+        ("Corrective action", &i.corrective_action),
+    ] {
+        doc.blocks.push(Block::Heading(heading.into()));
+        doc.blocks.push(Block::Paragraph(if body.is_empty() { "—".into() } else { body.clone() }));
+    }
+    if !i.comments.is_empty() {
+        doc.blocks.push(Block::Heading("Comments".into()));
+        for c in &i.comments {
+            doc.blocks.push(Block::Facts(vec![("Comment".into(), format!("{}, {}", person(state, c.by), req.when(c.at)))]));
+            doc.blocks.push(Block::Paragraph(c.body.clone()));
+        }
+    }
+    doc.blocks.push(Block::Heading("Signatures".into()));
+    doc.blocks.push(Block::Facts(vec![
+        ("Reported by".into(), "______________________________   Date: ____________".into()),
+        ("Reviewed by".into(), "______________________________   Date: ____________".into()),
+    ]));
+    Some((file_name(&i.label()), render(&doc)))
+}
+
+/// The injury log of a year, to post or file.
+pub fn injury_log(req: &Req<'_>, id: Id<Project>, year: Option<i32>) -> Option<Pdf> {
+    let state = req.engine.state();
+    let p = project_of(req, id, Tool::Incidents)?;
+    let year = year.unwrap_or_else(|| req.today().ymd().0);
+    let list = buildkiosk_engine::cmd::incident::incidents_in_year(state, req.actor(), id, year);
+    let recordable: Vec<_> = list.iter().filter(|i| i.recordable).collect();
+    let lost_time = recordable.iter().filter(|i| i.severity.is_lost_time()).count() as u64;
+    let (sheets, other) = buildkiosk_engine::cmd::incident::hours_worked(state, id, year);
+    let tenths = sheets.saturating_add(other);
+    let rate = |cases: u64| buildkiosk_engine::cmd::incident::rate(cases, tenths).unwrap_or_else(|| "—".into());
+    let (mut doc, _) = start(req, p, format!("Injury log, {year}"), &format!("As of {}", req.today().pretty()));
+    doc.blocks.push(Block::Facts(vec![
+        ("Incidents".into(), list.len().to_string()),
+        ("Recordable cases".into(), recordable.len().to_string()),
+        ("Lost-time cases".into(), lost_time.to_string()),
+        (
+            "Hours worked".into(),
+            format!("{}.{} ({}.{} on timesheets, {}.{} other)", tenths / 10, tenths % 10, sheets / 10, sheets % 10, other / 10, other % 10),
+        ),
+        ("Recordable rate".into(), format!("{} per 200,000 hours", rate(recordable.len() as u64))),
+        ("Lost-time rate".into(), format!("{} per 200,000 hours", rate(lost_time))),
+    ]));
+    doc.blocks.push(Block::Heading("Recordable cases".into()));
+    let rows: Vec<Vec<String>> = recordable
+        .iter()
+        .map(|i| {
+            vec![
+                i.number.to_string(),
+                i.occurred.map(|d| d.to_string()).unwrap_or_default(),
+                i.title.clone(),
+                i.people_involved.clone(),
+                i.severity.label().to_string(),
+            ]
+        })
+        .collect();
+    doc.blocks.push(table(&["#", "Date", "Case", "Person", "Severity"], &[0.6, 1.6, 4.0, 3.0, 1.8], &[0], rows));
+    doc.blocks.push(Block::Paragraph(
+        "Rates are cases times 200,000 divided by hours worked. Only incidents the person printing this can see are included.".into(),
+    ));
+    Some((file_name(&format!("injury log {year}")), render(&doc)))
+}

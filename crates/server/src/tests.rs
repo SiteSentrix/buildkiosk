@@ -804,6 +804,17 @@ async fn prime_contract_and_owner_invoicing_in_the_browser_flow() {
     }
     let (_, _, detail) = send(&app, get("/projects/1/owner-invoices/1")).await;
     assert!(detail.contains("Paid"));
+    let (st, _, print) = send(&app, get("/projects/1/owner-invoices/1/print")).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(
+        print.contains("Amount due this invoice")
+            && print.contains("36,000.00")
+            && print.contains("Approved by")
+            && !print.contains("class=\"sidebar\"")
+    );
+    let (st, h, csv) = send(&app, get("/projects/1/owner-invoices/1/csv")).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(h.get("content-disposition").is_some() && csv.contains("Amount due this invoice,,,,,,36000.00"), "{csv}");
     let (st, _, cos) = send(&app, get("/projects/1/prime-change-orders")).await;
     assert_eq!(st, StatusCode::OK);
     assert!(cos.contains("Prime change orders"));
@@ -1064,6 +1075,40 @@ async fn budget_forecast_snapshot_compare_and_lock() {
     assert!(budget.contains("The original budget is locked") && !budget.contains("Set a budget line"));
     let (_, _, csv) = send(&app, get("/projects/1/budget.csv")).await;
     assert!(csv.contains("Forecast to complete"), "{csv}");
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
+async fn commitment_file_upload_and_download() {
+    let dir = temp("commitfiles");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=P"))).await;
+    send(&app, post("/do/commitment.create", &ada, format!("_csrf={csrf}&project=1&title=Concrete"))).await;
+    let body = format!(
+        "--B\r\nContent-Disposition: form-data; name=\"_csrf\"\r\n\r\n{csrf}\r\n--B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"contract.txt\"\r\nContent-Type: text/plain\r\n\r\nsigned\r\n--B--\r\n"
+    );
+    let req = Request::post("/projects/1/commitments/1/upload")
+        .header("cookie", &ada)
+        .header("content-type", "multipart/form-data; boundary=B")
+        .body(Body::from(body))
+        .unwrap();
+    let (_, h, _) = send(&app, req).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, detail) = send(&app, get("/projects/1/commitments/1")).await;
+    assert!(detail.contains("contract.txt"));
+    let href = detail.split("href=\"").find(|s| s.contains("/files/")).unwrap().split('"').next().unwrap().to_string();
+    let (st, _, body) = send(&app, get(&href)).await;
+    assert_eq!((st, body.as_str()), (StatusCode::OK, "signed"));
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }

@@ -50,6 +50,22 @@ pub const COMMANDS: &[CommandSpec] = &[
     ),
     CommandSpec::mutate("commitment.complete", "Complete commitment", Tool::Commitments, Access::Project(Level::Admin), "project, id: ids", complete),
     CommandSpec::mutate("commitment.void", "Void commitment", Tool::Commitments, Access::Project(Level::Admin), "project, id: ids", void),
+    CommandSpec::mutate(
+        "commitment.attach",
+        "Attach file to commitment",
+        Tool::Commitments,
+        Access::Project(Level::Standard),
+        "project, id: ids; sha256: 64 hex digits; name: file name; size: bytes; mime?: media type (contract, insurance certificate, scope)",
+        attach,
+    ),
+    CommandSpec::mutate(
+        "commitment.detach",
+        "Remove file from commitment",
+        Tool::Commitments,
+        Access::Project(Level::Standard),
+        "project, id: ids; sha256: 64 hex digits",
+        detach,
+    ),
     CommandSpec::mutate("commitment.delete", "Delete commitment", Tool::Commitments, Access::Project(Level::Standard), "project, id: ids", delete),
     CommandSpec::mutate("commitment.restore", "Restore commitment", Tool::Commitments, Access::Project(Level::Admin), "project, id: ids", restore),
     CommandSpec::query(
@@ -286,4 +302,50 @@ fn get(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
         return Err(EngineError::not_found(format!("commitment {id} not found in this project")));
     }
     Ok(with_total(c))
+}
+
+/// Most files one commitment can carry.
+const MAX_ATTACHMENTS: usize = 50;
+
+fn attach(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut c = load(ctx, p)?;
+    if c.status == CommitmentStatus::Void {
+        return Err(EngineError::conflict(format!("{} is void; files can't be added", c.label())));
+    }
+    let sha256 = p.req_line("sha256", 64)?.to_ascii_lowercase();
+    if sha256.len() != 64 || !sha256.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err(p.bad("sha256", "must be 64 hex digits"));
+    }
+    let name = p.req_line("name", 200)?;
+    let size = p.int("size", 0..=2_000_000_000)?.ok_or_else(|| p.bad("size", "is required"))?;
+    let mime = p.line("mime", 100)?.filter(|m| !m.is_empty()).unwrap_or_else(|| "application/octet-stream".into());
+    if c.attachments.iter().any(|a| a.sha256 == sha256) {
+        return Ok(json!({ "id": c.id }));
+    }
+    if c.attachments.len() >= MAX_ATTACHMENTS {
+        return Err(EngineError::conflict(format!("{} already has {MAX_ATTACHMENTS} files", c.label())));
+    }
+    c.attachments.push(buildkiosk_model::common::FileRef { sha256, name, size: u64::try_from(size).unwrap_or(0), mime });
+    c.updated = ctx.stamp();
+    let id = c.id;
+    ctx.state.commitments.put(c);
+    Ok(json!({ "id": id }))
+}
+
+fn detach(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut c = load(ctx, p)?;
+    // A signed contract is evidence: after approval only an admin removes a file.
+    if c.status != CommitmentStatus::Draft && !is_admin(ctx, c.project) {
+        return Err(EngineError::forbidden("only commitments admins can remove files once a commitment is approved"));
+    }
+    let sha256 = p.req_line("sha256", 64)?.to_ascii_lowercase();
+    let before = c.attachments.len();
+    c.attachments.retain(|a| a.sha256 != sha256);
+    if c.attachments.len() == before {
+        return Err(EngineError::not_found("that file is not attached to this commitment"));
+    }
+    c.updated = ctx.stamp();
+    let id = c.id;
+    ctx.state.commitments.put(c);
+    Ok(json!({ "id": id }))
 }

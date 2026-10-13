@@ -117,3 +117,32 @@ fn money_overflow_is_an_error_not_a_panic() {
     );
     w.assert_replay();
 }
+
+#[test]
+fn commitment_files() {
+    const SHA: &str = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let eng = w.member(p, "Eli", "Engineer", "Project engineer");
+    let reader = w.member(p, "Rae", "Reader", "Read only");
+    w.ok(pm, "member.update", json!({"project": p, "person": eng, "overrides": {"commitments": "standard"}}));
+    w.ok(pm, "member.update", json!({"project": p, "person": reader, "overrides": {"commitments": "read"}}));
+    let concrete = code(&w, "03-300");
+    let c = w.ok(pm, "commitment.create", json!({"project": p, "title": "Concrete", "lines": [{"cost_code": concrete, "amount": "1000"}]}))["id"]
+        .as_u64()
+        .unwrap();
+
+    w.ok(pm, "commitment.attach", json!({"project": p, "id": c, "sha256": SHA, "name": "contract.pdf", "size": 10, "mime": "application/pdf"}));
+    w.ok(pm, "commitment.attach", json!({"project": p, "id": c, "sha256": SHA, "name": "contract.pdf", "size": 10}));
+    assert_eq!(w.engine.state().commitments.iter().next().unwrap().attachments.len(), 1, "the same file is added once");
+    w.err(reader, "commitment.attach", json!({"project": p, "id": c, "sha256": SHA, "name": "x", "size": 1}));
+    w.err(pm, "commitment.attach", json!({"project": p, "id": c, "sha256": "nope", "name": "x", "size": 1}));
+    w.ok(pm, "commitment.approve", json!({"project": p, "id": c}));
+    w.err(eng, "commitment.detach", json!({"project": p, "id": c, "sha256": SHA}));
+    w.err(pm, "commitment.detach", json!({"project": p, "id": c, "sha256": "d".repeat(64)}));
+    w.ok(pm, "commitment.detach", json!({"project": p, "id": c, "sha256": SHA}));
+    w.ok(pm, "commitment.void", json!({"project": p, "id": c}));
+    w.err(pm, "commitment.attach", json!({"project": p, "id": c, "sha256": SHA, "name": "x", "size": 1}));
+    w.assert_replay();
+}

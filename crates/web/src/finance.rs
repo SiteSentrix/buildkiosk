@@ -451,6 +451,28 @@ pub fn commitment(req: &Req<'_>, id: Id<Project>, cid: Id<Commitment>, history: 
             }
         }
         div class="card" {
+            h2 { "Files" }
+            @if c.attachments.is_empty() { p class="muted" { "No files yet. Attach the signed contract, insurance certificates or the scope of work." } } @else {
+                ul class="plain" {
+                    @for f in &c.attachments {
+                        li {
+                            a href=(format!("{here}/files/{}", f.sha256)) { (f.name) } " " span class="muted small" { (crate::pages::human_size(f.size)) }
+                            @if req.allowed("commitment.detach", Some(id)) && (c.status == CommitmentStatus::Draft || admin) {
+                                " " (button_form(req, "commitment.detach", &here, &[("project", id.to_string()), ("id", c.id.to_string()), ("sha256", f.sha256.clone())], "Remove", "small danger"))
+                            }
+                        }
+                    }
+                }
+            }
+            @if req.allowed("commitment.attach", Some(id)) && c.status != CommitmentStatus::Void {
+                form method="post" action=(format!("{here}/upload")) enctype="multipart/form-data" class="stack" {
+                    input type="hidden" name="_csrf" value=(req.csrf);
+                    input type="file" name="file" required aria-label="File to attach";
+                    button type="submit" class="btn small" { "Attach file" }
+                }
+            }
+        }
+        div class="card" {
             h2 { "History" }
             ul class="timeline" {
                 @for e in history.iter().rev() {

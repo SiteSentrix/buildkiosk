@@ -22,7 +22,6 @@ use super::budget::usable_code;
 use super::estimate::parse_quantity;
 use super::{Access, CommandSpec};
 use crate::ctx::in_project;
-use crate::view::json;
 use crate::{Ctx, EngineError, Params, Read, Result, View};
 
 pub const COMMANDS: &[CommandSpec] = &[
@@ -92,6 +91,46 @@ pub const COMMANDS: &[CommandSpec] = &[
         Access::Project(Level::Read),
         "project, id: ids (each invitation with its company, address, state and expiry; never the link itself)",
         invitations,
+    ),
+    CommandSpec::mutate(
+        "bid_package.unseal",
+        "Open sealed bids",
+        Tool::Bidding,
+        Access::Project(Level::Admin),
+        "project, id: ids (bids that companies sent through their links were kept unseen; this shows them to the team now instead of when bidding closes)",
+        unseal,
+    ),
+    CommandSpec::query(
+        "bid_package.portal_view",
+        "Show a bidder their package",
+        Tool::Bidding,
+        Access::System,
+        "project, id: ids; invitation: link number; generation: the link's generation (what a company sees: the package, its form, its own bid; never other companies; run by the server once a link is checked)",
+        portal_view,
+    ),
+    CommandSpec::mutate(
+        "bid_package.portal_submit",
+        "Bidder sends a bid",
+        Tool::Bidding,
+        Access::System,
+        "project, id, invitation, generation as portal_view; amount?, lines?, alternates?, scope?, notes? as record_bid (replaces the company's earlier bid; the bond receipt and files are kept)",
+        portal_submit,
+    ),
+    CommandSpec::mutate(
+        "bid_package.portal_withdraw",
+        "Bidder withdraws a bid",
+        Tool::Bidding,
+        Access::System,
+        "project, id, invitation, generation as portal_view",
+        portal_withdraw,
+    ),
+    CommandSpec::mutate(
+        "bid_package.portal_ack",
+        "Bidder acknowledges an addendum",
+        Tool::Bidding,
+        Access::System,
+        "project, id, invitation, generation as portal_view; number: addendum number",
+        portal_ack,
     ),
     CommandSpec::mutate(
         "bid_package.record_bid",
@@ -254,8 +293,15 @@ fn apply(ctx: &Ctx<'_>, p: &Params<'_>, b: &mut BidPackage) -> Result<()> {
     if p.present("invite") {
         b.invited = invite_list(ctx, p)?;
     }
+    if p.present("sealed") {
+        let sealed = p.flag_or("sealed", true)?;
+        if sealed != b.sealed && !b.sealed_bids.is_empty() {
+            return Err(EngineError::conflict("sealed bids are waiting; open them before changing this"));
+        }
+        b.sealed = sealed;
+    }
     let structural = ["scope_items", "form_items", "alternates"].iter().any(|k| p.present(k));
-    if structural && b.bids.iter().any(|x| !x.withdrawn) {
+    if structural && (b.bids.iter().any(|x| !x.withdrawn) || !b.sealed_bids.is_empty()) {
         return Err(EngineError::conflict(
             "bids are in, and they refer to the scope items, form lines and alternates by place; withdraw them before changing those",
         ));
@@ -341,6 +387,8 @@ fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         acknowledgements: Vec::new(),
         attachments: Vec::new(),
         bids: Vec::new(),
+        sealed: p.flag_or("sealed", true)?,
+        sealed_bids: Vec::new(),
         invitations: Vec::new(),
         awarded_to: None,
         commitment: None,
@@ -391,8 +439,35 @@ fn open(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
 }
 
 fn close(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
-    let b = set_status(ctx, p, &[BidStatus::Open], BidStatus::Closed)?;
-    Ok(json!({ "id": b.id }))
+    let mut b = set_status(ctx, p, &[BidStatus::Open], BidStatus::Closed)?;
+    // Bids sent through links were kept unseen; closing opens them.
+    let opened = open_sealed(&mut b);
+    ctx.state.bid_packages.put(b.clone());
+    Ok(json!({ "id": b.id, "opened": opened }))
+}
+
+/// Moves the bids kept unseen into the bids the team sees, each replacing its company's earlier bid. Returns how many.
+fn open_sealed(b: &mut BidPackage) -> usize {
+    let sealed = std::mem::take(&mut b.sealed_bids);
+    let n = sealed.len();
+    for bid in sealed {
+        b.bids.retain(|x| x.vendor != bid.vendor);
+        b.bids.push(bid);
+    }
+    n
+}
+
+fn unseal(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut b = load(ctx, p)?;
+    editable(&b)?;
+    if b.sealed_bids.is_empty() {
+        return Err(EngineError::conflict("no sealed bids are waiting"));
+    }
+    let opened = open_sealed(&mut b);
+    b.updated = ctx.stamp();
+    let id = b.id;
+    ctx.state.bid_packages.put(b);
+    Ok(json!({ "id": id, "opened": opened }))
 }
 
 fn reopen(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
@@ -400,13 +475,15 @@ fn reopen(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     Ok(json!({ "id": b.id }))
 }
 
-fn record_bid(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
-    let mut b = load(ctx, p)?;
-    if !matches!(b.status, BidStatus::Open | BidStatus::Closed) {
-        return Err(EngineError::conflict(format!("{} is {}; bids can be recorded once it is out for bid", b.label(), b.status)));
-    }
-    let vendor: Id<Vendor> = p.id("vendor")?;
-    ctx.check_vendor(vendor)?;
+/// What a bid says about the package: the price, the lines, the alternates and the scope answers.
+struct ParsedBid {
+    amount: Money,
+    lines: Vec<BidLine>,
+    alternates: Vec<BidAlternate>,
+    scope: Vec<ScopeResponse>,
+}
+
+fn parse_bid(p: &Params<'_>, b: &BidPackage) -> Result<ParsedBid> {
     // Unit prices for the bid form: every line, and the amount is their total.
     let mut lines: Vec<BidLine> = Vec::new();
     for r in p.items("lines")? {
@@ -466,6 +543,17 @@ fn record_bid(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         scope.push(ScopeResponse { item, answer, adjustment });
     }
     scope.sort_by_key(|s| s.item);
+    Ok(ParsedBid { amount, lines, alternates, scope })
+}
+
+fn record_bid(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut b = load(ctx, p)?;
+    if !matches!(b.status, BidStatus::Open | BidStatus::Closed) {
+        return Err(EngineError::conflict(format!("{} is {}; bids can be recorded once it is out for bid", b.label(), b.status)));
+    }
+    let vendor: Id<Vendor> = p.id("vendor")?;
+    ctx.check_vendor(vendor)?;
+    let ParsedBid { amount, lines, alternates, scope } = parse_bid(p, &b)?;
     let received: Date = p.date("received")?.unwrap_or_else(|| ctx.today());
     let notes = p.text_or_empty("notes", text::LONG)?;
     let bond = BondReceipt {
@@ -492,7 +580,7 @@ fn record_bid(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     // A new bid from the same company replaces the old one but keeps the files it sent and the scores given.
     let (files, scores) = b.bids.iter().find(|x| x.vendor == vendor).map(|x| (x.files.clone(), x.scores.clone())).unwrap_or_default();
     b.bids.retain(|x| x.vendor != vendor);
-    b.bids.push(Bid { vendor, amount, received, notes, withdrawn: false, lines, alternates, scope, bond, scores, files });
+    b.bids.push(Bid { vendor, via: None, amount, received, notes, withdrawn: false, lines, alternates, scope, bond, scores, files });
     b.updated = ctx.stamp();
     let id = b.id;
     ctx.state.bid_packages.put(b);
@@ -673,6 +761,160 @@ fn invitations(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
         })
         .collect();
     Ok(json!({ "invitations": rows }))
+}
+
+// ---- the bidder portal: commands the server runs (as the system) once it has checked a bidder's link ----
+
+/// The one answer for every link that doesn't work, so nobody can tell a wrong number from a cancelled link.
+fn bad_link() -> EngineError {
+    EngineError::not_found("this link is not valid")
+}
+
+/// The invitation a checked link names: it must belong to the package, be the generation the server verified, and
+/// not be cancelled or past its last day.
+fn link<'a>(b: &'a BidPackage, p: &Params<'_>, today: Date) -> Result<&'a BidInvitation> {
+    let number = invitation_arg(p, "invitation")?;
+    let generation = p.int("generation", 0..=1_000_000)?.and_then(|v| u32::try_from(v).ok()).ok_or_else(bad_link)?;
+    b.invitations.iter().find(|i| i.number == number && i.generation == generation && i.active(today)).ok_or_else(bad_link)
+}
+
+fn invitation_arg(p: &Params<'_>, key: &str) -> Result<u32> {
+    p.int(key, 1..=1_000_000)?.and_then(|v| u32::try_from(v).ok()).ok_or_else(bad_link)
+}
+
+/// Bidders can send, change or withdraw a bid only while the package is out for bid and its due day hasn't passed.
+fn taking_bids(b: &BidPackage, today: Date) -> Result<()> {
+    if b.status != BidStatus::Open {
+        return Err(EngineError::conflict("this package is not taking bids"));
+    }
+    if b.due.is_some_and(|d| today > d) {
+        return Err(EngineError::conflict("the due date for this package has passed; ask the team to reopen it"));
+    }
+    Ok(())
+}
+
+/// The company's own bid on the package, wherever it is kept.
+fn own_bid(b: &BidPackage, vendor: Id<Vendor>) -> Option<&Bid> {
+    b.sealed_bids.iter().chain(b.bids.iter()).find(|x| x.vendor == vendor && !x.withdrawn)
+}
+
+fn portal_package(v: &View<'_>, p: &Params<'_>) -> Result<BidPackage> {
+    let project: Id<Project> = p.id("project").map_err(|_| bad_link())?;
+    let id: Id<BidPackage> = p.id("id").map_err(|_| bad_link())?;
+    let b = in_project(&v.state.bid_packages, project, id, "bid package").map_err(|_| bad_link())?;
+    if b.deleted.is_some() {
+        return Err(bad_link());
+    }
+    Ok(b.clone())
+}
+
+fn portal_view(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
+    let b = portal_package(v, p)?;
+    let today = v.today();
+    let inv = link(&b, p, today)?;
+    let vendor = inv.vendor;
+    let bid = own_bid(&b, vendor);
+    let documents: Vec<Value> = b.attachments.iter().map(|f| json!({ "name": f.name, "sha256": f.sha256, "size": f.size, "mime": f.mime })).collect();
+    let addenda: Vec<Value> = b
+        .addenda
+        .iter()
+        .map(|a| json!({ "number": a.number, "title": a.title, "body": a.body, "acknowledged": b.acknowledgements.iter().any(|x| x.vendor == vendor && x.number == a.number) }))
+        .collect();
+    let form: Vec<Value> =
+        b.form_items.iter().map(|i| json!({ "description": i.description, "unit": i.unit, "quantity_milli": i.quantity_milli })).collect();
+    Ok(json!({
+        "package": { "number": b.number, "title": b.title, "scope": b.scope, "due": b.due, "status": b.status },
+        "taking_bids": taking_bids(&b, today).is_ok(),
+        "company": crate::view::vendor_name(v.state, vendor),
+        "email": inv.email,
+        "form_items": form,
+        "alternates": b.alternates,
+        "scope_items": b.scope_items,
+        "bond_required": b.bond_required,
+        "documents": documents,
+        "addenda": addenda,
+        "bid": bid.map(|x| json!({
+            "amount": x.amount, "received": x.received, "notes": x.notes, "lines": x.lines, "alternates": x.alternates, "scope": x.scope,
+            "files": x.files.iter().map(|f| json!({ "name": f.name, "sha256": f.sha256, "size": f.size })).collect::<Vec<_>>(),
+        })),
+    }))
+}
+
+fn portal_submit(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut b = load(ctx, p).map_err(|_| bad_link())?;
+    let today = ctx.today();
+    let inv = link(&b, p, today)?.clone();
+    taking_bids(&b, today)?;
+    let vendor = inv.vendor;
+    let ParsedBid { amount, lines, alternates, scope } = parse_bid(p, &b)?;
+    let notes = p.text_or_empty("notes", text::LONG)?;
+    // The team keeps the bond receipt, the files received and the scores; a revised bid inherits them.
+    let (bond, files, scores) = b
+        .sealed_bids
+        .iter()
+        .chain(b.bids.iter())
+        .find(|x| x.vendor == vendor)
+        .map(|x| (x.bond.clone(), x.files.clone(), x.scores.clone()))
+        .unwrap_or_default();
+    let bid = Bid { vendor, via: Some(inv.number), amount, received: today, notes, withdrawn: false, lines, alternates, scope, bond, scores, files };
+    let kept = if b.sealed { &mut b.sealed_bids } else { &mut b.bids };
+    kept.retain(|x| x.vendor != vendor);
+    kept.push(bid);
+    b.updated = ctx.stamp();
+    let (id, number) = (b.id, b.number);
+    ctx.state.bid_packages.put(b);
+    Ok(json!({ "id": id, "reference": format!("BP{number}-{}", inv.number), "amount": amount, "received": today }))
+}
+
+fn portal_withdraw(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut b = load(ctx, p).map_err(|_| bad_link())?;
+    let today = ctx.today();
+    let vendor = link(&b, p, today)?.vendor;
+    taking_bids(&b, today)?;
+    let before = b.sealed_bids.len();
+    b.sealed_bids.retain(|x| x.vendor != vendor);
+    let mut done = b.sealed_bids.len() != before;
+    if let Some(x) = b.bids.iter_mut().find(|x| x.vendor == vendor && !x.withdrawn) {
+        x.withdrawn = true;
+        done = true;
+    }
+    if !done {
+        return Err(EngineError::conflict("you have no bid on this package"));
+    }
+    b.updated = ctx.stamp();
+    let id = b.id;
+    ctx.state.bid_packages.put(b);
+    Ok(json!({ "id": id }))
+}
+
+fn portal_ack(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut b = load(ctx, p).map_err(|_| bad_link())?;
+    let today = ctx.today();
+    let vendor = link(&b, p, today)?.vendor;
+    if b.status != BidStatus::Open {
+        return Err(EngineError::conflict("this package is not taking bids"));
+    }
+    let number: u32 = p.int("number", 1..=1_000)?.and_then(|v| u32::try_from(v).ok()).ok_or_else(|| p.bad("number", "is required"))?;
+    if !b.addenda.iter().any(|a| a.number == number) {
+        return Err(EngineError::not_found(format!("this package has no addendum {number}")));
+    }
+    if !b.acknowledgements.iter().any(|a| a.vendor == vendor && a.number == number) {
+        b.acknowledgements.push(Acknowledgement { vendor, number, stamp: ctx.stamp() });
+        b.updated = ctx.stamp();
+        ctx.state.bid_packages.put(b);
+    }
+    Ok(json!({ "number": number }))
+}
+
+/// A package as the team sees it: bids kept unseen are counted, not shown.
+fn team_view(b: &BidPackage) -> Result<Value> {
+    let mut out = serde_json::to_value(b).map_err(|e| EngineError::Internal { cmd: "bid_package".into(), msg: e.to_string() })?;
+    if let Some(o) = out.as_object_mut() {
+        o.remove("sealed_bids");
+        let waiting: Vec<Value> = b.sealed_bids.iter().map(|x| json!({ "vendor": x.vendor, "received": x.received })).collect();
+        o.insert("sealed_waiting".into(), Value::Array(waiting));
+    }
+    Ok(out)
 }
 
 fn file_params(p: &Params<'_>) -> Result<FileRef> {
@@ -965,17 +1207,18 @@ fn list(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
         if v.level(project, Tool::Bidding) < Level::Admin {
             return Err(EngineError::forbidden("only admins can see the recycle bin"));
         }
-        let bin: Vec<&BidPackage> = v.state.bid_packages.iter().filter(|b| b.project == project && b.deleted.is_some()).collect();
-        return json(&bin);
+        let bin: Result<Vec<Value>> = v.state.bid_packages.iter().filter(|b| b.project == project && b.deleted.is_some()).map(team_view).collect();
+        return Ok(Value::Array(bin?));
     }
     let status = p.choice::<BidStatus>("status")?;
     let q = p.line("q", 200)?.map(|s| s.to_lowercase()).filter(|s| !s.is_empty());
-    let list: Vec<&BidPackage> = visible(v.state, project)
+    let list: Result<Vec<Value>> = visible(v.state, project)
         .into_iter()
         .filter(|b| status.is_none_or(|s| b.status == s))
         .filter(|b| q.as_ref().is_none_or(|q| b.title.to_lowercase().contains(q.as_str()) || b.scope.to_lowercase().contains(q.as_str())))
+        .map(team_view)
         .collect();
-    json(&list)
+    Ok(Value::Array(list?))
 }
 
 fn get(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
@@ -985,7 +1228,7 @@ fn get(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
     if b.deleted.is_some() {
         return Err(EngineError::not_found(format!("bid package {id} not found in this project")));
     }
-    let mut out = serde_json::to_value(b).map_err(|e| EngineError::Internal { cmd: "bid_package.get".into(), msg: e.to_string() })?;
+    let mut out = team_view(b)?;
     if let Some(o) = out.as_object_mut() {
         o.insert("standing".into(), serde_json::to_value(b.standing()).unwrap_or(Value::Null));
     }

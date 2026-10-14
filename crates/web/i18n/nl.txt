@@ -293,6 +293,9 @@ Bid leveling	Inschrijvingsvergelijking
 Bid package	Aanbestedingspakket
 Bid package #{}	Aanbestedingspakket #{}
 Bid package (its lowest bid)	Aanbestedingspakket (laagste inschrijving)
+Bidder acknowledges an addendum by {}	Bieder bevestigt een addendum, door {}
+Bidder sends a bid by {}	Bieding verstuurd door bieder, door {}
+Bidder withdraws a bid by {}	Bieding ingetrokken door bieder, door {}
 Bidding	Aanbesteding
 Bids	Inschrijvingen
 Bids are compared on price alone. Add criteria to weigh other things, such as safety record or schedule.	Inschrijvingen worden alleen op prijs vergeleken. Voeg criteria toe om andere zaken te wegen, zoals veiligheidsrecord of planning.
@@ -1388,6 +1391,7 @@ Open actions from earlier meetings	Open acties uit eerdere vergaderingen
 Open floor edge at level 2 stair	Open vloerrand bij trap op niveau 2
 Open in viewer	Openen in viewer
 Open punch items	Open opleverpunten
+Open sealed bids by {}	Verzegelde biedingen openen door {}
 Open the standard layout by default	Open de standaardindeling als standaard
 Open this view by default	Open deze weergave als standaard
 Opened	Geopend

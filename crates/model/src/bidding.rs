@@ -152,6 +152,9 @@ impl BidInvitation {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Bid {
     pub vendor: Id<Vendor>,
+    /// The invitation (link) the company sent it through; none when the team entered it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub via: Option<u32>,
     pub amount: Money,
     /// The day it was received.
     pub received: Date,
@@ -235,6 +238,12 @@ pub struct BidPackage {
     pub attachments: Vec<FileRef>,
     #[serde(default)]
     pub bids: Vec<Bid>,
+    /// Bids sent through the bidder portal are kept apart, unseen by the team, until the package closes or an admin
+    /// opens them (then they replace the company's bid in `bids`). Only used while `sealed`.
+    #[serde(default)]
+    pub sealed: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sealed_bids: Vec<Bid>,
     /// Links sent to bidders' contacts (see `BidInvitation`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub invitations: Vec<BidInvitation>,

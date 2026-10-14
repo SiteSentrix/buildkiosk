@@ -22,7 +22,7 @@
 
 > [!NOTE]
 > **Pre-release.** The tools below work end to end and are tested, but BuildKiosk has not been run on a real
-> job site yet, there are no release builds (build it from source, below), and the translations have not been
+> job site yet, release builds are published only once a version is tagged (until then, build it from source, below), and the translations have not been
 > read by native speakers. Keep backups (`docs/deployment.md`), and judge each tool by the "Not yet" notes in
 > [`docs/gaps.md`](docs/gaps.md), not by its name.
 
@@ -134,9 +134,16 @@ A way to share documents by link, offline field mode and mobile apps, native
 Microsoft Project (.mpp) files, integrations with other software, electronic signing inside BuildKiosk, and the
 long tail of each tool. These are tracked in [`docs/gaps.md`](docs/gaps.md) and [`ROADMAP.md`](ROADMAP.md).
 
-## Try it
+## Install or build it
 
-Rust 1.97 or newer.
+A released version installs with one command (Linux and macOS; Windows has a .zip on the releases page). It checks the
+download against published checksums first, and `--help` lists the options (see [`docs/deployment.md`](docs/deployment.md)):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/SiteSentrix/buildkiosk/main/install.sh | sh
+```
+
+To build it yourself you need Rust 1.97 or newer.
 
 ```sh
 cargo run -p buildkiosk -- demo --data ./demo-data                                   # a fictional company

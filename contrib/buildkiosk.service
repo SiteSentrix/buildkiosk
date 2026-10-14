@@ -1,0 +1,24 @@
+# systemd unit for a single self-hosted BuildKiosk server (see docs/deployment.md).
+# Installed by install.sh --service as /etc/systemd/system/buildkiosk.service.
+#
+# The server speaks plain HTTP on the loopback address; put a reverse proxy that terminates HTTPS in front of it
+# (docs/deployment.md). --secure-cookies is for that setup: remove it if you serve over plain HTTP on a trusted
+# network, or nobody can sign in.
+[Unit]
+Description=BuildKiosk
+After=network.target
+
+[Service]
+User=buildkiosk
+Group=buildkiosk
+ExecStart=/usr/local/bin/buildkiosk serve --data /var/lib/buildkiosk --bind 127.0.0.1:8080 --secure-cookies
+Restart=on-failure
+StateDirectory=buildkiosk
+ProtectSystem=strict
+ReadWritePaths=/var/lib/buildkiosk
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

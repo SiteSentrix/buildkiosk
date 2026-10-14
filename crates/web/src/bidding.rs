@@ -305,6 +305,48 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, bid: Id<BidPackage>) -> Markup {
                 ul class="plain" { @for v in &b.invited { li { (vname(*v)) " " @if see_prequal { a href=(format!("/prequalification/{v}")) { (crate::prequal::standing_pill(buildkiosk_engine::cmd::prequal::vendor_standing(req.engine.state(), *v, today))) } " " } @if b.bids.iter().any(|x| x.vendor == *v && !x.withdrawn) { span class="pill green" { "Bid in" } } @else { span class="pill" { "No bid yet" } } } } }
             }
         }
+        div class="card" {
+            h2 { "Bid links" }
+            p class="muted small" { "A link lets one contact at an invited company read the documents, acknowledge addenda and send or change a bid, with no account. Links are emailed once the package is out for bid. Bids sent this way stay sealed until bidding closes." }
+            @if !b.sealed_bids.is_empty() {
+                div class="flash info" {
+                    (b.sealed_bids.len()) @if b.sealed_bids.len() == 1 { " bid has" } @else { " bids have" } " arrived and " @if b.sealed_bids.len() == 1 { "is" } @else { "are" } " sealed until bidding closes."
+                    @if admin && b.status != BidStatus::Awarded { " " (button_form(req, "bid_package.unseal", &here, &ids, "Open them now", "small")) }
+                }
+            }
+            @if !b.invitations.is_empty() {
+                table class="data" {
+                    thead { tr { th { "Company" } th { "Sent to" } th { "State" } th { "Last day" } th {} } }
+                    tbody { @for i in &b.invitations {
+                        @let state = if i.revoked.is_some() { "Cancelled" } else if i.expires.is_some_and(|e| req.today() > e) { "Expired" } else if i.sent.is_some() { "Sent" } else { "Not sent yet" };
+                        tr {
+                            td { (vname(i.vendor)) }
+                            td { (i.email) }
+                            td { span class=(if state == "Sent" { "pill green" } else if state == "Not sent yet" { "pill amber" } else { "pill" }) { (state) } }
+                            td { (i.expires.map(|d| d.pretty()).unwrap_or_else(|| "—".into())) }
+                            td class="actions" {
+                                @if can_edit && i.revoked.is_none() && matches!(b.status, BidStatus::Draft | BidStatus::Open) {
+                                    a class="btn small" href=(format!("{here}/links/{}", i.number)) { "Show link" } " "
+                                    (button_form(req, "bid_package.resend_invite", &here, &[("project", id.to_string()), ("id", bid.to_string()), ("number", i.number.to_string())], "Send again", "small")) " "
+                                    (button_form(req, "bid_package.revoke_invite", &here, &[("project", id.to_string()), ("id", bid.to_string()), ("number", i.number.to_string())], "Cancel", "small danger"))
+                                }
+                            }
+                        }
+                    } }
+                }
+            }
+            @if can_edit && matches!(b.status, BidStatus::Draft | BidStatus::Open) {
+                (command_form(req, "bid_package.invite", &here, &here, html! {
+                    input type="hidden" name="project" value=(id); input type="hidden" name="id" value=(bid);
+                    div class="form-grid" {
+                        (field("Company", "inv_vendor", true, false, html! { select id="inv_vendor" name="vendor" required { @for v in &all { option value=(v.id) { (v.name) } } } }))
+                        (field("Email address", "inv_email", true, false, html! { input type="email" id="inv_email" name="email" required autocomplete="off"; }))
+                        (field("Last day the link works (optional)", "inv_expires", false, false, html! { input type="date" id="inv_expires" name="expires"; }))
+                    }
+                    div class="form-actions" { button type="submit" class="btn small" { "Create link" } }
+                }))
+            }
+        }
         @if can_edit && matches!(b.status, BidStatus::Open | BidStatus::Closed) {
             div class="card" {
                 h2 { "Record a bid" }
@@ -461,5 +503,30 @@ pub fn form(req: &Req<'_>, id: Id<Project>, current: Option<Id<BidPackage>>) -> 
         Nav::Bidding(id),
         &[("Projects", Some("/".into())), (&p.name, Some(format!("/projects/{id}"))), ("Bidding", Some(base)), ("Bid package", None)],
         body,
+    )
+}
+
+/// The page that shows one bid link so it can be copied (for when email isn't set up, or to send it another way).
+pub fn link_page(req: &Req<'_>, id: Id<Project>, bid: Id<BidPackage>, company: &str, email: &str, url: &str) -> Markup {
+    let Some(p) = project_for(req, id) else { return not_found(req) };
+    let here = format!("/projects/{id}/bidding/{bid}");
+    layout::app(
+        req,
+        "Bid link",
+        Nav::Bidding(id),
+        &[
+            ("Projects", Some("/".into())),
+            (&p.name, Some(format!("/projects/{id}"))),
+            ("Bidding", Some(format!("/projects/{id}/bidding"))),
+            ("Bid link", None),
+        ],
+        html! {
+            div class="page-head" { div { h1 { "Bid link for " (company) } div class="sub" { "Sent to " (email) } } div class="actions" { a class="btn" href=(here) { "Back" } } }
+            div class="card" {
+                p { "Anyone with this link can read the package and send or change a bid for " (company) ". Send it only to them." }
+                p { input type="text" readonly value=(url) size="80" aria-label="Bid link"; }
+                @if !url.starts_with("http") { p class="muted small" { "Add the server's public address under Email settings to get a full link; until then, put your site's address in front of the path above." } }
+            }
+        },
     )
 }

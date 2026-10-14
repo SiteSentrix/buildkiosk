@@ -14,11 +14,13 @@
 A Forms admin needs to create a template first.	Un administrateur des formulaires doit d'abord créer un modèle.
 A baseline is the schedule's dates kept under a name, so progress can be measured against them. Save one when the contract is signed and another after a re-plan.	Un planning de référence conserve sous un nom les dates du planning, afin de mesurer l'avancement par rapport à elles. Enregistrez-en un à la signature du contrat et un autre après une replanification.
 A bid	Une offre
+A bid bond of	Une garantie de soumission de
 A crew is a named group you log hours for together.	Une équipe est un groupe nommé pour lequel vous saisissez les heures ensemble.
 A draft commitment was started	Un engagement brouillon a été créé
 A file from {}	Un fichier de {}
 A formal record of what was sent, to whom and why	Un enregistrement formel de ce qui a été envoyé, à qui et pourquoi
 A line starting with # begins a section; every other line is an item. Assign owners and dates on the plan page. Editing the outline keeps the owner, date, note and done state of items whose wording and section are unchanged.	Une ligne commençant par # débute une section ; toute autre ligne est un élément. Assignez les responsables et les dates sur la page du plan. Modifier le plan conserve le responsable, la date, la note et l'état terminé des éléments dont le libellé et la section sont inchangés.
+A link lets one contact at an invited company read the documents, acknowledge addenda and send or change a bid, with no account. Links are emailed once the package is out for bid. Bids sent this way stay sealed until bidding closes.	Un lien permet à un contact d’une entreprise invitée de lire les documents, d’accuser réception des addenda et d’envoyer ou de modifier une soumission, sans compte. Les liens sont envoyés par courriel dès que le lot est lancé en appel d’offres. Les soumissions reçues ainsi restent scellées jusqu’à la clôture.
 A name already used is replaced. The new baseline becomes the one the chart and each task's slip compare against.	Un nom déjà utilisé est remplacé. Le nouveau planning de référence devient celui auquel le diagramme et le retard de chaque tâche se comparent.
 A new version of	Une nouvelle version de
 A project admin has full access to every tool, so overrides have no effect.	Un administrateur de projet a un accès complet à tous les outils, donc les exceptions n'ont aucun effet.
@@ -181,6 +183,8 @@ Any status	Tout statut
 Any template	Tout modèle
 Any {}	Tout {}
 Anyone	Tout le monde
+Anyone with this link can read the package and send or change a bid for	Toute personne ayant ce lien peut lire le lot et envoyer ou modifier une soumission pour
+Anyone with this link can read the package and send or change a bid for {}. Send it only to them.	Toute personne ayant ce lien peut lire le lot et envoyer ou modifier une soumission pour {}. Ne l’envoyez qu’à eux.
 Applied	Appliqué
 Approval	Approbation
 Approve	Approuver
@@ -290,6 +294,10 @@ Bid form lines	Lignes du bordereau d'offre
 Bid form, scope checklist, alternates and bond	Bordereau d'offre, liste de contrôle du périmètre, variantes et caution
 Bid in	Offre remise
 Bid leveling	Comparaison des offres
+Bid link	Lien de soumission
+Bid link for	Lien de soumission pour
+Bid link for {}	Lien de soumission pour {}
+Bid links	Liens de soumission
 Bid package	Lot d'appel d'offres
 Bid package #{}	Lot d'appel d'offres #{}
 Bid package (its lowest bid)	Lot d'appel d'offres (son offre la plus basse)
@@ -299,6 +307,8 @@ Bidder withdraws a bid by {}	Soumission retirée par le soumissionnaire, par {}
 Bidding	Appel d'offres
 Bids	Offres
 Bids are compared on price alone. Add criteria to weigh other things, such as safety record or schedule.	Les offres sont comparées sur le seul prix. Ajoutez des critères pour pondérer d'autres éléments, comme le bilan de sécurité ou le délai.
+Bids are due	Les soumissions sont dues le
+Bids are due {}.	Les soumissions sont dues le {}.
 Bids due	Offres à remettre
 Bids due {}	Offres à remettre le {}
 Billed before	Facturé précédemment
@@ -360,6 +370,7 @@ Change project permissions by {}	Modifier les permissions du projet par {}
 Change the filter to see more.	Modifiez le filtre pour en voir plus.
 Change the filters to see more.	Modifiez les filtres pour en voir plus.
 Change this report	Modifier ce rapport
+Change your bid	Modifier votre soumission
 Changing a prefix affects new items only; references already given stay.	Modifier un préfixe n'affecte que les nouveaux éléments ; les références déjà attribuées restent.
 Changing it signs you out everywhere else.	Le modifier vous déconnecte partout ailleurs.
 Changing the criteria clears the scores already given.	Modifier les critères efface les notes déjà attribuées.
@@ -507,6 +518,7 @@ Cost impact	Impact sur les coûts
 Cost now	Coût actuel
 Cost per unit	Coût unitaire
 Cost then	Coût à l'époque
+Cost to add if excluded	Coût à ajouter si exclu
 Cost to date	Coût à ce jour
 Costs paid without a commitment	Coûts payés sans engagement
 Country	Pays
@@ -530,6 +542,7 @@ Create estimate by {}	Créer une estimation par {}
 Create folder	Créer un dossier
 Create folder by {}	Créer un dossier par {}
 Create form template by {}	Créer un modèle de formulaire par {}
+Create link	Créer le lien
 Create meeting by {}	Créer une réunion par {}
 Create one to record what you send to the team.	Créez-en un pour consigner ce que vous envoyez à l'équipe.
 Create prime change order by {}	Créer un avenant au contrat principal par {}
@@ -764,11 +777,13 @@ Edit type	Modifier le type
 Edit {}	Modifier {}
 Electrical	Électricité
 Email	E-mail
+Email address	Adresse courriel
 Email me my notifications	M'envoyer mes notifications par e-mail
 Embeds, sleeves and penetrations are in place and secured	Les inserts, fourreaux et traversées sont en place et fixés
 Enclosures	Pièces jointes
 Encryption	Chiffrement
 English	English
+Enter an amount to add (or a negative number to deduct), or leave blank to not price it.	Saisissez un montant à ajouter (ou un nombre négatif à déduire), ou laissez vide pour ne pas le chiffrer.
 Enter the work completed this period for each item. You can't bill an item beyond its scheduled value.	Saisissez les travaux réalisés sur cette période pour chaque élément. Vous ne pouvez pas facturer un élément au-delà de sa valeur prévue.
 Enter what the company sent. A new bid from the same company replaces its earlier one.	Saisissez ce que l'entreprise a envoyé. Une nouvelle offre de la même entreprise remplace la précédente.
 Equipment	Équipement
@@ -801,6 +816,7 @@ Excavate and grade	Terrassement et nivellement
 Exchange file	Fichier d'échange
 Excluded	Exclu
 Experience modification rate	Taux de modification de l'expérience
+Expired	Expiré
 Expiring soon	Expire bientôt
 Export CSV	Exporter en CSV
 Export project file (XML)	Exporter le fichier de projet (XML)
@@ -919,6 +935,7 @@ How many of each resource you can have working on one day, one per line, such as
 How many units	Combien d'unités
 How much of a code's work is done. Leave blank to remove it.	Avancement des travaux d'un code. Laissez vide pour le retirer.
 How often	À quelle fréquence
+I have read this addendum	J’ai lu cet addenda
 If this company was entered twice, merge it into the one to keep. RFIs, commitments, bids, people and other records that name	Si cette entreprise a été saisie en double, fusionnez-la avec celle à conserver. Les RFI, engagements, offres, personnes et autres enregistrements qui mentionnent
 If this company was entered twice, merge it into the one to keep. RFIs, commitments, bids, people and other records that name {} will name the kept company instead, and {} is removed from the directory. Blank details of the kept company are filled in from this one.	Si cette entreprise a été saisie en double, fusionnez-la avec celle à conserver. Les RFI, engagements, offres, personnes et autres enregistrements qui mentionnent {} mentionneront à la place l'entreprise conservée, et {} est retirée de l'annuaire. Les informations vides de l'entreprise conservée sont complétées avec celles-ci.
 Import	Importer
@@ -1024,7 +1041,9 @@ Landscape	Paysage
 Language	Langue
 Lapsed	Expirée
 Large	Grand
+Last day	Dernier jour
 Last day of each month	Dernier jour de chaque mois
+Last day the link works (optional)	Dernier jour où le lien fonctionne (facultatif)
 Last finish	Dernière fin
 Last name	Nom
 Last upload	Dernier téléversement
@@ -1057,6 +1076,7 @@ Line {} description	Description de la ligne {}
 Line {} quantity	Quantité de la ligne {}
 Line {} unit	Unité de la ligne {}
 Lines	Lignes
+Link not valid	Lien non valide
 Linked RFIs	RFI liées
 Linked documents	Documents liés
 Linked submittals	Soumissions liées
@@ -1321,6 +1341,7 @@ Note (optional)	Note (facultative)
 Note for line {}	Note pour la ligne {}
 Notes	Notes
 Notes (inclusions, exclusions, alternates)	Notes (inclusions, exclusions, variantes)
+Notes (inclusions, exclusions, conditions)	Notes (inclusions, exclusions, conditions)
 Notes on topic {}	Notes sur le sujet {}
 Nothing deleted	Rien de supprimé
 Nothing has been added yet.	Rien n'a encore été ajouté.
@@ -1393,6 +1414,7 @@ Open in viewer	Ouvrir dans la visionneuse
 Open punch items	Réserves ouvertes
 Open sealed bids by {}	Ouvrir les soumissions scellées par {}
 Open the standard layout by default	Ouvrir la mise en page standard par défaut
+Open them now	Les ouvrir maintenant
 Open this view by default	Ouvrir cette vue par défaut
 Opened	Ouvert le
 Openings are framed to the drawn sizes	Les ouvertures sont encadrées aux dimensions dessinées
@@ -1525,6 +1547,7 @@ Preview of {}	Aperçu de {}
 Previous page	Page précédente
 Previous week	Semaine précédente
 Price catalogue	Catalogue de prix
+Price every line. Your bid is the total.	Chiffrez chaque ligne. Votre soumission est le total.
 Price the work by cost code, add markups, and put the result in the budget	Chiffrez les travaux par code de coût, ajoutez des majorations et placez le résultat dans le budget
 Priced apart from the base estimate. Accepted ones are added to the subtotal, and to the budget under their own cost codes.	Chiffrées à part de l'estimation de base. Les variantes retenues sont ajoutées au sous-total, et au budget sous leurs propres codes de coût.
 Prices are from	Les prix datent du
@@ -1954,7 +1977,9 @@ See the project report	Voir le rapport du projet
 Sees every project tool except financials; changes nothing.	Voit tous les outils du projet sauf les finances ; ne modifie rien.
 Send	Envoyer
 Send a test email	Envoyer un e-mail de test
+Send again	Renvoyer
 Send back	Renvoyer
+Send bid	Envoyer la soumission
 Send bid link again by {}	Renvoyer le lien de soumission par {}
 Send bid link by {}	Envoyer le lien de soumission par {}
 Send commitment invoice back to draft by {}	Renvoyer la facture d'engagement en brouillon par {}
@@ -1976,10 +2001,12 @@ Send punch item back by {}	Renvoyer la réserve par {}
 Send submittal for review by {}	Envoyer la soumission pour révision par {}
 Send task back by {}	Renvoyer la tâche par {}
 Send transmittal by {}	Envoyer le bordereau de transmission par {}
+Send your bid	Envoyez votre soumission
 Sends a short message to your own address.	Envoie un court message à votre propre adresse.
 Sent	Envoyé
 Sent back	Renvoyé
 Sent to	Envoyé à
+Sent to {}	Envoyé à {}
 Sep	sept.
 Set	Définir
 Set a budget line	Définir une ligne de budget
@@ -2022,6 +2049,7 @@ Shop drawing, product data, sample…	Plan d'atelier, fiche technique, échantil
 Short text	Texte court
 Show	Afficher
 Show closed	Afficher les éléments clôturés
+Show link	Afficher le lien
 Show measurements	Afficher les mesures
 Show month	Afficher le mois
 Show them	Les afficher
@@ -2096,6 +2124,7 @@ Started from	Démarré du
 Started to	Démarré au
 Started {}	Démarré {}
 Started {} by {}	Démarré {} par {}
+State	État
 State or region	État ou région
 Status	Statut
 Steel arrives the week after next.	L'acier arrive la semaine après la prochaine.
@@ -2180,11 +2209,13 @@ The address of this server is used for the links in messages.	L'adresse de ce se
 The catalogue is empty.	Le catalogue est vide.
 The dashed line is today. Red bars are on the critical path. Grey columns are days off. Float is the working days a task can slip without moving the last finish.	La ligne en pointillés indique aujourd'hui. Les barres rouges sont sur le chemin critique. Les colonnes grises sont des jours non travaillés. La marge correspond aux jours ouvrés dont une tâche peut glisser sans repousser la dernière fin.
 The days work is done on. Task dates and durations are counted in these days.	Les jours travaillés. Les dates et les durées des tâches sont comptées en ces jours.
+The due date for this package has passed, so it is no longer taking bids. Ask the team if you need more time.	La date limite de ce lot est passée; il n’accepte donc plus de soumissions. Demandez à l’équipe si vous avez besoin de plus de temps.
 The email	L'e-mail
 The finish schedule lists two sealant colours for the east elevation. Please confirm.	Le tableau des finitions indique deux couleurs de mastic pour la façade est. Merci de confirmer.
 The inspector must sign (type their name) to complete it	L'inspecteur doit signer (saisir son nom) pour la terminer
 The item's own	Propre à l'élément
 The level this template gives on each tool. People with it get these levels on the projects they join, unless a person has an override.	Le niveau que ce modèle donne sur chaque outil. Les personnes qui l'ont obtiennent ces niveaux sur les projets qu'elles rejoignent, sauf si une personne a une dérogation.
+The link may have been replaced by a newer one, cancelled, or passed its last day. Ask the person who invited you to send it again.	Le lien a peut-être été remplacé par un plus récent, annulé ou a dépassé son dernier jour. Demandez à la personne qui vous a invité de vous le renvoyer.
 The log lists every submittal once there are some.	Le journal liste chaque soumission dès qu'il y en a.
 The most of each resource needed on any one working day in each week, from tasks that aren't finished. Red is over the limit you set.	Le maximum de chaque ressource nécessaire sur un même jour ouvré de chaque semaine, d'après les tâches non terminées. Le rouge dépasse la limite que vous avez fixée.
 The plan cannot start until every approver has approved. Changing the wording of items clears the answers.	Le plan ne peut pas démarrer tant que chaque approbateur n'a pas approuvé. Modifier le libellé des éléments efface les réponses.
@@ -2200,7 +2231,10 @@ There is nothing to show.	Il n'y a rien à afficher.
 These answers are to version	Ces réponses sont à la version
 Things to get done, with an owner and a due date	Choses à faire, avec un responsable et une échéance
 This is the view you open by default.	C'est la vue que vous ouvrez par défaut.
+This link doesn't work	Ce lien ne fonctionne pas
 This month	Ce mois-ci
+This package is not out for bid yet.	Ce lot n’est pas encore en appel d’offres.
+This package is not taking bids.	Ce lot n’accepte pas de soumissions.
 This period	Cette période
 This period, {}	Cette période, {}
 This project needs a signed contract before a commitment can be approved.	Ce projet nécessite un contrat signé avant qu'un engagement puisse être approuvé.
@@ -2252,6 +2286,7 @@ Unit cost of line {}	Coût unitaire de la ligne {}
 Unit costs and assemblies, shared by every project's estimates	Coûts unitaires et ouvrages composés, partagés par les estimations de tous les projets
 Unit of line {}	Unité de la ligne {}
 Unit price	Prix unitaire
+Unit price for line {}	Prix unitaire de la ligne {}
 Unit price of {}	Prix unitaire de {}
 Unit prices	Prix unitaires
 Unlock original budget by {}	Déverrouiller le budget initial par {}
@@ -2339,6 +2374,7 @@ What subcontractors and suppliers bill against their commitments	Ce que les sous
 What the bid covers	Ce que couvre l'offre
 What the owner pays	Ce que paie le maître d'ouvrage
 What you did	Ce que vous avez fait
+What your bid covers	Ce que couvre votre soumission
 Whatever you leave blank below (type, time, place, attendees, agenda) comes from the template.	Tout ce que vous laissez vide ci-dessous (type, heure, lieu, participants, ordre du jour) provient du modèle.
 When	Quand
 Where each tool stands today, for the tools you can see	L'état de chaque outil aujourd'hui, pour les outils que vous voyez
@@ -2355,6 +2391,7 @@ Windy	Venteux
 With a forecast, the projected cost is the cost to date plus the forecast. Leave the amount blank to remove a forecast. A code with no forecast is projected by the project's method	Avec une prévision, le coût projeté est le coût à ce jour plus la prévision. Laissez le montant vide pour supprimer une prévision. Un code sans prévision est projeté selon la méthode du projet
 Withdraw	Retirer
 Withdraw bid by {}	Retirer l'offre par {}
+Withdraw my bid	Retirer ma soumission
 Withdrawn	Retiré
 Words	Mots
 Words or note (words are needed for text)	Mots ou remarque (les mots sont nécessaires pour un texte)
@@ -2379,8 +2416,11 @@ Yes or no	Oui ou non
 Yes, a single day	Oui, un seul jour
 Yes, enter it on the injury log	Oui, l'inscrire au registre des accidents
 Yes, only the people below, the manager and the tool's admins	Oui, seulement les personnes ci-dessous, le responsable et les administrateurs de l'outil
+You can change your bid below until the due date.	Vous pouvez modifier votre soumission ci-dessous jusqu’à la date limite.
 You have no tokens.	Vous n'avez aucun jeton.
+You have read this	Vous avez lu ceci
 You'll be told here when something needs you, like a submittal waiting for your review.	Vous serez informé ici lorsque quelque chose requiert votre action, comme une soumission en attente de votre révision.
+Your bid	Votre soumission
 Your first name	Votre prénom
 Your last name	Votre nom de famille
 Your reply	Votre réponse

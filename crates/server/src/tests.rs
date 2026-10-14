@@ -3681,3 +3681,116 @@ async fn pages_come_out_in_the_language_chosen() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn bidders_use_their_links_without_an_account() {
+    let dir = temp("portal");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let bare = |uri: &str| Request::get(uri.to_string()).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=P"))).await;
+    send(&app, post("/do/vendor.create", &ada, format!("_csrf={csrf}&name=Keystone+Concrete&kind=subcontractor"))).await;
+    send(&app, post("/do/vendor.create", &ada, format!("_csrf={csrf}&name=Northline+Concrete&kind=subcontractor"))).await;
+    send(&app, post("/do/bid_package.create", &ada, format!("_csrf={csrf}&project=1&title=Concrete&due=2099-01-01&scope=Slab&invite%5B%5D=1"))).await;
+    for (v, e) in [(1, "bids%40keystone.example"), (2, "bids%40northline.example")] {
+        send(&app, post("/do/bid_package.invite", &ada, format!("_csrf={csrf}&project=1&id=1&vendor={v}&email={e}"))).await;
+    }
+    send(&app, post("/do/bid_package.open", &ada, format!("_csrf={csrf}&project=1&id=1"))).await;
+    let slug = app.lock().tenant.as_ref().unwrap().slug.clone();
+    let link = |n: u32, g: u32| portal::token(app.secret(), &slug, 1, n, g);
+    let (a, b) = (link(1, 0), link(2, 0));
+
+    // The link opens the package for that company: no sign-in, no cookie, nothing about the other company.
+    let (st, h, page) = send(&app, bare(&format!("/bid/{a}"))).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(page.contains("Keystone Concrete") && page.contains("Concrete") && !page.contains("Northline"), "{page}");
+    assert!(h.get(SET_COOKIE).is_none());
+    assert_eq!(h.get("referrer-policy").unwrap(), "no-referrer");
+    assert_eq!(h.get("cache-control").unwrap(), "no-store");
+    assert!(h.get("content-security-policy").unwrap().to_str().unwrap().contains("script-src 'none'"));
+
+    // Anything else looks the same: forged, wrong generation, wrong company, nonsense.
+    let tampered = format!("{}x", &a[..a.len() - 1]);
+    let wrong_generation = link(1, 4);
+    let mut answers = Vec::new();
+    for bad in [tampered.as_str(), wrong_generation.as_str(), "garbage", "1.1.0.", "99.1.0.abc"] {
+        let (st, _, body) = send(&app, bare(&format!("/bid/{bad}"))).await;
+        assert_eq!(st, StatusCode::NOT_FOUND, "{bad}");
+        answers.push(body);
+    }
+    assert!(answers.windows(2).all(|w| w[0] == w[1]));
+    assert!(answers[0].contains("doesn't work") && !answers[0].contains("Keystone"));
+    // A link signed for another company's server isn't ours either.
+    let foreign = portal::token(app.secret(), "someone-else", 1, 1, 0);
+    assert_eq!(send(&app, bare(&format!("/bid/{foreign}"))).await.0, StatusCode::NOT_FOUND);
+
+    // Sending a bid: needs the form token, and lands sealed.
+    let form = field(&page, "_csrf");
+    let post_bare = |uri: &str, body: String| {
+        Request::post(uri.to_string()).header("content-type", "application/x-www-form-urlencoded").body(Body::from(body)).unwrap()
+    };
+    let (st, ..) = send(&app, post_bare(&format!("/bid/{a}/submit"), "_csrf=nope&amount=98000.50".into())).await;
+    assert_eq!(st, StatusCode::FORBIDDEN);
+    let (st, ..) = send(&app, post_bare(&format!("/bid/{b}/submit"), format!("_csrf={form}&amount=98000.50"))).await;
+    assert_eq!(st, StatusCode::FORBIDDEN, "a form token belongs to its own link");
+    let (st, h, _) = send(&app, post_bare(&format!("/bid/{a}/submit"), format!("_csrf={form}&amount=98000.50&notes=Excludes+rebar"))).await;
+    assert_eq!(st, StatusCode::SEE_OTHER);
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().starts_with(&format!("/bid/{a}?ok=")), "{h:?}");
+    assert_eq!(h.get("referrer-policy").unwrap(), "no-referrer");
+    {
+        let inner = app.lock();
+        let pkg = inner.tenant.as_ref().unwrap().engine.state().bid_packages.iter().next().unwrap().clone();
+        assert_eq!((pkg.sealed_bids.len(), pkg.bids.len()), (1, 0));
+    }
+    // The bidder sees their own bid; the team sees that one arrived but not what it says.
+    let (_, _, again) = send(&app, bare(&format!("/bid/{a}"))).await;
+    assert!(again.contains("98000.50") && again.contains("Withdraw"));
+    let (_, _, detail) = send(&app, get("/projects/1/bidding/1")).await;
+    assert!(detail.contains("sealed until bidding closes") && !detail.contains("98,000.50") && !detail.contains("Excludes rebar"), "{detail}");
+
+    // The team can copy a link; sending it again replaces it and the old one stops working at once.
+    let (st, _, shown) = send(&app, get("/projects/1/bidding/1/links/1")).await;
+    assert!(st == StatusCode::OK && shown.contains(&format!("/bid/{a}")));
+    assert_eq!(send(&app, bare("/projects/1/bidding/1/links/1")).await.0, StatusCode::SEE_OTHER, "the team page needs a sign-in");
+    send(&app, post("/do/bid_package.resend_invite", &ada, format!("_csrf={csrf}&project=1&id=1&number=1"))).await;
+    assert_eq!(send(&app, bare(&format!("/bid/{a}"))).await.0, StatusCode::NOT_FOUND);
+    assert_eq!(send(&app, bare(&format!("/bid/{}", link(1, 1)))).await.0, StatusCode::OK);
+    send(&app, post("/do/bid_package.revoke_invite", &ada, format!("_csrf={csrf}&project=1&id=1&number=2"))).await;
+    assert_eq!(send(&app, bare(&format!("/bid/{b}"))).await.0, StatusCode::NOT_FOUND);
+
+    // Links go out by email only with outgoing mail set up and the server's public address known.
+    assert!(portal::pending(&app).is_none());
+    app.lock().creds.smtp = Some(buildkiosk_store::creds::SmtpSettings {
+        host: "mail.example".into(),
+        port: 25,
+        security: "none".into(),
+        from: "bids@example.com".into(),
+        base_url: "https://bids.example".into(),
+        ..Default::default()
+    });
+    let (_, out) = portal::pending(&app).unwrap();
+    assert_eq!(out.len(), 1, "the cancelled link is not sent");
+    assert_eq!((out[0].number, out[0].generation, out[0].mail.to.as_str()), (1, 1, "bids@keystone.example"));
+    assert!(out[0].mail.body.contains(&format!("https://bids.example/bid/{}", link(1, 1))), "{}", out[0].mail.body);
+    assert!(!out[0].mail.body.contains(&link(1, 0)));
+
+    // A link posts only so often.
+    let fresh = link(1, 1);
+    let (_, _, page) = send(&app, bare(&format!("/bid/{fresh}"))).await;
+    let form = field(&page, "_csrf");
+    let mut last = StatusCode::OK;
+    for _ in 0..12 {
+        last = send(&app, post_bare(&format!("/bid/{fresh}/submit"), format!("_csrf={form}&amount=90000"))).await.0;
+    }
+    assert_eq!(last, StatusCode::TOO_MANY_REQUESTS);
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

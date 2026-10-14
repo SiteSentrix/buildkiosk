@@ -14,11 +14,13 @@
 A Forms admin needs to create a template first.
 A baseline is the schedule's dates kept under a name, so progress can be measured against them. Save one when the contract is signed and another after a re-plan.
 A bid
+A bid bond of
 A crew is a named group you log hours for together.
 A draft commitment was started
 A file from {}
 A formal record of what was sent, to whom and why
 A line starting with # begins a section; every other line is an item. Assign owners and dates on the plan page. Editing the outline keeps the owner, date, note and done state of items whose wording and section are unchanged.
+A link lets one contact at an invited company read the documents, acknowledge addenda and send or change a bid, with no account. Links are emailed once the package is out for bid. Bids sent this way stay sealed until bidding closes.
 A name already used is replaced. The new baseline becomes the one the chart and each task's slip compare against.
 A new version of
 A project admin has full access to every tool, so overrides have no effect.
@@ -181,6 +183,8 @@ Any status
 Any template
 Any {}
 Anyone
+Anyone with this link can read the package and send or change a bid for
+Anyone with this link can read the package and send or change a bid for {}. Send it only to them.
 Applied
 Approval
 Approve
@@ -290,6 +294,10 @@ Bid form lines
 Bid form, scope checklist, alternates and bond
 Bid in
 Bid leveling
+Bid link
+Bid link for
+Bid link for {}
+Bid links
 Bid package
 Bid package #{}
 Bid package (its lowest bid)
@@ -299,6 +307,8 @@ Bidder withdraws a bid by {}
 Bidding
 Bids
 Bids are compared on price alone. Add criteria to weigh other things, such as safety record or schedule.
+Bids are due
+Bids are due {}.
 Bids due
 Bids due {}
 Billed before
@@ -360,6 +370,7 @@ Change project permissions by {}
 Change the filter to see more.
 Change the filters to see more.
 Change this report
+Change your bid
 Changing a prefix affects new items only; references already given stay.
 Changing it signs you out everywhere else.
 Changing the criteria clears the scores already given.
@@ -507,6 +518,7 @@ Cost impact
 Cost now
 Cost per unit
 Cost then
+Cost to add if excluded
 Cost to date
 Costs paid without a commitment
 Country
@@ -530,6 +542,7 @@ Create estimate by {}
 Create folder
 Create folder by {}
 Create form template by {}
+Create link
 Create meeting by {}
 Create one to record what you send to the team.
 Create prime change order by {}
@@ -764,11 +777,13 @@ Edit type
 Edit {}
 Electrical
 Email
+Email address
 Email me my notifications
 Embeds, sleeves and penetrations are in place and secured
 Enclosures
 Encryption
 English
+Enter an amount to add (or a negative number to deduct), or leave blank to not price it.
 Enter the work completed this period for each item. You can't bill an item beyond its scheduled value.
 Enter what the company sent. A new bid from the same company replaces its earlier one.
 Equipment
@@ -801,6 +816,7 @@ Excavate and grade
 Exchange file
 Excluded
 Experience modification rate
+Expired
 Expiring soon
 Export CSV
 Export project file (XML)
@@ -919,6 +935,7 @@ How many of each resource you can have working on one day, one per line, such as
 How many units
 How much of a code's work is done. Leave blank to remove it.
 How often
+I have read this addendum
 If this company was entered twice, merge it into the one to keep. RFIs, commitments, bids, people and other records that name
 If this company was entered twice, merge it into the one to keep. RFIs, commitments, bids, people and other records that name {} will name the kept company instead, and {} is removed from the directory. Blank details of the kept company are filled in from this one.
 Import
@@ -1024,7 +1041,9 @@ Landscape
 Language
 Lapsed
 Large
+Last day
 Last day of each month
+Last day the link works (optional)
 Last finish
 Last name
 Last upload
@@ -1057,6 +1076,7 @@ Line {} description
 Line {} quantity
 Line {} unit
 Lines
+Link not valid
 Linked RFIs
 Linked documents
 Linked submittals
@@ -1321,6 +1341,7 @@ Note (optional)
 Note for line {}
 Notes
 Notes (inclusions, exclusions, alternates)
+Notes (inclusions, exclusions, conditions)
 Notes on topic {}
 Nothing deleted
 Nothing has been added yet.
@@ -1393,6 +1414,7 @@ Open in viewer
 Open punch items
 Open sealed bids by {}
 Open the standard layout by default
+Open them now
 Open this view by default
 Opened
 Openings are framed to the drawn sizes
@@ -1525,6 +1547,7 @@ Preview of {}
 Previous page
 Previous week
 Price catalogue
+Price every line. Your bid is the total.
 Price the work by cost code, add markups, and put the result in the budget
 Priced apart from the base estimate. Accepted ones are added to the subtotal, and to the budget under their own cost codes.
 Prices are from
@@ -1954,7 +1977,9 @@ See the project report
 Sees every project tool except financials; changes nothing.
 Send
 Send a test email
+Send again
 Send back
+Send bid
 Send bid link again by {}
 Send bid link by {}
 Send commitment invoice back to draft by {}
@@ -1976,10 +2001,12 @@ Send punch item back by {}
 Send submittal for review by {}
 Send task back by {}
 Send transmittal by {}
+Send your bid
 Sends a short message to your own address.
 Sent
 Sent back
 Sent to
+Sent to {}
 Sep
 Set
 Set a budget line
@@ -2022,6 +2049,7 @@ Shop drawing, product data, sample…
 Short text
 Show
 Show closed
+Show link
 Show measurements
 Show month
 Show them
@@ -2096,6 +2124,7 @@ Started from
 Started to
 Started {}
 Started {} by {}
+State
 State or region
 Status
 Steel arrives the week after next.
@@ -2180,11 +2209,13 @@ The address of this server is used for the links in messages.
 The catalogue is empty.
 The dashed line is today. Red bars are on the critical path. Grey columns are days off. Float is the working days a task can slip without moving the last finish.
 The days work is done on. Task dates and durations are counted in these days.
+The due date for this package has passed, so it is no longer taking bids. Ask the team if you need more time.
 The email
 The finish schedule lists two sealant colours for the east elevation. Please confirm.
 The inspector must sign (type their name) to complete it
 The item's own
 The level this template gives on each tool. People with it get these levels on the projects they join, unless a person has an override.
+The link may have been replaced by a newer one, cancelled, or passed its last day. Ask the person who invited you to send it again.
 The log lists every submittal once there are some.
 The most of each resource needed on any one working day in each week, from tasks that aren't finished. Red is over the limit you set.
 The plan cannot start until every approver has approved. Changing the wording of items clears the answers.
@@ -2200,7 +2231,10 @@ There is nothing to show.
 These answers are to version
 Things to get done, with an owner and a due date
 This is the view you open by default.
+This link doesn't work
 This month
+This package is not out for bid yet.
+This package is not taking bids.
 This period
 This period, {}
 This project needs a signed contract before a commitment can be approved.
@@ -2252,6 +2286,7 @@ Unit cost of line {}
 Unit costs and assemblies, shared by every project's estimates
 Unit of line {}
 Unit price
+Unit price for line {}
 Unit price of {}
 Unit prices
 Unlock original budget by {}
@@ -2339,6 +2374,7 @@ What subcontractors and suppliers bill against their commitments
 What the bid covers
 What the owner pays
 What you did
+What your bid covers
 Whatever you leave blank below (type, time, place, attendees, agenda) comes from the template.
 When
 Where each tool stands today, for the tools you can see
@@ -2355,6 +2391,7 @@ Windy
 With a forecast, the projected cost is the cost to date plus the forecast. Leave the amount blank to remove a forecast. A code with no forecast is projected by the project's method
 Withdraw
 Withdraw bid by {}
+Withdraw my bid
 Withdrawn
 Words
 Words or note (words are needed for text)
@@ -2379,8 +2416,11 @@ Yes or no
 Yes, a single day
 Yes, enter it on the injury log
 Yes, only the people below, the manager and the tool's admins
+You can change your bid below until the due date.
 You have no tokens.
+You have read this
 You'll be told here when something needs you, like a submittal waiting for your review.
+Your bid
 Your first name
 Your last name
 Your reply

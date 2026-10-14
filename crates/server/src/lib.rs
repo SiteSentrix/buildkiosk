@@ -8,6 +8,7 @@ mod auth;
 mod exif;
 pub mod harvest;
 mod mail;
+mod portal;
 mod render;
 pub mod s3;
 mod zip;
@@ -80,6 +81,8 @@ struct Inner {
     tenant: Option<Tenant>,
     creds: Credentials,
     limiter: RateLimit,
+    /// Bidder-portal submissions, by link.
+    portal_limiter: RateLimit,
     /// MCP connections that keep state (what they follow), by the id sent as `Mcp-Session-Id`.
     mcp_sessions: HashMap<String, McpSession>,
 }
@@ -150,6 +153,7 @@ impl App {
                 tenant,
                 creds,
                 limiter: RateLimit::default(),
+                portal_limiter: RateLimit::default(),
                 mcp_sessions: HashMap::new(),
             }),
             secure: false,
@@ -431,6 +435,7 @@ pub fn router(app: Shared) -> Router {
         .route("/projects/{id}/bidding/new", get(bid_package_new))
         .route("/projects/{id}/bidding/{bid}", get(bid_package_page))
         .route("/projects/{id}/bidding/{bid}/edit", get(bid_package_edit))
+        .route("/projects/{id}/bidding/{bid}/links/{n}", get(bid_link_page))
         .route("/projects/{id}/bidding/{bid}/upload", post(bid_package_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
         .route("/projects/{id}/bidding/{bid}/files/{sha}", get(bid_package_download))
         .route("/projects/{id}/estimating", get(estimating_page))
@@ -690,6 +695,7 @@ pub fn router(app: Shared) -> Router {
     let router = doc_routes::<PrimeChange>(router);
     let router = invoice_routes::<OwnerInvoice>(router);
     let router = invoice_routes::<CommitmentInvoice>(router);
+    let router = portal::routes(router);
     router
         .fallback(not_found)
         .layer(axum::middleware::from_fn(translate_pages))
@@ -714,6 +720,8 @@ pub async fn serve(app: Shared, bind: SocketAddr) -> Result<(), String> {
 
 async fn security_headers(State(app): State<Shared>, mut res: Response) -> Response {
     let h = res.headers_mut();
+    // The bidder portal sends `no-referrer` so its secret link never leaves the page.
+    let res_has_referrer = h.contains_key("referrer-policy");
     // A page that needs more (the sheet viewer) sets its own policy first.
     if !h.contains_key("content-security-policy") {
         h.insert(
@@ -727,7 +735,9 @@ async fn security_headers(State(app): State<Shared>, mut res: Response) -> Respo
         h.insert(HeaderName::from_static(k), HeaderValue::from_static(v));
     };
     put("x-content-type-options", "nosniff");
-    put("referrer-policy", "same-origin");
+    if !res_has_referrer {
+        put("referrer-policy", "same-origin");
+    }
     put("x-frame-options", "DENY");
     if app.secure {
         put("strict-transport-security", "max-age=31536000");
@@ -2695,6 +2705,31 @@ async fn bid_package_page(State(app): State<Shared>, headers: HeaderMap, Path((i
     page(&app, &headers, &q, |r, _| buildkiosk_web::bidding::detail(r, Id::new(id), Id::new(bid)))
 }
 
+/// Shows one bid link so the team can copy it. Needs the Bidding tool at standard level.
+async fn bid_link_page(State(app): State<Shared>, headers: HeaderMap, Path((id, bid, n)): Path<(u64, u64, u32)>, Query(q): Q) -> Response {
+    let found = {
+        let inner = app.lock();
+        let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+        let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+        let state = t.engine.state();
+        let allowed = view::level(state, Actor::Person(s.person), Id::new(id), Tool::Bidding) >= Level::Standard;
+        let today = Timestamp::from_millis(now_ms()).date_at(state.utc_offset());
+        let found = state
+            .bid_packages
+            .get(Id::new(bid))
+            .filter(|b| allowed && b.project.raw() == id && b.deleted.is_none())
+            .and_then(|b| b.invitations.iter().find(|i| i.number == n && i.active(today)).map(|i| (i.clone(), b.id.raw())));
+        found.map(|(i, pid)| (i.clone(), pid, t.slug.clone()))
+    };
+    let Some((inv, package, slug)) = found else { return not_found(State(app), headers).await };
+    let url = portal::team_link(&app, &slug, package, inv.number, inv.generation);
+    let company = {
+        let inner = app.lock();
+        inner.tenant.as_ref().map(|t| view::vendor_name(t.engine.state(), inv.vendor)).unwrap_or_default()
+    };
+    page(&app, &headers, &q, |r, _| buildkiosk_web::bidding::link_page(r, Id::new(id), Id::new(bid), &company, &inv.email, &url))
+}
+
 async fn bid_package_edit(State(app): State<Shared>, headers: HeaderMap, Path((id, bid)): Path<(u64, u64)>, Query(q): Q) -> Response {
     page(&app, &headers, &q, |r, _| buildkiosk_web::bidding::form(r, Id::new(id), Some(Id::new(bid))))
 }
@@ -3949,7 +3984,12 @@ async fn mail_loop(app: Shared) {
     loop {
         tokio::time::sleep(Duration::from_secs(20)).await;
         let a = app.clone();
-        if let Err(e) = tokio::task::spawn_blocking(move || mail_pass(&a)).await {
+        if let Err(e) = tokio::task::spawn_blocking(move || {
+            mail_pass(&a);
+            portal::invite_pass(&a);
+        })
+        .await
+        {
             log::warn!("the email sender stopped a pass: {e}");
         }
     }

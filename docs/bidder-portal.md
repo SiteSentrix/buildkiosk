@@ -111,6 +111,13 @@ due time, sealed amounts hidden, replay equals state. Server: no session needed,
 or log, identical responses for bad tokens, rate limit trips, CSRF refused, headers present. Page tests render the
 portal and assert no other bidder's data appears.
 
+## Left for later in the first version
+
+- Receipt email to the bidder after submitting (the page shows the reference at once).
+- A notice to the team when a bid arrives (the package page shows the sealed count).
+- Bidders attaching their own files (a proposal, a bond): today the team attaches what a company sends.
+- Q&A (step 4).
+
 ## Not in the first version
 
 Bidder accounts with a login; a bidder directory shared across projects; online bid opening events; e-signatures on
@@ -145,7 +152,11 @@ than the interface's four.
    `.invite_sent`, `.invitations`, with tests. (The link secret is derived, not stored; see Invitation above.)
 2. **Done 2026-10-14.** `portal_view`, `portal_ack`, `portal_submit`, `portal_withdraw` (System-only), sealing
    (`BidPackage.sealed`, `sealed_bids`, `bid_package.unseal`, closing opens them) and the due-day rule.
-3. Server: deriving and checking link secrets, the emailing pass, routes and pages under `/bid/<token>`, headers, rate
-   limits, CSRF, and the team page that lists and copies links.
+3. **Done 2026-10-14.** Server (`crates/server/src/portal.rs`, `crates/web/src/portal.rs`): deriving and checking link
+   secrets, the emailing pass (every 20 seconds, only for packages out for bid, only with outgoing email and the
+   public address set), `/bid/<link>` pages (view, submit, withdraw, acknowledge, bid documents), headers
+   (`no-store`, `no-referrer`, `noindex`, the usual CSP with `script-src 'none'`), a form token tied to the link, a
+   limit of 8 posts per link per five minutes, and on the package page a "Bid links" card (create, show link, send
+   again, cancel, open sealed bids).
 4. Q&A commands and pages (`portal_ask`, `answer_question`).
 5. Docs: README "Not yet" line, `docs/gaps.md`, `docs/target-app-parity.md`, `ROADMAP.md`.

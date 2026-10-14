@@ -21,11 +21,11 @@ fn mac(secret: &[u8], data: &str) -> Option<HmacSha256> {
     Some(m)
 }
 
-fn sign(secret: &[u8], data: &str) -> String {
+pub(crate) fn sign(secret: &[u8], data: &str) -> String {
     mac(secret, data).map(|m| B64.encode(m.finalize().into_bytes())).unwrap_or_default()
 }
 
-fn verify(secret: &[u8], data: &str, sig: &str) -> bool {
+pub(crate) fn verify(secret: &[u8], data: &str, sig: &str) -> bool {
     let Ok(raw) = B64.decode(sig) else { return false };
     mac(secret, data).is_some_and(|m| m.verify_slice(&raw).is_ok())
 }

@@ -414,7 +414,7 @@ fn bidders_use_their_links_and_sealed_bids_stay_unseen_until_closing() {
         w.ok(pm, "bid_package.level", args(json!({}))),
     ] {
         let text = shown.to_string();
-        assert!(!text.contains("1200000") && !text.contains("1100000") && !text.contains("Excludes rebar"), "{text}");
+        assert!(!text.contains("12000.00") && !text.contains("11000.00") && !text.contains("Excludes rebar"), "{text}");
     }
     assert_eq!(w.ok(pm, "bid_package.get", args(json!({})))["sealed_waiting"].as_array().unwrap().len(), 2);
     w.err(pm, "bid_package.award", args(json!({"vendor": a})));

@@ -30,6 +30,7 @@ pub mod pages;
 pub mod pdf;
 pub mod pdfs;
 pub mod photos;
+pub mod portal;
 pub mod prequal;
 pub mod reports;
 pub mod restore;

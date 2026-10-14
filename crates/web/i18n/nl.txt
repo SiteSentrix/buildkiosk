@@ -14,11 +14,13 @@
 A Forms admin needs to create a template first.	Een formulierenbeheerder moet eerst een sjabloon aanmaken.
 A baseline is the schedule's dates kept under a name, so progress can be measured against them. Save one when the contract is signed and another after a re-plan.	Een basisplanning is de planningsdatums die onder een naam worden bewaard, zodat je de voortgang ertegen kunt afmeten. Sla er een op als het contract is getekend en nog een na een herplanning.
 A bid	Een inschrijving
+A bid bond of	Een biedgarantie van
 A crew is a named group you log hours for together.	Een ploeg is een benoemde groep waarvoor je samen uren registreert.
 A draft commitment was started	Een conceptverplichting is gestart
 A file from {}	Een bestand van {}
 A formal record of what was sent, to whom and why	Een formeel verslag van wat is verzonden, naar wie en waarom
 A line starting with # begins a section; every other line is an item. Assign owners and dates on the plan page. Editing the outline keeps the owner, date, note and done state of items whose wording and section are unchanged.	Een regel die met # begint, start een sectie; elke andere regel is een onderdeel. Wijs eigenaren en datums toe op de actieplanpagina. Als je de opzet bewerkt, blijven eigenaar, datum, notitie en gereedstatus behouden van onderdelen waarvan de tekst en sectie ongewijzigd zijn.
+A link lets one contact at an invited company read the documents, acknowledge addenda and send or change a bid, with no account. Links are emailed once the package is out for bid. Bids sent this way stay sealed until bidding closes.	Met een link kan één contactpersoon van een uitgenodigd bedrijf de documenten lezen, addenda bevestigen en een bieding versturen of wijzigen, zonder account. Links worden per e-mail verstuurd zodra het pakket in aanbesteding gaat. Zo ingestuurde biedingen blijven verzegeld tot de aanbesteding sluit.
 A name already used is replaced. The new baseline becomes the one the chart and each task's slip compare against.	Een al gebruikte naam wordt vervangen. De nieuwe basisplanning wordt die waarmee de grafiek en de afwijking van elke taak worden vergeleken.
 A new version of	Een nieuwe versie van
 A project admin has full access to every tool, so overrides have no effect.	Een projectbeheerder heeft volledige toegang tot alle tools, dus overschrijvingen hebben geen effect.
@@ -181,6 +183,8 @@ Any status	Elke status
 Any template	Elk sjabloon
 Any {}	Elke {}
 Anyone	Iedereen
+Anyone with this link can read the package and send or change a bid for	Iedereen met deze link kan het pakket lezen en een bieding versturen of wijzigen voor
+Anyone with this link can read the package and send or change a bid for {}. Send it only to them.	Iedereen met deze link kan het pakket lezen en een bieding versturen of wijzigen voor {}. Stuur hem alleen naar hen.
 Applied	Toegepast
 Approval	Goedkeuring
 Approve	Goedkeuren
@@ -290,6 +294,10 @@ Bid form lines	Inschrijfformulierregels
 Bid form, scope checklist, alternates and bond	Inschrijfformulier, scopechecklist, alternatieven en garantie
 Bid in	Binnengekomen inschrijving
 Bid leveling	Inschrijvingsvergelijking
+Bid link	Biedlink
+Bid link for	Biedlink voor
+Bid link for {}	Biedlink voor {}
+Bid links	Biedlinks
 Bid package	Aanbestedingspakket
 Bid package #{}	Aanbestedingspakket #{}
 Bid package (its lowest bid)	Aanbestedingspakket (laagste inschrijving)
@@ -299,6 +307,8 @@ Bidder withdraws a bid by {}	Bieding ingetrokken door bieder, door {}
 Bidding	Aanbesteding
 Bids	Inschrijvingen
 Bids are compared on price alone. Add criteria to weigh other things, such as safety record or schedule.	Inschrijvingen worden alleen op prijs vergeleken. Voeg criteria toe om andere zaken te wegen, zoals veiligheidsrecord of planning.
+Bids are due	Biedingen moeten binnen zijn op
+Bids are due {}.	Biedingen moeten binnen zijn op {}.
 Bids due	Inschrijvingen vervallen
 Bids due {}	Inschrijvingen vervallen {}
 Billed before	Eerder gefactureerd
@@ -360,6 +370,7 @@ Change project permissions by {}	Projectrechten wijzigen door {}
 Change the filter to see more.	Wijzig het filter om meer te zien.
 Change the filters to see more.	Wijzig de filters om meer te zien.
 Change this report	Dit rapport wijzigen
+Change your bid	Uw bieding wijzigen
 Changing a prefix affects new items only; references already given stay.	Een voorvoegsel wijzigen geldt alleen voor nieuwe items; eerder toegekende verwijzingen blijven staan.
 Changing it signs you out everywhere else.	Als je dit wijzigt, word je overal elders uitgelogd.
 Changing the criteria clears the scores already given.	Als je de criteria wijzigt, worden de al gegeven scores gewist.
@@ -507,6 +518,7 @@ Cost impact	Kostenimpact
 Cost now	Kosten nu
 Cost per unit	Kosten per eenheid
 Cost then	Kosten toen
+Cost to add if excluded	Extra kosten indien uitgesloten
 Cost to date	Kosten tot nu toe
 Costs paid without a commitment	Kosten betaald zonder verplichting
 Country	Land
@@ -530,6 +542,7 @@ Create estimate by {}	Raming aanmaken door {}
 Create folder	Map aanmaken
 Create folder by {}	Map aanmaken door {}
 Create form template by {}	Formuliersjabloon aanmaken door {}
+Create link	Link maken
 Create meeting by {}	Vergadering aanmaken door {}
 Create one to record what you send to the team.	Maak er een aan om vast te leggen wat je naar het team stuurt.
 Create prime change order by {}	Wijzigingsopdracht hoofdcontract aanmaken door {}
@@ -764,11 +777,13 @@ Edit type	Type bewerken
 Edit {}	{} bewerken
 Electrical	Elektra
 Email	E-mail
+Email address	E-mailadres
 Email me my notifications	Mijn meldingen e-mailen
 Embeds, sleeves and penetrations are in place and secured	Inbouwdelen, hulzen en doorvoeren zijn aangebracht en vastgezet
 Enclosures	Bijlagen
 Encryption	Versleuteling
 English	English
+Enter an amount to add (or a negative number to deduct), or leave blank to not price it.	Vul een bedrag in om bij te tellen (of een negatief getal om af te trekken), of laat leeg om niet te prijzen.
 Enter the work completed this period for each item. You can't bill an item beyond its scheduled value.	Vul per item het werk in dat in deze periode is uitgevoerd. Je kunt een item niet verder factureren dan de geplande waarde.
 Enter what the company sent. A new bid from the same company replaces its earlier one.	Vul in wat het bedrijf heeft verstuurd. Een nieuwe inschrijving van hetzelfde bedrijf vervangt de eerdere.
 Equipment	Materieel
@@ -801,6 +816,7 @@ Excavate and grade	Ontgraven en afwerken van het terrein
 Exchange file	Uitwisselbestand
 Excluded	Uitgesloten
 Experience modification rate	Experience modification rate
+Expired	Verlopen
 Expiring soon	Verloopt binnenkort
 Export CSV	CSV exporteren
 Export project file (XML)	Projectbestand exporteren (XML)
@@ -919,6 +935,7 @@ How many of each resource you can have working on one day, one per line, such as
 How many units	Hoeveel eenheden
 How much of a code's work is done. Leave blank to remove it.	Hoeveel werk van een code is gereed. Laat leeg om het te verwijderen.
 How often	Hoe vaak
+I have read this addendum	Ik heb dit addendum gelezen
 If this company was entered twice, merge it into the one to keep. RFIs, commitments, bids, people and other records that name	Als dit bedrijf twee keer is ingevoerd, voeg het dan samen met het bedrijf dat je wilt behouden. RFI's, verplichtingen, inschrijvingen, personen en andere records die verwijzen naar
 If this company was entered twice, merge it into the one to keep. RFIs, commitments, bids, people and other records that name {} will name the kept company instead, and {} is removed from the directory. Blank details of the kept company are filled in from this one.	Als dit bedrijf twee keer is ingevoerd, voeg het dan samen met het bedrijf dat je wilt behouden. RFI's, verplichtingen, inschrijvingen, personen en andere records die verwijzen naar {} verwijzen daarna naar het behouden bedrijf, en {} wordt uit het adresboek verwijderd. Lege gegevens van het behouden bedrijf worden aangevuld vanuit dit bedrijf.
 Import	Importeren
@@ -1024,7 +1041,9 @@ Landscape	Landschap
 Language	Taal
 Lapsed	Verlopen
 Large	Groot
+Last day	Laatste dag
 Last day of each month	Laatste dag van elke maand
+Last day the link works (optional)	Laatste dag dat de link werkt (optioneel)
 Last finish	Laatste einde
 Last name	Achternaam
 Last upload	Laatste upload
@@ -1057,6 +1076,7 @@ Line {} description	Omschrijving van regel {}
 Line {} quantity	Hoeveelheid van regel {}
 Line {} unit	Eenheid van regel {}
 Lines	Regels
+Link not valid	Link niet geldig
 Linked RFIs	Gekoppelde RFI's
 Linked documents	Gekoppelde documenten
 Linked submittals	Gekoppelde submittals
@@ -1321,6 +1341,7 @@ Note (optional)	Notitie (optioneel)
 Note for line {}	Notitie voor regel {}
 Notes	Notities
 Notes (inclusions, exclusions, alternates)	Notities (inclusies, exclusies, alternatieven)
+Notes (inclusions, exclusions, conditions)	Opmerkingen (inbegrepen, uitgesloten, voorwaarden)
 Notes on topic {}	Notities bij onderwerp {}
 Nothing deleted	Niets verwijderd
 Nothing has been added yet.	Er is nog niets toegevoegd.
@@ -1393,6 +1414,7 @@ Open in viewer	Openen in viewer
 Open punch items	Open opleverpunten
 Open sealed bids by {}	Verzegelde biedingen openen door {}
 Open the standard layout by default	Open de standaardindeling als standaard
+Open them now	Nu openen
 Open this view by default	Open deze weergave als standaard
 Opened	Geopend
 Openings are framed to the drawn sizes	Sparingen worden uitgevoerd volgens de getekende maten
@@ -1525,6 +1547,7 @@ Preview of {}	Voorbeeld van {}
 Previous page	Vorige pagina
 Previous week	Vorige week
 Price catalogue	Prijscatalogus
+Price every line. Your bid is the total.	Prijs elke regel. Uw bieding is het totaal.
 Price the work by cost code, add markups, and put the result in the budget	Prijs het werk per kostencode, voeg opslagen toe en zet het resultaat in het budget
 Priced apart from the base estimate. Accepted ones are added to the subtotal, and to the budget under their own cost codes.	Los van de basisraming geprijsd. Geaccepteerde worden bij het subtotaal opgeteld, en bij het budget onder hun eigen kostencodes.
 Prices are from	Prijzen zijn van
@@ -1954,7 +1977,9 @@ See the project report	Bekijk het projectrapport
 Sees every project tool except financials; changes nothing.	Ziet alle projecttools behalve financiën; wijzigt niets.
 Send	Verzenden
 Send a test email	Testmail verzenden
+Send again	Opnieuw versturen
 Send back	Terugsturen
+Send bid	Bieding versturen
 Send bid link again by {}	Biedlink opnieuw versturen door {}
 Send bid link by {}	Biedlink versturen door {}
 Send commitment invoice back to draft by {}	Verplichtingsfactuur terug naar concept zetten door {}
@@ -1976,10 +2001,12 @@ Send punch item back by {}	Opleverpunt terugsturen door {}
 Send submittal for review by {}	Submittal ter beoordeling verzenden door {}
 Send task back by {}	Taak terugsturen door {}
 Send transmittal by {}	Verzendbrief verzenden door {}
+Send your bid	Verstuur uw bieding
 Sends a short message to your own address.	Stuurt een kort bericht naar je eigen adres.
 Sent	Verzonden
 Sent back	Teruggestuurd
 Sent to	Verzonden naar
+Sent to {}	Verstuurd naar {}
 Sep	Sep
 Set	Instellen
 Set a budget line	Een budgetregel instellen
@@ -2022,6 +2049,7 @@ Shop drawing, product data, sample…	Werktekening, productgegevens, monster…
 Short text	Korte tekst
 Show	Tonen
 Show closed	Gesloten tonen
+Show link	Link tonen
 Show measurements	Metingen tonen
 Show month	Maand tonen
 Show them	Toon ze
@@ -2096,6 +2124,7 @@ Started from	Gestart vanaf
 Started to	Gestart tot
 Started {}	{} gestart
 Started {} by {}	{} gestart door {}
+State	Status
 State or region	Provincie of regio
 Status	Status
 Steel arrives the week after next.	Het staal komt de week na volgende week aan.
@@ -2180,11 +2209,13 @@ The address of this server is used for the links in messages.	Het adres van deze
 The catalogue is empty.	De catalogus is leeg.
 The dashed line is today. Red bars are on the critical path. Grey columns are days off. Float is the working days a task can slip without moving the last finish.	De stippellijn is vandaag. Rode balken liggen op het kritieke pad. Grijze kolommen zijn vrije dagen. Speling is het aantal werkdagen dat een taak kan opschuiven zonder de laatste einddatum te verplaatsen.
 The days work is done on. Task dates and durations are counted in these days.	De dagen waarop wordt gewerkt. Taakdatums en duur worden in deze dagen geteld.
+The due date for this package has passed, so it is no longer taking bids. Ask the team if you need more time.	De uiterste datum voor dit pakket is verstreken, dus het neemt geen biedingen meer aan. Vraag het team om meer tijd.
 The email	De e-mail
 The finish schedule lists two sealant colours for the east elevation. Please confirm.	Het afwerkstaat noemt twee kitkleuren voor de oostgevel. Graag bevestigen.
 The inspector must sign (type their name) to complete it	De inspecteur moet ondertekenen (typ zijn of haar naam) om af te ronden
 The item's own	Het eigen niveau van het onderdeel
 The level this template gives on each tool. People with it get these levels on the projects they join, unless a person has an override.	Het niveau dat dit sjabloon per tool geeft. Mensen met dit sjabloon krijgen deze niveaus op de projecten waaraan ze deelnemen, tenzij een persoon een afwijking heeft.
+The link may have been replaced by a newer one, cancelled, or passed its last day. Ask the person who invited you to send it again.	De link is mogelijk vervangen door een nieuwe, geannuleerd of voorbij zijn laatste dag. Vraag de persoon die u uitnodigde om hem opnieuw te sturen.
 The log lists every submittal once there are some.	De log toont elke submittal zodra er een is.
 The most of each resource needed on any one working day in each week, from tasks that aren't finished. Red is over the limit you set.	Het hoogste aantal van elke resource dat op één werkdag per week nodig is, uit taken die niet klaar zijn. Rood is boven de limiet die je hebt ingesteld.
 The plan cannot start until every approver has approved. Changing the wording of items clears the answers.	Het plan kan pas starten als elke goedkeurder heeft goedgekeurd. Als je de formulering van onderdelen wijzigt, worden de antwoorden gewist.
@@ -2200,7 +2231,10 @@ There is nothing to show.	Er is niets om te tonen.
 These answers are to version	Deze antwoorden zijn voor versie
 Things to get done, with an owner and a due date	Dingen die gedaan moeten worden, met een eigenaar en een vervaldatum
 This is the view you open by default.	Dit is de weergave die je standaard opent.
+This link doesn't work	Deze link werkt niet
 This month	Deze maand
+This package is not out for bid yet.	Dit pakket is nog niet in aanbesteding.
+This package is not taking bids.	Dit pakket neemt geen biedingen aan.
 This period	Deze periode
 This period, {}	Deze periode, {}
 This project needs a signed contract before a commitment can be approved.	Dit project heeft een ondertekend contract nodig voordat een verplichting kan worden goedgekeurd.
@@ -2252,6 +2286,7 @@ Unit cost of line {}	Eenheidsprijs van regel {}
 Unit costs and assemblies, shared by every project's estimates	Eenheidsprijzen en samenstellingen, gedeeld door de ramingen van alle projecten
 Unit of line {}	Eenheid van regel {}
 Unit price	Eenheidsprijs
+Unit price for line {}	Eenheidsprijs voor regel {}
 Unit price of {}	Eenheidsprijs van {}
 Unit prices	Eenheidsprijzen
 Unlock original budget by {}	Oorspronkelijk budget ontgrendelen door {}
@@ -2339,6 +2374,7 @@ What subcontractors and suppliers bill against their commitments	Wat onderaannem
 What the bid covers	Wat de inschrijving omvat
 What the owner pays	Wat de opdrachtgever betaalt
 What you did	Wat je gedaan hebt
+What your bid covers	Wat uw bieding dekt
 Whatever you leave blank below (type, time, place, attendees, agenda) comes from the template.	Alles wat je hieronder leeg laat (type, tijd, plaats, aanwezigen, agenda) komt uit het sjabloon.
 When	Wanneer
 Where each tool stands today, for the tools you can see	Hoe elke tool er vandaag voor staat, voor de tools die je kunt zien
@@ -2355,6 +2391,7 @@ Windy	Winderig
 With a forecast, the projected cost is the cost to date plus the forecast. Leave the amount blank to remove a forecast. A code with no forecast is projected by the project's method	Met een prognose zijn de verwachte kosten de kosten tot nu toe plus de prognose. Laat het bedrag leeg om een prognose te verwijderen. Een code zonder prognose wordt berekend volgens de methode van het project
 Withdraw	Intrekken
 Withdraw bid by {}	Inschrijving intrekken door {}
+Withdraw my bid	Mijn bieding intrekken
 Withdrawn	Ingetrokken
 Words	Woorden
 Words or note (words are needed for text)	Woorden of notitie (woorden zijn nodig voor tekst)
@@ -2379,8 +2416,11 @@ Yes or no	Ja of nee
 Yes, a single day	Ja, één dag
 Yes, enter it on the injury log	Ja, op het letselregister invoeren
 Yes, only the people below, the manager and the tool's admins	Ja, alleen de mensen hieronder, de manager en de beheerders van de tool
+You can change your bid below until the due date.	U kunt uw bieding hieronder wijzigen tot de uiterste datum.
 You have no tokens.	Je hebt geen tokens.
+You have read this	U heeft dit gelezen
 You'll be told here when something needs you, like a submittal waiting for your review.	Hier krijg je een melding wanneer iets jouw aandacht nodig heeft, zoals een submittal die op jouw beoordeling wacht.
+Your bid	Uw bieding
 Your first name	Je voornaam
 Your last name	Je achternaam
 Your reply	Jouw antwoord

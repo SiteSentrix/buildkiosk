@@ -6,7 +6,7 @@ documents and drawings, scheduling, and the financial tools (budget, change mana
 It runs as one self-hosted server binary with a server-rendered web UI that needs no JavaScript, and agents can
 drive all of it over the HTTP API, the CLI and MCP.
 
-It replaces the TypeScript BuildKiosk (`bwattendorf/ConstructionManager`, React + Express + PostgreSQL), which is the
+It replaces the earlier TypeScript BuildKiosk (React + Express + PostgreSQL), which is the
 owner's own code: port its behaviour freely, but never port anything in it that was copied from Procore (wording,
 templates, layouts) — re-derive that from public documentation instead (see Clean-room).
 

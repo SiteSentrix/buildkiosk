@@ -111,11 +111,29 @@ due time, sealed amounts hidden, replay equals state. Server: no session needed,
 or log, identical responses for bad tokens, rate limit trips, CSRF refused, headers present. Page tests render the
 portal and assert no other bidder's data appears.
 
-## Left for later in the first version
+## Added after the first version (2026-10-14)
 
-- Receipt email to the bidder after submitting (the page shows the reference at once).
-- A notice to the team when a bid arrives (the package page shows the sealed count).
-- Bidders attaching their own files (a proposal, a bond): today the team attaches what a company sends.
+- **Receipt email:** after a bid is submitted the bidder is emailed the reference, amount, time and a link back to their
+  page (needs outgoing email; best effort, the bid is already recorded).
+- **Notices to the team:** a notification (and the usual notification email) to everyone with standard or admin
+  Bidding access on the project when a bid arrives (without the amount, so sealing holds), when a question arrives and
+  when a company asks to bid through the open link.
+- **Bidders' own files:** a proposal, bond or other document attached to the company's own bid (up to 10 files, 25 MB
+  each; `portal_attach`, `portal_detach`), downloaded back as attachments through the same link. Files on a sealed bid
+  stay unseen with it until it opens.
+- **Open bid link (public work):** `bid_package.set_public` turns on a package-level link
+  (`/bid/open/<package>.<generation>.<signature>`, signed like the others; replacing it bumps its generation). The page
+  shows only the title, scope and due date, never the documents, and asks for a company, contact, email and phone.
+  Requests are held for the team (`registrations` on the package): approving one (`approve_registration`) picks the
+  company in the directory or adds one from the request (needs directory access), checks the prequalification rule,
+  and creates a normal invitation whose private link is emailed to the address on the request. Declining records it.
+  Abuse limits: a hidden field that programs fill in is silently dropped, 8 requests per package per five minutes, 100
+  waiting requests and 300 in all per package, one request per address. A package with the open link on can go out for
+  bid with no invited company.
+
+## Left for later
+
+- A bidder signing in once for all their packages (accounts), online bid-opening events, e-signatures on bids.
 
 ## Not in the first version
 

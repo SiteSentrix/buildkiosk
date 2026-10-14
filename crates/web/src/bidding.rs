@@ -347,6 +347,49 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, bid: Id<BidPackage>) -> Markup {
                 }))
             }
         }
+        @if matches!(b.status, BidStatus::Draft | BidStatus::Open) || b.public || !b.registrations.is_empty() {
+            div class="card" {
+                h2 { "Open bid link" }
+                p class="muted small" { "For work that is open to any company: share one link anywhere, and companies use it to ask to be invited. You approve or decline each request; an approved company gets its own private bid link by email." }
+                @if can_edit && matches!(b.status, BidStatus::Draft | BidStatus::Open) {
+                    div class="actions" {
+                        @if b.public {
+                            a class="btn small" href=(format!("{here}/open-link")) { "Show the link" } " "
+                            (button_form(req, "bid_package.set_public", &here, &[("project", id.to_string()), ("id", bid.to_string()), ("rotate", "true".into())], "Replace the link", "small")) " "
+                            (button_form(req, "bid_package.set_public", &here, &[("project", id.to_string()), ("id", bid.to_string()), ("enabled", "false".into())], "Turn off", "small danger"))
+                        } @else {
+                            (button_form(req, "bid_package.set_public", &here, &[("project", id.to_string()), ("id", bid.to_string()), ("enabled", "true".into())], "Turn on the open link", "small"))
+                        }
+                    }
+                }
+                @if !b.registrations.is_empty() {
+                    table class="data" {
+                        thead { tr { th { "Company" } th { "Contact" } th { "Asked" } th { "State" } th {} } }
+                        tbody { @for r in &b.registrations {
+                            tr {
+                                td { (r.company) }
+                                td { (r.contact) br; span class="muted small" { (r.email) @if !r.phone.is_empty() { " · " (r.phone) } } }
+                                td { (req.when(r.requested.at)) }
+                                td { @if r.approved.is_some() { span class="pill green" { "Approved" } } @else if r.declined.is_some() { span class="pill" { "Declined" } } @else { span class="pill amber" { "Waiting" } } }
+                                td {
+                                    @if r.pending() && can_edit {
+                                        (command_form(req, "bid_package.approve_registration", &here, &here, html! {
+                                            input type="hidden" name="project" value=(id); input type="hidden" name="id" value=(bid); input type="hidden" name="number" value=(r.number);
+                                            select name="vendor" aria-label="Company in the directory" {
+                                                option value="" { "Add as a new company" }
+                                                @for v in &all { option value=(v.id) { (v.name) } }
+                                            }
+                                            " " button type="submit" class="btn small primary" { "Approve" }
+                                        }))
+                                        (button_form(req, "bid_package.decline_registration", &here, &[("project", id.to_string()), ("id", bid.to_string()), ("number", r.number.to_string())], "Decline", "small danger"))
+                                    }
+                                }
+                            }
+                        } }
+                    }
+                }
+            }
+        }
         @if !b.questions.is_empty() {
             div class="card" {
                 h2 { "Questions from bidders" }
@@ -555,6 +598,32 @@ pub fn link_page(req: &Req<'_>, id: Id<Project>, bid: Id<BidPackage>, company: &
                 p { "Anyone with this link can read the package and send or change a bid for " (company) ". Send it only to them." }
                 p { input type="text" readonly value=(url) size="80" aria-label="Bid link"; }
                 @if !url.starts_with("http") { p class="muted small" { "Add the server's public address under Email settings to get a full link; until then, put your site's address in front of the path above." } }
+            }
+        },
+    )
+}
+
+/// The page that shows the open bid link so it can be shared.
+pub fn open_link_page(req: &Req<'_>, id: Id<Project>, bid: Id<BidPackage>, url: &str) -> Markup {
+    let Some(p) = project_for(req, id) else { return not_found(req) };
+    let here = format!("/projects/{id}/bidding/{bid}");
+    layout::app(
+        req,
+        "Open bid link",
+        Nav::Bidding(id),
+        &[
+            ("Projects", Some("/".into())),
+            (&p.name, Some(format!("/projects/{id}"))),
+            ("Bidding", Some(format!("/projects/{id}/bidding"))),
+            ("Open bid link", None),
+        ],
+        html! {
+            div class="page-head" { div { h1 { "Open bid link" } div class="sub" { "Share it where companies will see it" } } div class="actions" { a class="btn" href=(here) { "Back" } } }
+            div class="card" {
+                p { "Anyone with this link can ask to be invited to bid. Nobody gets the bid documents until you approve their request." }
+                p { input type="text" readonly value=(url) size="80" aria-label="Open bid link"; }
+                @if !url.starts_with("http") { p class="muted small" { "Add the server's public address under Email settings to get a full link; until then, put your site's address in front of the path above." } }
+                p class="muted small" { "If the link ends up somewhere you don't want it, use Replace the link: the old one stops working at once." }
             }
         },
     )

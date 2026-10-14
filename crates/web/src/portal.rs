@@ -154,6 +154,25 @@ pub fn page(view: &Value, base: &str, csrf: &str, flash: Option<&Flash>) -> Mark
                     h2 { "Your bid" }
                     p { strong { (money(b.get("amount")).map(|m| m.plain()).unwrap_or_default()) } " · received " (text(b, "received")) }
                     @if !text(b, "notes").is_empty() { p class="prose" { (text(b, "notes")) } }
+                    @let files = b.get("files").and_then(Value::as_array).cloned().unwrap_or_default();
+                    @if !files.is_empty() {
+                        ul class="plain" { @for f in &files { li {
+                            a href=(format!("{base}/files/{}", text(f, "sha256"))) { (text(f, "name")) } " "
+                            span class="muted small" { (human_size(f.get("size").and_then(Value::as_u64).unwrap_or(0))) }
+                            @if open { " " form method="post" action=(format!("{base}/remove")) class="inline" {
+                                input type="hidden" name="_csrf" value=(csrf); input type="hidden" name="sha256" value=(text(f, "sha256"));
+                                button type="submit" class="btn small danger" { "Remove" }
+                            } }
+                        } } }
+                    }
+                    @if open {
+                        form method="post" action=(format!("{base}/upload")) enctype="multipart/form-data" class="stack" {
+                            input type="hidden" name="_csrf" value=(csrf);
+                            input type="file" name="file" required aria-label="File to attach to your bid";
+                            p class="muted small" { "Attach a proposal, bond or other document (up to 25 MB each, 10 files)." }
+                            button type="submit" class="btn small" { "Attach file" }
+                        }
+                    }
                     p class="muted small" { "You can change your bid below until the due date." }
                     @if open {
                         form method="post" action=(format!("{base}/withdraw")) {
@@ -214,6 +233,44 @@ pub fn page(view: &Value, base: &str, csrf: &str, flash: Option<&Flash>) -> Mark
                         }))
                         button type="submit" class="btn primary" { "Send bid" }
                     }
+                }
+            }
+        },
+    )
+}
+
+/// The page behind a package's open link: a company asks to be invited. `view` is `bid_package.portal_open_view`.
+pub fn open_page(view: &Value, base: &str, csrf: &str, flash: Option<&Flash>) -> Markup {
+    let package = view.get("package").cloned().unwrap_or(Value::Null);
+    let accepting = view.get("accepting").and_then(Value::as_bool).unwrap_or(false);
+    let title = format!("Bid package #{}: {}", package.get("number").and_then(Value::as_u64).unwrap_or(0), text(&package, "title"));
+    shell(
+        &title,
+        flash,
+        html! {
+            div class="card" {
+                p class="muted" { (text(view, "contractor")) }
+                h1 { (title) }
+                @if let Some(d) = package.get("due").and_then(Value::as_str) { p { strong { "Bids are due " (d) "." } } }
+                @if !text(&package, "scope").is_empty() { p class="prose" { (text(&package, "scope")) } }
+            }
+            div class="card" {
+                @if accepting {
+                    h2 { "Ask to bid" }
+                    p class="muted small" { "Tell us who you are. The team reviews each request and, if approved, emails you a private link to the bid documents and the bid form." }
+                    form method="post" action=(format!("{base}/register")) class="stack" {
+                        input type="hidden" name="_csrf" value=(csrf);
+                        div class="hp" aria-hidden="true" { label { "Leave this empty " input type="text" name="website" tabindex="-1" autocomplete="off"; } }
+                        div class="form-grid" {
+                            (field("Company", "company", true, false, html! { input type="text" id="company" name="company" required maxlength="120"; }))
+                            (field("Your name", "contact", true, false, html! { input type="text" id="contact" name="contact" required maxlength="120"; }))
+                            (field("Email address", "email", true, false, html! { input type="email" id="email" name="email" required autocomplete="email"; }))
+                            (field("Phone (optional)", "phone", false, false, html! { input type="text" id="phone" name="phone" maxlength="40"; }))
+                        }
+                        button type="submit" class="btn primary" { "Send request" }
+                    }
+                } @else {
+                    div class="flash info" { "This package is not taking requests right now." }
                 }
             }
         },

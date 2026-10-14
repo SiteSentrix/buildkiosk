@@ -15,6 +15,7 @@ A Forms admin needs to create a template first.	Een formulierenbeheerder moet ee
 A baseline is the schedule's dates kept under a name, so progress can be measured against them. Save one when the contract is signed and another after a re-plan.	Een basisplanning is de planningsdatums die onder een naam worden bewaard, zodat je de voortgang ertegen kunt afmeten. Sla er een op als het contract is getekend en nog een na een herplanning.
 A bid	Een inschrijving
 A bid bond of	Een biedgarantie van
+A company asks to bid by {}	Een bedrijf vraagt mee te bieden door {}
 A crew is a named group you log hours for together.	Een ploeg is een benoemde groep waarvoor je samen uren registreert.
 A draft commitment was started	Een conceptverplichting is gestart
 A file from {}	Een bestand van {}
@@ -73,6 +74,7 @@ Add an assembly to an estimate by {}	Samenstelling aan raming toevoegen door {}
 Add an item	Item toevoegen
 Add an item below, or import a list of prices.	Voeg hieronder een item toe, of importeer een prijslijst.
 Add as a lump sum	Toevoegen als forfaitair bedrag
+Add as a new company	Toevoegen als nieuw bedrijf
 Add company	Bedrijf toevoegen
 Add company by {}	Bedrijf toevoegen door {}
 Add cost code by {}	Kostencode toevoegen door {}
@@ -185,11 +187,13 @@ Any status	Elke status
 Any template	Elk sjabloon
 Any {}	Elke {}
 Anyone	Iedereen
+Anyone with this link can ask to be invited to bid. Nobody gets the bid documents until you approve their request.	Iedereen met deze link kan vragen om uitgenodigd te worden om te bieden. Niemand krijgt de aanbestedingsdocumenten voordat u het verzoek goedkeurt.
 Anyone with this link can read the package and send or change a bid for	Iedereen met deze link kan het pakket lezen en een bieding versturen of wijzigen voor
 Anyone with this link can read the package and send or change a bid for {}. Send it only to them.	Iedereen met deze link kan het pakket lezen en een bieding versturen of wijzigen voor {}. Stuur hem alleen naar hen.
 Applied	Toegepast
 Approval	Goedkeuring
 Approve	Goedkeuren
+Approve a request to bid by {}	Een verzoek om te bieden goedkeuren door {}
 Approve budget change by {}	Budgetwijziging goedkeuren door {}
 Approve commitment by {}	Verplichting goedkeuren door {}
 Approve commitment change order by {}	Wijzigingsopdracht van verplichting goedkeuren door {}
@@ -221,6 +225,8 @@ As late as possible	Zo laat mogelijk
 As requested	Zoals gevraagd
 As soon as possible	Zo snel mogelijk
 Ask the team a question	Stel het team een vraag
+Ask to bid	Vraag om mee te bieden
+Asked	Gevraagd
 Assemblies	Samenstellingen
 Assembly	Samenstelling
 Assign	Toewijzen
@@ -229,6 +235,7 @@ Assigned to	Toegewezen aan
 Assigned to me	Aan mij toegewezen
 Assignees	Toegewezenen
 At least 10 characters.	Minstens 10 tekens.
+Attach a proposal, bond or other document (up to 25 MB each, 10 files).	Voeg een voorstel, garantie of ander document toe (tot 25 MB per bestand, 10 bestanden).
 Attach file	Bestand bijvoegen
 Attach file to RFI by {}	Bestand aan RFI bijvoegen door {}
 Attach file to a checklist line by {}	Bestand aan een checklistregel bijvoegen door {}
@@ -306,6 +313,8 @@ Bid package #{}	Aanbestedingspakket #{}
 Bid package (its lowest bid)	Aanbestedingspakket (laagste inschrijving)
 Bidder acknowledges an addendum by {}	Bieder bevestigt een addendum, door {}
 Bidder asks a question by {}	Vraag van een bieder door {}
+Bidder attaches a file by {}	Bestand toegevoegd door een bieder, door {}
+Bidder removes a file by {}	Bestand verwijderd door een bieder, door {}
 Bidder sends a bid by {}	Bieding verstuurd door bieder, door {}
 Bidder withdraws a bid by {}	Bieding ingetrokken door bieder, door {}
 Bidding	Aanbesteding
@@ -465,6 +474,7 @@ Company	Bedrijf
 Company admin	Bedrijfsbeheerder
 Company holiday lists	Feestdaglijsten van het bedrijf
 Company holiday lists this project takes	Feestdaglijsten van het bedrijf die dit project gebruikt
+Company in the directory	Bedrijf in het adresboek
 Company name	Bedrijfsnaam
 Company reports	Bedrijfsrapporten
 Company settings	Bedrijfsinstellingen
@@ -489,6 +499,7 @@ Constraint and resources	Beperking en middelen
 Constraint date	Beperkingsdatum
 Construction	Bouw
 Consultant	Adviseur
+Contact	Contactpersoon
 Contact only	Alleen contactpersoon
 Contract	Contract
 Contract signature	Contractondertekening
@@ -598,6 +609,7 @@ Debris is removed and surfaces are cleaned	Puin is verwijderd en oppervlakken zi
 Dec	Dec
 Decision	Beslissing
 Decline	Afwijzen
+Decline a request to bid by {}	Een verzoek om te bieden afwijzen door {}
 Declined	Afgewezen
 Delays	Vertragingen
 Delays and issues	Vertragingen en problemen
@@ -845,6 +857,7 @@ File incoming correspondence	Inkomende correspondentie archiveren
 File incoming correspondence by {}	Inkomende correspondentie archiveren door {}
 File it	Archiveren
 File to attach	Bij te voegen bestand
+File to attach to your bid	Bestand om aan uw bieding toe te voegen
 Files	Bestanden
 Files (optional)	Bestanden (optioneel)
 Files can be at most 25 MB.	Bestanden mogen maximaal 25 MB zijn.
@@ -941,6 +954,7 @@ How many units	Hoeveel eenheden
 How much of a code's work is done. Leave blank to remove it.	Hoeveel werk van een code is gereed. Laat leeg om het te verwijderen.
 How often	Hoe vaak
 I have read this addendum	Ik heb dit addendum gelezen
+If the link ends up somewhere you don't want it, use Replace the link	Als de link ergens terechtkomt waar u hem niet wilt, gebruik dan Link vervangen
 If this company was entered twice, merge it into the one to keep. RFIs, commitments, bids, people and other records that name	Als dit bedrijf twee keer is ingevoerd, voeg het dan samen met het bedrijf dat je wilt behouden. RFI's, verplichtingen, inschrijvingen, personen en andere records die verwijzen naar
 If this company was entered twice, merge it into the one to keep. RFIs, commitments, bids, people and other records that name {} will name the kept company instead, and {} is removed from the directory. Blank details of the kept company are filled in from this one.	Als dit bedrijf twee keer is ingevoerd, voeg het dan samen met het bedrijf dat je wilt behouden. RFI's, verplichtingen, inschrijvingen, personen en andere records die verwijzen naar {} verwijzen daarna naar het behouden bedrijf, en {} wordt uit het adresboek verwijderd. Lege gegevens van het behouden bedrijf worden aangevuld vanuit dit bedrijf.
 Import	Importeren
@@ -1058,6 +1072,7 @@ Laydown yard	Opslagterrein
 Leave To empty to post the seven days from From.	Laat Tot leeg om de zeven dagen vanaf Van te boeken.
 Leave blank to use the template's name.	Laat leeg om de naam van het sjabloon te gebruiken.
 Leave the markups out	De markeringen weglaten
+Leave this empty	Laat dit leeg
 Length	Lengte
 Letter	Brief
 Letter, Notice, Email…	Brief, bericht, e-mail…
@@ -1415,8 +1430,10 @@ Open RFIs	Open RFI's
 Open action items	Open actiepunten
 Open actions	Open acties
 Open actions from earlier meetings	Open acties uit eerdere vergaderingen
+Open bid link	Open biedlink
 Open floor edge at level 2 stair	Open vloerrand bij trap op niveau 2
 Open in viewer	Openen in viewer
+Open or close the open bid link by {}	De open biedlink openen of sluiten door {}
 Open punch items	Open opleverpunten
 Open sealed bids by {}	Verzegelde biedingen openen door {}
 Open the standard layout by default	Open de standaardindeling als standaard
@@ -1513,6 +1530,7 @@ Permit set	Vergunningsset
 Person	Persoon
 Person {}	Persoon {}
 Phone	Telefoon
+Phone (optional)	Telefoon (optioneel)
 Photo	Foto
 Photos	Foto's
 Pick a tool above and click the sheet.	Kies hierboven een hulpmiddel en klik op de tekening.
@@ -1744,6 +1762,7 @@ Repeat until	Herhalen tot
 Repeats	Herhaalt
 Replace baseline with current dates	Basisplanning vervangen door huidige data
 Replace cracked ceiling tile	Gescheurde plafondplaat vervangen
+Replace the link	Link vervangen
 Replies	Reacties
 Reply	Reageren
 Reply by	Antwoorden voor
@@ -2008,6 +2027,7 @@ Send prime change order for signature by {}	Wijzigingsopdracht hoofdcontract ter
 Send prime contract for signature by {}	Hoofdcontract ter ondertekening verzenden door {}
 Send punch item back by {}	Opleverpunt terugsturen door {}
 Send question	Vraag versturen
+Send request	Verzoek versturen
 Send submittal for review by {}	Submittal ter beoordeling verzenden door {}
 Send task back by {}	Taak terugsturen door {}
 Send transmittal by {}	Verzendbrief verzenden door {}
@@ -2045,6 +2065,7 @@ Sets each cost code's original budget to its amount in this estimate. Choose a c
 Setting a cost code that already has a line changes its amount.	Als je een kostencode instelt die al een regel heeft, verandert het bedrag daarvan.
 Settings	Instellingen
 Severity	Ernst
+Share it where companies will see it	Deel hem waar bedrijven hem zien
 Share the question and answer with every invited company, without the company's name	De vraag en het antwoord delen met alle uitgenodigde bedrijven, zonder de bedrijfsnaam
 Shared	Gedeeld
 Shared by every project that takes them. Changing a list changes those projects' calendars; their task dates stay until recalculated.	Gedeeld door elk project dat ze gebruikt. Als je een lijst wijzigt, veranderen de kalenders van die projecten; hun taakdatums blijven staan tot ze opnieuw worden berekend.
@@ -2064,6 +2085,7 @@ Show closed	Gesloten tonen
 Show link	Link tonen
 Show measurements	Metingen tonen
 Show month	Maand tonen
+Show the link	De link tonen
 Show them	Toon ze
 Side by side	Naast elkaar
 Sign	Ondertekenen
@@ -2210,6 +2232,7 @@ Team members	Teamleden
 Telehandler	Verreiker
 Tell people a sheet revision was issued by {}	Laat mensen weten dat een tekeningrevisie is uitgegeven door {}
 Tell people the current revision was issued	Laat mensen weten dat de huidige revisie is uitgegeven
+Tell us who you are. The team reviews each request and, if approved, emails you a private link to the bid documents and the bid form.	Vertel ons wie u bent. Het team beoordeelt elk verzoek en stuurt u, als het wordt goedgekeurd, per e-mail een privélink naar de documenten en het biedformulier.
 Template	Sjabloon
 Template gives	Sjabloon geeft
 Template name	Sjabloonnaam
@@ -2248,6 +2271,7 @@ This link doesn't work	Deze link werkt niet
 This month	Deze maand
 This package is not out for bid yet.	Dit pakket is nog niet in aanbesteding.
 This package is not taking bids.	Dit pakket neemt geen biedingen aan.
+This package is not taking requests right now.	Dit pakket neemt op dit moment geen verzoeken aan.
 This period	Deze periode
 This period, {}	Deze periode, {}
 This project needs a signed contract before a commitment can be approved.	Dit project heeft een ondertekend contract nodig voordat een verplichting kan worden goedgekeurd.
@@ -2284,6 +2308,8 @@ Trends	Trends
 Trends appear once observations are recorded.	Trends verschijnen zodra er waarnemingen zijn vastgelegd.
 Tue	Di
 Turn email off	E-mail uitschakelen
+Turn off	Uitzetten
+Turn on the open link	De open link aanzetten
 Two coats applied.	Twee lagen aangebracht.
 Two weeks	Twee weken
 Type	Type
@@ -2436,6 +2462,7 @@ You'll be told here when something needs you, like a submittal waiting for your 
 Your bid	Uw bieding
 Your first name	Je voornaam
 Your last name	Je achternaam
+Your name	Uw naam
 Your question	Uw vraag
 Your reply	Jouw antwoord
 Your response	Jouw reactie
@@ -2497,6 +2524,7 @@ standard on project management, read-only financials.	standaard op projectmanage
 submitted {}	ingediend {}
 the date in the picture, else today)	de datum op de foto, anders vandaag)
 the file name)	de bestandsnaam)
+the old one stops working at once.	de oude werkt meteen niet meer.
 the schedule of values that gets invoiced	de waardeverdeling die wordt gefactureerd
 title, location,	title, location,
 title, location, {}, priority (low, medium, high, urgent), due date (YYYY-MM-DD), assignees (email addresses separated by semicolons). A header line starting with title is skipped. Nothing is added unless every line is good.	title, location, {}, prioriteit (low, medium, high, urgent), vervaldatum (YYYY-MM-DD), toegewezen aan (e-mailadressen gescheiden door puntkomma's). Een kopregel die met title begint wordt overgeslagen. Er wordt niets toegevoegd tenzij elke regel goed is.

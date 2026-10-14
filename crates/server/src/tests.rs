@@ -3821,3 +3821,151 @@ async fn bidders_use_their_links_without_an_account() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+fn multipart(boundary: &str, fields: &[(&str, Option<&str>, &[u8])]) -> Vec<u8> {
+    let mut out = Vec::new();
+    for (name, filename, data) in fields {
+        out.extend(format!("--{boundary}\r\n").as_bytes());
+        match filename {
+            Some(f) => out.extend(
+                format!("Content-Disposition: form-data; name=\"{name}\"; filename=\"{f}\"\r\nContent-Type: application/pdf\r\n\r\n").as_bytes(),
+            ),
+            None => out.extend(format!("Content-Disposition: form-data; name=\"{name}\"\r\n\r\n").as_bytes()),
+        }
+        out.extend(*data);
+        out.extend(b"\r\n");
+    }
+    out.extend(format!("--{boundary}--\r\n").as_bytes());
+    out
+}
+
+#[tokio::test]
+async fn bid_files_receipts_and_the_open_link() {
+    let dir = temp("portal-more");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let bare = |uri: &str| Request::get(uri.to_string()).body(Body::empty()).unwrap();
+    let post_bare = |uri: &str, body: String| {
+        Request::post(uri.to_string()).header("content-type", "application/x-www-form-urlencoded").body(Body::from(body)).unwrap()
+    };
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=P"))).await;
+    send(&app, post("/do/vendor.create", &ada, format!("_csrf={csrf}&name=Keystone+Concrete&kind=subcontractor"))).await;
+    send(&app, post("/do/bid_package.create", &ada, format!("_csrf={csrf}&project=1&title=Concrete&due=2099-01-01&scope=Slab&invite%5B%5D=1"))).await;
+    send(&app, post("/do/bid_package.invite", &ada, format!("_csrf={csrf}&project=1&id=1&vendor=1&email=bids%40keystone.example"))).await;
+    send(&app, post("/do/bid_package.set_public", &ada, format!("_csrf={csrf}&project=1&id=1&enabled=true"))).await;
+    send(&app, post("/do/bid_package.open", &ada, format!("_csrf={csrf}&project=1&id=1"))).await;
+    let slug = app.lock().tenant.as_ref().unwrap().slug.clone();
+    let a = portal::token(app.secret(), &slug, 1, 1, 0);
+
+    // A bidder attaches a file to their own bid (after sending one), downloads it back, and removes it.
+    let (_, _, page) = send(&app, bare(&format!("/bid/{a}"))).await;
+    let form = field(&page, "_csrf");
+    let boundary = "XBOUNDARYX";
+    let upload = |data: &'static [u8], form: &str| {
+        let body = multipart(boundary, &[("_csrf", None, form.as_bytes()), ("file", Some("proposal.pdf"), data)]);
+        Request::post(format!("/bid/{a}/upload"))
+            .header("content-type", format!("multipart/form-data; boundary={boundary}"))
+            .body(Body::from(body))
+            .unwrap()
+    };
+    let (st, h, _) = send(&app, upload(b"%PDF-1.4 proposal", &form)).await;
+    assert_eq!(st, StatusCode::SEE_OTHER);
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("error="), "files need a bid first: {h:?}");
+    send(&app, post_bare(&format!("/bid/{a}/submit"), format!("_csrf={form}&amount=5000"))).await;
+    let (st, h, _) = send(&app, upload(b"%PDF-1.4 proposal", "nope")).await;
+    assert_eq!(st, StatusCode::FORBIDDEN, "{h:?}");
+    let (_, h, _) = send(&app, upload(b"%PDF-1.4 proposal", &form)).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, page) = send(&app, bare(&format!("/bid/{a}"))).await;
+    assert!(page.contains("proposal.pdf") && page.contains("Remove"), "{page}");
+    let sha = page.split("/files/").nth(1).unwrap().split('"').next().unwrap().to_string();
+    let res = router(app.clone()).oneshot(bare(&format!("/bid/{a}/files/{sha}"))).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    assert!(res.headers().get("content-disposition").unwrap().to_str().unwrap().starts_with("attachment"));
+    assert_eq!(res.into_body().collect().await.unwrap().to_bytes().as_ref(), b"%PDF-1.4 proposal");
+    assert_eq!(send(&app, bare(&format!("/bid/{}/files/{sha}", portal::token(app.secret(), &slug, 1, 1, 9)))).await.0, StatusCode::NOT_FOUND);
+    send(&app, post_bare(&format!("/bid/{a}/remove"), format!("_csrf={form}&sha256={sha}"))).await;
+    let (_, _, page) = send(&app, bare(&format!("/bid/{a}"))).await;
+    assert!(!page.contains("proposal.pdf"));
+
+    // The receipt names the reference and amount, and carries the bid page when the public address is known.
+    {
+        let mut inner = app.lock();
+        assert!(portal::receipt(&inner, 1, 1, &format!("/bid/{a}"), &json!({})).is_none(), "no outgoing email, no receipt");
+        inner.creds.smtp = Some(buildkiosk_store::creds::SmtpSettings {
+            host: "mail.example".into(),
+            port: 25,
+            security: "none".into(),
+            from: "bids@example.com".into(),
+            base_url: "https://bids.example".into(),
+            ..Default::default()
+        });
+        let (_, m) =
+            portal::receipt(&inner, 1, 1, &format!("/bid/{a}"), &json!({"reference": "BP1-1", "amount": "5000.00", "received": "2026-10-14"}))
+                .unwrap();
+        assert_eq!(m.to, "bids@keystone.example");
+        assert!(m.body.contains("BP1-1") && m.body.contains("5000.00") && m.body.contains(&format!("https://bids.example/bid/{a}")), "{}", m.body);
+        inner.creds.smtp = None;
+    }
+
+    // The open link: a page anyone can reach that only asks for a request, never shows the documents.
+    let (st, _, shown) = send(&app, get("/projects/1/bidding/1/open-link")).await;
+    let open = format!("/bid/open/{}", portal::open_token(app.secret(), &slug, 1, 0));
+    assert!(st == StatusCode::OK && shown.contains(&open), "{shown}");
+    let (st, h, page) = send(&app, bare(&open)).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(page.contains("Ask to bid") && page.contains("Concrete") && h.get("referrer-policy").unwrap() == "no-referrer");
+    let form = field(&page, "_csrf");
+    for bad in ["/bid/open/1.5.abc", "/bid/open/garbage", &format!("/bid/open/{}", portal::open_token(app.secret(), &slug, 1, 3))] {
+        assert_eq!(send(&app, bare(bad)).await.0, StatusCode::NOT_FOUND, "{bad}");
+    }
+    let (st, ..) = send(&app, post_bare(&format!("{open}/register"), "_csrf=nope&company=X".into())).await;
+    assert_eq!(st, StatusCode::FORBIDDEN);
+    // A filled-in hidden field is a program: same thank-you, nothing recorded.
+    let (st, h, _) = send(
+        &app,
+        post_bare(&format!("{open}/register"), format!("_csrf={form}&company=Bot&contact=Bot&email=bot%40bot.example&website=http%3A%2F%2Fspam")),
+    )
+    .await;
+    assert_eq!((st, h.get(LOCATION).unwrap().to_str().unwrap().contains("ok=")), (StatusCode::SEE_OTHER, true));
+    assert!(app.lock().tenant.as_ref().unwrap().engine.state().bid_packages.iter().next().unwrap().registrations.is_empty());
+    let (_, h, _) = send(
+        &app,
+        post_bare(&format!("{open}/register"), format!("_csrf={form}&company=Granite+Works&contact=Sam&email=bids%40granite.example&phone=")),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, h, _) = send(
+        &app,
+        post_bare(&format!("{open}/register"), format!("_csrf={form}&company=Granite+Works&contact=Sam&email=bids%40granite.example&phone=")),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("error="), "a second request from the same address is refused: {h:?}");
+
+    // The team sees the request, approves it, and the new company gets its own private link.
+    let (_, _, detail) = send(&app, get("/projects/1/bidding/1")).await;
+    assert!(detail.contains("Granite Works") && detail.contains("Approve") && detail.contains("Open bid link"), "{detail}");
+    send(&app, post("/do/bid_package.approve_registration", &ada, format!("_csrf={csrf}&project=1&id=1&number=1&vendor="))).await;
+    {
+        let inner = app.lock();
+        let state = inner.tenant.as_ref().unwrap().engine.state();
+        let pkg = state.bid_packages.iter().next().unwrap();
+        assert_eq!(pkg.invitations.len(), 2);
+        assert!(state.vendors.iter().any(|v| v.name == "Granite Works"));
+    }
+    assert_eq!(send(&app, bare(&format!("/bid/{}", portal::token(app.secret(), &slug, 1, 2, 0)))).await.0, StatusCode::OK);
+
+    // Replacing the open link ends the old one.
+    send(&app, post("/do/bid_package.set_public", &ada, format!("_csrf={csrf}&project=1&id=1&rotate=true"))).await;
+    assert_eq!(send(&app, bare(&open)).await.0, StatusCode::NOT_FOUND);
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

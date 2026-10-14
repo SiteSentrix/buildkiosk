@@ -20,7 +20,7 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 2. Next tools in the order of `docs/gaps.md` (item 8 onward; the financial remainder is listed under item 7).
 
 ## Progress log
-- 2026-10-14: Bidder portal: invited companies open an emailed link (no account) to read the bid documents, acknowledge addenda, ask questions and send, change or withdraw a bid; bids stay sealed until bidding closes; the team creates, resends and cancels links from the package page and answers questions (design in `docs/bidder-portal.md`).
+- 2026-10-14: Bidder portal: invited companies open an emailed link (no account) to read the bid documents, acknowledge addenda, ask questions and send, change or withdraw a bid; bids stay sealed until bidding closes; the team creates, resends and cancels links from the package page and answers questions (design in `docs/bidder-portal.md`). Then: receipt emails, notices to the team, bidders attaching files to their bid, and an open bid link where companies ask to be invited and the team approves each.
 - 2026-10-14: Languages: the interface in Spanish, French and Dutch as well as English (a picker at the foot of every page; pages translated on the way out from catalogs; a check that keeps the catalogs complete).
 - 2026-10-14: Larger gaps: measuring paths and outlines on sheets, Primavera exchange (.xer) import, MCP resource subscriptions (also as an event stream over HTTP), backups pushed to S3-compatible storage; unembedded PDF fonts verified.
 - 2026-10-13: Small items: estimate templates, files on action plans, prequalification questionnaire versions, repeat rules for month-end, quarterly and yearly.

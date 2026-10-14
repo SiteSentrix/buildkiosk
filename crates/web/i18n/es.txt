@@ -15,6 +15,7 @@ A Forms admin needs to create a template first.	Un administrador de formularios 
 A baseline is the schedule's dates kept under a name, so progress can be measured against them. Save one when the contract is signed and another after a re-plan.	Una línea base son las fechas del cronograma guardadas con un nombre, para poder medir el avance contra ellas. Guarda una al firmar el contrato y otra después de una replanificación.
 A bid	Una oferta
 A bid bond of	Se requiere una fianza de oferta de
+A company asks to bid by {}	Una empresa pide participar en la licitación por {}
 A crew is a named group you log hours for together.	Una cuadrilla es un grupo con nombre para el que registras horas en conjunto.
 A draft commitment was started	Se inició un compromiso en borrador
 A file from {}	Un archivo de {}
@@ -73,6 +74,7 @@ Add an assembly to an estimate by {}	Añadir un ensamble a una estimación por {
 Add an item	Añadir un elemento
 Add an item below, or import a list of prices.	Añade un elemento abajo o importa una lista de precios.
 Add as a lump sum	Añadir como suma global
+Add as a new company	Añadir como empresa nueva
 Add company	Añadir empresa
 Add company by {}	Añadir empresa por {}
 Add cost code by {}	Añadir código de costo por {}
@@ -185,11 +187,13 @@ Any status	Cualquier estado
 Any template	Cualquier plantilla
 Any {}	Cualquier {}
 Anyone	Cualquier persona
+Anyone with this link can ask to be invited to bid. Nobody gets the bid documents until you approve their request.	Cualquiera con este enlace puede pedir que lo inviten a licitar. Nadie recibe los documentos de la licitación hasta que usted apruebe su solicitud.
 Anyone with this link can read the package and send or change a bid for	Cualquiera con este enlace puede leer el paquete y enviar o cambiar una oferta de
 Anyone with this link can read the package and send or change a bid for {}. Send it only to them.	Cualquiera con este enlace puede leer el paquete y enviar o cambiar una oferta de {}. Envíelo solo a esa empresa.
 Applied	Aplicado
 Approval	Aprobación
 Approve	Aprobar
+Approve a request to bid by {}	Aprobar una solicitud para licitar por {}
 Approve budget change by {}	Aprobar cambio de presupuesto por {}
 Approve commitment by {}	Aprobar compromiso por {}
 Approve commitment change order by {}	Aprobar orden de cambio de compromiso por {}
@@ -221,6 +225,8 @@ As late as possible	Lo más tarde posible
 As requested	Según lo solicitado
 As soon as possible	Lo antes posible
 Ask the team a question	Hacer una pregunta al equipo
+Ask to bid	Pedir participar en la licitación
+Asked	Solicitada
 Assemblies	Ensambles
 Assembly	Ensamble
 Assign	Asignar
@@ -229,6 +235,7 @@ Assigned to	Asignado a
 Assigned to me	Asignado a mí
 Assignees	Responsables
 At least 10 characters.	Al menos 10 caracteres.
+Attach a proposal, bond or other document (up to 25 MB each, 10 files).	Adjunte una propuesta, una fianza u otro documento (hasta 25 MB cada uno, 10 archivos).
 Attach file	Adjuntar archivo
 Attach file to RFI by {}	Adjuntar archivo a RFI por {}
 Attach file to a checklist line by {}	Adjuntar archivo a una línea de la lista de verificación por {}
@@ -306,6 +313,8 @@ Bid package #{}	Paquete de licitación #{}
 Bid package (its lowest bid)	Paquete de licitación (su oferta más baja)
 Bidder acknowledges an addendum by {}	Acuse de adenda del licitante por {}
 Bidder asks a question by {}	Pregunta de un licitante por {}
+Bidder attaches a file by {}	Archivo adjunto de un licitante por {}
+Bidder removes a file by {}	Archivo retirado por un licitante por {}
 Bidder sends a bid by {}	Oferta enviada por el licitante por {}
 Bidder withdraws a bid by {}	Oferta retirada por el licitante por {}
 Bidding	Licitación
@@ -465,6 +474,7 @@ Company	Empresa
 Company admin	Administrador de la empresa
 Company holiday lists	Listas de feriados de la empresa
 Company holiday lists this project takes	Listas de feriados de la empresa que usa este proyecto
+Company in the directory	Empresa del directorio
 Company name	Nombre de la empresa
 Company reports	Informes de la empresa
 Company settings	Configuración de la empresa
@@ -489,6 +499,7 @@ Constraint and resources	Restricción y recursos
 Constraint date	Fecha de restricción
 Construction	Construcción
 Consultant	Consultor
+Contact	Contacto
 Contact only	Solo contacto
 Contract	Contrato
 Contract signature	Firma del contrato
@@ -598,6 +609,7 @@ Debris is removed and surfaces are cleaned	Se retiran los escombros y se limpian
 Dec	Dic
 Decision	Decisión
 Decline	Rechazar
+Decline a request to bid by {}	Rechazar una solicitud para licitar por {}
 Declined	Rechazado
 Delays	Retrasos
 Delays and issues	Retrasos y problemas
@@ -845,6 +857,7 @@ File incoming correspondence	Archivar correspondencia recibida
 File incoming correspondence by {}	Archivar correspondencia recibida por {}
 File it	Archívalo
 File to attach	Archivo para adjuntar
+File to attach to your bid	Archivo para adjuntar a su oferta
 Files	Archivos
 Files (optional)	Archivos (opcional)
 Files can be at most 25 MB.	Los archivos pueden pesar como máximo 25 MB.
@@ -941,6 +954,7 @@ How many units	Cuántas unidades
 How much of a code's work is done. Leave blank to remove it.	Cuánto del trabajo de un código está hecho. Déjalo en blanco para quitarlo.
 How often	Con qué frecuencia
 I have read this addendum	He leído esta adenda
+If the link ends up somewhere you don't want it, use Replace the link	Si el enlace acaba donde no quiere, use Reemplazar el enlace
 If this company was entered twice, merge it into the one to keep. RFIs, commitments, bids, people and other records that name	Si esta empresa se introdujo dos veces, combínala con la que quieres conservar. Los RFI, compromisos, ofertas, personas y otros registros que nombran
 If this company was entered twice, merge it into the one to keep. RFIs, commitments, bids, people and other records that name {} will name the kept company instead, and {} is removed from the directory. Blank details of the kept company are filled in from this one.	Si esta empresa se introdujo dos veces, combínala con la que quieres conservar. Los RFI, compromisos, ofertas, personas y otros registros que nombran a {} nombrarán en su lugar a la empresa conservada, y {} se quita del directorio. Los datos en blanco de la empresa conservada se completan con los de esta.
 Import	Importar
@@ -1058,6 +1072,7 @@ Laydown yard	Patio de acopio
 Leave To empty to post the seven days from From.	Deja Hasta vacío para publicar los siete días desde Desde.
 Leave blank to use the template's name.	Déjalo en blanco para usar el nombre de la plantilla.
 Leave the markups out	Omitir las anotaciones
+Leave this empty	Deje esto vacío
 Length	Longitud
 Letter	Carta
 Letter, Notice, Email…	Carta, Aviso, Correo…
@@ -1415,8 +1430,10 @@ Open RFIs	RFI abiertos
 Open action items	Acciones pendientes abiertas
 Open actions	Acciones abiertas
 Open actions from earlier meetings	Acciones abiertas de reuniones anteriores
+Open bid link	Enlace de oferta abierto
 Open floor edge at level 2 stair	Borde de piso abierto en la escalera del nivel 2
 Open in viewer	Abrir en el visor
+Open or close the open bid link by {}	Abrir o cerrar el enlace de oferta abierto por {}
 Open punch items	Pendientes abiertos
 Open sealed bids by {}	Abrir ofertas selladas por {}
 Open the standard layout by default	Abrir el diseño estándar por defecto
@@ -1513,6 +1530,7 @@ Permit set	Juego de planos para permiso
 Person	Persona
 Person {}	Persona {}
 Phone	Teléfono
+Phone (optional)	Teléfono (opcional)
 Photo	Foto
 Photos	Fotos
 Pick a tool above and click the sheet.	Elige una herramienta arriba y haz clic en el plano.
@@ -1744,6 +1762,7 @@ Repeat until	Repetir hasta
 Repeats	Se repite
 Replace baseline with current dates	Reemplazar la línea base con las fechas actuales
 Replace cracked ceiling tile	Reemplazar loseta de cielo raso agrietada
+Replace the link	Reemplazar el enlace
 Replies	Respuestas
 Reply	Responder
 Reply by	Responder antes de
@@ -2008,6 +2027,7 @@ Send prime change order for signature by {}	Enviar orden de cambio principal par
 Send prime contract for signature by {}	Enviar contrato principal para firma por {}
 Send punch item back by {}	Devolver pendiente por {}
 Send question	Enviar pregunta
+Send request	Enviar solicitud
 Send submittal for review by {}	Enviar submittal a revisión por {}
 Send task back by {}	Devolver tarea por {}
 Send transmittal by {}	Enviar remisión por {}
@@ -2045,6 +2065,7 @@ Sets each cost code's original budget to its amount in this estimate. Choose a c
 Setting a cost code that already has a line changes its amount.	Establecer un código de costo que ya tiene una línea cambia su monto.
 Settings	Configuración
 Severity	Gravedad
+Share it where companies will see it	Compártalo donde las empresas lo vean
 Share the question and answer with every invited company, without the company's name	Compartir la pregunta y la respuesta con todas las empresas invitadas, sin el nombre de la empresa
 Shared	Compartido
 Shared by every project that takes them. Changing a list changes those projects' calendars; their task dates stay until recalculated.	Compartido por todos los proyectos que los usan. Cambiar una lista cambia los calendarios de esos proyectos; las fechas de sus tareas se mantienen hasta que se recalculen.
@@ -2064,6 +2085,7 @@ Show closed	Mostrar cerrados
 Show link	Mostrar enlace
 Show measurements	Mostrar mediciones
 Show month	Mostrar mes
+Show the link	Mostrar el enlace
 Show them	Mostrarlos
 Side by side	Lado a lado
 Sign	Firmar
@@ -2210,6 +2232,7 @@ Team members	Miembros del equipo
 Telehandler	Manipulador telescópico
 Tell people a sheet revision was issued by {}	Avisar a las personas que se emitió una revisión del plano por {}
 Tell people the current revision was issued	Avisar a las personas que se emitió la revisión actual
+Tell us who you are. The team reviews each request and, if approved, emails you a private link to the bid documents and the bid form.	Díganos quién es. El equipo revisa cada solicitud y, si la aprueba, le envía por correo un enlace privado a los documentos y al formulario de oferta.
 Template	Plantilla
 Template gives	La plantilla otorga
 Template name	Nombre de la plantilla
@@ -2248,6 +2271,7 @@ This link doesn't work	Este enlace no funciona
 This month	Este mes
 This package is not out for bid yet.	Este paquete aún no ha salido a licitación.
 This package is not taking bids.	Este paquete no recibe ofertas.
+This package is not taking requests right now.	Este paquete no recibe solicitudes por ahora.
 This period	Este periodo
 This period, {}	Este periodo, {}
 This project needs a signed contract before a commitment can be approved.	Este proyecto necesita un contrato firmado antes de poder aprobar un compromiso.
@@ -2284,6 +2308,8 @@ Trends	Tendencias
 Trends appear once observations are recorded.	Las tendencias aparecen cuando se registran observaciones.
 Tue	Mar
 Turn email off	Desactivar el correo
+Turn off	Desactivar
+Turn on the open link	Activar el enlace abierto
 Two coats applied.	Dos manos aplicadas.
 Two weeks	Dos semanas
 Type	Tipo
@@ -2436,6 +2462,7 @@ You'll be told here when something needs you, like a submittal waiting for your 
 Your bid	Su oferta
 Your first name	Tu nombre
 Your last name	Tu apellido
+Your name	Su nombre
 Your question	Su pregunta
 Your reply	Tu respuesta
 Your response	Tu respuesta
@@ -2497,6 +2524,7 @@ standard on project management, read-only financials.	estándar en gestión del 
 submitted {}	enviado {}
 the date in the picture, else today)	la fecha de la foto, si no hoy)
 the file name)	el nombre del archivo)
+the old one stops working at once.	el anterior deja de funcionar de inmediato.
 the schedule of values that gets invoiced	el cronograma de valores que se factura
 title, location,	title, ubicación,
 title, location, {}, priority (low, medium, high, urgent), due date (YYYY-MM-DD), assignees (email addresses separated by semicolons). A header line starting with title is skipped. Nothing is added unless every line is good.	title, ubicación, {}, prioridad (low, medium, high, urgent), fecha de vencimiento (YYYY-MM-DD), responsables (correos separados por punto y coma). Se omite una línea de encabezado que empiece por title. No se añade nada a menos que todas las líneas sean correctas.

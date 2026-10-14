@@ -167,6 +167,35 @@ pub struct BidQuestion {
     pub published: bool,
 }
 
+/// A company that asked, through the package's open link, to be invited to bid. The team approves or declines it;
+/// approving invites the company (a link goes to the address it gave).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BidRegistration {
+    /// Counts up from 1 within the package.
+    pub number: u32,
+    pub company: String,
+    pub contact: String,
+    pub email: String,
+    #[serde(default)]
+    pub phone: String,
+    pub requested: Stamp,
+    /// The company in the directory it was approved as, and the link (invitation number) it was given.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vendor: Option<Id<Vendor>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub invitation: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approved: Option<Stamp>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub declined: Option<Stamp>,
+}
+
+impl BidRegistration {
+    pub fn pending(&self) -> bool {
+        self.approved.is_none() && self.declined.is_none()
+    }
+}
+
 /// A bid from one company. Only the latest bid from a company stands.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Bid {
@@ -263,6 +292,14 @@ pub struct BidPackage {
     pub sealed: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sealed_bids: Vec<Bid>,
+    /// An open link lets any company ask to be invited (the team approves each). `public_generation` is bumped to
+    /// replace the link.
+    #[serde(default)]
+    pub public: bool,
+    #[serde(default)]
+    pub public_generation: u32,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub registrations: Vec<BidRegistration>,
     /// Questions bidders asked through their links.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub questions: Vec<BidQuestion>,

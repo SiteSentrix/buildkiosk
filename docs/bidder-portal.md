@@ -58,7 +58,11 @@ is copied (see Clean-room in `AGENTS.md`).
   bidder can only withdraw if the package allows it.
 - Entered-by is recorded as "the bidder (via invitation)" next to the contact, so the team can tell portal bids from
   ones they typed.
-- **Sealed bids:** until the package is closed, the team sees that a bid arrived but a package setting
+- **Sealed bids (as built):** bids sent through a link are kept in a separate list (`sealed_bids`) that no existing
+  page, report, comparison or award reads; `bid_package.get` and `.list` show only who has bid and when, never what.
+  Closing the package, or an admin's `bid_package.unseal`, moves them into the bids the team sees, each replacing the
+  company's earlier bid. A package with `sealed` turned off takes them straight into the bids. The rest of this
+  bullet describes the intent: until the package is closed, the team sees that a bid arrived but a package setting
   (`sealed`, default on) hides amounts from everyone but admins who explicitly open them, and the open is journaled.
   Unsealing does not reveal a bid to other bidders under any setting.
 
@@ -74,7 +78,7 @@ is copied (see Clean-room in `AGENTS.md`).
 | Invitation record (number, company, address, generation, expiry, sent, cancelled) | model `BidInvitation` on `BidPackage`, additive, `#[serde(default)]`; no secret in it |
 | Link secret | derived by the server from its own secret (`crates/server`), never stored |
 | New commands | `crates/engine/src/cmd/bidding.rs`: `bid_package.invite`, `.revoke_invite`, `.resend_invite`, `.invite_sent`, `.invitations`, `.portal_view`, `.portal_submit`, `.portal_ack`, `.portal_ask`, `.answer_question` |
-| New actor | `Actor::Bidder(InvitationId)`; the engine allows it only the `portal_*` commands and only for its own package and vendor |
+| Who runs them | No new actor kind. The `portal_*` commands are System-only (so a person, token or agent can't call them over the API, CLI or MCP); the server runs them after it has checked the link's secret, passing the invitation number and generation. The engine re-checks the invitation itself: it must belong to the package, match the generation, not be cancelled or past its last day. Every bad link gets the same "not valid" answer |
 | Pages | `crates/web` (bidder pages with their own minimal layout, no company navigation) |
 | Routes | `crates/server`: `/bid/<token>/…`, outside the session middleware, with their own rate limit |
 | Fuzz | add the portal commands and the new actor to `command_sweep.rs` and `journal.rs` |
@@ -113,6 +117,16 @@ Bidder accounts with a login; a bidder directory shared across projects; online 
 the bid; automatic reminders to bidders (the team can resend); bid bonds verified with a surety; languages other
 than the interface's four.
 
+## Rules as built
+
+- A bidder can send, change or withdraw a bid only while the package is **out for bid** and today is not past its due
+  day. To take late bids, reopen the package and move the due date.
+- A revised bid keeps the bond receipt, files and scores the team recorded for the company; the team, not the bidder,
+  records that a bond arrived.
+- Acknowledging an addendum is idempotent.
+- The journal holds the sealed bids (it holds everything); nothing in the app shows bid-package history, so no page
+  can leak them.
+
 ## Decisions (owner, 2026-10-14)
 
 1. **Access: emailed link only.** No bidder accounts or login in the first version.
@@ -129,7 +143,8 @@ than the interface's four.
 
 1. **Done 2026-10-14.** Model and engine: `BidInvitation`; `bid_package.invite`, `.resend_invite`, `.revoke_invite`,
    `.invite_sent`, `.invitations`, with tests. (The link secret is derived, not stored; see Invitation above.)
-2. The `Actor::Bidder` kind and `portal_view` / `portal_ack`, then `portal_submit` with sealing and the due-time rule.
+2. **Done 2026-10-14.** `portal_view`, `portal_ack`, `portal_submit`, `portal_withdraw` (System-only), sealing
+   (`BidPackage.sealed`, `sealed_bids`, `bid_package.unseal`, closing opens them) and the due-day rule.
 3. Server: deriving and checking link secrets, the emailing pass, routes and pages under `/bid/<token>`, headers, rate
    limits, CSRF, and the team page that lists and copies links.
 4. Q&A commands and pages (`portal_ask`, `answer_question`).

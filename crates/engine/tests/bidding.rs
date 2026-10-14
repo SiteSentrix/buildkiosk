@@ -335,3 +335,146 @@ fn bid_links_are_invited_resent_and_cancelled() {
     w.err(pm, "bid_package.resend_invite", args(json!({"number": 1})));
     w.assert_replay();
 }
+
+#[test]
+fn bidders_use_their_links_and_sealed_bids_stay_unseen_until_closing() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let eng = w.member(p, "Eli", "Engineer", "Project engineer");
+    w.ok(pm, "member.update", json!({"project": p, "person": eng, "overrides": {"bidding": "standard"}}));
+    let a = w.ok(w.admin(), "vendor.create", json!({"name": "Keystone Concrete", "kind": "subcontractor"}))["id"].as_u64().unwrap();
+    let b = w.ok(w.admin(), "vendor.create", json!({"name": "Northline Concrete", "kind": "subcontractor"}))["id"].as_u64().unwrap();
+    let id = w.ok(
+        pm,
+        "bid_package.create",
+        json!({"project": p, "title": "Concrete", "scope": "Footings", "due": "2099-01-01",
+                   "form_items": [{"description": "Footings", "unit": "cy", "quantity": "10"}], "alternates": [{"name": "Colored slab"}]}),
+    )["id"]
+        .as_u64()
+        .unwrap();
+    let args = |extra: serde_json::Value| {
+        let mut v = json!({"project": p, "id": id});
+        v.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+        v
+    };
+    let link = |n: u32, g: u32, extra: serde_json::Value| {
+        args(json!({"invitation": n, "generation": g}))
+            .as_object()
+            .unwrap()
+            .clone()
+            .into_iter()
+            .chain(extra.as_object().unwrap().clone())
+            .collect::<serde_json::Value>()
+    };
+    w.ok(pm, "bid_package.invite", args(json!({"vendor": a, "email": "bids@keystone.example"})));
+    w.ok(pm, "bid_package.invite", args(json!({"vendor": b, "email": "bids@northline.example"})));
+    w.ok(pm, "bid_package.addendum", args(json!({"title": "Footing depth"})));
+
+    // Nobody but the server (the system) can run the portal commands, and nothing works before bidding opens.
+    w.err(pm, "bid_package.portal_view", link(1, 0, json!({})));
+    w.err(w.admin(), "bid_package.portal_submit", link(1, 0, json!({"amount": "5"})));
+    w.ok(Actor::System, "bid_package.portal_view", link(1, 0, json!({})));
+    assert!(!w.ok(Actor::System, "bid_package.portal_view", link(1, 0, json!({})))["taking_bids"].as_bool().unwrap());
+    w.err(Actor::System, "bid_package.portal_submit", link(1, 0, json!({"lines": [{"item": 0, "unit_price": "100"}]})));
+    w.ok(pm, "bid_package.open", args(json!({})));
+
+    // A bidder sees their own package and nothing about the other company.
+    let view = w.ok(Actor::System, "bid_package.portal_view", link(1, 0, json!({})));
+    assert_eq!((view["company"].as_str().unwrap(), view["taking_bids"].as_bool().unwrap()), ("Keystone Concrete", true));
+    assert!(!view.to_string().contains("Northline") && !view.to_string().contains("northline"));
+    assert!(view["bid"].is_null());
+
+    // Wrong or unknown links all give the same answer.
+    let same = w.err(Actor::System, "bid_package.portal_view", link(1, 7, json!({}))).to_string();
+    assert_eq!(same, w.err(Actor::System, "bid_package.portal_view", link(99, 0, json!({}))).to_string());
+    assert_eq!(same, w.err(Actor::System, "bid_package.portal_submit", link(1, 7, json!({"amount": "5"}))).to_string());
+
+    // Submitting: validated like a team bid, and the lines make the total.
+    w.err(Actor::System, "bid_package.portal_submit", link(1, 0, json!({"lines": [{"item": 3, "unit_price": "100"}]})));
+    w.err(Actor::System, "bid_package.portal_submit", link(1, 0, json!({"amount": "0"})));
+    let out = w.ok(
+        Actor::System,
+        "bid_package.portal_submit",
+        link(1, 0, json!({"lines": [{"item": 0, "unit_price": "1,200"}], "notes": "Excludes rebar", "alternates": [{"index": 0, "amount": "900"}]})),
+    );
+    assert_eq!(out["reference"], "BP1-1");
+    w.ok(Actor::System, "bid_package.portal_submit", link(2, 0, json!({"lines": [{"item": 0, "unit_price": "1100"}]})));
+    w.ok(Actor::System, "bid_package.portal_ack", link(1, 0, json!({"number": 1})));
+    w.ok(Actor::System, "bid_package.portal_ack", link(1, 0, json!({"number": 1})));
+    w.err(Actor::System, "bid_package.portal_ack", link(1, 0, json!({"number": 9})));
+    assert_eq!(w.engine.state().bid_packages.iter().next().unwrap().acknowledgements.len(), 1);
+
+    // The team sees that two bids arrived but not what they say, in any command.
+    let pkg = w.engine.state().bid_packages.iter().next().unwrap().clone();
+    assert!(pkg.bids.is_empty() && pkg.sealed_bids.len() == 2);
+    for shown in [
+        w.ok(pm, "bid_package.get", args(json!({}))),
+        w.ok(pm, "bid_package.list", json!({"project": p})),
+        w.ok(pm, "bid_package.level", args(json!({}))),
+    ] {
+        let text = shown.to_string();
+        assert!(!text.contains("1200000") && !text.contains("1100000") && !text.contains("Excludes rebar"), "{text}");
+    }
+    assert_eq!(w.ok(pm, "bid_package.get", args(json!({})))["sealed_waiting"].as_array().unwrap().len(), 2);
+    w.err(pm, "bid_package.award", args(json!({"vendor": a})));
+    w.err(eng, "bid_package.unseal", args(json!({})));
+
+    // A bidder can revise before the due day, and withdraw; a cancelled or replaced link stops working at once.
+    w.ok(Actor::System, "bid_package.portal_submit", link(1, 0, json!({"lines": [{"item": 0, "unit_price": "1000"}]})));
+    assert_eq!(w.engine.state().bid_packages.iter().next().unwrap().sealed_bids.len(), 2, "a revision replaces the earlier bid");
+    w.ok(Actor::System, "bid_package.portal_withdraw", link(2, 0, json!({})));
+    w.err(Actor::System, "bid_package.portal_withdraw", link(2, 0, json!({})));
+    w.ok(pm, "bid_package.resend_invite", args(json!({"number": 2})));
+    w.err(Actor::System, "bid_package.portal_submit", link(2, 0, json!({"amount": "1"})));
+    w.ok(Actor::System, "bid_package.portal_submit", link(2, 1, json!({"lines": [{"item": 0, "unit_price": "1050"}]})));
+    w.ok(pm, "bid_package.revoke_invite", args(json!({"number": 2})));
+    w.err(Actor::System, "bid_package.portal_submit", link(2, 1, json!({"amount": "1"})));
+
+    // Closing opens the sealed bids; after that the bidder can't change anything.
+    let closed = w.ok(pm, "bid_package.close", args(json!({})));
+    assert_eq!(closed["opened"], 2);
+    let pkg = w.engine.state().bid_packages.iter().next().unwrap().clone();
+    assert!(pkg.sealed_bids.is_empty());
+    assert_eq!(pkg.bids.len(), 2);
+    assert!(pkg.bids.iter().all(|x| x.via.is_some()));
+    assert_eq!(pkg.standing().first().unwrap().amount, Money::parse("10000").unwrap());
+    w.err(Actor::System, "bid_package.portal_submit", link(1, 0, json!({"amount": "1"})));
+    w.err(Actor::System, "bid_package.portal_withdraw", link(1, 0, json!({})));
+    w.assert_replay();
+}
+
+#[test]
+fn unsealed_packages_and_late_bids() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let eng = w.member(p, "Eli", "Engineer", "Project engineer");
+    w.ok(pm, "member.update", json!({"project": p, "person": eng, "overrides": {"bidding": "standard"}}));
+    let a = w.ok(w.admin(), "vendor.create", json!({"name": "Keystone Concrete", "kind": "subcontractor"}))["id"].as_u64().unwrap();
+    let id = w.ok(pm, "bid_package.create", json!({"project": p, "title": "Concrete", "sealed": false, "due": "2026-10-20", "invite": [a]}))["id"]
+        .as_u64()
+        .unwrap();
+    w.ok(pm, "bid_package.invite", json!({"project": p, "id": id, "vendor": a, "email": "bids@keystone.example"}));
+    w.ok(pm, "bid_package.open", json!({"project": p, "id": id}));
+    let link = json!({"project": p, "id": id, "invitation": 1, "generation": 0, "amount": "5000"});
+    // Not sealed: the team sees the bid at once.
+    w.ok(Actor::System, "bid_package.portal_submit", link.clone());
+    assert_eq!(w.engine.state().bid_packages.iter().next().unwrap().bids.len(), 1);
+    // Sealed bids can be opened early by an admin only.
+    w.ok(pm, "bid_package.update", json!({"project": p, "id": id, "sealed": true}));
+    w.ok(Actor::System, "bid_package.portal_submit", json!({"project": p, "id": id, "invitation": 1, "generation": 0, "amount": "4800"}));
+    w.err(eng, "bid_package.unseal", json!({"project": p, "id": id}));
+    w.err(pm, "bid_package.update", json!({"project": p, "id": id, "sealed": false}));
+    let admin = w.admin();
+    assert_eq!(w.ok(admin, "bid_package.unseal", json!({"project": p, "id": id}))["opened"], 1);
+    assert_eq!(w.engine.state().bid_packages.iter().next().unwrap().bids[0].amount, Money::parse("4800").unwrap());
+    // Past the due day nothing goes through until the team moves the date.
+    w.advance_days(60);
+    w.err(Actor::System, "bid_package.portal_submit", link.clone());
+    w.ok(pm, "bid_package.update", json!({"project": p, "id": id, "due": "2099-01-01"}));
+    w.ok(Actor::System, "bid_package.portal_submit", link);
+    // A link past its own last day stops working.
+    w.ok(pm, "bid_package.invite", json!({"project": p, "id": id, "vendor": a, "email": "late@keystone.example", "expires": "2099-01-02"}));
+    w.assert_replay();
+}

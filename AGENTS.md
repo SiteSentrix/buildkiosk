@@ -155,4 +155,4 @@ hours) and its evidence, the gap entry in `docs/gaps.md` if it closed or shrank,
 status line.
 - Grade by behaviour against the public documentation, not by whether a page exists. Scores are self-assessed, so
   err low; mark each number measured or estimated.
-- Keep the README's Status section in step with the ROADMAP headline.
+- Keep the README's pre-release note and its tool tables in step with the ROADMAP headline and what ships (a tool or a major capability that lands gets a line in the README's tables).

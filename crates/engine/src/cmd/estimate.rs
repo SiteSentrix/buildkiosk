@@ -886,6 +886,16 @@ impl Group {
     }
 }
 
+/// The kind a markup is totalled under in a take-off: paths with lengths, outlines with areas.
+pub fn takeoff_kind(kind: buildkiosk_model::drawing::MarkupKind) -> buildkiosk_model::drawing::MarkupKind {
+    use buildkiosk_model::drawing::MarkupKind as K;
+    match kind {
+        K::Polyline => K::Dimension,
+        K::Polygon => K::Area,
+        other => other,
+    }
+}
+
 /// The measurements on the current revision of a sheet, by kind and label.
 fn groups(state: &buildkiosk_model::CompanyState, project: Id<Project>, drawing: Id<buildkiosk_model::drawing::Drawing>) -> Result<Vec<Group>> {
     use buildkiosk_model::drawing::MarkupKind as K;
@@ -895,14 +905,16 @@ fn groups(state: &buildkiosk_model::CompanyState, project: Id<Project>, drawing:
     }
     let mut out: Vec<Group> = Vec::new();
     for m in d.current().into_iter().flat_map(|r| &r.markups) {
-        if !matches!(m.kind, K::Dimension | K::Area | K::Pin) || (m.kind != K::Pin && m.measure == 0) {
+        if !(m.kind.measures_length() || m.kind.measures_area() || m.kind == K::Pin) || (m.kind != K::Pin && m.measure == 0) {
             continue;
         }
+        // A path adds up with straight lengths, an outline with boxes.
+        let kind = takeoff_kind(m.kind);
         let label = m.text.trim().to_string();
-        let g = match out.iter().position(|g| g.kind == m.kind && g.label == label) {
+        let g = match out.iter().position(|g| g.kind == kind && g.label == label) {
             Some(i) => i,
             None => {
-                out.push(Group { kind: m.kind, label, count: 0, total: 0, unit: m.unit, mixed: false });
+                out.push(Group { kind, label, count: 0, total: 0, unit: m.unit, mixed: false });
                 out.len() - 1
             }
         };

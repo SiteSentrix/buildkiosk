@@ -1,7 +1,7 @@
 //! Estimating pages: the estimates list, one estimate with its totals, and the form.
 
 use buildkiosk_core::{Id, Money};
-use buildkiosk_engine::cmd::estimate::{can_read_templates, templates, visible};
+use buildkiosk_engine::cmd::estimate::{can_read_templates, takeoff_kind, templates, visible};
 use buildkiosk_engine::model::drawing::{Drawing, MarkupKind};
 use buildkiosk_engine::model::estimate::{Estimate, EstimateLine, EstimateStatus};
 use buildkiosk_engine::model::project::Project;
@@ -190,7 +190,7 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, eid: Id<Estimate>, takeoff: Option
                         }))
                     }
                     h3 { "A takeoff from a drawing" }
-                    @let sheets: Vec<_> = state.drawings.iter().filter(|d| d.project == id && d.deleted.is_none() && d.current().is_some_and(|r| r.markups.iter().any(|m| matches!(m.kind, MarkupKind::Dimension | MarkupKind::Area | MarkupKind::Pin)))).collect();
+                    @let sheets: Vec<_> = state.drawings.iter().filter(|d| d.project == id && d.deleted.is_none() && d.current().is_some_and(|r| r.markups.iter().any(|m| m.kind == MarkupKind::Pin || m.kind.measures_length() || m.kind.measures_area()))).collect();
                     @if sheets.is_empty() { p class="muted" { "No sheet has measurements yet. Set a page's scale in the sheet viewer and draw lengths, areas or pins." } } @else {
                         form method="get" action=(here.clone()) class="filters" {
                             select name="takeoff" aria-label="Drawing" { @for d in &sheets { option value=(d.id) selected[takeoff == Some(d.id)] { (d.label()) } } }
@@ -353,8 +353,8 @@ pub fn csv(req: &Req<'_>, id: Id<Project>, eid: Id<Estimate>) -> Option<String> 
 fn takeoff_groups(d: &Drawing) -> Vec<(MarkupKind, String)> {
     let mut groups: Vec<(MarkupKind, String)> = Vec::new();
     for m in d.current().into_iter().flat_map(|r| &r.markups) {
-        if matches!(m.kind, MarkupKind::Dimension | MarkupKind::Area | MarkupKind::Pin) && (m.kind == MarkupKind::Pin || m.measure > 0) {
-            let key = (m.kind, m.text.trim().to_string());
+        if (m.kind == MarkupKind::Pin || m.kind.measures_length() || m.kind.measures_area()) && (m.kind == MarkupKind::Pin || m.measure > 0) {
+            let key = (takeoff_kind(m.kind), m.text.trim().to_string());
             if !groups.contains(&key) {
                 groups.push(key);
             }

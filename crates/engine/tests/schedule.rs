@@ -619,3 +619,65 @@ fn several_named_baselines_and_the_one_in_use() {
     w.err(pm, "schedule.baseline_use", json!({"project": other, "id": a}));
     w.assert_replay();
 }
+
+#[test]
+fn importing_a_planning_program_exchange_file() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let reader = w.member(p, "Rae", "Reader", "Read only");
+    // A small made-up file in the tab-separated layout: two projects, a work breakdown, tasks and links.
+    let xer = [
+        "ERMHDR\t19.12\t2026-10-12\tProject\tadmin\tdemo\tdbname\tProject Management\tUSD",
+        "%T\tPROJECT",
+        "%F\tproj_id\tproj_short_name",
+        "%R\t100\tCLINIC",
+        "%R\t200\tOTHER",
+        "%T\tPROJWBS",
+        "%F\twbs_id\tproj_id\tparent_wbs_id\twbs_short_name\twbs_name\tproj_node_flag",
+        "%R\t1\t100\t\tCLINIC\tRiverside Clinic\tY",
+        "%R\t2\t100\t1\tSITE\tSite work\tN",
+        "%R\t3\t100\t1\tEMPTY\tNothing under this\tN",
+        "%R\t9\t200\t\tOTHER\tOther project\tY",
+        "%T\tTASK",
+        "%F\ttask_id\tproj_id\twbs_id\ttask_name\ttask_type\tstatus_code\ttarget_start_date\ttarget_end_date\tact_start_date\tact_end_date\tphys_complete_pct\tcstr_type\tcstr_date",
+        "%R\t11\t100\t2\tClear\tTT_Task\tTK_Complete\t2026-10-12 08:00\t2026-10-13 17:00\t2026-10-12 08:00\t2026-10-13 17:00\t100\t\t",
+        "%R\t12\t100\t2\tGrade\tTT_Task\tTK_Active\t2026-10-14 08:00\t2026-10-16 17:00\t2026-10-14 08:00\t\t40\tCS_MSOA\t2026-10-14 00:00",
+        "%R\t13\t100\t1\tSite ready\tTT_FinMile\tTK_NotStart\t2026-10-19 08:00\t2026-10-19 08:00\t\t\t\t\t",
+        "%R\t14\t100\t2\tNo dates\tTT_Task\tTK_NotStart\t\t\t\t\t\t\t",
+        "%R\t15\t100\t2\tSummary line\tTT_WBS\tTK_NotStart\t2026-10-12 08:00\t2026-10-16 17:00\t\t\t\t\t",
+        "%R\t21\t200\t9\tElsewhere\tTT_Task\tTK_NotStart\t2026-10-12 08:00\t2026-10-13 17:00\t\t\t\t\t",
+        "%T\tTASKPRED",
+        "%F\ttask_pred_id\ttask_id\tpred_task_id\tproj_id\tpred_type\tlag_hr_cnt",
+        "%R\t1\t12\t11\t100\tPR_SS\t8",
+        "%R\t2\t13\t12\t100\tPR_FS\t0",
+        "%R\t3\t13\t21\t100\tPR_FS\t0",
+        "%E",
+    ]
+    .join("\r\n");
+    w.err(reader, "schedule.import_xer", json!({"project": p, "text": xer}));
+    w.err(pm, "schedule.import_xer", json!({"project": p, "text": "plain text"}));
+    w.err(pm, "schedule.import_xer", json!({"project": p, "text": xer, "proj_id": "999"}));
+    let out = w.ok(pm, "schedule.import_xer", json!({"project": p, "text": xer}));
+    // The work breakdown node with tasks becomes a summary task; the empty one and the root don't.
+    assert_eq!((out["added"].as_u64(), out["skipped"].as_u64()), (Some(4), Some(1)));
+    let list = w.ok(pm, "schedule.list", json!({"project": p}));
+    let by_name = |n: &str| list.as_array().unwrap().iter().find(|r| r["name"] == n).unwrap().clone();
+    assert_eq!(by_name("Site work")["summary"], true);
+    assert_eq!((by_name("Clear")["depth"].as_u64(), by_name("Site ready")["milestone"].as_bool()), (Some(1), Some(true)));
+    assert_eq!((by_name("Clear")["percent"].as_u64(), by_name("Grade")["percent"].as_u64()), (Some(100), Some(40)));
+    let grade = w.ok(pm, "schedule.get", json!({"project": p, "id": by_name("Grade")["id"].as_u64().unwrap()}));
+    assert_eq!((grade["predecessors"][0]["kind"].as_str(), grade["predecessors"][0]["lag"].as_i64()), (Some("ss"), Some(1)));
+    assert_eq!((grade["constraint"].as_str(), grade["constraint_date"].as_str()), (Some("snet"), Some("2026-10-14")));
+    // The link to a task in the other project is dropped, not an error.
+    let ready = w.ok(pm, "schedule.get", json!({"project": p, "id": by_name("Site ready")["id"].as_u64().unwrap()}));
+    assert_eq!(ready["predecessors"].as_array().unwrap().len(), 1);
+    // The second project in the file can be chosen.
+    let other = w.project("Harbor Office");
+    let template = buildkiosk_engine::cmd::company::template_named(w.engine.state(), "Project manager").unwrap();
+    w.ok(w.admin(), "member.add", json!({"project": other, "person": pm, "template": template}));
+    let pm2 = pm;
+    w.ok(pm2, "schedule.import_xer", json!({"project": other, "text": xer, "proj_id": "200"}));
+    assert_eq!(w.ok(pm2, "schedule.list", json!({"project": other})).as_array().unwrap().len(), 1);
+    w.assert_replay();
+}

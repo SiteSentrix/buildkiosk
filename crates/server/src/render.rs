@@ -157,11 +157,15 @@ pub(crate) mod tests {
 
     /// A one-page PDF with a filled box, written by hand.
     pub fn tiny_pdf(box_x: u32) -> Vec<u8> {
-        let content = format!("0 0 0 rg {box_x} 100 80 60 re f");
+        pdf_page(&format!("0 0 0 rg {box_x} 100 80 60 re f"), "<< >>")
+    }
+
+    /// A one-page PDF with the given page content and resources dictionary.
+    fn pdf_page(content: &str, resources: &str) -> Vec<u8> {
         let objects = [
             "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
             "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_string(),
-            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 300] /Contents 4 0 R /Resources << >> >>".to_string(),
+            format!("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 300] /Contents 4 0 R /Resources {resources} >>"),
             format!("<< /Length {} >>\nstream\n{content}\nendstream", content.len()),
         ];
         let mut out = b"%PDF-1.4\n".to_vec();
@@ -194,6 +198,21 @@ pub(crate) mod tests {
         let png = render_page(tiny_pdf(50), 0, 300).unwrap();
         let i = info(png).unwrap();
         assert_eq!((i.image, i.pages(), i.dims[0]), (true, 1, (300.0, 225.0)));
+    }
+
+    /// Text in fonts the file does not embed (the standard names and common look-alikes) is drawn
+    /// with the bundled set rather than left blank.
+    #[test]
+    fn text_in_fonts_the_file_does_not_embed_is_drawn() {
+        for base in
+            ["Helvetica", "Times-Roman", "Courier", "ArialMT", "TimesNewRomanPSMT", "Arial-BoldMT", "Calibri", "Verdana-Bold", "CourierNewPSMT"]
+        {
+            let resources = format!("<< /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /{base} >> >> >>");
+            let pdf = pdf_page("BT /F1 48 Tf 20 120 Td (Footing F-2) Tj ET", &resources);
+            let img = image::load_from_memory(&render_page(pdf, 0, 800).unwrap()).unwrap().to_luma8();
+            let dark = img.pixels().filter(|p| p.0[0] < 100).count();
+            assert!(dark > 400, "{base} drew {dark} dark pixels");
+        }
     }
 
     #[test]

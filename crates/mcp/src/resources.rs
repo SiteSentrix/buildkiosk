@@ -100,6 +100,31 @@ fn entries(tenant: &Tenant, actor: Actor) -> Vec<Entry> {
     out
 }
 
+/// What a resource is at the moment: the hash of its file, or `None` when the person can't open it
+/// (it doesn't exist, was deleted or is hidden from them). A change in this is a change worth telling.
+pub fn fingerprint(tenant: &Tenant, actor: Actor, wanted: &str) -> Option<String> {
+    let (kind, project, id) = parse(wanted)?;
+    let state = tenant.engine.state();
+    let project = buildkiosk_core::Id::new(project);
+    match kind {
+        Kind::Document => {
+            let d = state.documents.get(buildkiosk_core::Id::new(id)).filter(|d| d.project == project && d.deleted.is_none())?;
+            view::can_see_document(state, actor, d).then(|| d.current().map(|v| v.file.sha256.clone()))?
+        }
+        Kind::Drawing => {
+            let d = state.drawings.get(buildkiosk_core::Id::new(id)).filter(|d| d.project == project && d.deleted.is_none())?;
+            if view::level(state, actor, d.project, Tool::Drawings) < Level::Read {
+                return None;
+            }
+            d.revisions.last()?.file.as_ref().map(|f| f.sha256.clone())
+        }
+        Kind::Photo => {
+            let p = state.photos.get(buildkiosk_core::Id::new(id)).filter(|p| p.project == project && p.deleted.is_none())?;
+            (view::level(state, actor, p.project, Tool::Photos) >= Level::Read).then(|| p.file.sha256.clone())
+        }
+    }
+}
+
 /// Whether a media type is read as text.
 fn is_text(mime: &str) -> bool {
     let mime = mime.split(';').next().unwrap_or("").trim().to_ascii_lowercase();

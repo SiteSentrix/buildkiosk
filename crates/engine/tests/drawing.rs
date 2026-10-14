@@ -209,3 +209,84 @@ fn measuring_against_a_pages_scale() {
     w.err(pm, "drawing.scale_clear", base(json!({})));
     w.assert_replay();
 }
+
+#[test]
+fn paths_and_outlines_are_measured_and_taken_off() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let reader = w.member(p, "Rae", "Reader", "Read only");
+    let sha = "a".repeat(64);
+    let id = w.ok(
+        pm,
+        "drawing.add",
+        json!({"project": p, "number": "A-101", "title": "Plan", "revision": "A", "sha256": sha, "name": "a.pdf", "size": 10}),
+    )["id"]
+        .as_u64()
+        .unwrap();
+    let add = |w: &mut World, who, extra: serde_json::Value| {
+        let mut v = json!({"project": p, "id": id});
+        for (k, val) in extra.as_object().unwrap() {
+            v[k] = val.clone();
+        }
+        w.run(who, "drawing.markup_add", v)
+    };
+    let rev = |w: &World| w.engine.state().drawings.iter().next().unwrap().revisions[0].clone();
+    let text_of = |w: &World, n: u64| rev(w).markups.iter().find(|m| u64::from(m.id) == n).unwrap().measure_text();
+
+    // No scale yet: refused. Then a scale where 5,000 units across the page is 10 ft.
+    assert!(add(&mut w, pm, json!({"kind": "polyline", "points": "0,0 5000,0 5000,2500"})).is_err());
+    w.ok(
+        pm,
+        "drawing.scale_set",
+        json!({"project": p, "id": id, "x": 2500, "y": 5000, "x2": 7500, "y2": 5000, "aspect": 1000, "length": "10", "unit": "ft"}),
+    );
+
+    let path = add(&mut w, pm, json!({"kind": "polyline", "points": "0,0 5000,0 5000,2500", "text": "Footing"})).unwrap()["markup"].as_u64().unwrap();
+    assert_eq!(text_of(&w, path).as_deref(), Some("15.00 ft"));
+    // An L-shaped outline: 10 x 10 ft less a 5 x 5 ft corner.
+    let l = "0,0 5000,0 5000,2500 2500,2500 2500,5000 0,5000";
+    let area = add(&mut w, pm, json!({"kind": "polygon", "points": l, "text": "Slab"})).unwrap()["markup"].as_u64().unwrap();
+    assert_eq!(text_of(&w, area).as_deref(), Some("75.0 sq ft"));
+    // The first two corners are kept as x, y, x2, y2, and the corners with the markup.
+    let m = rev(&w).markups.iter().find(|m| u64::from(m.id) == area).unwrap().clone();
+    assert_eq!((m.x, m.y, m.x2, m.y2, m.points.len()), (0, 0, 5000, 0, 6));
+
+    // Refused: too few points, junk, out of range, a side crossing another, a repeated corner, and a reader.
+    for bad in [
+        json!({"kind": "polygon", "points": "0,0 100,100"}),
+        json!({"kind": "polyline", "points": "0,0"}),
+        json!({"kind": "polyline", "points": "0,0 x,5"}),
+        json!({"kind": "polyline", "points": "0,0 20000,5"}),
+        json!({"kind": "polygon", "points": "0,0 5000,5000 5000,0 0,5000"}),
+        json!({"kind": "polyline", "points": "0,0 0,0 100,100"}),
+        json!({"kind": "polyline"}),
+    ] {
+        assert!(add(&mut w, pm, bad.clone()).is_err(), "{bad}");
+    }
+    let many: Vec<String> = (0..201).map(|i| format!("{},{}", i * 10, if i % 2 == 0 { 0 } else { 10 })).collect();
+    assert!(add(&mut w, pm, json!({"kind": "polyline", "points": many.join(" ")})).is_err(), "more than 200 points");
+    assert!(add(&mut w, reader, json!({"kind": "polyline", "points": "0,0 100,100"})).is_err());
+
+    // Changing the scale works them out again (the stretch is now 20 m): 30 m and 300 sq m.
+    w.ok(
+        pm,
+        "drawing.scale_set",
+        json!({"project": p, "id": id, "x": 2500, "y": 5000, "x2": 7500, "y2": 5000, "aspect": 1000, "length": "20", "unit": "m"}),
+    );
+    assert_eq!(text_of(&w, path).as_deref(), Some("30.00 m"));
+    assert_eq!(text_of(&w, area).as_deref(), Some("300.00 sq m"));
+
+    // A take-off adds a path to the straight lengths of the same label, and an outline to the areas.
+    w.ok(
+        pm,
+        "drawing.scale_set",
+        json!({"project": p, "id": id, "x": 2500, "y": 5000, "x2": 7500, "y2": 5000, "aspect": 1000, "length": "10", "unit": "ft"}),
+    );
+    add(&mut w, pm, json!({"kind": "dim", "x": 0, "y": 1000, "x2": 5000, "y2": 1000, "text": "Footing"})).unwrap();
+    let sum = w.ok(pm, "takeoff.summary", json!({"project": p, "drawing": id}));
+    let find = |kind: &str, label: &str| sum.as_array().unwrap().iter().find(|g| g["kind"] == kind && g["label"] == label).unwrap().clone();
+    assert_eq!((find("dim", "Footing")["quantity"].as_str(), find("dim", "Footing")["count"].as_u64()), (Some("25.000"), Some(2)));
+    assert_eq!((find("area", "Slab")["quantity"].as_str(), find("area", "Slab")["unit"].as_str()), (Some("75.000"), Some("sf")));
+    w.assert_replay();
+}

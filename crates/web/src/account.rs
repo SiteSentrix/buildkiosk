@@ -157,6 +157,9 @@ pub struct BackupInfo {
     pub configured: bool,
     pub dir: String,
     pub copy_to: Option<String>,
+    /// Where backups are uploaded to, when object storage is set, and how the last upload went.
+    pub object_store: Option<String>,
+    pub last_upload: Option<String>,
     pub every_hours: u64,
     pub keep: usize,
     pub rows: Vec<BackupRow>,
@@ -175,6 +178,7 @@ pub fn backups_page(req: &Req<'_>, info: &BackupInfo) -> Markup {
                 dl class="facts" {
                     dt { "Folder" } dd { code { (info.dir) } }
                     dt { "Schedule" } dd { "Every " (info.every_hours) " hours, keeping the newest " (info.keep) }
+                    dt { "Object storage" } dd { @if let Some(o) = &info.object_store { code { (o) } @if let Some(l) = &info.last_upload { br; span class="muted small" { "Last upload: " (l) } } @else { br; span class="muted small" { "Nothing uploaded since the server started." } } } @else { span class="muted" { "None. Add --backup-s3-bucket (see the deployment notes) to upload each backup to S3-compatible storage." } } }
                     dt { "Second copy" } dd { @if let Some(c) = &info.copy_to { code { (c) } } @else { span class="muted" { "None. Add --backup-copy-to FOLDER to copy each backup to another disk or a mounted share." } } }
                 }
                 form method="post" action="/admin/backups/run" class="stack" {

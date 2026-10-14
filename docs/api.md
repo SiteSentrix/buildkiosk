@@ -49,8 +49,11 @@ can do exactly what that person can and no more.
   resources, addressed `buildkiosk://document/{project}/{id}`, `buildkiosk://drawing/{project}/{id}` and
   `buildkiosk://photo/{project}/{id}` (`resources/list` in pages of 100 with `cursor`, `resources/templates/list`,
   `resources/read`). Reading returns the file: text types as `text`, anything else as base64 `blob`, up to 8 MB.
-  Something the person can't open is "not found" (-32002), the same as something that doesn't exist. Subscriptions are
-  not offered (the server answers one request at a time and does not push), so read again to see a change.
+  Something the person can't open is "not found" (-32002), the same as something that doesn't exist. A connection that keeps state can
+  follow resources: `resources/subscribe` and `resources/unsubscribe` with a `uri` (something the person can't open is
+  "not found"), and the server sends `notifications/resources/updated` with that `uri` when the file behind it changes
+  or it stops being readable; read again to get the new version. Over standard input the notification follows the
+  reply to the message that caused the change; over HTTP see below. At most 200 are followed at once.
 - **Prompts:** `prompts/list` offers ready-made briefings (`project_status`, `draft_rfi`, `weekly_look_ahead`,
   `closeout_check`); `prompts/get` fills one in with its arguments and returns the instruction as a user message that
   names the tools to use. A prompt runs nothing itself.
@@ -80,6 +83,12 @@ API token (made on your My account page, which you reach from your name in the t
 `Authorization: Bearer <token>`. It acts as the person who owns the token, runs the same tools as the
 standard-input server, and answers `202` with no body to a notification. Put it behind HTTPS (see
 [`deployment.md`](deployment.md)): the token is a bearer secret.
+
+**Following resources over HTTP.** The reply to `initialize` carries an `Mcp-Session-Id` header; send it on later
+requests (an unknown or ended one answers `404`, and the client starts again). A session left idle for an hour is
+dropped, and at most 200 are kept. `GET /mcp` with the token and that header opens a server-sent-events stream of the
+notifications (changes are looked for every two seconds, with a comment line every fifteen); `DELETE /mcp` ends the
+session. Without a session id the endpoint stays stateless and does not offer subscriptions.
 
 ```json
 { "mcpServers": { "buildkiosk": { "type": "http", "url": "https://buildkiosk.example.com/mcp", "headers": { "Authorization": "Bearer bk_…" } } } }

@@ -26,9 +26,67 @@ Start with me_get to see who you are and which projects you can open, then proje
 Failed calls return isError with the reason; nothing is changed by a failed call. Results come as text and as \
 structuredContent. Documents, drawing sheets and photos are resources (resources/list, resources/read); prompts/list offers ready-made briefings.";
 
+/// What one connected client has subscribed to. A client that subscribes to a resource is told
+/// (`notifications/resources/updated`) when the file behind it changes or it stops being readable;
+/// the server learns of changes by comparing a fingerprint of each subscribed resource whenever
+/// [`Session::poll`] is called.
+#[derive(Default)]
+pub struct Session {
+    /// Each subscribed resource and the fingerprint it had when last looked at.
+    subs: std::collections::BTreeMap<String, Option<String>>,
+}
+
+/// The most resources one client may subscribe to.
+const MAX_SUBSCRIPTIONS: usize = 200;
+
+impl Session {
+    /// Handles one line of input like [`handle_line`], and also answers `resources/subscribe` and
+    /// `resources/unsubscribe`.
+    pub fn handle_line(&mut self, tenant: &mut Tenant, actor: Actor, now: Timestamp, line: &str) -> Option<String> {
+        handle(tenant, actor, now, line, Some(self))
+    }
+
+    /// The notification lines for subscribed resources that changed since the last call.
+    pub fn poll(&mut self, tenant: &Tenant, actor: Actor) -> Vec<String> {
+        let mut out = Vec::new();
+        for (uri, last) in &mut self.subs {
+            let now = resources::fingerprint(tenant, actor, uri);
+            if *last != now {
+                *last = now;
+                out.push(json!({"jsonrpc": "2.0", "method": "notifications/resources/updated", "params": {"uri": uri}}).to_string());
+            }
+        }
+        out
+    }
+
+    /// How many resources are subscribed.
+    pub fn subscriptions(&self) -> usize {
+        self.subs.len()
+    }
+
+    fn subscribe(&mut self, tenant: &Tenant, actor: Actor, params: &Value, on: bool) -> Result<Value, (i64, String)> {
+        let uri = params.get("uri").and_then(Value::as_str).filter(|u| u.len() <= 300).ok_or((-32602, "needs a `uri`".to_string()))?;
+        if !on {
+            self.subs.remove(uri);
+            return Ok(json!({}));
+        }
+        // Only something the person can open can be followed: the same "not found" as reading it.
+        let Some(fingerprint) = resources::fingerprint(tenant, actor, uri) else { return Err((-32002, format!("resource `{uri}` not found"))) };
+        if !self.subs.contains_key(uri) && self.subs.len() >= MAX_SUBSCRIPTIONS {
+            return Err((-32602, format!("at most {MAX_SUBSCRIPTIONS} subscriptions")));
+        }
+        self.subs.insert(uri.to_string(), Some(fingerprint));
+        Ok(json!({}))
+    }
+}
+
 /// Handles one line of input. Returns the line to send back, or `None` for notifications and
-/// blank lines. `now` is the time commands run at.
+/// blank lines. `now` is the time commands run at. Subscriptions need a [`Session`].
 pub fn handle_line(tenant: &mut Tenant, actor: Actor, now: Timestamp, line: &str) -> Option<String> {
+    handle(tenant, actor, now, line, None)
+}
+
+fn handle(tenant: &mut Tenant, actor: Actor, now: Timestamp, line: &str, mut session: Option<&mut Session>) -> Option<String> {
     let line = line.trim();
     if line.is_empty() {
         return None;
@@ -39,11 +97,11 @@ pub fn handle_line(tenant: &mut Tenant, actor: Actor, now: Timestamp, line: &str
             if batch.is_empty() {
                 Some(error(Value::Null, -32600, "an empty batch is not a valid request"))
             } else {
-                let replies: Vec<Value> = batch.iter().filter_map(|m| handle_message(tenant, actor, now, m)).collect();
+                let replies: Vec<Value> = batch.iter().filter_map(|m| handle_message(tenant, actor, now, m, session.as_deref_mut())).collect();
                 if replies.is_empty() { None } else { Some(Value::Array(replies)) }
             }
         }
-        Ok(message) => handle_message(tenant, actor, now, &message),
+        Ok(message) => handle_message(tenant, actor, now, &message, session),
     };
     reply.map(|v| v.to_string())
 }
@@ -56,7 +114,7 @@ fn ok(id: Value, result: Value) -> Value {
     json!({"jsonrpc": "2.0", "id": id, "result": result})
 }
 
-fn handle_message(tenant: &mut Tenant, actor: Actor, now: Timestamp, message: &Value) -> Option<Value> {
+fn handle_message(tenant: &mut Tenant, actor: Actor, now: Timestamp, message: &Value, session: Option<&mut Session>) -> Option<Value> {
     let Some(obj) = message.as_object() else { return Some(error(Value::Null, -32600, "a request must be a JSON object")) };
     let Some(method) = obj.get("method").and_then(Value::as_str) else {
         // A response from the client (to a request we never send) or something malformed: ignore.
@@ -70,7 +128,7 @@ fn handle_message(tenant: &mut Tenant, actor: Actor, now: Timestamp, message: &V
     let id = obj.get("id").cloned()?;
     let params = obj.get("params").cloned().unwrap_or(Value::Null);
     Some(match method {
-        "initialize" => ok(id, initialize(&params)),
+        "initialize" => ok(id, initialize(&params, session.is_some())),
         "ping" => ok(id, json!({})),
         "tools/list" => ok(id, json!({ "tools": tools() })),
         "tools/call" => match call(tenant, actor, now, &params) {
@@ -86,6 +144,13 @@ fn handle_message(tenant: &mut Tenant, actor: Actor, now: Timestamp, message: &V
             Ok(result) => ok(id, result),
             Err((code, msg)) => error(id, code, &msg),
         },
+        "resources/subscribe" | "resources/unsubscribe" => match session {
+            Some(s) => match s.subscribe(tenant, actor, &params, method == "resources/subscribe") {
+                Ok(result) => ok(id, result),
+                Err((code, msg)) => error(id, code, &msg),
+            },
+            None => error(id, -32601, "subscriptions need a connection that keeps state; this one does not"),
+        },
         "prompts/list" => ok(id, prompts::list()),
         "prompts/get" => match prompts::get(&params) {
             Ok(result) => ok(id, result),
@@ -95,11 +160,11 @@ fn handle_message(tenant: &mut Tenant, actor: Actor, now: Timestamp, message: &V
     })
 }
 
-fn initialize(params: &Value) -> Value {
+fn initialize(params: &Value, can_subscribe: bool) -> Value {
     let version = params.get("protocolVersion").and_then(Value::as_str).filter(|v| v.len() <= 32).unwrap_or(DEFAULT_PROTOCOL);
     json!({
         "protocolVersion": version,
-        "capabilities": { "tools": { "listChanged": false }, "resources": { "subscribe": false, "listChanged": false }, "prompts": { "listChanged": false } },
+        "capabilities": { "tools": { "listChanged": false }, "resources": { "subscribe": can_subscribe, "listChanged": false }, "prompts": { "listChanged": false } },
         "serverInfo": { "name": "buildkiosk", "version": env!("CARGO_PKG_VERSION") },
         "instructions": INSTRUCTIONS,
     })

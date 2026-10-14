@@ -16,6 +16,11 @@ Third-party code: BuildKiosk's Rust dependencies are listed in Cargo.lock; `carg
 checks that each one is available under a permissive licence. Their licence texts ship with their
 sources on crates.io.
 
+Bundled fonts: the PDF renderer (hayro) carries the standard PDF font set (Helvetica, Times, Courier,
+Symbol and Dingbats look-alikes) extracted from PDFium, used to draw text that a PDF does not embed.
+Copyright 2014 PDFium Authors and Foxit Software Inc., BSD 3-clause licence; its text ships with the
+hayro-interpret crate (assets/LICENSE_FOXIT).
+
 Trademarks: BuildKiosk is not affiliated with, endorsed by or sponsored by Procore or
 any other vendor. Product names that appear in the documentation are the trademarks of their owners
 and are used only to describe compatibility and feature comparisons. The licences above do not grant

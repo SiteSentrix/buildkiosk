@@ -150,6 +150,7 @@ All logs
 All photos
 All projects
 All tasks
+Also issue it as an addendum
 Alternate
 Alternate {}
 Alternate {} accepted
@@ -169,6 +170,7 @@ Amount, line {}
 An assembly
 Another day
 Answer
+Answer a bidder's question by {}
 Answer inspection checklist by {}
 Answer that shows question {}
 Answer the door hardware RFI
@@ -218,6 +220,7 @@ Arrow
 As late as possible
 As requested
 As soon as possible
+Ask the team a question
 Assemblies
 Assembly
 Assign
@@ -302,6 +305,7 @@ Bid package
 Bid package #{}
 Bid package (its lowest bid)
 Bidder acknowledges an addendum by {}
+Bidder asks a question by {}
 Bidder sends a bid by {}
 Bidder withdraws a bid by {}
 Bidding
@@ -367,6 +371,7 @@ Change order
 Change orders
 Change password
 Change project permissions by {}
+Change the answer
 Change the filter to see more.
 Change the filters to see more.
 Change this report
@@ -1321,6 +1326,7 @@ Northline Electric
 Not a subtask
 Not accepted
 Not answered
+Not answered yet.
 Not approved
 Not clear
 Not closed
@@ -1615,12 +1621,14 @@ Quantity
 Quantity of line {}
 Quantity per unit
 Question
+Question (reword it to keep the company unidentifiable before sharing)
 Question {}
 Question {} is asked only if this earlier question number
 Question {} is required
 Questionnaire
 Questionnaires
 Questions
+Questions from bidders
 Questions that need a documented answer
 Questions that need a documented answer are tracked here.
 RFI
@@ -1865,6 +1873,7 @@ Save and complete
 Save and open
 Save and send for review
 Save and submit
+Save answer
 Save answers
 Save approvers
 Save as a new report
@@ -1998,6 +2007,7 @@ Send owner invoice back to draft by {}
 Send prime change order for signature by {}
 Send prime contract for signature by {}
 Send punch item back by {}
+Send question
 Send submittal for review by {}
 Send task back by {}
 Send transmittal by {}
@@ -2035,8 +2045,10 @@ Sets each cost code's original budget to its amount in this estimate. Choose a c
 Setting a cost code that already has a line changes its amount.
 Settings
 Severity
+Share the question and answer with every invited company, without the company's name
 Shared
 Shared by every project that takes them. Changing a list changes those projects' calendars; their task dates stay until recalculated.
+Shared with all bidders
 Sheet
 Sheet file
 Sheet files
@@ -2224,6 +2236,7 @@ The questions each kind of form asks. Forms already started keep the questions t
 The reflected ceiling plan shows 9'-0" but the section shows 8'-6". Which governs?
 The section governs
 The sheet log
+The team answers you here. They may share a question and its answer with the other bidders, without your name.
 The template
 The thin bar under a task is its baseline.
 There are no tasks in your projects.
@@ -2423,6 +2436,7 @@ You'll be told here when something needs you, like a submittal waiting for your 
 Your bid
 Your first name
 Your last name
+Your question
 Your reply
 Your response
 Zoom

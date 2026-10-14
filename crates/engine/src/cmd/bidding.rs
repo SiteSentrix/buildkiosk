@@ -8,8 +8,8 @@
 
 use buildkiosk_core::{Date, Id, Money, Percent, text};
 use buildkiosk_model::bidding::{
-    Acknowledgement, Addendum, Bid, BidAlternate, BidInvitation, BidItem, BidLine, BidPackage, BidScore, BidStatus, BondReceipt, Criterion,
-    ScopeAnswer, ScopeResponse,
+    Acknowledgement, Addendum, Bid, BidAlternate, BidInvitation, BidItem, BidLine, BidPackage, BidQuestion, BidScore, BidStatus, BondReceipt,
+    Criterion, ScopeAnswer, ScopeResponse,
 };
 use buildkiosk_model::common::FileRef;
 use buildkiosk_model::directory::Vendor;
@@ -123,6 +123,23 @@ pub const COMMANDS: &[CommandSpec] = &[
         Access::System,
         "project, id, invitation, generation as portal_view",
         portal_withdraw,
+    ),
+    CommandSpec::mutate(
+        "bid_package.portal_ask",
+        "Bidder asks a question",
+        Tool::Bidding,
+        Access::System,
+        "project, id, invitation, generation as portal_view; text: the question",
+        portal_ask,
+    ),
+    CommandSpec::mutate(
+        "bid_package.answer_question",
+        "Answer a bidder's question",
+        Tool::Bidding,
+        Access::Project(Level::Standard),
+        "project, id: ids; number: question number; answer: text (replaces an earlier answer); text?: reword the question first (to keep the asker unidentifiable); \
+         publish?: bool (show the question and answer, without the company's name, to every invited company); addendum?: bool (also issue it as an addendum, which publishes it)",
+        answer_question,
     ),
     CommandSpec::mutate(
         "bid_package.portal_ack",
@@ -248,6 +265,8 @@ const MAX_INVITED: usize = 100;
 const MAX_ROWS: usize = 200;
 const MAX_ADDENDA: usize = 100;
 const MAX_INVITATIONS: usize = 300;
+const MAX_QUESTIONS: usize = 500;
+const MAX_QUESTIONS_PER_COMPANY: usize = 50;
 const MAX_ATTACHMENTS: usize = 50;
 
 fn load(ctx: &Ctx<'_>, p: &Params<'_>) -> Result<BidPackage> {
@@ -389,6 +408,7 @@ fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         bids: Vec::new(),
         sealed: p.flag_or("sealed", true)?,
         sealed_bids: Vec::new(),
+        questions: Vec::new(),
         invitations: Vec::new(),
         awarded_to: None,
         commitment: None,
@@ -833,6 +853,8 @@ fn portal_view(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
         "bond_required": b.bond_required,
         "documents": documents,
         "addenda": addenda,
+        "questions": b.questions.iter().filter(|q| q.vendor == vendor).map(|q| json!({ "number": q.number, "text": q.text, "answer": q.answer, "answered": q.answered.is_some(), "published": q.published })).collect::<Vec<_>>(),
+        "published_answers": b.questions.iter().filter(|q| q.published && q.vendor != vendor && q.answered.is_some()).map(|q| json!({ "number": q.number, "text": q.text, "answer": q.answer })).collect::<Vec<_>>(),
         "bid": bid.map(|x| json!({
             "amount": x.amount, "received": x.received, "notes": x.notes, "lines": x.lines, "alternates": x.alternates, "scope": x.scope,
             "files": x.files.iter().map(|f| json!({ "name": f.name, "sha256": f.sha256, "size": f.size })).collect::<Vec<_>>(),
@@ -885,6 +907,70 @@ fn portal_withdraw(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     let id = b.id;
     ctx.state.bid_packages.put(b);
     Ok(json!({ "id": id }))
+}
+
+fn portal_ask(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut b = load(ctx, p).map_err(|_| bad_link())?;
+    let today = ctx.today();
+    let inv = link(&b, p, today)?.clone();
+    taking_bids(&b, today)?;
+    let question = p.req_text("text", text::LONG)?;
+    if b.questions.len() >= MAX_QUESTIONS || b.questions.iter().filter(|q| q.vendor == inv.vendor).count() >= MAX_QUESTIONS_PER_COMPANY {
+        return Err(EngineError::conflict("too many questions on this package; contact the team directly"));
+    }
+    let number = b.questions.iter().map(|q| q.number).max().unwrap_or(0).saturating_add(1);
+    b.questions.push(BidQuestion {
+        number,
+        vendor: inv.vendor,
+        invitation: inv.number,
+        asked: ctx.stamp(),
+        text: question,
+        answer: String::new(),
+        answered: None,
+        published: false,
+    });
+    b.updated = ctx.stamp();
+    let id = b.id;
+    ctx.state.bid_packages.put(b);
+    Ok(json!({ "id": id, "number": number }))
+}
+
+fn answer_question(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut b = load(ctx, p)?;
+    editable(&b)?;
+    let number: u32 = p.int("number", 1..=1_000_000)?.and_then(|v| u32::try_from(v).ok()).ok_or_else(|| p.bad("number", "is required"))?;
+    let answer = p.req_text("answer", text::LONG)?;
+    let reworded = if p.present("text") { Some(p.req_text("text", text::LONG)?) } else { None };
+    let addendum = p.flag_or("addendum", false)?;
+    let publish = addendum || p.flag_or("publish", false)?;
+    let stamp = ctx.stamp();
+    let q =
+        b.questions.iter_mut().find(|q| q.number == number).ok_or_else(|| EngineError::not_found(format!("no question {number} on this package")))?;
+    if let Some(t) = reworded {
+        q.text = t;
+    }
+    q.answer = answer;
+    q.answered = Some(stamp);
+    q.published = publish;
+    let (qtext, atext) = (q.text.clone(), q.answer.clone());
+    let mut issued = None;
+    if addendum {
+        if b.addenda.len() >= MAX_ADDENDA {
+            return Err(EngineError::conflict(format!("a package has at most {MAX_ADDENDA} addenda")));
+        }
+        let n = b.addenda.iter().map(|a| a.number).max().unwrap_or(0).saturating_add(1);
+        b.addenda.push(Addendum {
+            number: n,
+            title: format!("Answer to question {number}"),
+            body: format!("Question: {qtext}\n\nAnswer: {atext}"),
+            issued: stamp,
+        });
+        issued = Some(n);
+    }
+    b.updated = stamp;
+    let id = b.id;
+    ctx.state.bid_packages.put(b);
+    Ok(json!({ "id": id, "number": number, "addendum": issued }))
 }
 
 fn portal_ack(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {

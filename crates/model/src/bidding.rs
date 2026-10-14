@@ -148,6 +148,25 @@ impl BidInvitation {
     }
 }
 
+/// A question a bidder asked through its link, and the team's answer.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BidQuestion {
+    /// Counts up from 1 within the package.
+    pub number: u32,
+    pub vendor: Id<Vendor>,
+    /// The invitation (link) it came through.
+    pub invitation: u32,
+    pub asked: Stamp,
+    pub text: String,
+    #[serde(default)]
+    pub answer: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub answered: Option<Stamp>,
+    /// Shown, without the company's name, to every invited company.
+    #[serde(default)]
+    pub published: bool,
+}
+
 /// A bid from one company. Only the latest bid from a company stands.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Bid {
@@ -244,6 +263,9 @@ pub struct BidPackage {
     pub sealed: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sealed_bids: Vec<Bid>,
+    /// Questions bidders asked through their links.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub questions: Vec<BidQuestion>,
     /// Links sent to bidders' contacts (see `BidInvitation`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub invitations: Vec<BidInvitation>,

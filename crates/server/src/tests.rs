@@ -3782,6 +3782,33 @@ async fn bidders_use_their_links_without_an_account() {
     assert!(out[0].mail.body.contains(&format!("https://bids.example/bid/{}", link(1, 1))), "{}", out[0].mail.body);
     assert!(!out[0].mail.body.contains(&link(1, 0)));
 
+    // Questions: asked on the bidder's page, answered by the team, shared without the company's name.
+    let q1 = link(1, 1);
+    let (_, _, page) = send(&app, bare(&format!("/bid/{q1}"))).await;
+    assert!(page.contains("Ask the team a question"));
+    let form = field(&page, "_csrf");
+    let (st, h, _) = send(&app, post_bare(&format!("/bid/{q1}/ask"), format!("_csrf={form}&question=What+depth+are+the+footings%3F"))).await;
+    assert_eq!(st, StatusCode::SEE_OTHER);
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (st, ..) = send(&app, post_bare(&format!("/bid/{q1}/ask"), "_csrf=nope&question=x".into())).await;
+    assert_eq!(st, StatusCode::FORBIDDEN);
+    let (_, _, detail) = send(&app, get("/projects/1/bidding/1")).await;
+    assert!(
+        detail.contains("Questions from bidders") && detail.contains("What depth are the footings?") && detail.contains("Keystone Concrete"),
+        "{detail}"
+    );
+    send(
+        &app,
+        post(
+            "/do/bid_package.answer_question",
+            &ada,
+            format!("_csrf={csrf}&project=1&id=1&number=1&text=What+depth%3F&answer=Four+feet&publish=false&publish=true&addendum=false"),
+        ),
+    )
+    .await;
+    let (_, _, mine) = send(&app, bare(&format!("/bid/{q1}"))).await;
+    assert!(mine.contains("Your question") && mine.contains("Four feet"), "{mine}");
+
     // A link posts only so often.
     let fresh = link(1, 1);
     let (_, _, page) = send(&app, bare(&format!("/bid/{fresh}"))).await;

@@ -29,6 +29,7 @@ pub(crate) fn routes(router: Router<Shared>) -> Router<Shared> {
         .route("/bid/{token}/submit", post(submit))
         .route("/bid/{token}/withdraw", post(withdraw))
         .route("/bid/{token}/ack", post(ack))
+        .route("/bid/{token}/ask", post(ask))
         .route("/bid/{token}/files/{sha}", get(file))
 }
 
@@ -191,6 +192,19 @@ async fn ack(State(app): State<Shared>, Path(token): Path<String>, body: Bytes) 
     p.insert("number".into(), json!(get_form(&form, "number")));
     let result = inner.run(Actor::System, "bid_package.portal_ack", &Value::Object(p));
     finish(&l, result, |_| "Thank you. That addendum is marked as read.".to_string())
+}
+
+async fn ask(State(app): State<Shared>, Path(token): Path<String>, body: Bytes) -> Response {
+    let form = parse_form(&body);
+    let mut inner = app.lock();
+    let l = match open_post(&app, &mut inner, &token, &form) {
+        Ok(l) => l,
+        Err(r) => return *r,
+    };
+    let mut p = args(&l);
+    p.insert("text".into(), json!(get_form(&form, "question")));
+    let result = inner.run(Actor::System, "bid_package.portal_ask", &Value::Object(p));
+    finish(&l, result, |_| "Your question was sent. The answer will appear on this page.".to_string())
 }
 
 /// A bid document, downloaded as an attachment. Only files the link's own view lists.

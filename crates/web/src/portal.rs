@@ -121,6 +121,34 @@ pub fn page(view: &Value, base: &str, csrf: &str, flash: Option<&Flash>) -> Mark
                     }
                 }
             }
+            @let asked = list("questions");
+            @let published = list("published_answers");
+            @if open || !asked.is_empty() || !published.is_empty() {
+                div class="card" {
+                    h2 { "Questions" }
+                    @for q in &published {
+                        div class="response" {
+                            p { strong { "Question " (q.get("number").and_then(Value::as_u64).unwrap_or(0)) } ": " (text(q, "text")) }
+                            p class="prose" { strong { "Answer: " } (text(q, "answer")) }
+                        }
+                    }
+                    @for q in &asked {
+                        div class="response" {
+                            p { strong { "Your question" } ": " (text(q, "text")) }
+                            @if q.get("answered").and_then(Value::as_bool).unwrap_or(false) { p class="prose" { strong { "Answer: " } (text(q, "answer")) } }
+                            @else { p class="muted small" { "Not answered yet." } }
+                        }
+                    }
+                    @if open {
+                        form method="post" action=(format!("{base}/ask")) class="stack" {
+                            input type="hidden" name="_csrf" value=(csrf);
+                            (field("Ask the team a question", "question", false, true, html! { textarea id="question" name="question" class="short" required {} }))
+                            p class="muted small" { "The team answers you here. They may share a question and its answer with the other bidders, without your name." }
+                            button type="submit" class="btn small" { "Send question" }
+                        }
+                    }
+                }
+            }
             @if let Some(b) = bid {
                 div class="card" {
                     h2 { "Your bid" }

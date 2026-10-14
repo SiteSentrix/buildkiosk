@@ -150,6 +150,7 @@ All logs	Todas las bitácoras
 All photos	Todas las fotos
 All projects	Todos los proyectos
 All tasks	Todas las tareas
+Also issue it as an addendum	Emitirla también como adenda
 Alternate	Alternativa
 Alternate {}	Alternativa {}
 Alternate {} accepted	Alternativa {} aceptada
@@ -169,6 +170,7 @@ Amount, line {}	Monto, línea {}
 An assembly	Un ensamble
 Another day	Otro día
 Answer	Respuesta
+Answer a bidder's question by {}	Responder la pregunta de un licitante por {}
 Answer inspection checklist by {}	Responder lista de verificación de inspección por {}
 Answer that shows question {}	Respuesta que muestra la pregunta {}
 Answer the door hardware RFI	Responder el RFI de herrajes de puertas
@@ -218,6 +220,7 @@ Arrow	Flecha
 As late as possible	Lo más tarde posible
 As requested	Según lo solicitado
 As soon as possible	Lo antes posible
+Ask the team a question	Hacer una pregunta al equipo
 Assemblies	Ensambles
 Assembly	Ensamble
 Assign	Asignar
@@ -302,6 +305,7 @@ Bid package	Paquete de licitación
 Bid package #{}	Paquete de licitación #{}
 Bid package (its lowest bid)	Paquete de licitación (su oferta más baja)
 Bidder acknowledges an addendum by {}	Acuse de adenda del licitante por {}
+Bidder asks a question by {}	Pregunta de un licitante por {}
 Bidder sends a bid by {}	Oferta enviada por el licitante por {}
 Bidder withdraws a bid by {}	Oferta retirada por el licitante por {}
 Bidding	Licitación
@@ -367,6 +371,7 @@ Change order	Orden de cambio
 Change orders	Órdenes de cambio
 Change password	Cambiar contraseña
 Change project permissions by {}	Cambiar permisos del proyecto por {}
+Change the answer	Cambiar la respuesta
 Change the filter to see more.	Cambia el filtro para ver más.
 Change the filters to see more.	Cambia los filtros para ver más.
 Change this report	Cambiar este informe
@@ -1321,6 +1326,7 @@ Northline Electric	Northline Electric
 Not a subtask	No es una subtarea
 Not accepted	No aceptado
 Not answered	Sin respuesta
+Not answered yet.	Aún sin respuesta.
 Not approved	No aprobado
 Not clear	No está claro
 Not closed	No cerrado
@@ -1615,12 +1621,14 @@ Quantity	Cantidad
 Quantity of line {}	Cantidad de la línea {}
 Quantity per unit	Cantidad por unidad
 Question	Pregunta
+Question (reword it to keep the company unidentifiable before sharing)	Pregunta (reescríbala para que la empresa no sea identificable antes de compartirla)
 Question {}	Pregunta {}
 Question {} is asked only if this earlier question number	La pregunta {} solo se hace si esta pregunta anterior, con número
 Question {} is required	La pregunta {} es obligatoria
 Questionnaire	Cuestionario
 Questionnaires	Cuestionarios
 Questions	Preguntas
+Questions from bidders	Preguntas de los licitantes
 Questions that need a documented answer	Preguntas que necesitan una respuesta documentada
 Questions that need a documented answer are tracked here.	Aquí se da seguimiento a las preguntas que necesitan una respuesta documentada.
 RFI	RFI
@@ -1865,6 +1873,7 @@ Save and complete	Guardar y completar
 Save and open	Guardar y abrir
 Save and send for review	Guardar y enviar a revisión
 Save and submit	Guardar y enviar
+Save answer	Guardar respuesta
 Save answers	Guardar respuestas
 Save approvers	Guardar aprobadores
 Save as a new report	Guardar como informe nuevo
@@ -1998,6 +2007,7 @@ Send owner invoice back to draft by {}	Devolver factura del propietario a borrad
 Send prime change order for signature by {}	Enviar orden de cambio principal para firma por {}
 Send prime contract for signature by {}	Enviar contrato principal para firma por {}
 Send punch item back by {}	Devolver pendiente por {}
+Send question	Enviar pregunta
 Send submittal for review by {}	Enviar submittal a revisión por {}
 Send task back by {}	Devolver tarea por {}
 Send transmittal by {}	Enviar remisión por {}
@@ -2035,8 +2045,10 @@ Sets each cost code's original budget to its amount in this estimate. Choose a c
 Setting a cost code that already has a line changes its amount.	Establecer un código de costo que ya tiene una línea cambia su monto.
 Settings	Configuración
 Severity	Gravedad
+Share the question and answer with every invited company, without the company's name	Compartir la pregunta y la respuesta con todas las empresas invitadas, sin el nombre de la empresa
 Shared	Compartido
 Shared by every project that takes them. Changing a list changes those projects' calendars; their task dates stay until recalculated.	Compartido por todos los proyectos que los usan. Cambiar una lista cambia los calendarios de esos proyectos; las fechas de sus tareas se mantienen hasta que se recalculen.
+Shared with all bidders	Compartida con todos los licitantes
 Sheet	Plano
 Sheet file	Archivo del plano
 Sheet files	Archivos de planos
@@ -2224,6 +2236,7 @@ The questions each kind of form asks. Forms already started keep the questions t
 The reflected ceiling plan shows 9'-0" but the section shows 8'-6". Which governs?	El plano de cielo raso reflejado muestra 9'-0" pero la sección muestra 8'-6". ¿Cuál prevalece?
 The section governs	Prevalece la sección
 The sheet log	El registro de planos
+The team answers you here. They may share a question and its answer with the other bidders, without your name.	El equipo le responde aquí. Puede compartir una pregunta y su respuesta con los demás licitantes, sin su nombre.
 The template	La plantilla
 The thin bar under a task is its baseline.	La barra delgada bajo una tarea es su línea base.
 There are no tasks in your projects.	No hay tareas en tus proyectos.
@@ -2423,6 +2436,7 @@ You'll be told here when something needs you, like a submittal waiting for your 
 Your bid	Su oferta
 Your first name	Tu nombre
 Your last name	Tu apellido
+Your question	Su pregunta
 Your reply	Tu respuesta
 Your response	Tu respuesta
 Zoom	Zoom

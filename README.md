@@ -8,10 +8,12 @@ the HTTP API, the command line and MCP.
 
 ## Status
 
-_2026-10-13._ Every tool in the scope list has a first, working slice: engine commands with tests, pages, CSV
-where it makes sense, and API and MCP access. Not built yet: in-page viewing and
-markup of drawings and PDFs, and most of the long tail of each tool. See [`ROADMAP.md`](ROADMAP.md) for the
-numbers and [`docs/gaps.md`](docs/gaps.md) for the ranked list of what is missing in each tool.
+_2026-10-14._ Every tool in the scope list is built end to end (engine commands with tests, pages, CSV and PDF where
+it makes sense, API and MCP access), and most go well beyond a first slice: drawings are viewed and marked up in the
+browser (with length, area, path and outline measuring), schedules read Microsoft Project XML and Primavera exchange
+files, backups can go to S3-compatible storage, and the interface is in English, Spanish, French and Dutch. The long
+tail of each tool is not done. See [`ROADMAP.md`](ROADMAP.md) for the numbers and [`docs/gaps.md`](docs/gaps.md) for
+the ranked list of what is missing in each tool.
 
 ## Try it
 

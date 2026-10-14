@@ -18,8 +18,8 @@ is copied (see Clean-room in `AGENTS.md`).
    packages they were invited to. Nothing in the people model, roles or permission templates changes.
 2. **The engine stays the only place rules live.** The portal calls commands like every other surface; it never
    writes state directly. New commands get a new actor kind (below), checked in the engine.
-3. **The link is the credential, so treat it like a password.** Long random token, shown once, stored only as a
-   hash in the credential store (never in the journal or company state), expiring, revocable.
+3. **The link is the credential, so treat it like a password.** A long secret that is never stored (the server
+   derives it, see Invitation), so the journal and backups can't open the portal; expiring, revocable.
 4. **The portal exposes the least it can.** Only the package's bid documents, addenda, the bidder's own bid and
    Q&A answers meant for all bidders. Never other bidders' names, amounts or the budget.
 5. **No JavaScript**, like every other page: plain forms, `script-src 'none'`.
@@ -30,10 +30,17 @@ is copied (see Clean-room in `AGENTS.md`).
 - Inviting a vendor (`bid_package.invite`, new; today `invited` is set with `bid_package.update`) creates an
   invitation for one contact email on the vendor. The server emails a link
   `https://<host>/bid/<token>` through the existing mail sender; without SMTP the team can copy the link.
-- The token is 32 random bytes, base64url. Only its SHA-256 is stored, with the package, vendor, contact, expiry
-  (default: the package's due date plus a grace period) and a revoked flag, in the credential store (`crates/store`).
-- The team can resend (new token, old one revoked), revoke, or extend an invitation. Each action is a journaled
-  command that records who and when but never the token.
+- The link carries a secret that is **never stored**: the server works it out as
+  `HMAC-SHA256(server secret, company ‖ package ‖ invitation number ‖ generation)` and checks a presented link by
+  working it out again (constant-time compare). The invitation record in the journal holds only the number, the
+  company, the address, the expiry, the generation and sent/cancelled times, so the journal, backups and exports
+  can't open the portal. Resending bumps the generation, which kills the earlier link; cancelling is a flag.
+  Moving a company to a server with a different secret invalidates its links; the team resends them.
+- Because the link is derived, inviting is an ordinary command (`bid_package.invite`) that the API, CLI and MCP can
+  run. The server emails the link: it notices invitations with no `sent` time (as it does for notifications), emails
+  them, then records `bid_package.invite_sent` (System only). Without SMTP, a team page shows the link to copy.
+- The team can resend (new link, old one stops working), cancel, or extend an invitation. Each action is a journaled
+  command that records who and when but never the link.
 
 ### What the bidder sees (`/bid/<token>`)
 1. Package title, scope, due date and time, and whether bidding is open.
@@ -64,9 +71,9 @@ is copied (see Clean-room in `AGENTS.md`).
 
 | Piece | Where |
 | --- | --- |
-| Invitation record and token hash | `crates/store` credential store (secrets stay out of the journal and state) |
-| Invitation metadata (package, vendor, contact, sent/revoked) | model `BidInvitation`, additive, `#[serde(default)]` |
-| New commands | `crates/engine/src/cmd/bidding.rs`: `bid_package.invite`, `.revoke_invite`, `.resend_invite`, `.portal_view`, `.portal_submit`, `.portal_ack`, `.portal_ask`, `.answer_question` |
+| Invitation record (number, company, address, generation, expiry, sent, cancelled) | model `BidInvitation` on `BidPackage`, additive, `#[serde(default)]`; no secret in it |
+| Link secret | derived by the server from its own secret (`crates/server`), never stored |
+| New commands | `crates/engine/src/cmd/bidding.rs`: `bid_package.invite`, `.revoke_invite`, `.resend_invite`, `.invite_sent`, `.invitations`, `.portal_view`, `.portal_submit`, `.portal_ack`, `.portal_ask`, `.answer_question` |
 | New actor | `Actor::Bidder(InvitationId)`; the engine allows it only the `portal_*` commands and only for its own package and vendor |
 | Pages | `crates/web` (bidder pages with their own minimal layout, no company navigation) |
 | Routes | `crates/server`: `/bid/<token>/…`, outside the session middleware, with their own rate limit |
@@ -77,7 +84,7 @@ package (`ctx::in_project` style "not found" otherwise), and the vendor matches.
 
 ## Security checklist
 
-- Token 256 bits, compared by hash in constant time; unknown, expired and revoked tokens give the same page and
+- Link secret 256 bits (HMAC-SHA256), compared in constant time; unknown, expired and revoked tokens give the same page and
   response time, so tokens can't be probed.
 - Per-IP and per-token rate limits (the sign-in limiter in `auth.rs` is the model) and body and upload size limits.
 - A CSRF token on every bidder form, scoped to the invitation; cookies are not used for bidders, so there is no
@@ -120,9 +127,10 @@ than the interface's four.
 
 ## Build order
 
-1. Model and credential store: `BidInvitation`, token hashing, expiry and revoke; `bid_package.invite`,
-   `.revoke_invite`, `.resend_invite`, with tests and the fuzz sweep.
+1. **Done 2026-10-14.** Model and engine: `BidInvitation`; `bid_package.invite`, `.resend_invite`, `.revoke_invite`,
+   `.invite_sent`, `.invitations`, with tests. (The link secret is derived, not stored; see Invitation above.)
 2. The `Actor::Bidder` kind and `portal_view` / `portal_ack`, then `portal_submit` with sealing and the due-time rule.
-3. Server routes and pages under `/bid/<token>`, headers, rate limits, CSRF, email sending.
+3. Server: deriving and checking link secrets, the emailing pass, routes and pages under `/bid/<token>`, headers, rate
+   limits, CSRF, and the team page that lists and copies links.
 4. Q&A commands and pages (`portal_ask`, `answer_question`).
 5. Docs: README "Not yet" line, `docs/gaps.md`, `docs/target-app-parity.md`, `ROADMAP.md`.

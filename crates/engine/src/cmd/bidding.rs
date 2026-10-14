@@ -8,8 +8,8 @@
 
 use buildkiosk_core::{Date, Id, Money, Percent, text};
 use buildkiosk_model::bidding::{
-    Acknowledgement, Addendum, Bid, BidAlternate, BidItem, BidLine, BidPackage, BidScore, BidStatus, BondReceipt, Criterion, ScopeAnswer,
-    ScopeResponse,
+    Acknowledgement, Addendum, Bid, BidAlternate, BidInvitation, BidItem, BidLine, BidPackage, BidScore, BidStatus, BondReceipt, Criterion,
+    ScopeAnswer, ScopeResponse,
 };
 use buildkiosk_model::common::FileRef;
 use buildkiosk_model::directory::Vendor;
@@ -51,6 +51,47 @@ pub const COMMANDS: &[CommandSpec] = &[
         Access::Project(Level::Standard),
         "project, id: ids (needs at least one invited company)",
         open,
+    ),
+    CommandSpec::mutate(
+        "bid_package.invite",
+        "Send bid link",
+        Tool::Bidding,
+        Access::Project(Level::Standard),
+        "project, id: ids; vendor: company id (added to the invited list; must be prequalified when the company requires it); email: where the link is sent; expires?: YYYY-MM-DD (last day the link works; blank: until the package closes). \
+         The server emails the link; the command returns the invitation number",
+        invite,
+    ),
+    CommandSpec::mutate(
+        "bid_package.resend_invite",
+        "Send bid link again",
+        Tool::Bidding,
+        Access::Project(Level::Standard),
+        "project, id: ids; number: invitation number; email?: a new address; expires?: YYYY-MM-DD (the earlier link stops working and a new one is emailed)",
+        resend_invite,
+    ),
+    CommandSpec::mutate(
+        "bid_package.revoke_invite",
+        "Cancel bid link",
+        Tool::Bidding,
+        Access::Project(Level::Standard),
+        "project, id: ids; number: invitation number (the link stops working at once; bids already received stay)",
+        revoke_invite,
+    ),
+    CommandSpec::mutate(
+        "bid_package.invite_sent",
+        "Record bid link emailed",
+        Tool::Bidding,
+        Access::System,
+        "project, id: ids; number: invitation number; generation: the link that went out (the server records this after it emails a link)",
+        invite_sent,
+    ),
+    CommandSpec::query(
+        "bid_package.invitations",
+        "List bid links",
+        Tool::Bidding,
+        Access::Project(Level::Read),
+        "project, id: ids (each invitation with its company, address, state and expiry; never the link itself)",
+        invitations,
     ),
     CommandSpec::mutate(
         "bid_package.record_bid",
@@ -167,6 +208,7 @@ pub const COMMANDS: &[CommandSpec] = &[
 const MAX_INVITED: usize = 100;
 const MAX_ROWS: usize = 200;
 const MAX_ADDENDA: usize = 100;
+const MAX_INVITATIONS: usize = 300;
 const MAX_ATTACHMENTS: usize = 50;
 
 fn load(ctx: &Ctx<'_>, p: &Params<'_>) -> Result<BidPackage> {
@@ -299,6 +341,7 @@ fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         acknowledgements: Vec::new(),
         attachments: Vec::new(),
         bids: Vec::new(),
+        invitations: Vec::new(),
         awarded_to: None,
         commitment: None,
         created: stamp,
@@ -496,6 +539,140 @@ fn acknowledge(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     let id = b.id;
     ctx.state.bid_packages.put(b);
     Ok(json!({ "id": id }))
+}
+
+fn invitation_number(p: &Params<'_>) -> Result<u32> {
+    p.int("number", 1..=1_000_000)?.and_then(|v| u32::try_from(v).ok()).ok_or_else(|| p.bad("number", "is required"))
+}
+
+fn expiry(ctx: &Ctx<'_>, p: &Params<'_>) -> Result<Option<Date>> {
+    let day = p.date("expires")?;
+    if day.is_some_and(|d| d < ctx.today()) {
+        return Err(p.bad("expires", "is in the past"));
+    }
+    Ok(day)
+}
+
+fn invite(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut b = load(ctx, p)?;
+    if !matches!(b.status, BidStatus::Draft | BidStatus::Open) {
+        return Err(EngineError::conflict(format!("{} is {}; links go out while it is a draft or out for bid", b.label(), b.status)));
+    }
+    let vendor: Id<Vendor> = p.id("vendor")?;
+    ctx.check_vendor(vendor)?;
+    super::prequal::check_prequalified(ctx, vendor)?;
+    let email = p.email("email")?.ok_or_else(|| p.bad("email", "is required"))?;
+    let expires = expiry(ctx, p)?;
+    if b.invitations.iter().any(|i| i.vendor == vendor && i.email == email && i.revoked.is_none()) {
+        return Err(EngineError::conflict("that address already has a link for this package; send it again instead"));
+    }
+    if b.invitations.len() >= MAX_INVITATIONS {
+        return Err(EngineError::conflict(format!("a package can have at most {MAX_INVITATIONS} links")));
+    }
+    if !b.invited.contains(&vendor) {
+        if b.invited.len() >= MAX_INVITED {
+            return Err(EngineError::conflict(format!("a package can invite at most {MAX_INVITED} companies")));
+        }
+        b.invited.push(vendor);
+    }
+    let number = b.invitations.iter().map(|i| i.number).max().unwrap_or(0).checked_add(1).ok_or_else(|| EngineError::conflict("too many links"))?;
+    b.invitations.push(BidInvitation { number, vendor, email, generation: 0, expires, created: ctx.stamp(), sent: None, revoked: None });
+    b.updated = ctx.stamp();
+    let id = b.id;
+    ctx.state.bid_packages.put(b);
+    Ok(json!({ "id": id, "number": number }))
+}
+
+fn resend_invite(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut b = load(ctx, p)?;
+    if !matches!(b.status, BidStatus::Draft | BidStatus::Open) {
+        return Err(EngineError::conflict(format!("{} is {}; links go out while it is a draft or out for bid", b.label(), b.status)));
+    }
+    let number = invitation_number(p)?;
+    let email = p.email("email")?;
+    let expires_given = p.present("expires");
+    let expires = expiry(ctx, p)?;
+    let stamp = ctx.stamp();
+    let inv =
+        b.invitations.iter_mut().find(|i| i.number == number).ok_or_else(|| EngineError::not_found(format!("no link {number} on this package")))?;
+    if inv.revoked.is_some() {
+        return Err(EngineError::conflict("that link was cancelled; send a new one with bid_package.invite"));
+    }
+    if let Some(email) = email {
+        inv.email = email;
+    }
+    if expires_given {
+        inv.expires = expires;
+    }
+    inv.generation = inv.generation.checked_add(1).ok_or_else(|| EngineError::conflict("that link was sent too many times"))?;
+    inv.sent = None;
+    let generation = inv.generation;
+    b.updated = stamp;
+    let id = b.id;
+    ctx.state.bid_packages.put(b);
+    Ok(json!({ "id": id, "number": number, "generation": generation }))
+}
+
+fn revoke_invite(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut b = load(ctx, p)?;
+    let number = invitation_number(p)?;
+    let stamp = ctx.stamp();
+    let inv =
+        b.invitations.iter_mut().find(|i| i.number == number).ok_or_else(|| EngineError::not_found(format!("no link {number} on this package")))?;
+    if inv.revoked.is_some() {
+        return Err(EngineError::conflict("that link is already cancelled"));
+    }
+    inv.revoked = Some(stamp);
+    b.updated = stamp;
+    let id = b.id;
+    ctx.state.bid_packages.put(b);
+    Ok(json!({ "id": id, "number": number }))
+}
+
+fn invite_sent(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut b = load(ctx, p)?;
+    let number = invitation_number(p)?;
+    let generation: u32 =
+        p.int("generation", 0..=1_000_000)?.and_then(|v| u32::try_from(v).ok()).ok_or_else(|| p.bad("generation", "is required"))?;
+    let stamp = ctx.stamp();
+    let inv =
+        b.invitations.iter_mut().find(|i| i.number == number).ok_or_else(|| EngineError::not_found(format!("no link {number} on this package")))?;
+    // A link sent again while the first email was on its way stays unsent, so the newer one goes out.
+    if inv.generation == generation && inv.revoked.is_none() {
+        inv.sent = Some(stamp);
+    }
+    let id = b.id;
+    ctx.state.bid_packages.put(b);
+    Ok(json!({ "id": id, "number": number }))
+}
+
+fn invitations(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let id: Id<BidPackage> = p.id("id")?;
+    let b = in_project(&v.state.bid_packages, project, id, "bid package")?;
+    if b.deleted.is_some() {
+        return Err(EngineError::not_found(format!("bid package {id} not found in this project")));
+    }
+    let rows: Vec<Value> = b
+        .invitations
+        .iter()
+        .map(|i| {
+            let state = if i.revoked.is_some() {
+                "cancelled"
+            } else if i.expires.is_some_and(|e| v.today() > e) {
+                "expired"
+            } else if i.sent.is_some() {
+                "sent"
+            } else {
+                "waiting to be sent"
+            };
+            json!({
+                "number": i.number, "vendor": i.vendor, "company": crate::view::vendor_name(v.state, i.vendor), "email": i.email,
+                "state": state, "expires": i.expires, "generation": i.generation,
+            })
+        })
+        .collect();
+    Ok(json!({ "invitations": rows }))
 }
 
 fn file_params(p: &Params<'_>) -> Result<FileRef> {

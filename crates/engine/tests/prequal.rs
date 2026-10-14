@@ -211,6 +211,9 @@ fn a_company_can_require_prequalification_for_commitments_and_awards() {
     // Bids can't be awarded to an unprequalified company either.
     let pkg =
         w.ok(pm, "bid_package.create", json!({"project": p, "title": "Roofing", "cost_code": code, "invite": [unknown, ok]}))["id"].as_u64().unwrap();
+    // Nor can a bid link go to one.
+    w.err(pm, "bid_package.invite", json!({"project": p, "id": pkg, "vendor": unknown, "email": "bids@example.com"}));
+    w.ok(pm, "bid_package.invite", json!({"project": p, "id": pkg, "vendor": ok, "email": "bids@example.com"}));
     w.ok(pm, "bid_package.open", json!({"project": p, "id": pkg}));
     w.ok(pm, "bid_package.record_bid", json!({"project": p, "id": pkg, "vendor": unknown, "amount": "900"}));
     w.ok(pm, "bid_package.record_bid", json!({"project": p, "id": pkg, "vendor": ok, "amount": "950"}));

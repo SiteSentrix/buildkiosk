@@ -330,6 +330,7 @@ Calendar	Calendrier
 Can sign in	Peut se connecter
 Can sign in (needs an email)	Peut se connecter (nécessite un e-mail)
 Cancel	Annuler
+Cancel bid link by {}	Annuler le lien de soumission par {}
 Cancelled	Annulé
 Caption	Légende
 Caption (used for every picture)	Légende (utilisée pour chaque image)
@@ -1626,6 +1627,7 @@ Record addendum acknowledged by {}	Enregistrer l'accusé de réception de l'adde
 Record as declined	Enregistrer comme refusé
 Record bid	Enregistrer l'offre
 Record bid by {}	Enregistrer l'offre par {}
+Record bid link emailed by {}	Enregistrer l'envoi du lien de soumission par courriel par {}
 Record cost	Enregistrer le coût
 Record declined contract by {}	Enregistrer le contrat refusé par {}
 Record direct cost by {}	Enregistrer un coût direct par {}
@@ -1949,6 +1951,8 @@ Sees every project tool except financials; changes nothing.	Voit tous les outils
 Send	Envoyer
 Send a test email	Envoyer un e-mail de test
 Send back	Renvoyer
+Send bid link again by {}	Renvoyer le lien de soumission par {}
+Send bid link by {}	Envoyer le lien de soumission par {}
 Send commitment invoice back to draft by {}	Renvoyer la facture d'engagement en brouillon par {}
 Send contract for signature by {}	Envoyer le contrat pour signature par {}
 Send correspondence by {}	Envoyer le courrier par {}

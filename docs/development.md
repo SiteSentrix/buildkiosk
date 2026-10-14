@@ -31,6 +31,28 @@ everything is a command, additive schema changes).
    test that drives the browser flow with `tower::ServiceExt::oneshot`.
 4. Update `ROADMAP.md` and `docs/gaps.md` in the same commit.
 
+## Languages
+
+The pages are written in English and shown in English, Spanish, French or Dutch (the links at the foot of every page;
+the choice is a cookie, and the browser's own preference is used until one is made). A page is translated on its way out
+(`crates/web/src/i18n.rs`): each piece of wording is looked up in the language's catalog, and anything the catalog
+doesn't know (names, titles and notes people typed, numbers) is left as it is. Dates are written the local way. Nothing
+stored changes.
+
+- `crates/web/i18n/en.txt` lists every piece of wording the catalogs must cover; `es.txt`, `fr.txt` and `nl.txt` have one
+  `English<TAB>translation` line for each. `{}` stands for a live value (a name, a number, a date) and must be in the
+  translation too (`{1}`, `{2}` when the order changes). A piece of wording ends at ` · ` or `: `, so a line like
+  `Plan #4: Closeout · 3 of 7 items done` is looked up in three pieces.
+- **When you add or change wording on a page**, run `cargo xtask i18n --update` (it builds the demo company in a
+  temporary folder, visits its pages and compares them with the text in the source; `buildkiosk i18n-harvest` does the
+  same), then add the new lines to the three catalogs. `cargo xtask ci` fails (step `i18n`) when a page says something
+  `en.txt` doesn't have, and a test fails when a catalog lacks a line of `en.txt`, has a value (`{}`) missing, or has
+  a line the pages no longer say.
+- Not translated: text built from several live values with nothing of its own around them, messages from the engine
+  (errors, notices after a save), PDFs, emails, the spoken hints of the browser sheet viewer, the API and MCP.
+- To add a language: a `Lang` variant in `i18n.rs`, its months, days and range word, a catalog file with every line of
+  `en.txt`, and a name for the links at the foot of the page.
+
 ## Gotchas
 
 - Forms post to `/do/{command}`. Fields named `x[]` become lists, `rows.N.field` become lists of objects and

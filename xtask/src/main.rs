@@ -25,8 +25,9 @@ commands:
   layers     enforce the crate dependency layering (docs/architecture.md › Layers)
   wasm       cargo check --target wasm32-unknown-unknown for the layer 0–5 crates and the viewer
   viewer     build the browser sheet viewer (WebAssembly) into crates/server/assets/viewer; needs `wasm-bindgen` (cargo install wasm-bindgen-cli)
+  i18n       check that the language catalogs' list of wording (crates/web/i18n/en.txt) has everything the pages say now; `cargo xtask i18n --update` rewrites it
   stats      count tests and lines of Rust per crate
-  ci         fmt --check, clippy -D warnings, test, assets, brands, cleanroom, licenses, layers, wasm (stops at the first failure)
+  ci         fmt --check, clippy -D warnings, test, assets, brands, cleanroom, licenses, layers, wasm, i18n (stops at the first failure)
 ";
 
 fn main() -> ExitCode {
@@ -40,6 +41,7 @@ fn main() -> ExitCode {
         Some("layers") => cmd_layers(),
         Some("wasm") => cmd_wasm(),
         Some("viewer") => cmd_viewer(),
+        Some("i18n") => cmd_i18n(args.get(1).is_some_and(|a| a == "--update")),
         Some("stats") => stats::run(&root),
         Some("ci") => cmd_ci(),
         Some("-h" | "--help" | "help") | None => {
@@ -217,6 +219,38 @@ fn viewer_bindgen_version() -> Result<String, String> {
     Err("Cargo.lock has no wasm-bindgen entry".into())
 }
 
+/// Visits the demo company's pages and checks that every piece of wording on them is in the list the language
+/// catalogs are held to (`crates/web/i18n/en.txt`); the list may hold more (wording that only some days or states show).
+fn cmd_i18n(update: bool) -> Result<(), String> {
+    let list = root().join("crates/web/i18n/en.txt");
+    let out = if update { list.clone() } else { std::env::temp_dir().join(format!("buildkiosk-wording-{}.txt", std::process::id())) };
+    let mut c = cargo();
+    c.args(["run", "-q", "-p", "buildkiosk", "--", "i18n-harvest", "--out"]).arg(&out);
+    run(c, "buildkiosk i18n-harvest")?;
+    if update {
+        println!("rewrote {}; now translate the new wording in es.txt, fr.txt and nl.txt", list.display());
+        return Ok(());
+    }
+    let read = |p: &std::path::Path| -> Result<std::collections::BTreeSet<String>, String> {
+        let text = std::fs::read_to_string(p).map_err(|e| format!("{}: {e}", p.display()))?;
+        Ok(text.lines().filter(|l| !l.is_empty() && !l.starts_with('#')).map(str::to_string).collect())
+    };
+    let (now, have) = (read(&out)?, read(&list)?);
+    let _ = std::fs::remove_file(&out);
+    let new: Vec<&String> = now.difference(&have).collect();
+    if new.is_empty() {
+        println!("i18n: all {} pieces of wording on the pages are in the list", now.len());
+        return Ok(());
+    }
+    for w in new.iter().take(30) {
+        eprintln!("  new wording: {w}");
+    }
+    Err(format!(
+        "{} pieces of wording on the pages are not in crates/web/i18n/en.txt (so no language has them): run `cargo xtask i18n --update`, then add their translations to es.txt, fr.txt and nl.txt",
+        new.len()
+    ))
+}
+
 fn cmd_ci() -> Result<(), String> {
     type Step = (&'static str, Box<dyn Fn() -> Result<(), String>>);
     let steps: Vec<Step> = vec![
@@ -250,6 +284,7 @@ fn cmd_ci() -> Result<(), String> {
         ("licenses", Box::new(licenses::run)),
         ("layers", Box::new(cmd_layers)),
         ("wasm", Box::new(cmd_wasm)),
+        ("i18n", Box::new(|| cmd_i18n(false))),
     ];
     let mut done = Vec::new();
     for (name, f) in &steps {

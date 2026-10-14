@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 use crate::now;
 
 /// Every demo user signs in with this password.
-const PASSWORD: &str = "demo-password-1";
+pub const PASSWORD: &str = "demo-password-1";
 
 fn exec(t: &mut Tenant, actor: Actor, cmd: &str, params: Value) -> Result<Value, String> {
     t.engine.execute(&mut t.store, actor, now(), cmd, &params).map_err(|e| format!("{cmd}: {e}"))

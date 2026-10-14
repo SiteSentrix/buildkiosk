@@ -206,6 +206,18 @@ fn head(title: &str) -> Markup {
     }
 }
 
+/// The links that switch the interface language (each name is in its own language). The server marks the
+/// one in use.
+pub fn language_links() -> Markup {
+    html! {
+        nav class="langbar" aria-label="Language" {
+            @for l in crate::i18n::Lang::ALL {
+                a href=(format!("/language?to={}", l.code())) lang=(l.code()) hreflang=(l.code()) { (l.name()) }
+            }
+        }
+    }
+}
+
 /// A bare page (sign-in and first-run setup).
 pub fn auth_page(title: &str, error: Option<&str>, body: Markup) -> Markup {
     html! {
@@ -220,6 +232,7 @@ pub fn auth_page(title: &str, error: Option<&str>, body: Markup) -> Markup {
                         @if let Some(e) = error { div class="flash error" role="alert" { (e) } }
                         (body)
                     }
+                    (language_links())
                 }
             }
         }
@@ -360,6 +373,7 @@ pub fn app_with_head(req: &Req<'_>, title: &str, nav: Nav, crumbs: &[(&str, Opti
                                 div class=(if f.ok { "flash ok" } else { "flash error" }) role="status" { (f.msg) }
                             }
                             (body)
+                            (language_links())
                         }
                     }
                 }

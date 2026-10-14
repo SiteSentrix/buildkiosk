@@ -1,0 +1,2468 @@
+# Every piece of wording the language catalogs must translate. Made by `buildkiosk i18n-harvest`; do not edit by hand.
+(none)
+(not prequalified)
+) and MCP (
+), with exactly your permissions. Treat it like a password.
+--backup-dir /path/to/backups
+/api/v1/commands/…
+/mcp
+0 switches a rule off. Weeks run Monday to Sunday and hours already paid as daily overtime are not counted again.
+03-300, 120000, Concrete
+2027-01-01 New Year's Day
+8'-6" above finished floor. The RCP will be revised.
+9:00 AM
+A Forms admin needs to create a template first.
+A baseline is the schedule's dates kept under a name, so progress can be measured against them. Save one when the contract is signed and another after a re-plan.
+A bid
+A crew is a named group you log hours for together.
+A draft commitment was started
+A file from {}
+A formal record of what was sent, to whom and why
+A line starting with # begins a section; every other line is an item. Assign owners and dates on the plan page. Editing the outline keeps the owner, date, note and done state of items whose wording and section are unchanged.
+A name already used is replaced. The new baseline becomes the one the chart and each task's slip compare against.
+A new version of
+A project admin has full access to every tool, so overrides have no effect.
+A saved crew
+A seventh to tenth column is optional
+A spreadsheet saved as CSV. Put the column names on the first line
+A takeoff from a drawing
+A token lets a script or an AI agent act as you over the HTTP API (
+A view keeps the columns you want to see and whether cost codes are grouped by division. It changes the table above and the CSV export, nothing else.
+A, 2, Addendum 3
+A-101.txt
+API tokens
+About
+Accept
+Accept or decline an alternate by {}
+Accepted
+Accepted alternates
+Access
+Acknowledge receipt
+Acknowledge receipt by {}
+Action
+Action items
+Action plan
+Action plan #{}
+Action plans
+Action {}
+Action {} is done
+Active
+Active (inactive projects are hidden from the project list)
+Add
+Add a bid to an estimate by {}
+Add a catalogue item to an estimate by {}
+Add a comment
+Add a company
+Add a company's prequalification below.
+Add a line for a cost code, or import a list below.
+Add a permission template
+Add a person
+Add a photo to a line
+Add a revision
+Add a section
+Add a sheet
+Add a sheet below, or import your drawing log.
+Add a takeoff total to an estimate by {}
+Add a task
+Add a task below or import a schedule.
+Add a template
+Add an assembly
+Add an assembly to an estimate by {}
+Add an item
+Add an item below, or import a list of prices.
+Add as a lump sum
+Add company
+Add company by {}
+Add cost code by {}
+Add crew
+Add distribution group by {}
+Add document by {}
+Add drawing by {}
+Add hours
+Add incident by {}
+Add inspection template by {}
+Add items
+Add its lines
+Add line
+Add lines from the catalogue, an assembly, a bid or a takeoff
+Add list
+Add markup
+Add observation
+Add observation by {}
+Add or update a record
+Add permission template by {}
+Add person
+Add person by {}
+Add person to project by {}
+Add photo by {}
+Add punch item
+Add punch item by {}
+Add reviewers from a group
+Add revision
+Add revision by {}
+Add schedule task by {}
+Add section
+Add sections one at a time or import your own list below.
+Add sheet
+Add specification section by {}
+Add starter inspection templates by {}
+Add subtask
+Add task
+Add task by {}
+Add template
+Add the cost codes this project doesn't have yet (they take their names from the Description column)
+Add the first item to get started.
+Add the first observation to get started.
+Add the first revision below.
+Add the first task to get started.
+Add the starter templates
+Add the total as a line
+Add to level it
+Add to project
+Add {}
+Added
+Added {}
+Addenda
+Addendum
+Addendum {}
+Addendum {} not acknowledged
+Address of this server
+Adjust door closer, east entry
+Admin
+Administration
+Administrator
+Against budget
+Agenda and notes
+Agendas, attendance, minutes and who agreed to do what
+Album
+All RFIs
+All albums
+All areas
+All categories
+All companies
+All days
+All disciplines
+All documents
+All hours, including waiting and draft
+All logs
+All photos
+All projects
+All tasks
+Alternate
+Alternate {}
+Alternate {} accepted
+Alternate {} amount
+Alternate {} cost code
+Alternate {} name
+Alternates
+Alternates (options priced apart from the base)
+Alternates not included
+Amount
+Amount (negative for a deduct)
+Amount due
+Amount due this invoice
+Amount for {}
+Amount to add for {}
+Amount, line {}
+An assembly
+Another day
+Answer
+Answer inspection checklist by {}
+Answer that shows question {}
+Answer the door hardware RFI
+Answer type
+Answer type of question {}
+Answered
+Answers
+Any
+Any location
+Any stage
+Any status
+Any template
+Any {}
+Anyone
+Applied
+Approval
+Approve
+Approve budget change by {}
+Approve commitment by {}
+Approve commitment change order by {}
+Approve commitment invoice by {}
+Approve hours by {}
+Approve or decline action plan by {}
+Approve or reject by {}
+Approve owner invoice by {}
+Approve prime change order by {}
+Approve prime contract by {}
+Approved
+Approved as noted
+Approved by
+Approved changes
+Approved changes to the budget
+Approved changes to what a subcontract or purchase order costs
+Approved hours in the range that were not posted before become one labour direct cost for each cost code, so they count in the budget. Everyone needs a pay rate first.
+Approved hours only
+Approved until
+Approver
+Approving a commitment or awarding a bid to a company
+Apr
+Architect
+Architect / engineer
+Architectural
+Area
+Arrow
+As late as possible
+As requested
+As soon as possible
+Assemblies
+Assembly
+Assign
+Assign the punch items to…
+Assigned to
+Assigned to me
+Assignees
+At least 10 characters.
+Attach file
+Attach file to RFI by {}
+Attach file to a checklist line by {}
+Attach file to action plan by {}
+Attach file to bid package by {}
+Attach file to commitment by {}
+Attach file to correspondence by {}
+Attach file to daily log by {}
+Attach file to form by {}
+Attach file to incident by {}
+Attach file to inspection by {}
+Attach file to meeting by {}
+Attach file to observation by {}
+Attach file to prequalification by {}
+Attach file to punch item by {}
+Attach file to submittal by {}
+Attach file to task by {}
+Attach file to transmittal by {}
+Attach the signed copy under Files if you haven't.
+Attach to line
+Attach to this bid
+Attendance
+Attendees
+Aug
+Author
+Average age of open RFIs (days)
+Average days in review
+Award
+Award and start a commitment
+Award and start commitment
+Award package by {}
+Award to
+Awarded
+Awarded to {}.
+Awards the package to a company and starts a draft commitment for its bid amount against
+Awards the package to a company and starts a draft commitment for its bid amount against {}.
+Back
+Back to
+Back to documents
+Back to draft
+Back to forms
+Back to incidents
+Back to observations
+Back to photos
+Back to prequalification
+Back to submittals
+Back to the schedule
+Back to the sheet
+Back to timesheets
+Back to {}
+Back up now
+Backup
+Backups
+Backups kept
+Balance to finish
+Ball in court
+Baselines
+Before closing in
+Bid
+Bid amount
+Bid amount (or price the lines below)
+Bid bond
+Bid bond required (percent of the bid)
+Bid documents
+Bid form lines
+Bid form, scope checklist, alternates and bond
+Bid in
+Bid leveling
+Bid package
+Bid package #{}
+Bid package (its lowest bid)
+Bidding
+Bids
+Bids are compared on price alone. Add criteria to weigh other things, such as safety record or schedule.
+Bids due
+Bids due {}
+Billed before
+Billed to date
+Billing
+Blank (use the lines below)
+Blank (use the outline below)
+Blocking and backing are in place for fixtures and casework
+Bond amount
+Bond in
+Bonding
+Bonding capacity
+Box
+Break a constraint
+Bring the actions still open from the previous meeting of this type into this one. They are marked as carried forward there, so each is counted once.
+Budget
+Budget changes
+Budget file
+Budget views
+BuildKiosk <noreply@example.com>
+BuildKiosk sends each notification as an email through your own mail server (SMTP). People can turn it off on their account page. Nothing is sent until this is filled in.
+Bulletin 1
+Bulletin 1 drawings
+By
+By cost code
+By division
+By person
+By severity
+CSV file
+CSV text
+Calendar
+Can sign in
+Can sign in (needs an email)
+Cancel
+Cancelled
+Caption
+Caption (used for every picture)
+Carpentry
+Carried
+Carried forward
+Carry open actions forward
+Carry open actions forward by {}
+Case
+Cases
+Cash position
+Cast-in-place concrete
+Catalogue
+Category
+Cedar Street Lofts
+Cedar Supply
+Ceilings
+Change event
+Change events
+Change order
+Change orders
+Change password
+Change project permissions by {}
+Change the filter to see more.
+Change the filters to see more.
+Change this report
+Changing a prefix affects new items only; references already given stay.
+Changing it signs you out everywhere else.
+Changing the criteria clears the scores already given.
+Chart
+Chart it
+Check links
+Checklist
+Checklist lines (when no template)
+Checklist template
+Checklists and reports filled in from the project's own templates
+Checklists of work in sections, with an owner and a date for each item
+Checklists walked on site
+Choices (for a list)
+Choices for question {}
+Choose RFIs
+Choose approvers
+Choose columns, chart and export
+Choose companies
+Choose documents
+Choose forecasting method by {}
+Choose my default budget view by {}
+Choose one
+Choose people
+Choose people to keep informed
+Choose people who should answer
+Choose submittals
+Choose the columns, and which projects, and how to sort. A saved report keeps its choices and can be shared with everyone in the company.
+Choose who does the work
+Choosing a different questionnaire clears the answers.
+City
+Civil
+Clarify ceiling height at corridor 2
+Claude on my laptop
+Cleanup
+Clear
+Clear and grub
+Clear baseline
+Clear prime change order signature status by {}
+Clear prime contract signature status by {}
+Clear signature status by {}
+Clear the signature
+Click one corner of the box.
+Click the opposite corner.
+Click the picture where the pin goes.
+Click to place the markup
+Click where the arrow points.
+Click where the arrow starts.
+Click where the words go.
+Close
+Close RFI
+Close RFI by {}
+Close bidding
+Close bidding by {}
+Close change event by {}
+Close correspondence by {}
+Close incident by {}
+Close item
+Close observation by {}
+Close punch item by {}
+Close submittal
+Close submittal by {}
+Close task by {}
+Close with a final decision
+Closed
+Closeout
+Closeout, procurement, permits…
+Column to chart
+Columns
+Comment
+Comment on incident by {}
+Comment on observation by {}
+Comment on plan item by {}
+Comment on punch item by {}
+Comment on task by {}
+Comments
+Comments (
+Comments ({})
+Commercial, healthcare…
+Commitment
+Commitment change orders
+Commitment invoices
+Commitments
+Committed
+Committed cost
+Companies
+Company
+Company admin
+Company holiday lists
+Company holiday lists this project takes
+Company name
+Company reports
+Company settings
+Compare
+Compare estimates
+Compare photos
+Compare with
+Compare with now
+Complete
+Complete action plan by {}
+Complete commitment by {}
+Complete inspection by {}
+Completed
+Completion
+Concrete
+Concrete crew
+Concrete cylinders stored in direct sun
+Confirm the steel delivery date
+Connections and hangers use the right fasteners
+Constraint
+Constraint and resources
+Constraint date
+Construction
+Consultant
+Contact only
+Contract
+Contract signature
+Coordination
+Copied
+Copies
+Copies of all the company data, each checked by loading it
+Copy
+Copy a template from another project
+Copy crews and equipment from
+Copy crews and equipment from {}
+Copy estimate as a new version by {}
+Copy form template to another project by {}
+Copy here
+Copy inspection template from another project by {}
+Copy to another project
+Core tools
+Corrective action
+Correspondence
+Correspondence #{}
+Correspondence types
+Cost
+Cost code
+Cost code (to compare with the budget)
+Cost code for hours without one
+Cost code for parts without one
+Cost code of line {}
+Cost code {} {}
+Cost code, Amount (or Original budget), and optionally Description and Notes, in any order. Without a first line of names, the columns are code, amount, notes. A code that already has a line changes it. Up to 1 MB.
+Cost code, line {}
+Cost impact
+Cost now
+Cost per unit
+Cost then
+Cost to date
+Costs paid without a commitment
+Country
+County inspector
+Covered?
+Create RFI by {}
+Create a package, invite companies and record the bids as they arrive.
+Create a subcontract or purchase order to start tracking committed cost.
+Create a template first.
+Create a template on the Templates page, then start forms from it.
+Create a token
+Create action plan by {}
+Create bid package by {}
+Create budget change by {}
+Create change event by {}
+Create commitment by {}
+Create commitment change order by {}
+Create company
+Create correspondence by {}
+Create estimate by {}
+Create folder
+Create folder by {}
+Create form template by {}
+Create meeting by {}
+Create one to record what you send to the team.
+Create prime change order by {}
+Create prime contract by {}
+Create project by {}
+Create submittal by {}
+Create the company and its first administrator.
+Create the first RFI to get started.
+Create the first one to get started.
+Create the first submittal to get started.
+Create the first template below.
+Create transmittal by {}
+Created
+Created {}
+Crews
+Crews and equipment copied from
+Crews and equipment copied from {}. Change or remove what's different today.
+Critical
+Critical path
+Currency (ISO code)
+Current
+Current password
+Daily
+Daily hours before overtime
+Daily log
+Daily log for {}
+Date
+Date it happened
+Date observed
+Date on it
+Date sent
+Date signed
+Date taken
+Date taken (empty
+Dates
+Dates and times are shown at UTC
+Dates and times are shown at UTC{}. Amounts are in {}. Changing the currency doesn't convert existing amounts.
+Day
+Day and weather
+Days
+Days are working days of the project calendar. Float is the working days a task can slip without moving the last finish.
+Days for a submittal review
+Days logged
+Days off
+Days off from company lists
+Days to answer an RFI
+Debris is removed and surfaces are cleaned
+Dec
+Decision
+Decline
+Declined
+Delays
+Delays and issues
+Delete
+Delete RFI by {}
+Delete a saved baseline by {}
+Delete action plan by {}
+Delete assembly by {}
+Delete bid package by {}
+Delete budget change by {}
+Delete budget line by {}
+Delete budget snapshot by {}
+Delete budget view by {}
+Delete catalogue item by {}
+Delete change event by {}
+Delete commitment by {}
+Delete commitment change order by {}
+Delete commitment invoice by {}
+Delete company by {}
+Delete company holiday list by {}
+Delete company report by {}
+Delete correspondence by {}
+Delete correspondence type by {}
+Delete cost code by {}
+Delete crew
+Delete crew by {}
+Delete daily log by {}
+Delete direct cost by {}
+Delete distribution group by {}
+Delete document
+Delete document by {}
+Delete drawing by {}
+Delete estimate by {}
+Delete estimate template by {}
+Delete folder by {}
+Delete form by {}
+Delete form schedule by {}
+Delete form template by {}
+Delete hours by {}
+Delete incident by {}
+Delete inspection by {}
+Delete inspection template by {}
+Delete list
+Delete meeting by {}
+Delete meeting template by {}
+Delete observation by {}
+Delete owner invoice by {}
+Delete permission template by {}
+Delete person by {}
+Delete photo
+Delete photo by {}
+Delete plan template by {}
+Delete prequalification by {}
+Delete prime change order by {}
+Delete prime contract by {}
+Delete project by {}
+Delete punch item by {}
+Delete questionnaire by {}
+Delete schedule task by {}
+Delete sheet
+Delete specification section by {}
+Delete submittal by {}
+Delete task
+Delete task by {}
+Delete this folder
+Delete this report
+Delete this template
+Delete transmittal by {}
+Deleted
+Deleted documents wait here until an admin restores them.
+Deleted files
+Deliveries
+Delivery
+Description
+Description of line {}
+Description, line {}
+DeserializeOwned
+Detail
+Details
+Difference
+Differences between the two revisions
+Direct cost
+Direct costs
+Directory
+Discipline
+Distribution
+Distribution list
+Division
+Division {}
+Document
+Documents
+Documents sent for review before the work goes ahead
+Does not repeat
+Does the bid cover {}
+Done
+Door 104 moved to the east wall
+Door hardware answer needed.
+Doors
+Doors and hardware operate and latch
+Download album
+Download all
+Download all as zip
+Download original
+Draft
+Drafts
+Drawing
+Drawing log
+Drawing number
+Drawing sheet
+Drawing {}
+Drawings
+Drywall and framing
+Drywall delivery
+Due
+Due date
+Due date of action {}
+EMR
+Each has the same title, type, time, place, invitees and agenda topics, on the dates after this one.
+Each person once; blank rows are ignored.
+Each ticked person gets their own entry for this day. With nobody ticked, the hours are yours.
+Each type is numbered on its own
+Edit
+Edit RFI
+Edit RFI by {}
+Edit action plan
+Edit action plan by {}
+Edit assembly
+Edit bid package
+Edit bid package by {}
+Edit budget change by {}
+Edit change event by {}
+Edit commitment
+Edit commitment by {}
+Edit commitment change order by {}
+Edit commitment invoice by {}
+Edit company by {}
+Edit company settings by {}
+Edit correspondence
+Edit correspondence by {}
+Edit daily log
+Edit daily log by {}
+Edit direct cost by {}
+Edit distribution group by {}
+Edit document by {}
+Edit drawing by {}
+Edit estimate
+Edit estimate by {}
+Edit folder by {}
+Edit form by {}
+Edit form template by {}
+Edit hours by {}
+Edit incident by {}
+Edit inspection
+Edit inspection by {}
+Edit inspection template by {}
+Edit item
+Edit levels
+Edit meeting
+Edit meeting by {}
+Edit observation by {}
+Edit owner invoice by {}
+Edit permission template by {}
+Edit person by {}
+Edit photo by {}
+Edit prime change order by {}
+Edit prime contract by {}
+Edit project by {}
+Edit punch item by {}
+Edit questionnaire
+Edit record
+Edit schedule task by {}
+Edit submittal
+Edit submittal by {}
+Edit task
+Edit task by {}
+Edit template
+Edit the plan to add sections and items.
+Edit this template
+Edit transmittal
+Edit transmittal by {}
+Edit type
+Edit {}
+Electrical
+Email
+Email me my notifications
+Embeds, sleeves and penetrations are in place and secured
+Enclosures
+Encryption
+English
+Enter the work completed this period for each item. You can't bill an item beyond its scheduled value.
+Enter what the company sent. A new bid from the same company replaces its earlier one.
+Equipment
+Equipment and materials
+Español
+Estimate
+Estimate #{}
+Estimated value
+Estimating
+Every
+Every form from one template side by side
+Every month
+Every project you can open, with the columns chosen
+Every task you can see, across your projects
+Every three months
+Every two weeks
+Every week
+Every {} days
+Every {} hours, keeping the newest {}
+Everyone in the company
+Everyone in the company directory who can sign in is already on this project.
+Everyone in the group is added after the reviewers named above.
+Everyone this week
+Everyone who can open the folder
+Everyone with Correspondence access
+Everyone with Documents access
+Everyone with Transmittals access
+Everything I can see
+Excavate and grade
+Exchange file
+Excluded
+Experience modification rate
+Expiring soon
+Export CSV
+Export project file (XML)
+Export register
+Export the schedule from your planning software as an exchange (.xer) file. The work breakdown becomes summary tasks, and tasks, dates (actual, else scheduled, else planned), percent complete, milestones, links with their kind and lag, and date constraints come across; resources, calendars and costs are left behind. If the file holds more than one project, give the id of the one you want (the first is used otherwise). Up to 8 MB.
+Exterior sealant colour
+Fabricate and erect
+Fail
+Fall, struck by, equipment, spill…
+Fatalities
+Fatality
+Feb
+Federal holidays 2027
+Feet
+Fictional sample project.
+File
+File an email by {}
+File email
+File incoming
+File incoming correspondence
+File incoming correspondence by {}
+File it
+File to attach
+Files
+Files (optional)
+Files can be at most 25 MB.
+Filled in by
+Filter
+Final
+Final decision
+Final decisions
+Final walk-through
+Financial management
+Financials
+Finish
+Finish it promised
+Finish no earlier than
+Finish no later than
+Finish to finish
+Finish to start
+Finishes
+Fire blocking and draft stopping are installed
+Fire extinguishers are accessible and first aid kits stocked
+Fire protection
+First aid
+First floor plan
+First form on
+First name
+Fit
+Float
+Floor openings are guarded or covered, and open edges protected
+Fog
+Folder
+Folder settings
+Folders
+Followed by
+Follows
+For approval
+For construction
+For information
+For review
+For the record
+Forecast the cost still to come
+Forecast to complete
+Forecasting method
+Form
+Form templates
+Forms
+Forms are clean, braced and match the drawings
+Forms report
+Formwork and reinforcement
+Foundations
+Framed second-floor walls; started rough electrical in corridor 2.
+Framing
+Framing inspection
+Framing is plumb, level and dry
+Framing lumber package
+Framing walk-through
+Français
+Fri
+From
+From (email)
+From (name)
+From RFI
+From change event
+From meeting
+From the catalogue
+From “
+From “{}”
+General
+Group by
+Group by assignee
+Group by location
+Group by status
+Group by {}
+Grouping
+Handles RFIs, submittals and documents
+Harbor Design Studio
+Hazardous materials are labeled and stored properly
+Heating and cooling operate
+Hide closed
+High
+High {}
+Highest first
+History
+Home
+Hours
+Hours counted
+Hours each
+Hours priced at each person's rate, with overtime under the project's rules
+Hours waiting for approval
+Hours worked
+Hours worked by people who aren't on timesheets, such as subcontractors, are added to the approved timesheet hours. Enter 0 to remove them.
+How many more
+How many of each resource you can have working on one day, one per line, such as Carpenter 6.
+How many units
+How much of a code's work is done. Leave blank to remove it.
+How often
+If this company was entered twice, merge it into the one to keep. RFIs, commitments, bids, people and other records that name
+If this company was entered twice, merge it into the one to keep. RFIs, commitments, bids, people and other records that name {} will name the kept company instead, and {} is removed from the directory. Blank details of the kept company are filled in from this one.
+Import
+Import a budget
+Import a budget from a file
+Import a drawing log
+Import a list of sections
+Import a planning-program exchange file by {}
+Import a price list
+Import a project file (Microsoft Project XML)
+Import a project-planning XML file by {}
+Import a register from CSV
+Import a schedule
+Import an exchange file (.xer)
+Import budget by {}
+Import catalogue by {}
+Import company cost codes by {}
+Import cost codes by {}
+Import drawing log by {}
+Import file
+Import from CSV
+Import incidents by {}
+Import observations by {}
+Import punch items by {}
+Import schedule by {}
+Import specification sections by {}
+Import submittal register by {}
+Import tasks by {}
+In
+In progress
+In review
+In the budget
+In use
+Inactive
+Inches
+Incident
+Incident #{}
+Incidents
+Included
+Incoming
+Injuries, near misses and damage, with the investigation and what was done about it
+Injury log
+Injury log across projects,
+Injury log across projects, {}
+Injury log,
+Injury log, {}
+Inspection
+Inspection #{}
+Inspection templates
+Inspections
+Inspections already started keep the checklist they were made with.
+Inspector
+Inspector / agency
+Inspector, Superintendent
+Install guardrail and post a warning sign.
+Insurance
+Insurance expires
+Interior
+Interior rough-in
+Invite
+Invite {}
+Invited
+Invoice
+Invoice #{}
+Invoicing
+Issue
+Issue addendum
+Issue addendum by {}
+Issue date
+Issue estimate by {}
+Issue minutes
+Issue minutes by {}
+Issued
+It came back unsigned
+It has no file yet, or the file is not a PDF or a picture (PNG, JPEG, GIF or WebP) the viewer can draw. Download it from the sheet's page instead.
+Item
+Item {} copies
+Item {} description
+Item {} document
+Item {} drawing
+Items
+Items needing action
+Items sent
+Jan
+Job number
+Jul
+Jun
+Keep a letter, notice or email that came from outside the company on the project record
+Keep this company
+Keeps the lines, markups and alternates for any project to start from. Cost codes are kept by number, so a project needs the same codes to use it.
+Keeps the sections and items for any project to start from, without owners, dates or progress.
+Keeps the type, time, place, attendees and agenda topics (not the notes or actions) to start the next meeting from.
+Keys, manuals and warranty papers are ready for handover
+Keystone Properties
+Kickoff meeting notes
+Kind
+LTR
+LTR-001, LTR-002… With types set, every item must be one of them.
+Labor
+Labour cost
+Ladders and scaffolds are in good condition and used correctly
+Landscape
+Language
+Lapsed
+Large
+Last day of each month
+Last finish
+Last name
+Last upload
+Late
+Late schedule tasks
+Laydown yard
+Leave To empty to post the seven days from From.
+Leave blank to use the template's name.
+Leave the markups out
+Length
+Letter
+Letter, Notice, Email…
+Letters, notices and emails kept on the project record
+Level
+Level 1
+Level 1 corridor
+Level 2
+Level 2 stair hall
+Level on {}
+Leveled
+Leveling
+Licence
+Licence expires
+Licence number
+Lights, outlets and switches work
+Limit
+Limits
+Line
+Line {} description
+Line {} quantity
+Line {} unit
+Lines
+Linked RFIs
+Linked documents
+Linked submittals
+Linked to this sheet
+Links
+List
+Location
+Lock original budget by {}
+Lock the budget
+Locked
+Locking the original budget makes budget changes the only way to alter it.
+Log
+Log hours
+Log hours by {}
+Log the same hours for a crew
+Long text
+Look ahead
+Lost time
+Lost-time cases
+Lost-time rate
+Low
+Low bid
+Lowest first
+Lumber package
+Made
+Mail server
+Main
+Main lobby
+Make a task
+Make a task from an action by {}
+Making a backup takes a moment and holds other requests up only while the small files are copied.
+Manager
+Manager (accepts the work)
+Manpower
+Mar
+Mark action done by {}
+Mark all as read
+Mark as official
+Mark as sent for signature
+Mark complete
+Mark done
+Mark incident work done by {}
+Mark notifications as read by {}
+Mark observation work done by {}
+Mark official response by {}
+Mark punch item work done by {}
+Mark task work done by {}
+Mark up
+Mark up a sheet by {}
+Mark work done
+Markup {} name
+Markup {} percent
+Markups (a percentage of the subtotal)
+Markups go to
+Markups on this page
+Material
+Materials are stacked stably and out of the way
+May
+Measure
+Measured on this page
+Mechanical
+Mechanical, electrical and plumbing rough-in is complete and visible
+Medical treatment
+Medium
+Meeting
+Meeting #{}
+Meeting action items
+Meeting minutes
+Meetings
+Members are the specified size and spacing
+Menu
+Merge and remove
+Merge and remove {}
+Merge duplicate companies by {}
+Merge into another company
+Message
+Method
+Metres
+Milestone
+Millbrook
+Millimetres
+Mine
+Minutes
+Minutes east of UTC
+Minutes issued
+Mix, delivery schedule and pump are confirmed with the supplier
+Mon
+Month
+Monthly
+More
+Move
+Move or resize a task by {}
+Move tasks that start too early
+Move tasks that start too early by {}
+Move this folder into
+Move to the current version
+Move to the shaded curing box.
+Must finish on
+Must start on
+My account
+My hours
+My tasks
+N/A
+Name
+Name (what it is for)
+Name each file with its sheet number first, such as “E-101 Power plan.pdf”. New sheet numbers are added to the log (the discipline is guessed from the letters); sheets already logged get a new revision.
+Name or email
+Name what a task needs each working day (such as Carpenter 4) when you add or edit it.
+Near miss
+Nederlands
+Needs action
+Needs attention
+Needs each working day
+New
+New RFI
+New action plan
+New bid package
+New change order
+New commitment
+New correspondence
+New crew
+New daily log
+New estimate
+New folder
+New list
+New meeting
+New password
+New password again
+New password for {}
+New questionnaire
+New submittal
+New subtask
+New template
+New transmittal
+New type
+New version
+New {}
+Next
+Next inspection
+Next occurrence
+Next page
+Next page →
+Next week
+Next week →
+Next ›
+Next →
+No
+No RFI matches these filters.
+No RFIs here
+No RFIs yet
+No action items.
+No action plans
+No agenda items.
+No answer recorded.
+No assemblies yet.
+No assemblies yet. An assembly prices a unit of work from several catalogue items.
+No bid packages
+No bid yet
+No bids yet.
+No bond
+No budget line
+No budget yet
+No category
+No change orders.
+No comments yet.
+No commitment matches these filters.
+No commitments here
+No companies invited yet. Edit the package to invite some.
+No correspondence
+No cost code
+No days off are listed.
+No direct costs yet
+No documents here
+No drawings yet
+No estimates
+No files attached.
+No files yet. Attach the insurance certificate, financial statements or licences.
+No files yet. Attach the scope, drawing lists and the form of proposal.
+No files yet. Attach the signed contract, insurance certificates or the scope of work.
+No forms match.
+No grouping
+No hours in this range.
+No hours logged this week.
+No inspection matches these filters.
+No inspections here
+No invoices yet
+No item matches these filters.
+No items
+No items here
+No items listed.
+No lines yet.
+No location
+No log
+No logs here
+No meetings
+No open tasks are assigned to you or managed by you.
+No pay rate
+No photos
+No prices are recorded by date yet.
+No project you can open lets you read incidents.
+No projects
+No projects yet
+No question text.
+No questionnaire chosen.
+No rates set.
+No recordable cases in
+No recordable cases in {}.
+No records
+No replies yet.
+No resources yet
+No responses yet.
+No reviews yet.
+No revisions yet
+No schedules. A schedule starts a draft of a template on a rhythm and tells the person who fills it in.
+No sections yet
+No sheet has measurements yet. Set a page's scale in the sheet viewer and draw lengths, areas or pins.
+No sheets match
+No snapshots yet. A snapshot keeps today's figures so the budget can be compared with them later.
+No submittal matches these filters.
+No submittals here
+No submittals yet
+No subtasks. This task can't be closed until its subtasks are.
+No tasks match
+No tasks yet
+No template (type the checklist below)
+No templates
+No templates yet
+No templates yet. Add your own or the starter set on the
+No transmittals
+No types yet, so the type of an item is free text and items are numbered together. Add the first type below.
+No, a task with a duration
+No, everyone with access to incidents sees it
+Nobody has logged hours this week.
+Nobody invited.
+None
+None (trusted local relay only)
+None issued.
+None yet.
+None. Add --backup-copy-to FOLDER to copy each backup to another disk or a mounted share.
+None. Add --backup-s3-bucket (see the deployment notes) to upload each backup to S3-compatible storage.
+Northline Electric
+Not a subtask
+Not accepted
+Not answered
+Not approved
+Not clear
+Not closed
+Not complete
+Not copied
+Not found
+Not in the budget yet
+Not received
+Not recorded
+Not right yet?
+Not sent
+Not sent yet
+Not signed
+Not tagged to anything.
+Not yet
+Note
+Note (optional)
+Note for line {}
+Notes
+Notes (inclusions, exclusions, alternates)
+Notes on topic {}
+Nothing deleted
+Nothing has been added yet.
+Nothing here yet
+Nothing in the catalogue
+Nothing is approved to invoice yet.
+Nothing matches, or you can't open any project yet.
+Nothing recorded yet.
+Nothing scheduled.
+Nothing to chart
+Nothing to do
+Nothing to show yet
+Nothing uploaded since the server started.
+Nothing yet
+Notifications
+Notifications, {} unread
+Nov
+Now compared with “
+Now compared with “{}”
+Number
+Object storage
+Observation
+Observation #
+Observation #{}
+Observation categories
+Observation trends
+Observations
+Observations (6 months)
+Observed
+Occurred
+Oct
+Official response
+Oldest open RFI (days)
+On hold
+On the critical path
+Once there is something approved to invoice, start the first invoice below.
+One category per line. When there are some, new observations pick from them; leave it empty to type any category.
+One item per line
+One line per cost code
+One line per cost code. Amounts may be negative to take money away. Leave spare rows blank.
+One line per cost code. Leave spare rows blank.
+One of a list
+One per line
+One row per crew. Hours are per worker, like 7.5. Leave spare rows blank.
+One section per `# Title` line; under it, one question per line as `Question | points` (points default to 10). Changing a questionnaire that companies have already answered saves a new version, so their answers stay with the wording they answered; move a company up to the new version from its page.
+One section per line
+One sheet per line
+One submittal per line
+One task per line
+One unit is
+Only a Schedule admin can change the calendar.
+Only approved and complete commitments count as committed cost in the budget.
+Only if question no.
+Only me (and company admins)
+Only me, the recipients and admins
+Only projects in
+Only the people I choose, and admins
+Only the projects you can open, and only what you can see of each, are included.
+Only the uploader,
+Only the uploader, the people ticked below and admins
+Open
+Open RFI
+Open RFI by {}
+Open RFIs
+Open action items
+Open actions
+Open actions from earlier meetings
+Open floor edge at level 2 stair
+Open in viewer
+Open punch items
+Open the standard layout by default
+Open this view by default
+Opened
+Openings are framed to the drawn sizes
+Optional. Bidders price the lines of the bid form; the scope checklist lets you compare bids on the same scope; alternates are options priced apart. They can't change once a bid is in.
+Or a group
+Or paste the lines
+Or paste the lines:
+Order
+Original
+Original amount
+Original budget
+Original contract
+Original {}
+Other
+Other hours worked in
+Other hours worked in {}
+Other minutes
+Other notes
+Our company
+Out for bid
+Out for signature
+Outgoing email
+Outline
+Outline area
+Over / under
+Over low
+Over low bid
+Overcast
+Overdue
+Overdue RFIs
+Overhead
+Override
+Override for {}
+Overtime hours
+Overtime pays (percent of the rate)
+Overtime rules
+Owner
+Owner / client
+Owner / design team
+Owner invoices
+Owner request, field condition, design change…
+Owners, architects and engineers
+PDF
+Package
+Packages of work out to bid, the bids received and the award
+Page
+Page {} of {}
+Paid
+Paid (net)
+Paint
+Paint, electrical, glazing…
+Paint, flooring and trim are complete and undamaged
+Panel LP-2 shows 100A on the schedule and 125A on the one-line. Please confirm.
+Panel schedule conflicts with one-line diagram
+Part of (summary task)
+Part {} item
+Part {} quantity
+Partly cloudy
+Parts
+Pass
+Passed
+Password
+Past due
+Past-due RFIs
+Paste an email
+Path
+Path length
+Pause
+Pay rates
+Payment application
+Payment applications for the work completed each period
+Pending
+Pending change events
+People
+People and companies you work with
+People for a private folder
+People involved
+People involved and witnesses
+People who may see it when private
+Per hour
+Percent
+Percent complete
+Period ending
+Period ending {}
+Permission template
+Permission templates
+Permissions
+Permit close-out paperwork
+Permit set
+Person
+Person {}
+Phone
+Photo
+Photos
+Pick a tool above and click the sheet.
+Picture
+Picture {} of {}
+Pictures (JPEG, PNG, GIF or WebP; choose several)
+Pictures of the work, by album
+Pin
+Plan
+Plan a meeting to keep its agenda, minutes and action items together.
+Planned completion
+Plans and files
+Play
+Plumbing
+Plumbing fixtures run without leaks
+Points
+Polished slab
+Port
+Portfolio
+Possible changes to cost, tracked while they are priced
+Post
+Post comment
+Post labour
+Post labour to direct costs by {}
+Post response
+Post to direct costs
+Postal code
+Pre-pour concrete check
+Preconstruction
+Predecessors (task numbers with an optional kind and lag, e.g. 3, 5+2, 7SS, 4FF-1)
+Prefix
+Prequalification
+Prequalification questionnaires
+Prequalified
+Present
+Preview
+Preview of {}
+Previous page
+Previous week
+Price catalogue
+Price the work by cost code, add markups, and put the result in the budget
+Priced apart from the base estimate. Accepted ones are added to the subtotal, and to the budget under their own cost codes.
+Prices are from
+Prices for
+Prices for {}
+Prime change orders
+Prime contract
+Print as letter
+Print view
+Printable checklist
+Printable log
+Printable report
+Priority
+Private
+Private (only people on this RFI can see it)
+Private (only people on this submittal can see it)
+Product data
+Progress
+Project
+Project admin
+Project creator
+Project directory
+Project engineer
+Project file
+Project files in folders, each with its versions
+Project home
+Project id in the file (optional)
+Project management
+Project manager
+Project name
+Project report
+Project settings
+Project to copy to
+Projected change
+Projected change is shown as a gain when projected cost fell, and as a loss (red) when it rose.
+Projected cost
+Projected now
+Projected over / under
+Projected overrun
+Projected then
+Projected under budget
+Projects
+Projects you are part of appear here.
+Property damage
+Provide curb detail at the east unit.
+Pump truck, footings
+Punch item
+Punch item #
+Punch item #{}
+Punch item raised
+Punch list
+Purchase order
+Purchase order #{}
+Purpose
+Put estimate in budget by {}
+Put forward
+Put forward for review by {}
+Put in the budget
+Put in the budget again
+Put in the budget {}
+Qty
+Quality
+Quality and safety
+Quantity
+Quantity of line {}
+Quantity per unit
+Question
+Question {}
+Question {} is asked only if this earlier question number
+Question {} is required
+Questionnaire
+Questionnaires
+Questions
+Questions that need a documented answer
+Questions that need a documented answer are tracked here.
+RFI
+RFI #
+RFI #{}
+RFI #{} {}
+RFIs
+Rain
+Raise punch items
+Raise punch items for failed lines by {}
+Rates are cases times 200,000 divided by hours worked. Only incidents the person printing this can see are included.
+Rates need hours worked
+Read only
+Ready for review
+Ready-mix concrete, cy, 185, Concrete, 03-300
+Ready-mix, 220 cy
+Real length
+Reason
+Receipt
+Received
+Received (sign and return)
+Received {}
+Recent RFIs
+Recipient
+Record a bid
+Record a direct cost
+Record a price
+Record a price for a catalogue item by {}
+Record a purchase, a rental or another cost below.
+Record addendum acknowledged by {}
+Record as declined
+Record bid
+Record bid by {}
+Record cost
+Record declined contract by {}
+Record direct cost by {}
+Record payment
+Record payment on commitment invoice by {}
+Record payment on owner invoice by {}
+Record prime change order signature by {}
+Record prime change order signature declined by {}
+Record prime contract signature by {}
+Record prime contract signature declined by {}
+Record questionnaire answers by {}
+Record receipt
+Record signature
+Record signed contract by {}
+Record the signature
+Record the signed contract
+Recordable
+Recordable cases
+Recordable cases and incident rates for the year, from the incidents you can see
+Recordable cases and rates for every project whose incidents you can read, from the incidents you can see
+Recordable rate
+Recurring forms
+Refers to
+Regular hours
+Reinforcement size, spacing and cover match the drawings
+Reject
+Rejected
+Related
+Remaining
+Remove
+Remove a markup by {}
+Remove attachment from RFI by {}
+Remove attachment from daily log by {}
+Remove attachment from incident by {}
+Remove attachment from inspection by {}
+Remove attachment from observation by {}
+Remove attachment from punch item by {}
+Remove attachment from submittal by {}
+Remove attachment from task by {}
+Remove file from a checklist line by {}
+Remove file from action plan by {}
+Remove file from bid package by {}
+Remove file from commitment by {}
+Remove file from correspondence by {}
+Remove file from form by {}
+Remove file from meeting by {}
+Remove file from prequalification by {}
+Remove file from transmittal by {}
+Remove from directory
+Remove official mark
+Remove pay rate by {}
+Remove person
+Remove person from project by {}
+Remove tag
+Remove the scale of a sheet page by {}
+Remove this page's scale
+Removing a person keeps what they did in the history; they can no longer sign in.
+Reopen
+Reopen RFI by {}
+Reopen action plan by {}
+Reopen as draft
+Reopen bidding
+Reopen bidding by {}
+Reopen change event by {}
+Reopen correspondence by {}
+Reopen daily log by {}
+Reopen estimate by {}
+Reopen form by {}
+Reopen incident by {}
+Reopen inspection by {}
+Reopen minutes
+Reopen minutes by {}
+Reopen observation by {}
+Reopen punch item by {}
+Reopen task by {}
+Repeat every (days, blank for once)
+Repeat meeting by {}
+Repeat until
+Repeats
+Replace baseline with current dates
+Replace cracked ceiling tile
+Replies
+Reply
+Reply by
+Reply requested by
+Reply to correspondence by {}
+Reply wanted by
+Report
+Report an incident to record what happened and what was done.
+Report incident
+Reported by
+Reports
+Require a signed contract before approval
+Require it
+Require prequalification
+Require prequalification by {}
+Require signed contracts by {}
+Required
+Required testing and special inspection are arranged
+Required to complete
+Reset
+Reset to pending by {}
+Resolve
+Resolve or reopen a markup by {}
+Resolved
+Resource
+Resource loading
+Resource management
+Resources
+Resources needed each working day (e.g. Carpenter 4, Laborer 2)
+Respond to RFI by {}
+Response
+Response by
+Response due
+Response wanted by
+Responses
+Restore
+Restore RFI by {}
+Restore action plan by {}
+Restore bid package by {}
+Restore budget change by {}
+Restore change event by {}
+Restore commitment by {}
+Restore commitment change order by {}
+Restore commitment invoice by {}
+Restore company by {}
+Restore correspondence by {}
+Restore daily log by {}
+Restore direct cost by {}
+Restore document by {}
+Restore drawing by {}
+Restore estimate by {}
+Restore form by {}
+Restore incident by {}
+Restore inspection by {}
+Restore meeting by {}
+Restore observation by {}
+Restore owner invoice by {}
+Restore person by {}
+Restore photo by {}
+Restore prime change order by {}
+Restore prime contract by {}
+Restore project by {}
+Restore punch item by {}
+Restore schedule task by {}
+Restore submittal by {}
+Restore task by {}
+Restore transmittal by {}
+Restricted
+Resubmit (new revision)
+Resubmit submittal by {}
+Result
+Results for “
+Results for “{}” across the project ({})
+Retainage
+Retainage (%)
+Retainage held
+Retainage held to date
+Retainage withheld (
+Retainage withheld ({})
+Retainage withheld this invoice
+Reusable checklists; starting an inspection copies one
+Rev.
+Review submittal by {}
+Reviewed by
+Reviewer
+Reviewer group
+Reviewer {}
+Reviewers
+Reviewers (in order)
+Reviewers answer in order. You'll be asked when it's your turn.
+Reviewers answer one after another, in this order
+Reviewers, in review order
+Reviews
+Revise and resubmit
+Revised budget
+Revised budget for this cost code
+Revised commitment
+Revised contract
+Revised now
+Revised sheet A-101
+Revised then
+Revised total (approved changes included)
+Revision
+Revision (leave blank to log the sheet only)
+Revisions
+Revoke
+Riverside Medical Office
+Role
+Rooftop unit shop drawings
+Rooftop units set
+Room 208
+Root cause
+Rough carpentry
+Runs projects
+Runs the field
+STARTTLS (usual, port 587)
+Safety
+Safety&#10;Quality&#10;Housekeeping
+Safety, quality and housekeeping findings
+Safety, quality, housekeeping…
+Save
+Save a named baseline by {}
+Save a report
+Save access
+Save amounts
+Save and complete
+Save and open
+Save and send for review
+Save and submit
+Save answers
+Save approvers
+Save as a new report
+Save as a new view
+Save as a template
+Save as draft
+Save assembly
+Save assembly by {}
+Save baseline
+Save baseline by {}
+Save budget snapshot by {}
+Save budget view by {}
+Save calendar
+Save catalogue item by {}
+Save changes
+Save changes to this view
+Save company holiday list by {}
+Save company report by {}
+Save correspondence type by {}
+Save crew
+Save crew by {}
+Save criteria
+Save draft
+Save estimate as template by {}
+Save forecast
+Save hours
+Save item
+Save levels
+Save limits
+Save line
+Save list
+Save markup
+Save meeting template by {}
+Save password
+Save percent complete
+Save plan as template by {}
+Save points and score
+Save prequalification by {}
+Save questionnaire
+Save questionnaire by {}
+Save rules
+Save scores
+Save snapshot
+Save template
+Save the current dates as
+Save the email from your mail program as a .eml file, open it in a text editor and paste everything here. The subject, date, sender and text are read from it, and people whose email address is on the To or Cc line are told.
+Save the schedule from your planning software as XML. Tasks, dates, percent complete, milestones, outline levels, links with their kind and lag, and start and finish constraints come across; resources, calendars and costs are left behind. Up to 8 MB.
+Save type
+Saved
+Scale
+Schedule
+Schedule a recurring form by {}
+Schedule actions
+Schedule impact
+Schedule more of these meetings
+Schedule of values
+Schedule task
+Schedule tasks
+Scheduled
+Scheduled backups are not turned on. Start the server with
+Scheduled for
+Scheduled value
+Scope
+Scope checklist
+Scope item
+Scope item {}
+Scope of work
+Score
+Score a bid by {}
+Score questionnaire answers by {}
+Score {}
+Scoring
+Search
+Search RFIs
+Search action plans
+Search bid packages
+Search caption, album or place
+Search commitments
+Search correspondence
+Search documents
+Search drawings
+Search every folder by title or file name
+Search forms
+Search inspections
+Search meetings
+Search name or category
+Search photos
+Search sheet number or title
+Search subject or items
+Search subject or number
+Search subject, type or text
+Search submittals
+Search the catalogue
+Search title or answers
+Search title or items
+Search title or number
+Search title or scope
+Search title, location or number
+Search title, spec section or number
+Search title, type or agenda
+Search transmittals
+Search {}
+Second copy
+Section
+Section number
+Sections
+Sections and items
+Sections of questions, each worth points; the share earned becomes a company's score
+See the project report
+Sees every project tool except financials; changes nothing.
+Send
+Send a test email
+Send back
+Send commitment invoice back to draft by {}
+Send contract for signature by {}
+Send correspondence by {}
+Send for review
+Send from
+Send hours back by {}
+Send incident back by {}
+Send notifications
+Send notifications to people's inboxes
+Send observation back by {}
+Send out for bid
+Send out for bid by {}
+Send owner invoice back to draft by {}
+Send prime change order for signature by {}
+Send prime contract for signature by {}
+Send punch item back by {}
+Send submittal for review by {}
+Send task back by {}
+Send transmittal by {}
+Sends a short message to your own address.
+Sent
+Sent back
+Sent to
+Sep
+Set
+Set a budget line
+Set bid scoring criteria by {}
+Set budget line by {}
+Set forecast to complete by {}
+Set how many of each resource the project has by {}
+Set other hours worked by {}
+Set overtime rules by {}
+Set password
+Set pay rate by {}
+Set percent complete by {}
+Set plan approvers by {}
+Set rate
+Set scale
+Set task progress by {}
+Set the criteria
+Set the project's working days and holidays by {}
+Set the scale
+Set the scale of a sheet page from a stretch of known length by {}
+Set up outgoing email
+Set up the company by {}
+Set up your company
+Set what the template allows on each tool after adding it.
+Sets each cost code's original budget to its amount in this estimate. Choose a cost code to hold the markups, or leave them out. The original budget must be unlocked.
+Setting a cost code that already has a line changes its amount.
+Settings
+Severity
+Shared
+Shared by every project that takes them. Changing a list changes those projects' calendars; their task dates stay until recalculated.
+Sheet
+Sheet file
+Sheet files
+Sheet number
+Sheet viewer
+Sheet {} page {}
+Sheets
+Shop drawing
+Shop drawing, product data, sample…
+Short text
+Show
+Show closed
+Show measurements
+Show month
+Show them
+Side by side
+Sign
+Sign as
+Sign form by {}
+Sign in
+Sign out
+Sign to complete (type your full name)
+Sign-in
+Sign-in sheet
+Signature
+Signatures
+Signed
+Signed by
+Signed contracts
+Signed off
+Signed off by {} on {}.
+Signing opens once the form is submitted.
+Signing roles (separated by commas)
+Sincerely,
+Site
+Site and conditions
+Site safety walk-through
+Site trailer
+Site work
+Size
+Skip to content
+Sky
+Slab A
+Slab concrete
+Slab on grade
+Slideshow
+Small items to fix or finish before closeout
+Snapshots
+Snow
+Sort by
+Spec
+Spec section
+Specification section
+Specifications
+Stage
+Standard
+Start
+Start a form
+Start a log for the day to record weather, crews, deliveries and notes.
+Start action plan by {}
+Start an estimate and price each cost code.
+Start an inspection from a template to get going.
+Start an invoice
+Start before a link allows
+Start commitment invoice by {}
+Start daily log by {}
+Start form by {}
+Start from a template
+Start inspection
+Start inspection by {}
+Start invoice
+Start no earlier than
+Start no later than
+Start of construction
+Start owner invoice by {}
+Start the forms that are due by {}
+Start the plan
+Start to finish
+Start to start
+Start today's log
+Started
+Started by
+Started from
+Started to
+Started {}
+Started {} by {}
+State or region
+Status
+Steel arrives the week after next.
+Stop requiring it
+Stop requiring signatures
+Stopped
+Storefront glazing product data
+Storm
+Street
+Structural
+Structural steel
+Structural steel supply and erection
+Structure
+Subcontract
+Subcontract #{}
+Subcontractor
+Subcontracts and purchase orders
+Subgrade is firm and free of standing water and debris
+Subject
+Submit
+Submit commitment invoice by {}
+Submit daily log by {}
+Submit form by {}
+Submit hours by {}
+Submit log
+Submit owner invoice by {}
+Submit review
+Submit the week for approval
+Submittal
+Submittal #{}
+Submittal #{} (revision {})
+Submittal #{} {}
+Submittal log
+Submittals
+Submittals in review
+Submitted
+Submitted by
+Submitter
+Substantial completion
+Subtask
+Subtask of
+Subtasks
+Subtotal
+Such as mon-fri, mon-sat, or mon, tue, thu.
+Summit Ridge Builders
+Sun
+Superintendent
+Supplier
+Supplier (if it is their price list)
+Swap sides
+System
+Systems
+TLS (port 465)
+Table
+Tag
+Tag it to
+Tag photo to an item by {}
+Tagged to
+Take back
+Taken
+Task
+Task #{}
+Task calendar
+Task {}
+Tasks
+Tasks assigned to you or that you manage, across your projects
+Tasks in working days (
+Tasks in working days ({}), linked finish to start (or start to start, finish to finish, start to finish); the critical path is the chain with no float
+Team
+Team members
+Telehandler
+Tell people a sheet revision was issued by {}
+Tell people the current revision was issued
+Template
+Template gives
+Template name
+Templates
+Test it
+Text
+That page doesn't exist, or you don't have access to it.
+The address of this server is used for the links in messages.
+The catalogue is empty.
+The dashed line is today. Red bars are on the critical path. Grey columns are days off. Float is the working days a task can slip without moving the last finish.
+The days work is done on. Task dates and durations are counted in these days.
+The email
+The finish schedule lists two sealant colours for the east elevation. Please confirm.
+The inspector must sign (type their name) to complete it
+The item's own
+The level this template gives on each tool. People with it get these levels on the projects they join, unless a person has an override.
+The log lists every submittal once there are some.
+The most of each resource needed on any one working day in each week, from tasks that aren't finished. Red is over the limit you set.
+The plan cannot start until every approver has approved. Changing the wording of items clears the answers.
+The project's section list; submittals link to a section by its number
+The questions each kind of form asks. Forms already started keep the questions they were started with.
+The reflected ceiling plan shows 9'-0" but the section shows 8'-6". Which governs?
+The section governs
+The sheet log
+The template
+The thin bar under a task is its baseline.
+There are no tasks in your projects.
+There is nothing to show.
+These answers are to version
+Things to get done, with an owner and a due date
+This is the view you open by default.
+This month
+This period
+This period, {}
+This project needs a signed contract before a commitment can be approved.
+This project needs a signed contract before this can be approved.
+This sheet can't be shown
+Three-week look-ahead
+Thu
+Time
+Timesheet
+Timesheets
+Title
+Title (default
+Title (optional)
+To
+To be determined
+To date
+Today's log
+Tool
+Tool access
+Top level
+Topic
+Topic {}
+Total
+Total (of 10)
+Total cost
+Total with markups
+Touch up paint at door 114
+Trade
+Trade partners
+Transmittal
+Transmittal #{}
+Transmittals
+Trends
+Trends appear once observations are recorded.
+Tue
+Turn email off
+Two coats applied.
+Two weeks
+Type
+Type it in
+Type the real length of the stretch you just drew, from a dimension printed on the sheet or a known size. Anything else on this page is measured against it.
+Type your full name
+Types
+USD
+Unassigned
+Unit
+Unit cost
+Unit cost of line {}
+Unit costs and assemblies, shared by every project's estimates
+Unit of line {}
+Unit price
+Unit price of {}
+Unit prices
+Unlock original budget by {}
+Unlock the budget
+Up to 25 MB in one upload.
+Up to 50 files, 25 MB each and 100 MB in all.
+Up to 50 files, 25 MB each and 100 MB in all. Each file becomes a document titled with its file name.
+Update plan item by {}
+Updated
+Upload
+Upload a file
+Upload a file below or create a folder.
+Upload a new version
+Upload a set of sheets
+Upload files
+Upload new version by {}
+Upload photos
+Upload pictures below.
+Upload several files at once
+Upload the set
+Upload version
+Uploaded
+Urgent
+Use
+Use a saved baseline by {}
+Use the template
+Use this method
+Use this questionnaire
+User name
+Version
+Version {}
+Versions
+View only
+Viewer
+Visibility
+Visible to
+Visitor
+Visitors
+Void
+Void budget change by {}
+Void change event by {}
+Void commitment by {}
+Void commitment change order by {}
+Void commitment invoice by {}
+Void owner invoice by {}
+Void prime change order by {}
+Void prime contract by {}
+Waiting
+Waiting for approval
+Waiting on me
+Waiting on you
+Walkways and access routes are clear
+Warn before approvals lapse by {}
+Warnings sent
+Warranty
+Was in
+Weather
+Weather and curing plan are confirmed
+Weather notes
+Website
+Wed
+Week
+Week ends
+Week ends {}.
+Week of
+Week of {}
+Week of {} to {}
+Week {}
+Weekdays worked
+Weekly
+Weekly coordination
+Weekly hours before overtime
+Weekly summary
+Weekly walk
+Weeks
+What
+What changed
+What changed, or what to do about it
+What each cost code was budgeted, what is committed and what has been spent
+What happened
+What happened on site, day by day
+What it is for
+What still needs doing
+What subcontractors and suppliers bill against their commitments
+What the bid covers
+What the owner pays
+What you did
+Whatever you leave blank below (type, time, place, attendees, agenda) comes from the template.
+When
+Where each tool stands today, for the tools you can see
+Where on site
+Which companies have been vetted to work for you, and when their approval, insurance or licence lapses
+Who
+Who can open it
+Who does action {}
+Who should see it
+Who signed for the other party
+Who signed for the owner
+Why
+Windy
+With a forecast, the projected cost is the cost to date plus the forecast. Leave the amount blank to remove a forecast. A code with no forecast is projected by the project's method
+Withdraw
+Withdraw bid by {}
+Withdrawn
+Words
+Words or note (words are needed for text)
+Work completed this period
+Work done
+Work performed
+Work that is under way or starts in each week, and isn't finished
+Worker-days
+Worker-hours
+Workers
+Workers on site
+Workers wear the protective gear the task needs
+Working calendar
+Working days
+Write a letter or notice to keep it on the record.
+Write a plan to track a body of work item by item.
+Write your own below, or add the small starter set and change it to suit.
+Year
+Yearly
+Yes
+Yes or no
+Yes, a single day
+Yes, enter it on the injury log
+Yes, only the people below, the manager and the tool's admins
+You have no tokens.
+You'll be told here when something needs you, like a submittal waiting for your review.
+Your first name
+Your last name
+Your reply
+Your response
+Zoom
+Zoom in
+Zoom out
+a date as YYYY-MM-DD, then what it is (optional). Task dates don't move when this changes; use Recalculate on the schedule to push tasks that now start too early.
+a, b, c
+ada@example.com
+add, remove or move money between cost codes
+admin on every project tool, can create projects and add people.
+admin on quality, safety and daily tools, standard on project management, read-only financials.
+answer RFIs and review submittals; read the rest except internal cost tools.
+approved timesheets count, and a project's admin can add the hours of people who aren't on timesheets on its own injury log.
+approved timesheets count, and an admin can add the hours of people who aren't on timesheets below.
+average
+baseline {} to {}
+can raise and answer RFIs, send submittals, work punch items and tasks; reads drawings and the schedule; no financials.
+cases per 200,000 hours
+code, amount, notes (optional), separated by commas or tabs. Codes must already be in the project's cost code list.
+company default
+doesn't need one
+each sheet with its revisions; the newest revision is current
+elena.cruz@example.com
+from {}
+hana.berg@example.com
+has the answer
+high
+https://buildkiosk.example.com
+id, name, start, finish, percent, predecessors, parent. Dates are YYYY-MM-DD. Predecessors are other ids in the file separated by ;, each with an optional lag such as 4+2. Ids are renumbered when imported.
+kickoff-notes.txt
+last six months
+leveled
+lines can't be edited, added or imported.
+low {}
+marcus.lee@example.com
+milestone (yes or no), then a constraint (snet, mso or fnlt) and its date.
+name, unit, unit cost, category (optional), cost code (optional, from the company's standard list). An item with the same name has its price changed.
+name, weight (adding up to 100), then price for the one worked out from the bids
+no file
+no project has a figure for
+no project has a figure for {} that you can see.
+none yet
+not required
+nothing
+number, then title, separated by a comma or a tab. Sections already in the list are skipped.
+number, title, discipline, area, separated by commas or tabs. A header line is skipped, and sheets already in the log are left alone. Add each sheet's file later as a revision.
+only Documents admins see this
+open RFIs
+people, companies and permission templates
+priya.raman@example.com
+reopen
+revision {}
+sent {} by {}
+sets the level on each tool. An override replaces it for this person on this project only.
+sf
+smtp.example.com
+standard on project management, read-only financials.
+submitted {}
+the date in the picture, else today)
+the file name)
+the schedule of values that gets invoiced
+title, location,
+title, location, {}, priority (low, medium, high, urgent), due date (YYYY-MM-DD), assignees (email addresses separated by semicolons). A header line starting with title is skipped. Nothing is added unless every line is good.
+title, spec section, type, due date (YYYY-MM-DD). A header line is skipped. Each row becomes a draft.
+title,location,kind,priority,due,assignees
+title,spec_section,kind,due
+to take one every day and keep the last seven. See the deployment notes for restoring one.
+tom.okafor@example.com
+undo
+weekly summary
+{} ({} lines)
+{} by project
+{} committed
+{} in all
+{} lines
+{} of 7 days logged
+{} of {} have acknowledged receiving it.
+{} of {}, {} failed
+{} on timesheets, {} other
+{} people on this project
+{} to {}, {}% done
+{} unread
+{} was present
+{} was submitted
+{} worker-days
+{} worker-hours
+{} workers, {} hours
+{}, one bar per project
+{}Directory
+{}Prequalification
+← Previous week

@@ -111,6 +111,7 @@ fn run(args: &[String]) -> Result<(), String> {
         }
         "token" => token(&a),
         "mcp" => mcp(&a),
+        "i18n-harvest" => i18n_harvest(&a),
         "-h" | "--help" | "help" => {
             print!("{USAGE}");
             Ok(())
@@ -251,6 +252,21 @@ fn token(a: &Args) -> Result<(), String> {
     let token = creds.create_token(p.raw(), a.get("name").unwrap_or("cli"), now()).map_err(|e| e.to_string())?;
     t.store.save_credentials(&creds).map_err(|e| e.to_string())?;
     println!("{token}");
+    Ok(())
+}
+
+/// Lists the wording the language catalogs must cover (for the people who maintain the translations): builds the
+/// demo company in a temporary folder, visits its pages and compares what is on them with the source files.
+fn i18n_harvest(a: &Args) -> Result<(), String> {
+    let out = a.get("out").unwrap_or("crates/web/i18n/en.txt");
+    let sources = a.get("sources").unwrap_or("crates");
+    let dir = std::env::temp_dir().join(format!("buildkiosk-harvest-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let dir_str = dir.to_str().ok_or("the temporary folder has an odd name")?;
+    demo::create(dir_str)?;
+    let result = buildkiosk_server::harvest::run(&dir, std::path::Path::new(sources), std::path::Path::new(out), "ada@example.com", demo::PASSWORD);
+    let _ = std::fs::remove_dir_all(&dir);
+    println!("{}", result?);
     Ok(())
 }
 

@@ -22,6 +22,7 @@ buildkiosk-web = { workspace = true }
 axum = { workspace = true }
 maud = { workspace = true }
 tokio = { workspace = true }
+tower = { workspace = true }
 tower-http = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }
@@ -33,7 +34,6 @@ base64 = { workspace = true }
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 
 [dev-dependencies]
-tower = { workspace = true }
 http-body-util = { workspace = true }
 buildkiosk-testkit = { workspace = true }
 

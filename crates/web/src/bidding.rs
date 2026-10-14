@@ -347,6 +347,35 @@ pub fn detail(req: &Req<'_>, id: Id<Project>, bid: Id<BidPackage>) -> Markup {
                 }))
             }
         }
+        @if !b.questions.is_empty() {
+            div class="card" {
+                h2 { "Questions from bidders" }
+                @for q in &b.questions {
+                    div class="response" {
+                        div class="meta" { span { strong { "Question " (q.number) } " from " (vname(q.vendor)) " · " (req.when(q.asked.at)) @if q.published { " · " span class="pill blue" { "Shared with all bidders" } } } }
+                        p class="prose" { (q.text) }
+                        @if q.answered.is_some() { p class="prose" { strong { "Answer: " } (q.answer) } }
+                        @if can_edit && b.status != BidStatus::Awarded {
+                            details class="disclosure" {
+                                summary { @if q.answered.is_some() { "Change the answer" } @else { "Answer" } }
+                                (command_form(req, "bid_package.answer_question", &here, &here, html! {
+                                    input type="hidden" name="project" value=(id); input type="hidden" name="id" value=(bid); input type="hidden" name="number" value=(q.number);
+                                    div class="form-grid" {
+                                        (field("Question (reword it to keep the company unidentifiable before sharing)", &format!("q_text_{}", q.number), false, true, html! { textarea id=(format!("q_text_{}", q.number)) name="text" class="short" { (q.text) } }))
+                                        (field("Answer", &format!("q_ans_{}", q.number), true, true, html! { textarea id=(format!("q_ans_{}", q.number)) name="answer" class="short" required { (q.answer) } }))
+                                    }
+                                    div class="options" {
+                                        label { input type="hidden" name="publish" value="false"; input type="checkbox" name="publish" value="true" checked[q.published]; " Share the question and answer with every invited company, without the company's name" }
+                                        label { input type="hidden" name="addendum" value="false"; input type="checkbox" name="addendum" value="true"; " Also issue it as an addendum" }
+                                    }
+                                    div class="form-actions" { button type="submit" class="btn small primary" { "Save answer" } }
+                                }))
+                            }
+                        }
+                    }
+                }
+            }
+        }
         @if can_edit && matches!(b.status, BidStatus::Open | BidStatus::Closed) {
             div class="card" {
                 h2 { "Record a bid" }

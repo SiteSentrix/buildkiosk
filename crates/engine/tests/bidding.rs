@@ -478,3 +478,77 @@ fn unsealed_packages_and_late_bids() {
     w.ok(pm, "bid_package.invite", json!({"project": p, "id": id, "vendor": a, "email": "late@keystone.example", "expires": "2099-01-02"}));
     w.assert_replay();
 }
+
+#[test]
+fn bidders_ask_questions_and_the_team_answers() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let reader = w.member(p, "Rory", "Reader", "Read only");
+    let a = w.ok(w.admin(), "vendor.create", json!({"name": "Keystone Concrete", "kind": "subcontractor"}))["id"].as_u64().unwrap();
+    let b = w.ok(w.admin(), "vendor.create", json!({"name": "Northline Concrete", "kind": "subcontractor"}))["id"].as_u64().unwrap();
+    let id = w.ok(pm, "bid_package.create", json!({"project": p, "title": "Concrete", "due": "2099-01-01"}))["id"].as_u64().unwrap();
+    let args = |extra: serde_json::Value| {
+        let mut v = json!({"project": p, "id": id});
+        v.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+        v
+    };
+    w.ok(pm, "bid_package.invite", args(json!({"vendor": a, "email": "bids@keystone.example"})));
+    w.ok(pm, "bid_package.invite", args(json!({"vendor": b, "email": "bids@northline.example"})));
+    let ask = |n: u32, text: &str| args(json!({"invitation": n, "generation": 0, "text": text}));
+
+    // Questions open with bidding, not before; blank ones and wrong links are refused.
+    w.err(Actor::System, "bid_package.portal_ask", ask(1, "What depth?"));
+    w.ok(pm, "bid_package.open", args(json!({})));
+    w.err(Actor::System, "bid_package.portal_ask", ask(1, "   "));
+    w.err(Actor::System, "bid_package.portal_ask", ask(7, "What depth?"));
+    w.err(pm, "bid_package.portal_ask", ask(1, "What depth?"));
+    assert_eq!(w.ok(Actor::System, "bid_package.portal_ask", ask(1, "What depth are the footings?"))["number"], 1);
+    assert_eq!(w.ok(Actor::System, "bid_package.portal_ask", ask(2, "Is rebar by others?"))["number"], 2);
+
+    // The team sees who asked; the other company doesn't see the question at all until it is published.
+    let got = w.ok(pm, "bid_package.get", args(json!({})));
+    assert_eq!(got["questions"].as_array().unwrap().len(), 2);
+    let view = |w: &mut World, n: u32| w.ok(Actor::System, "bid_package.portal_view", args(json!({"invitation": n, "generation": 0})));
+    assert_eq!(view(&mut w, 2)["questions"].as_array().unwrap().len(), 1);
+    assert!(!view(&mut w, 2).to_string().contains("footings"));
+
+    // Answering needs Bidding access at standard level.
+    w.err(reader, "bid_package.answer_question", args(json!({"number": 1, "answer": "Four feet"})));
+    w.err(pm, "bid_package.answer_question", args(json!({"number": 1, "answer": ""})));
+    w.err(pm, "bid_package.answer_question", args(json!({"number": 9, "answer": "x"})));
+    w.ok(pm, "bid_package.answer_question", args(json!({"number": 1, "answer": "Four feet"})));
+    let mine = view(&mut w, 1);
+    assert_eq!((mine["questions"][0]["answer"].as_str().unwrap(), mine["questions"][0]["answered"].as_bool().unwrap()), ("Four feet", true));
+    assert!(!view(&mut w, 2).to_string().contains("Four feet"), "an answer stays private until published");
+
+    // Publishing shows the question and answer to the others, without the asker's name; the team may reword it first.
+    w.ok(
+        pm,
+        "bid_package.answer_question",
+        args(json!({"number": 1, "answer": "Four feet", "text": "What depth are the footings at the east wall?", "publish": true})),
+    );
+    let other = view(&mut w, 2);
+    assert_eq!(other["published_answers"].as_array().unwrap().len(), 1);
+    assert!(
+        other.to_string().contains("east wall") && !other.to_string().contains("Keystone") && !other.to_string().contains("footings are"),
+        "{other}"
+    );
+    assert!(view(&mut w, 1)["published_answers"].as_array().unwrap().is_empty(), "the asker doesn't get their own back as a published one");
+
+    // Issued as an addendum, an answer is published and every company is asked to acknowledge it.
+    let out = w.ok(pm, "bid_package.answer_question", args(json!({"number": 2, "answer": "Rebar is by others.", "addendum": true})));
+    assert_eq!(out["addendum"], 1);
+    let pkg = w.engine.state().bid_packages.iter().next().unwrap().clone();
+    assert!(pkg.questions[1].published && pkg.addenda[0].body.contains("Rebar is by others."));
+    w.ok(Actor::System, "bid_package.portal_ack", args(json!({"invitation": 2, "generation": 0, "number": 1})));
+
+    // Each company can ask only so many; and nothing more once bidding closes.
+    for i in 0..49 {
+        w.ok(Actor::System, "bid_package.portal_ask", ask(1, &format!("More {i}?")));
+    }
+    w.err(Actor::System, "bid_package.portal_ask", ask(1, "One too many?"));
+    w.ok(pm, "bid_package.close", args(json!({})));
+    w.err(Actor::System, "bid_package.portal_ask", ask(2, "Late question?"));
+    w.assert_replay();
+}

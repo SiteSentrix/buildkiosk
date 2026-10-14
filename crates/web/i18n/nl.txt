@@ -150,6 +150,7 @@ All logs	Alle logboeken
 All photos	Alle foto's
 All projects	Alle projecten
 All tasks	Alle taken
+Also issue it as an addendum	Ook als addendum uitgeven
 Alternate	Alternatief
 Alternate {}	Alternatief {}
 Alternate {} accepted	Alternatief {} geaccepteerd
@@ -169,6 +170,7 @@ Amount, line {}	Bedrag, regel {}
 An assembly	Een samenstelling
 Another day	Een andere dag
 Answer	Antwoord
+Answer a bidder's question by {}	Vraag van een bieder beantwoorden door {}
 Answer inspection checklist by {}	Inspectiechecklist beantwoorden door {}
 Answer that shows question {}	Antwoord dat vraag {} toont
 Answer the door hardware RFI	Beantwoord de RFI over deurbeslag
@@ -218,6 +220,7 @@ Arrow	Pijl
 As late as possible	Zo laat mogelijk
 As requested	Zoals gevraagd
 As soon as possible	Zo snel mogelijk
+Ask the team a question	Stel het team een vraag
 Assemblies	Samenstellingen
 Assembly	Samenstelling
 Assign	Toewijzen
@@ -302,6 +305,7 @@ Bid package	Aanbestedingspakket
 Bid package #{}	Aanbestedingspakket #{}
 Bid package (its lowest bid)	Aanbestedingspakket (laagste inschrijving)
 Bidder acknowledges an addendum by {}	Bieder bevestigt een addendum, door {}
+Bidder asks a question by {}	Vraag van een bieder door {}
 Bidder sends a bid by {}	Bieding verstuurd door bieder, door {}
 Bidder withdraws a bid by {}	Bieding ingetrokken door bieder, door {}
 Bidding	Aanbesteding
@@ -367,6 +371,7 @@ Change order	Wijzigingsopdracht
 Change orders	Wijzigingsopdrachten
 Change password	Wachtwoord wijzigen
 Change project permissions by {}	Projectrechten wijzigen door {}
+Change the answer	Antwoord wijzigen
 Change the filter to see more.	Wijzig het filter om meer te zien.
 Change the filters to see more.	Wijzig de filters om meer te zien.
 Change this report	Dit rapport wijzigen
@@ -1321,6 +1326,7 @@ Northline Electric	Northline Electric
 Not a subtask	Geen subtaak
 Not accepted	Niet geaccepteerd
 Not answered	Niet beantwoord
+Not answered yet.	Nog niet beantwoord.
 Not approved	Niet goedgekeurd
 Not clear	Niet duidelijk
 Not closed	Niet gesloten
@@ -1615,12 +1621,14 @@ Quantity	Hoeveelheid
 Quantity of line {}	Hoeveelheid van regel {}
 Quantity per unit	Hoeveelheid per eenheid
 Question	Vraag
+Question (reword it to keep the company unidentifiable before sharing)	Vraag (herformuleer haar zodat het bedrijf niet herkenbaar is voor je haar deelt)
 Question {}	Vraag {}
 Question {} is asked only if this earlier question number	Vraag {} wordt alleen gesteld als dit eerdere vraagnummer
 Question {} is required	Vraag {} is verplicht
 Questionnaire	Vragenlijst
 Questionnaires	Vragenlijsten
 Questions	Vragen
+Questions from bidders	Vragen van bieders
 Questions that need a documented answer	Vragen die een gedocumenteerd antwoord nodig hebben
 Questions that need a documented answer are tracked here.	Vragen die een gedocumenteerd antwoord nodig hebben, worden hier bijgehouden.
 RFI	RFI
@@ -1865,6 +1873,7 @@ Save and complete	Opslaan en voltooien
 Save and open	Opslaan en openen
 Save and send for review	Opslaan en ter beoordeling versturen
 Save and submit	Opslaan en indienen
+Save answer	Antwoord opslaan
 Save answers	Antwoorden opslaan
 Save approvers	Goedkeurders opslaan
 Save as a new report	Opslaan als nieuw rapport
@@ -1998,6 +2007,7 @@ Send owner invoice back to draft by {}	Factuur aan opdrachtgever terug naar conc
 Send prime change order for signature by {}	Wijzigingsopdracht hoofdcontract ter ondertekening verzenden door {}
 Send prime contract for signature by {}	Hoofdcontract ter ondertekening verzenden door {}
 Send punch item back by {}	Opleverpunt terugsturen door {}
+Send question	Vraag versturen
 Send submittal for review by {}	Submittal ter beoordeling verzenden door {}
 Send task back by {}	Taak terugsturen door {}
 Send transmittal by {}	Verzendbrief verzenden door {}
@@ -2035,8 +2045,10 @@ Sets each cost code's original budget to its amount in this estimate. Choose a c
 Setting a cost code that already has a line changes its amount.	Als je een kostencode instelt die al een regel heeft, verandert het bedrag daarvan.
 Settings	Instellingen
 Severity	Ernst
+Share the question and answer with every invited company, without the company's name	De vraag en het antwoord delen met alle uitgenodigde bedrijven, zonder de bedrijfsnaam
 Shared	Gedeeld
 Shared by every project that takes them. Changing a list changes those projects' calendars; their task dates stay until recalculated.	Gedeeld door elk project dat ze gebruikt. Als je een lijst wijzigt, veranderen de kalenders van die projecten; hun taakdatums blijven staan tot ze opnieuw worden berekend.
+Shared with all bidders	Gedeeld met alle bieders
 Sheet	Tekening
 Sheet file	Tekeningbestand
 Sheet files	Tekeningbestanden
@@ -2224,6 +2236,7 @@ The questions each kind of form asks. Forms already started keep the questions t
 The reflected ceiling plan shows 9'-0" but the section shows 8'-6". Which governs?	Het plafondspiegelplan toont 2,75 m, maar de doorsnede toont 2,60 m. Welke geldt?
 The section governs	Het hoofdstuk geldt
 The sheet log	De tekeninglog
+The team answers you here. They may share a question and its answer with the other bidders, without your name.	Het team antwoordt u hier. Het kan een vraag en het antwoord delen met de andere bieders, zonder uw naam.
 The template	Het sjabloon
 The thin bar under a task is its baseline.	De dunne balk onder een taak is de basisplanning.
 There are no tasks in your projects.	Er zijn geen taken in je projecten.
@@ -2423,6 +2436,7 @@ You'll be told here when something needs you, like a submittal waiting for your 
 Your bid	Uw bieding
 Your first name	Je voornaam
 Your last name	Je achternaam
+Your question	Uw vraag
 Your reply	Jouw antwoord
 Your response	Jouw reactie
 Zoom	Zoomen

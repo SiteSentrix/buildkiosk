@@ -1,6 +1,6 @@
 # Bidder portal (design)
 
-_Status: 2026-10-14. Design agreed by the owner (decisions at the end); nothing here is built yet._
+_Status: 2026-10-14. Design agreed by the owner (decisions at the end); steps 1 to 4 are built (see Build order); the items under "Left for later" remain._
 
 ## Goal
 
@@ -116,7 +116,6 @@ portal and assert no other bidder's data appears.
 - Receipt email to the bidder after submitting (the page shows the reference at once).
 - A notice to the team when a bid arrives (the package page shows the sealed count).
 - Bidders attaching their own files (a proposal, a bond): today the team attaches what a company sends.
-- Q&A (step 4).
 
 ## Not in the first version
 
@@ -158,5 +157,7 @@ than the interface's four.
    (`no-store`, `no-referrer`, `noindex`, the usual CSP with `script-src 'none'`), a form token tied to the link, a
    limit of 8 posts per link per five minutes, and on the package page a "Bid links" card (create, show link, send
    again, cancel, open sealed bids).
-4. Q&A commands and pages (`portal_ask`, `answer_question`).
+4. **Done 2026-10-14.** Q&A: `portal_ask`, `bid_package.answer_question` (answer privately, or share the
+   question and answer without the asker's name, optionally reworded first, optionally issued as an addendum), the
+   bidder's "Questions" card and the team's "Questions from bidders" card. At most 50 questions per company.
 5. Docs: README "Not yet" line, `docs/gaps.md`, `docs/target-app-parity.md`, `ROADMAP.md`.

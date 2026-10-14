@@ -552,3 +552,120 @@ fn bidders_ask_questions_and_the_team_answers() {
     w.err(Actor::System, "bid_package.portal_ask", ask(2, "Late question?"));
     w.assert_replay();
 }
+
+#[test]
+fn the_team_is_told_and_bidders_attach_files() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let reader = w.member(p, "Rory", "Reader", "Read only");
+    let a = w.ok(w.admin(), "vendor.create", json!({"name": "Keystone Concrete", "kind": "subcontractor"}))["id"].as_u64().unwrap();
+    let id = w.ok(pm, "bid_package.create", json!({"project": p, "title": "Concrete", "due": "2099-01-01"}))["id"].as_u64().unwrap();
+    let args = |extra: serde_json::Value| {
+        let mut v = json!({"project": p, "id": id, "invitation": 1, "generation": 0});
+        v.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+        v
+    };
+    let file = |n: u32| json!({"sha256": format!("{n:064x}"), "name": format!("proposal-{n}.pdf"), "size": 1000, "mime": "application/pdf"});
+    w.ok(pm, "bid_package.invite", json!({"project": p, "id": id, "vendor": a, "email": "bids@keystone.example"}));
+    w.ok(pm, "bid_package.open", json!({"project": p, "id": id}));
+
+    // Files go with a bid, so there must be one first.
+    w.err(Actor::System, "bid_package.portal_attach", args(file(1)));
+    w.ok(Actor::System, "bid_package.portal_submit", args(json!({"amount": "5000"})));
+
+    // The people who run bidding are told, without the amount; readers aren't.
+    let told = |w: &mut World, who: Actor| w.ok(who, "notification.list", json!({})).to_string();
+    let admin = w.admin();
+    let admin_view = told(&mut w, admin);
+    assert!(admin_view.contains("Keystone Concrete sent a bid (sealed until bidding closes)") && !admin_view.contains("5000"), "{admin_view}");
+    assert!(told(&mut w, pm.into()).contains("sent a bid"));
+    assert!(!told(&mut w, reader.into()).contains("sent a bid"));
+    w.ok(Actor::System, "bid_package.portal_ask", args(json!({"text": "What depth?"})));
+    assert!(told(&mut w, pm.into()).contains("asked a question"));
+
+    // A bidder attaches files to their own (sealed) bid, up to a limit, and can remove them.
+    w.ok(Actor::System, "bid_package.portal_attach", args(file(1)));
+    w.ok(Actor::System, "bid_package.portal_attach", args(file(1)));
+    assert_eq!(w.engine.state().bid_packages.iter().next().unwrap().sealed_bids[0].files.len(), 1, "the same file twice is one file");
+    w.err(pm, "bid_package.portal_attach", args(file(2)));
+    w.err(Actor::System, "bid_package.portal_attach", args(json!({"sha256": "short", "name": "x", "size": 1})));
+    for n in 2..=10 {
+        w.ok(Actor::System, "bid_package.portal_attach", args(file(n)));
+    }
+    w.err(Actor::System, "bid_package.portal_attach", args(file(11)));
+    w.ok(Actor::System, "bid_package.portal_detach", args(json!({"sha256": format!("{:064x}", 10)})));
+    w.err(Actor::System, "bid_package.portal_detach", args(json!({"sha256": format!("{:064x}", 10)})));
+    let view = w.ok(Actor::System, "bid_package.portal_view", args(json!({})));
+    assert_eq!(view["bid"]["files"].as_array().unwrap().len(), 9);
+    // The team doesn't see the files until the bid is opened.
+    assert!(!w.ok(pm, "bid_package.get", json!({"project": p, "id": id})).to_string().contains("proposal-1.pdf"));
+    w.ok(pm, "bid_package.close", json!({"project": p, "id": id}));
+    assert_eq!(w.engine.state().bid_packages.iter().next().unwrap().bids[0].files.len(), 9);
+    w.err(Actor::System, "bid_package.portal_attach", args(file(12)));
+    w.assert_replay();
+}
+
+#[test]
+fn an_open_link_lets_companies_ask_to_be_invited() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let reader = w.member(p, "Rory", "Reader", "Read only");
+    let id = w.ok(pm, "bid_package.create", json!({"project": p, "title": "Concrete", "due": "2099-01-01"}))["id"].as_u64().unwrap();
+    let args = |extra: serde_json::Value| {
+        let mut v = json!({"project": p, "id": id});
+        v.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+        v
+    };
+    let reg = |generation: u32, company: &str, email: &str| {
+        args(json!({"generation": generation, "company": company, "contact": "Sam Estimator", "email": email}))
+    };
+
+    // Off until the team switches it on; only people with Bidding access can.
+    w.err(pm, "bid_package.open", args(json!({})));
+    w.err(Actor::System, "bid_package.portal_register", reg(0, "Granite Works", "bids@granite.example"));
+    w.err(Actor::System, "bid_package.portal_open_view", args(json!({"generation": 0})));
+    w.err(reader, "bid_package.set_public", args(json!({})));
+    w.ok(pm, "bid_package.set_public", args(json!({})));
+    w.ok(pm, "bid_package.open", args(json!({})));
+    let view = w.ok(Actor::System, "bid_package.portal_open_view", args(json!({"generation": 0})));
+    assert_eq!((view["contractor"].as_str().unwrap(), view["accepting"].as_bool().unwrap()), ("Summit Ridge Builders", true));
+
+    // Requests are validated, can't repeat an address, and tell the team.
+    w.err(Actor::System, "bid_package.portal_register", reg(0, "", "bids@granite.example"));
+    w.err(Actor::System, "bid_package.portal_register", reg(0, "Granite Works", "nope"));
+    w.err(Actor::System, "bid_package.portal_register", reg(3, "Granite Works", "bids@granite.example"));
+    w.err(pm, "bid_package.portal_register", reg(0, "Granite Works", "bids@granite.example"));
+    assert_eq!(w.ok(Actor::System, "bid_package.portal_register", reg(0, "Granite Works", "Bids@Granite.example"))["number"], 1);
+    w.err(Actor::System, "bid_package.portal_register", reg(0, "Granite Works", "bids@granite.example"));
+    w.ok(Actor::System, "bid_package.portal_register", reg(0, "Slab Brothers", "info@slab.example"));
+    w.ok(Actor::System, "bid_package.portal_register", reg(0, "Spam Inc", "spam@spam.example"));
+    assert!(w.ok(pm, "notification.list", json!({})).to_string().contains("Granite Works asked to be invited to bid"));
+
+    // Approving invites the company (a link goes to the address on the request); declining just records it.
+    w.err(reader, "bid_package.approve_registration", args(json!({"number": 1})));
+    w.err(pm, "bid_package.approve_registration", args(json!({"number": 1})));
+    let out = w.ok(w.admin(), "bid_package.approve_registration", args(json!({"number": 1})));
+    assert_eq!(out["invitation"], 1);
+    let pkg = w.engine.state().bid_packages.iter().next().unwrap().clone();
+    assert_eq!((pkg.invitations[0].email.as_str(), pkg.invited.len()), ("bids@granite.example", 1));
+    assert!(w.engine.state().vendors.iter().any(|v| v.name == "Granite Works"));
+    w.err(w.admin(), "bid_package.approve_registration", args(json!({"number": 1})));
+    // A company already in the directory is chosen, not duplicated.
+    let slab = w.ok(w.admin(), "vendor.create", json!({"name": "Slab Brothers", "kind": "subcontractor"}))["id"].as_u64().unwrap();
+    w.err(w.admin(), "bid_package.approve_registration", args(json!({"number": 2})));
+    w.ok(pm, "bid_package.approve_registration", args(json!({"number": 2, "vendor": slab})));
+    w.ok(pm, "bid_package.decline_registration", args(json!({"number": 3})));
+    w.err(pm, "bid_package.decline_registration", args(json!({"number": 3})));
+    assert_eq!(w.engine.state().bid_packages.iter().next().unwrap().invitations.len(), 2);
+
+    // Replacing the link kills the old one; switching it off ends registration.
+    let rotated = w.ok(pm, "bid_package.set_public", args(json!({"rotate": true})));
+    assert_eq!(rotated["generation"], 1);
+    w.err(Actor::System, "bid_package.portal_register", reg(0, "Late Co", "late@late.example"));
+    w.ok(Actor::System, "bid_package.portal_register", reg(1, "Late Co", "late@late.example"));
+    w.ok(pm, "bid_package.set_public", args(json!({"enabled": false})));
+    w.err(Actor::System, "bid_package.portal_register", reg(1, "Later Co", "later@late.example"));
+    w.assert_replay();
+}

@@ -15,6 +15,7 @@ A Forms admin needs to create a template first.
 A baseline is the schedule's dates kept under a name, so progress can be measured against them. Save one when the contract is signed and another after a re-plan.
 A bid
 A bid bond of
+A company asks to bid by {}
 A crew is a named group you log hours for together.
 A draft commitment was started
 A file from {}
@@ -73,6 +74,7 @@ Add an assembly to an estimate by {}
 Add an item
 Add an item below, or import a list of prices.
 Add as a lump sum
+Add as a new company
 Add company
 Add company by {}
 Add cost code by {}
@@ -185,11 +187,13 @@ Any status
 Any template
 Any {}
 Anyone
+Anyone with this link can ask to be invited to bid. Nobody gets the bid documents until you approve their request.
 Anyone with this link can read the package and send or change a bid for
 Anyone with this link can read the package and send or change a bid for {}. Send it only to them.
 Applied
 Approval
 Approve
+Approve a request to bid by {}
 Approve budget change by {}
 Approve commitment by {}
 Approve commitment change order by {}
@@ -221,6 +225,8 @@ As late as possible
 As requested
 As soon as possible
 Ask the team a question
+Ask to bid
+Asked
 Assemblies
 Assembly
 Assign
@@ -229,6 +235,7 @@ Assigned to
 Assigned to me
 Assignees
 At least 10 characters.
+Attach a proposal, bond or other document (up to 25 MB each, 10 files).
 Attach file
 Attach file to RFI by {}
 Attach file to a checklist line by {}
@@ -306,6 +313,8 @@ Bid package #{}
 Bid package (its lowest bid)
 Bidder acknowledges an addendum by {}
 Bidder asks a question by {}
+Bidder attaches a file by {}
+Bidder removes a file by {}
 Bidder sends a bid by {}
 Bidder withdraws a bid by {}
 Bidding
@@ -465,6 +474,7 @@ Company
 Company admin
 Company holiday lists
 Company holiday lists this project takes
+Company in the directory
 Company name
 Company reports
 Company settings
@@ -489,6 +499,7 @@ Constraint and resources
 Constraint date
 Construction
 Consultant
+Contact
 Contact only
 Contract
 Contract signature
@@ -598,6 +609,7 @@ Debris is removed and surfaces are cleaned
 Dec
 Decision
 Decline
+Decline a request to bid by {}
 Declined
 Delays
 Delays and issues
@@ -845,6 +857,7 @@ File incoming correspondence
 File incoming correspondence by {}
 File it
 File to attach
+File to attach to your bid
 Files
 Files (optional)
 Files can be at most 25 MB.
@@ -941,6 +954,7 @@ How many units
 How much of a code's work is done. Leave blank to remove it.
 How often
 I have read this addendum
+If the link ends up somewhere you don't want it, use Replace the link
 If this company was entered twice, merge it into the one to keep. RFIs, commitments, bids, people and other records that name
 If this company was entered twice, merge it into the one to keep. RFIs, commitments, bids, people and other records that name {} will name the kept company instead, and {} is removed from the directory. Blank details of the kept company are filled in from this one.
 Import
@@ -1058,6 +1072,7 @@ Laydown yard
 Leave To empty to post the seven days from From.
 Leave blank to use the template's name.
 Leave the markups out
+Leave this empty
 Length
 Letter
 Letter, Notice, Email…
@@ -1415,8 +1430,10 @@ Open RFIs
 Open action items
 Open actions
 Open actions from earlier meetings
+Open bid link
 Open floor edge at level 2 stair
 Open in viewer
+Open or close the open bid link by {}
 Open punch items
 Open sealed bids by {}
 Open the standard layout by default
@@ -1513,6 +1530,7 @@ Permit set
 Person
 Person {}
 Phone
+Phone (optional)
 Photo
 Photos
 Pick a tool above and click the sheet.
@@ -1744,6 +1762,7 @@ Repeat until
 Repeats
 Replace baseline with current dates
 Replace cracked ceiling tile
+Replace the link
 Replies
 Reply
 Reply by
@@ -2008,6 +2027,7 @@ Send prime change order for signature by {}
 Send prime contract for signature by {}
 Send punch item back by {}
 Send question
+Send request
 Send submittal for review by {}
 Send task back by {}
 Send transmittal by {}
@@ -2045,6 +2065,7 @@ Sets each cost code's original budget to its amount in this estimate. Choose a c
 Setting a cost code that already has a line changes its amount.
 Settings
 Severity
+Share it where companies will see it
 Share the question and answer with every invited company, without the company's name
 Shared
 Shared by every project that takes them. Changing a list changes those projects' calendars; their task dates stay until recalculated.
@@ -2064,6 +2085,7 @@ Show closed
 Show link
 Show measurements
 Show month
+Show the link
 Show them
 Side by side
 Sign
@@ -2210,6 +2232,7 @@ Team members
 Telehandler
 Tell people a sheet revision was issued by {}
 Tell people the current revision was issued
+Tell us who you are. The team reviews each request and, if approved, emails you a private link to the bid documents and the bid form.
 Template
 Template gives
 Template name
@@ -2248,6 +2271,7 @@ This link doesn't work
 This month
 This package is not out for bid yet.
 This package is not taking bids.
+This package is not taking requests right now.
 This period
 This period, {}
 This project needs a signed contract before a commitment can be approved.
@@ -2284,6 +2308,8 @@ Trends
 Trends appear once observations are recorded.
 Tue
 Turn email off
+Turn off
+Turn on the open link
 Two coats applied.
 Two weeks
 Type
@@ -2436,6 +2462,7 @@ You'll be told here when something needs you, like a submittal waiting for your 
 Your bid
 Your first name
 Your last name
+Your name
 Your question
 Your reply
 Your response
@@ -2497,6 +2524,7 @@ standard on project management, read-only financials.
 submitted {}
 the date in the picture, else today)
 the file name)
+the old one stops working at once.
 the schedule of values that gets invoiced
 title, location,
 title, location, {}, priority (low, medium, high, urgent), due date (YYYY-MM-DD), assignees (email addresses separated by semicolons). A header line starting with title is skipped. Nothing is added unless every line is good.

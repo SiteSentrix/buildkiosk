@@ -436,6 +436,7 @@ pub fn router(app: Shared) -> Router {
         .route("/projects/{id}/bidding/{bid}", get(bid_package_page))
         .route("/projects/{id}/bidding/{bid}/edit", get(bid_package_edit))
         .route("/projects/{id}/bidding/{bid}/links/{n}", get(bid_link_page))
+        .route("/projects/{id}/bidding/{bid}/open-link", get(bid_open_link_page))
         .route("/projects/{id}/bidding/{bid}/upload", post(bid_package_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
         .route("/projects/{id}/bidding/{bid}/files/{sha}", get(bid_package_download))
         .route("/projects/{id}/estimating", get(estimating_page))
@@ -2728,6 +2729,25 @@ async fn bid_link_page(State(app): State<Shared>, headers: HeaderMap, Path((id, 
         inner.tenant.as_ref().map(|t| view::vendor_name(t.engine.state(), inv.vendor)).unwrap_or_default()
     };
     page(&app, &headers, &q, |r, _| buildkiosk_web::bidding::link_page(r, Id::new(id), Id::new(bid), &company, &inv.email, &url))
+}
+
+/// Shows the package's open bid link so the team can share it.
+async fn bid_open_link_page(State(app): State<Shared>, headers: HeaderMap, Path((id, bid)): Path<(u64, u64)>, Query(q): Q) -> Response {
+    let found = {
+        let inner = app.lock();
+        let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+        let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+        let state = t.engine.state();
+        let allowed = view::level(state, Actor::Person(s.person), Id::new(id), Tool::Bidding) >= Level::Standard;
+        state
+            .bid_packages
+            .get(Id::new(bid))
+            .filter(|b| allowed && b.project.raw() == id && b.deleted.is_none() && b.public)
+            .map(|b| (b.id.raw(), b.public_generation, t.slug.clone()))
+    };
+    let Some((package, generation, slug)) = found else { return not_found(State(app), headers).await };
+    let url = portal::team_open_link(&app, &slug, package, generation);
+    page(&app, &headers, &q, |r, _| buildkiosk_web::bidding::open_link_page(r, Id::new(id), Id::new(bid), &url))
 }
 
 async fn bid_package_edit(State(app): State<Shared>, headers: HeaderMap, Path((id, bid)): Path<(u64, u64)>, Query(q): Q) -> Response {

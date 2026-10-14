@@ -108,7 +108,7 @@ differs; [`docs/gaps.md`](docs/gaps.md) lists what each one still lacks.
 | Tool | What you can do |
 | --- | --- |
 | **Estimating** | A priced catalogue with price history by supplier, assemblies, take-offs from drawings, estimates with markups, alternates and versions, templates, and "put it in the budget" |
-| **Bidding** | Bid packages with scope, addenda and acknowledgements, leveling, weighted scoring, bid bonds, and award to a commitment; a bidder portal where invited companies, with no account, open an emailed link to read the documents, ask questions, and send, change or withdraw a sealed bid |
+| **Bidding** | Bid packages with scope, addenda and acknowledgements, leveling, weighted scoring, bid bonds, and award to a commitment; a bidder portal where invited companies, with no account, open an emailed link to read the documents, ask questions, attach files, and send, change or withdraw a sealed bid, an open link for public work where companies ask to be invited, and emails and notices at each step |
 | **Timesheets** | Hours with overtime rules, pay rates, crews and a labour cost report that posts to the budget |
 | **Prequalification** | Scored, versioned questionnaires, insurance and licence expiry warnings, and an optional rule that awards need a current prequalification |
 | **Reports** | Per-project and company reports with chosen columns, totals, charts, CSV and PDF |
@@ -130,7 +130,7 @@ differs; [`docs/gaps.md`](docs/gaps.md) lists what each one still lacks.
 
 ### Not yet
 
-A way to share documents by link, bidders attaching their own files in the portal, offline field mode and mobile apps, native
+A way to share documents by link, offline field mode and mobile apps, native
 Microsoft Project (.mpp) files, integrations with other software, electronic signing inside BuildKiosk, and the
 long tail of each tool. These are tracked in [`docs/gaps.md`](docs/gaps.md) and [`ROADMAP.md`](ROADMAP.md).
 

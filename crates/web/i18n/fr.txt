@@ -15,6 +15,7 @@ A Forms admin needs to create a template first.	Un administrateur des formulaire
 A baseline is the schedule's dates kept under a name, so progress can be measured against them. Save one when the contract is signed and another after a re-plan.	Un planning de référence conserve sous un nom les dates du planning, afin de mesurer l'avancement par rapport à elles. Enregistrez-en un à la signature du contrat et un autre après une replanification.
 A bid	Une offre
 A bid bond of	Une garantie de soumission de
+A company asks to bid by {}	Une entreprise demande à soumissionner par {}
 A crew is a named group you log hours for together.	Une équipe est un groupe nommé pour lequel vous saisissez les heures ensemble.
 A draft commitment was started	Un engagement brouillon a été créé
 A file from {}	Un fichier de {}
@@ -73,6 +74,7 @@ Add an assembly to an estimate by {}	Ajouter un ouvrage composé à une estimati
 Add an item	Ajouter un élément
 Add an item below, or import a list of prices.	Ajoutez un élément ci-dessous, ou importez une liste de prix.
 Add as a lump sum	Ajouter en somme forfaitaire
+Add as a new company	Ajouter comme nouvelle entreprise
 Add company	Ajouter une entreprise
 Add company by {}	Ajouter une entreprise par {}
 Add cost code by {}	Ajouter un code de coût par {}
@@ -185,11 +187,13 @@ Any status	Tout statut
 Any template	Tout modèle
 Any {}	Tout {}
 Anyone	Tout le monde
+Anyone with this link can ask to be invited to bid. Nobody gets the bid documents until you approve their request.	Toute personne ayant ce lien peut demander à être invitée à soumissionner. Personne ne reçoit les documents avant que vous n’approuviez sa demande.
 Anyone with this link can read the package and send or change a bid for	Toute personne ayant ce lien peut lire le lot et envoyer ou modifier une soumission pour
 Anyone with this link can read the package and send or change a bid for {}. Send it only to them.	Toute personne ayant ce lien peut lire le lot et envoyer ou modifier une soumission pour {}. Ne l’envoyez qu’à eux.
 Applied	Appliqué
 Approval	Approbation
 Approve	Approuver
+Approve a request to bid by {}	Approuver une demande de soumission par {}
 Approve budget change by {}	Approuver une modification du budget par {}
 Approve commitment by {}	Approuver l'engagement par {}
 Approve commitment change order by {}	Approuver l'avenant d'engagement par {}
@@ -221,6 +225,8 @@ As late as possible	Le plus tard possible
 As requested	Comme demandé
 As soon as possible	Dès que possible
 Ask the team a question	Poser une question à l’équipe
+Ask to bid	Demander à soumissionner
+Asked	Demandée
 Assemblies	Ouvrages composés
 Assembly	Ouvrage composé
 Assign	Assigner
@@ -229,6 +235,7 @@ Assigned to	Assigné à
 Assigned to me	Assigné à moi
 Assignees	Personnes assignées
 At least 10 characters.	Au moins 10 caractères.
+Attach a proposal, bond or other document (up to 25 MB each, 10 files).	Joignez une proposition, une garantie ou un autre document (jusqu’à 25 Mo chacun, 10 fichiers).
 Attach file	Joindre un fichier
 Attach file to RFI by {}	Joindre un fichier à la RFI par {}
 Attach file to a checklist line by {}	Joindre un fichier à une ligne de liste de contrôle par {}
@@ -306,6 +313,8 @@ Bid package #{}	Lot d'appel d'offres #{}
 Bid package (its lowest bid)	Lot d'appel d'offres (son offre la plus basse)
 Bidder acknowledges an addendum by {}	Accusé de réception d'un addenda par le soumissionnaire, par {}
 Bidder asks a question by {}	Question d’un soumissionnaire par {}
+Bidder attaches a file by {}	Fichier joint par un soumissionnaire, par {}
+Bidder removes a file by {}	Fichier retiré par un soumissionnaire, par {}
 Bidder sends a bid by {}	Soumission envoyée par le soumissionnaire, par {}
 Bidder withdraws a bid by {}	Soumission retirée par le soumissionnaire, par {}
 Bidding	Appel d'offres
@@ -465,6 +474,7 @@ Company	Entreprise
 Company admin	Administrateur de l'entreprise
 Company holiday lists	Listes de jours fériés de l'entreprise
 Company holiday lists this project takes	Listes de jours fériés de l'entreprise retenues par ce projet
+Company in the directory	Entreprise du répertoire
 Company name	Nom de l'entreprise
 Company reports	Rapports de l'entreprise
 Company settings	Paramètres de l'entreprise
@@ -489,6 +499,7 @@ Constraint and resources	Contrainte et ressources
 Constraint date	Date de contrainte
 Construction	Construction
 Consultant	Consultant
+Contact	Contact
 Contact only	Contact uniquement
 Contract	Contrat
 Contract signature	Signature du contrat
@@ -598,6 +609,7 @@ Debris is removed and surfaces are cleaned	Les gravats sont évacués et les sur
 Dec	déc.
 Decision	Décision
 Decline	Refuser
+Decline a request to bid by {}	Refuser une demande de soumission par {}
 Declined	Refusé
 Delays	Retards
 Delays and issues	Retards et problèmes
@@ -845,6 +857,7 @@ File incoming correspondence	Classer le courrier entrant
 File incoming correspondence by {}	Classer le courrier entrant par {}
 File it	Classer
 File to attach	Fichier à joindre
+File to attach to your bid	Fichier à joindre à votre soumission
 Files	Fichiers
 Files (optional)	Fichiers (facultatif)
 Files can be at most 25 MB.	Les fichiers peuvent peser 25 Mo au maximum.
@@ -941,6 +954,7 @@ How many units	Combien d'unités
 How much of a code's work is done. Leave blank to remove it.	Avancement des travaux d'un code. Laissez vide pour le retirer.
 How often	À quelle fréquence
 I have read this addendum	J’ai lu cet addenda
+If the link ends up somewhere you don't want it, use Replace the link	Si le lien se retrouve là où vous ne le souhaitez pas, utilisez Remplacer le lien
 If this company was entered twice, merge it into the one to keep. RFIs, commitments, bids, people and other records that name	Si cette entreprise a été saisie en double, fusionnez-la avec celle à conserver. Les RFI, engagements, offres, personnes et autres enregistrements qui mentionnent
 If this company was entered twice, merge it into the one to keep. RFIs, commitments, bids, people and other records that name {} will name the kept company instead, and {} is removed from the directory. Blank details of the kept company are filled in from this one.	Si cette entreprise a été saisie en double, fusionnez-la avec celle à conserver. Les RFI, engagements, offres, personnes et autres enregistrements qui mentionnent {} mentionneront à la place l'entreprise conservée, et {} est retirée de l'annuaire. Les informations vides de l'entreprise conservée sont complétées avec celles-ci.
 Import	Importer
@@ -1058,6 +1072,7 @@ Laydown yard	Aire de stockage
 Leave To empty to post the seven days from From.	Laissez À vide pour publier les sept jours à partir de De.
 Leave blank to use the template's name.	Laissez vide pour utiliser le nom du modèle.
 Leave the markups out	Exclure les annotations
+Leave this empty	Laissez ceci vide
 Length	Longueur
 Letter	Lettre
 Letter, Notice, Email…	Lettre, avis, e-mail…
@@ -1415,8 +1430,10 @@ Open RFIs	RFI ouvertes
 Open action items	Actions ouvertes
 Open actions	Actions ouvertes
 Open actions from earlier meetings	Actions ouvertes des réunions précédentes
+Open bid link	Lien de soumission ouvert
 Open floor edge at level 2 stair	Bord de plancher ouvert à l'escalier du niveau 2
 Open in viewer	Ouvrir dans la visionneuse
+Open or close the open bid link by {}	Ouvrir ou fermer le lien de soumission ouvert par {}
 Open punch items	Réserves ouvertes
 Open sealed bids by {}	Ouvrir les soumissions scellées par {}
 Open the standard layout by default	Ouvrir la mise en page standard par défaut
@@ -1513,6 +1530,7 @@ Permit set	Dossier de permis
 Person	Personne
 Person {}	Personne {}
 Phone	Téléphone
+Phone (optional)	Téléphone (facultatif)
 Photo	Photo
 Photos	Photos
 Pick a tool above and click the sheet.	Choisissez un outil ci-dessus et cliquez sur le plan.
@@ -1744,6 +1762,7 @@ Repeat until	Répéter jusqu'au
 Repeats	Répétitions
 Replace baseline with current dates	Remplacer le planning de référence par les dates actuelles
 Replace cracked ceiling tile	Remplacer la dalle de plafond fissurée
+Replace the link	Remplacer le lien
 Replies	Réponses
 Reply	Répondre
 Reply by	Répondre avant le
@@ -2008,6 +2027,7 @@ Send prime change order for signature by {}	Envoyer l'avenant du contrat princip
 Send prime contract for signature by {}	Envoyer le contrat principal pour signature par {}
 Send punch item back by {}	Renvoyer la réserve par {}
 Send question	Envoyer la question
+Send request	Envoyer la demande
 Send submittal for review by {}	Envoyer la soumission pour révision par {}
 Send task back by {}	Renvoyer la tâche par {}
 Send transmittal by {}	Envoyer le bordereau de transmission par {}
@@ -2045,6 +2065,7 @@ Sets each cost code's original budget to its amount in this estimate. Choose a c
 Setting a cost code that already has a line changes its amount.	Définir un code de coût qui a déjà une ligne modifie son montant.
 Settings	Paramètres
 Severity	Gravité
+Share it where companies will see it	Partagez-le là où les entreprises le verront
 Share the question and answer with every invited company, without the company's name	Partager la question et la réponse avec toutes les entreprises invitées, sans le nom de l’entreprise
 Shared	Partagé
 Shared by every project that takes them. Changing a list changes those projects' calendars; their task dates stay until recalculated.	Partagé par chaque projet qui les utilise. Modifier une liste modifie les calendriers de ces projets ; leurs dates de tâches restent inchangées jusqu'au recalcul.
@@ -2064,6 +2085,7 @@ Show closed	Afficher les éléments clôturés
 Show link	Afficher le lien
 Show measurements	Afficher les mesures
 Show month	Afficher le mois
+Show the link	Afficher le lien
 Show them	Les afficher
 Side by side	Côte à côte
 Sign	Signer
@@ -2210,6 +2232,7 @@ Team members	Membres de l'équipe
 Telehandler	Chariot télescopique
 Tell people a sheet revision was issued by {}	Informer les personnes qu'une révision de feuille a été émise par {}
 Tell people the current revision was issued	Informer les personnes que la révision en vigueur a été émise
+Tell us who you are. The team reviews each request and, if approved, emails you a private link to the bid documents and the bid form.	Dites-nous qui vous êtes. L’équipe examine chaque demande et, si elle est approuvée, vous envoie par courriel un lien privé vers les documents et le formulaire de soumission.
 Template	Modèle
 Template gives	Le modèle donne
 Template name	Nom du modèle
@@ -2248,6 +2271,7 @@ This link doesn't work	Ce lien ne fonctionne pas
 This month	Ce mois-ci
 This package is not out for bid yet.	Ce lot n’est pas encore en appel d’offres.
 This package is not taking bids.	Ce lot n’accepte pas de soumissions.
+This package is not taking requests right now.	Ce lot n’accepte pas de demandes pour le moment.
 This period	Cette période
 This period, {}	Cette période, {}
 This project needs a signed contract before a commitment can be approved.	Ce projet nécessite un contrat signé avant qu'un engagement puisse être approuvé.
@@ -2284,6 +2308,8 @@ Trends	Tendances
 Trends appear once observations are recorded.	Les tendances apparaissent dès que des observations sont enregistrées.
 Tue	mar.
 Turn email off	Désactiver l'e-mail
+Turn off	Désactiver
+Turn on the open link	Activer le lien ouvert
 Two coats applied.	Deux couches appliquées.
 Two weeks	Deux semaines
 Type	Type
@@ -2436,6 +2462,7 @@ You'll be told here when something needs you, like a submittal waiting for your 
 Your bid	Votre soumission
 Your first name	Votre prénom
 Your last name	Votre nom de famille
+Your name	Votre nom
 Your question	Votre question
 Your reply	Votre réponse
 Your response	Votre réponse
@@ -2497,6 +2524,7 @@ standard on project management, read-only financials.	standard sur la gestion de
 submitted {}	soumis {}
 the date in the picture, else today)	la date de la photo, sinon aujourd'hui)
 the file name)	le nom du fichier)
+the old one stops working at once.	l’ancien cesse de fonctionner immédiatement.
 the schedule of values that gets invoiced	l'échéancier de valeurs qui est facturé
 title, location,	titre, emplacement,
 title, location, {}, priority (low, medium, high, urgent), due date (YYYY-MM-DD), assignees (email addresses separated by semicolons). A header line starting with title is skipped. Nothing is added unless every line is good.	title, location, {}, priority (low, medium, high, urgent), due date (YYYY-MM-DD), assignees (adresses e-mail séparées par des points-virgules). Une ligne d'en-tête commençant par title est ignorée. Rien n'est ajouté sauf si chaque ligne est correcte.

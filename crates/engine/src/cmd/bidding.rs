@@ -8,8 +8,8 @@
 
 use buildkiosk_core::{Date, Id, Money, Percent, text};
 use buildkiosk_model::bidding::{
-    Acknowledgement, Addendum, Bid, BidAlternate, BidInvitation, BidItem, BidLine, BidPackage, BidQuestion, BidScore, BidStatus, BondReceipt,
-    Criterion, ScopeAnswer, ScopeResponse,
+    Acknowledgement, Addendum, Bid, BidAlternate, BidInvitation, BidItem, BidLine, BidPackage, BidQuestion, BidRegistration, BidScore, BidStatus,
+    BondReceipt, Criterion, ScopeAnswer, ScopeResponse,
 };
 use buildkiosk_model::common::FileRef;
 use buildkiosk_model::directory::Vendor;
@@ -48,7 +48,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Send out for bid",
         Tool::Bidding,
         Access::Project(Level::Standard),
-        "project, id: ids (needs at least one invited company)",
+        "project, id: ids (needs at least one invited company, or the open bid link switched on)",
         open,
     ),
     CommandSpec::mutate(
@@ -140,6 +140,62 @@ pub const COMMANDS: &[CommandSpec] = &[
         "project, id: ids; number: question number; answer: text (replaces an earlier answer); text?: reword the question first (to keep the asker unidentifiable); \
          publish?: bool (show the question and answer, without the company's name, to every invited company); addendum?: bool (also issue it as an addendum, which publishes it)",
         answer_question,
+    ),
+    CommandSpec::mutate(
+        "bid_package.portal_attach",
+        "Bidder attaches a file",
+        Tool::Bidding,
+        Access::System,
+        "project, id, invitation, generation as portal_view; sha256, name, size, mime? as bid_package.attach (to the company's own bid)",
+        portal_attach,
+    ),
+    CommandSpec::mutate(
+        "bid_package.portal_detach",
+        "Bidder removes a file",
+        Tool::Bidding,
+        Access::System,
+        "project, id, invitation, generation as portal_view; sha256",
+        portal_detach,
+    ),
+    CommandSpec::mutate(
+        "bid_package.set_public",
+        "Open or close the open bid link",
+        Tool::Bidding,
+        Access::Project(Level::Standard),
+        "project, id: ids; enabled?: bool (default true: any company can ask, with a link you share, to be invited; you approve each); rotate?: bool (replace the link, so the old one stops working)",
+        set_public,
+    ),
+    CommandSpec::query(
+        "bid_package.portal_open_view",
+        "Show the open bid page",
+        Tool::Bidding,
+        Access::System,
+        "project, id: ids; generation: the open link's generation (run by the server once the link is checked)",
+        portal_open_view,
+    ),
+    CommandSpec::mutate(
+        "bid_package.portal_register",
+        "A company asks to bid",
+        Tool::Bidding,
+        Access::System,
+        "project, id, generation as portal_open_view; company, contact: text; email: address; phone?: text",
+        portal_register,
+    ),
+    CommandSpec::mutate(
+        "bid_package.approve_registration",
+        "Approve a request to bid",
+        Tool::Bidding,
+        Access::Project(Level::Standard),
+        "project, id: ids; number: request number; vendor?: the company in the directory it is for (blank: add one from the request); a link goes to the address on the request",
+        approve_registration,
+    ),
+    CommandSpec::mutate(
+        "bid_package.decline_registration",
+        "Decline a request to bid",
+        Tool::Bidding,
+        Access::Project(Level::Standard),
+        "project, id: ids; number: request number",
+        decline_registration,
     ),
     CommandSpec::mutate(
         "bid_package.portal_ack",
@@ -266,6 +322,9 @@ const MAX_ROWS: usize = 200;
 const MAX_ADDENDA: usize = 100;
 const MAX_INVITATIONS: usize = 300;
 const MAX_QUESTIONS: usize = 500;
+const MAX_REGISTRATIONS: usize = 300;
+const MAX_PENDING_REGISTRATIONS: usize = 100;
+const MAX_BID_FILES: usize = 10;
 const MAX_QUESTIONS_PER_COMPANY: usize = 50;
 const MAX_ATTACHMENTS: usize = 50;
 
@@ -408,6 +467,9 @@ fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         bids: Vec::new(),
         sealed: p.flag_or("sealed", true)?,
         sealed_bids: Vec::new(),
+        public: false,
+        public_generation: 0,
+        registrations: Vec::new(),
         questions: Vec::new(),
         invitations: Vec::new(),
         awarded_to: None,
@@ -451,8 +513,8 @@ fn set_status(ctx: &mut Ctx<'_>, p: &Params<'_>, from: &[BidStatus], to: BidStat
 
 fn open(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     let b = load(ctx, p)?;
-    if b.invited.is_empty() {
-        return Err(EngineError::conflict("invite at least one company first"));
+    if b.invited.is_empty() && !b.public {
+        return Err(EngineError::conflict("invite at least one company first, or turn on the open bid link"));
     }
     let b = set_status(ctx, p, &[BidStatus::Draft], BidStatus::Open)?;
     Ok(json!({ "id": b.id }))
@@ -661,16 +723,10 @@ fn expiry(ctx: &Ctx<'_>, p: &Params<'_>) -> Result<Option<Date>> {
     Ok(day)
 }
 
-fn invite(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
-    let mut b = load(ctx, p)?;
-    if !matches!(b.status, BidStatus::Draft | BidStatus::Open) {
-        return Err(EngineError::conflict(format!("{} is {}; links go out while it is a draft or out for bid", b.label(), b.status)));
-    }
-    let vendor: Id<Vendor> = p.id("vendor")?;
+/// Gives a company's contact a link to the package: adds the company to the invited list and records the invitation.
+fn add_invitation(ctx: &mut Ctx<'_>, b: &mut BidPackage, vendor: Id<Vendor>, email: String, expires: Option<Date>) -> Result<u32> {
     ctx.check_vendor(vendor)?;
     super::prequal::check_prequalified(ctx, vendor)?;
-    let email = p.email("email")?.ok_or_else(|| p.bad("email", "is required"))?;
-    let expires = expiry(ctx, p)?;
     if b.invitations.iter().any(|i| i.vendor == vendor && i.email == email && i.revoked.is_none()) {
         return Err(EngineError::conflict("that address already has a link for this package; send it again instead"));
     }
@@ -686,6 +742,18 @@ fn invite(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     let number = b.invitations.iter().map(|i| i.number).max().unwrap_or(0).checked_add(1).ok_or_else(|| EngineError::conflict("too many links"))?;
     b.invitations.push(BidInvitation { number, vendor, email, generation: 0, expires, created: ctx.stamp(), sent: None, revoked: None });
     b.updated = ctx.stamp();
+    Ok(number)
+}
+
+fn invite(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut b = load(ctx, p)?;
+    if !matches!(b.status, BidStatus::Draft | BidStatus::Open) {
+        return Err(EngineError::conflict(format!("{} is {}; links go out while it is a draft or out for bid", b.label(), b.status)));
+    }
+    let vendor: Id<Vendor> = p.id("vendor")?;
+    let email = p.email("email")?.ok_or_else(|| p.bad("email", "is required"))?;
+    let expires = expiry(ctx, p)?;
+    let number = add_invitation(ctx, &mut b, vendor, email, expires)?;
     let id = b.id;
     ctx.state.bid_packages.put(b);
     Ok(json!({ "id": id, "number": number }))
@@ -862,6 +930,15 @@ fn portal_view(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
     }))
 }
 
+/// Tells the people who run bidding on the project (standard access or more) something happened on the package.
+fn tell_team(ctx: &mut Ctx<'_>, b: &BidPackage, what: &str) {
+    use buildkiosk_model::perm;
+    let people: Vec<_> =
+        ctx.state.people.iter().filter(|x| perm::project_level(ctx.state, x.id, b.project, Tool::Bidding) >= Level::Standard).map(|x| x.id).collect();
+    let text = format!("{what} on {}: {}", b.label(), b.title);
+    super::notification::notify(ctx, &people, b.project, &text, &format!("/projects/{}/bidding/{}", b.project, b.id));
+}
+
 fn portal_submit(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     let mut b = load(ctx, p).map_err(|_| bad_link())?;
     let today = ctx.today();
@@ -884,7 +961,10 @@ fn portal_submit(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     kept.push(bid);
     b.updated = ctx.stamp();
     let (id, number) = (b.id, b.number);
-    ctx.state.bid_packages.put(b);
+    let sealed = b.sealed;
+    let company = crate::view::vendor_name(ctx.state, vendor);
+    ctx.state.bid_packages.put(b.clone());
+    tell_team(ctx, &b, &format!("{company} sent a bid{}", if sealed { " (sealed until bidding closes)" } else { "" }));
     Ok(json!({ "id": id, "reference": format!("BP{number}-{}", inv.number), "amount": amount, "received": today }))
 }
 
@@ -904,6 +984,204 @@ fn portal_withdraw(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         return Err(EngineError::conflict("you have no bid on this package"));
     }
     b.updated = ctx.stamp();
+    let id = b.id;
+    ctx.state.bid_packages.put(b);
+    Ok(json!({ "id": id }))
+}
+
+fn bid_slot(b: &mut BidPackage, vendor: Id<Vendor>) -> Option<&mut Bid> {
+    if b.sealed_bids.iter().any(|x| x.vendor == vendor) {
+        return b.sealed_bids.iter_mut().find(|x| x.vendor == vendor);
+    }
+    b.bids.iter_mut().find(|x| x.vendor == vendor && !x.withdrawn)
+}
+
+fn portal_attach(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut b = load(ctx, p).map_err(|_| bad_link())?;
+    let today = ctx.today();
+    let vendor = link(&b, p, today)?.vendor;
+    taking_bids(&b, today)?;
+    let file = file_params(p)?;
+    let bid = bid_slot(&mut b, vendor).ok_or_else(|| EngineError::conflict("send your bid first, then attach files to it"))?;
+    if bid.files.iter().any(|f| f.sha256 == file.sha256) {
+        return Ok(json!({ "files": bid.files.len() }));
+    }
+    if bid.files.len() >= MAX_BID_FILES {
+        return Err(EngineError::conflict(format!("a bid can have at most {MAX_BID_FILES} files")));
+    }
+    bid.files.push(file);
+    let n = bid.files.len();
+    b.updated = ctx.stamp();
+    ctx.state.bid_packages.put(b);
+    Ok(json!({ "files": n }))
+}
+
+fn portal_detach(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut b = load(ctx, p).map_err(|_| bad_link())?;
+    let today = ctx.today();
+    let vendor = link(&b, p, today)?.vendor;
+    taking_bids(&b, today)?;
+    let sha = p.req_line("sha256", 64)?.to_ascii_lowercase();
+    let bid = bid_slot(&mut b, vendor).ok_or_else(|| EngineError::conflict("you have no bid on this package"))?;
+    let before = bid.files.len();
+    bid.files.retain(|f| f.sha256 != sha);
+    if bid.files.len() == before {
+        return Err(EngineError::not_found("that file is not attached to your bid"));
+    }
+    b.updated = ctx.stamp();
+    ctx.state.bid_packages.put(b);
+    Ok(json!({ "ok": true }))
+}
+
+// ---- the open link: companies ask to be invited ----
+
+fn set_public(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut b = load(ctx, p)?;
+    if !matches!(b.status, BidStatus::Draft | BidStatus::Open) {
+        return Err(EngineError::conflict(format!("{} is {}", b.label(), b.status)));
+    }
+    let enabled = p.flag_or("enabled", true)?;
+    if p.flag_or("rotate", false)? {
+        b.public_generation = b.public_generation.checked_add(1).ok_or_else(|| EngineError::conflict("the link was replaced too many times"))?;
+    }
+    b.public = enabled;
+    b.updated = ctx.stamp();
+    let (id, generation) = (b.id, b.public_generation);
+    ctx.state.bid_packages.put(b);
+    Ok(json!({ "id": id, "public": enabled, "generation": generation }))
+}
+
+/// The open link must be switched on and be the generation the server verified.
+fn open_link(b: &BidPackage, p: &Params<'_>) -> Result<()> {
+    let generation = p.int("generation", 0..=1_000_000)?.and_then(|v| u32::try_from(v).ok()).ok_or_else(bad_link)?;
+    if !b.public || generation != b.public_generation {
+        return Err(bad_link());
+    }
+    Ok(())
+}
+
+fn portal_open_view(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
+    let b = portal_package(v, p)?;
+    open_link(&b, p)?;
+    Ok(json!({
+        "contractor": v.state.company().map(|c| c.name.clone()).unwrap_or_default(),
+        "package": { "number": b.number, "title": b.title, "scope": b.scope, "due": b.due, "status": b.status },
+        "accepting": taking_bids(&b, v.today()).is_ok(),
+    }))
+}
+
+fn portal_register(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut b = load(ctx, p).map_err(|_| bad_link())?;
+    open_link(&b, p)?;
+    taking_bids(&b, ctx.today())?;
+    let company = p.req_line("company", text::SHORT)?;
+    let contact = p.req_line("contact", text::SHORT)?;
+    let email = p.email("email")?.ok_or_else(|| p.bad("email", "is required"))?;
+    let phone = p.line_or_empty("phone", 40)?;
+    if b.registrations.iter().any(|r| r.email == email && r.declined.is_none()) {
+        return Err(EngineError::conflict("that address has already asked to bid on this package"));
+    }
+    if b.registrations.len() >= MAX_REGISTRATIONS || b.registrations.iter().filter(|r| r.pending()).count() >= MAX_PENDING_REGISTRATIONS {
+        return Err(EngineError::conflict("this package has too many requests waiting; contact the team directly"));
+    }
+    let number = b.registrations.iter().map(|r| r.number).max().unwrap_or(0).saturating_add(1);
+    b.registrations.push(BidRegistration {
+        number,
+        company: company.clone(),
+        contact,
+        email,
+        phone,
+        requested: ctx.stamp(),
+        vendor: None,
+        invitation: None,
+        approved: None,
+        declined: None,
+    });
+    b.updated = ctx.stamp();
+    let id = b.id;
+    ctx.state.bid_packages.put(b.clone());
+    tell_team(ctx, &b, &format!("{company} asked to be invited to bid"));
+    Ok(json!({ "id": id, "number": number }))
+}
+
+/// Adds the company a request is from to the directory. Needs the right to add companies; otherwise the person
+/// picks an existing one.
+fn add_vendor(ctx: &mut Ctx<'_>, reg: &BidRegistration) -> Result<Id<Vendor>> {
+    use buildkiosk_model::directory::VendorKind;
+    if let Some(me) = ctx.person()
+        && buildkiosk_model::perm::company_level(ctx.state, me, Tool::Directory) < Level::Standard
+    {
+        return Err(EngineError::forbidden("adding a company to the directory needs directory access; choose an existing company instead"));
+    }
+    if ctx.state.vendors.iter().any(|v| v.deleted.is_none() && v.name.eq_ignore_ascii_case(&reg.company)) {
+        return Err(EngineError::conflict(format!("{} is already in the directory; choose it from the list", reg.company)));
+    }
+    let stamp = ctx.stamp();
+    let id = ctx.state.vendors.alloc();
+    ctx.state.vendors.put(Vendor {
+        id,
+        name: reg.company.clone(),
+        kind: VendorKind::Subcontractor,
+        trade: String::new(),
+        email: reg.email.clone(),
+        phone: reg.phone.clone(),
+        website: String::new(),
+        address: Default::default(),
+        license_number: String::new(),
+        notes: format!("Asked to bid on an open bid link ({}).", reg.contact),
+        created: stamp,
+        updated: stamp,
+        deleted: None,
+    });
+    Ok(id)
+}
+
+fn approve_registration(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut b = load(ctx, p)?;
+    if !matches!(b.status, BidStatus::Draft | BidStatus::Open) {
+        return Err(EngineError::conflict(format!("{} is {}", b.label(), b.status)));
+    }
+    let number: u32 = p.int("number", 1..=1_000_000)?.and_then(|v| u32::try_from(v).ok()).ok_or_else(|| p.bad("number", "is required"))?;
+    let reg = b
+        .registrations
+        .iter()
+        .find(|r| r.number == number)
+        .cloned()
+        .ok_or_else(|| EngineError::not_found(format!("no request {number} on this package")))?;
+    if !reg.pending() {
+        return Err(EngineError::conflict("that request was already decided"));
+    }
+    // The team picks the company in the directory the request is for, or has one added from what the request says.
+    let vendor: Id<Vendor> = match p.opt_id::<Vendor>("vendor")? {
+        Some(v) => v,
+        None => add_vendor(ctx, &reg)?,
+    };
+    let invitation = add_invitation(ctx, &mut b, vendor, reg.email.clone(), None)?;
+    let stamp = ctx.stamp();
+    if let Some(r) = b.registrations.iter_mut().find(|r| r.number == number) {
+        r.vendor = Some(vendor);
+        r.invitation = Some(invitation);
+        r.approved = Some(stamp);
+    }
+    let id = b.id;
+    ctx.state.bid_packages.put(b);
+    Ok(json!({ "id": id, "vendor": vendor, "invitation": invitation }))
+}
+
+fn decline_registration(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut b = load(ctx, p)?;
+    let number: u32 = p.int("number", 1..=1_000_000)?.and_then(|v| u32::try_from(v).ok()).ok_or_else(|| p.bad("number", "is required"))?;
+    let stamp = ctx.stamp();
+    let reg = b
+        .registrations
+        .iter_mut()
+        .find(|r| r.number == number)
+        .ok_or_else(|| EngineError::not_found(format!("no request {number} on this package")))?;
+    if !reg.pending() {
+        return Err(EngineError::conflict("that request was already decided"));
+    }
+    reg.declined = Some(stamp);
+    b.updated = stamp;
     let id = b.id;
     ctx.state.bid_packages.put(b);
     Ok(json!({ "id": id }))
@@ -931,7 +1209,9 @@ fn portal_ask(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     });
     b.updated = ctx.stamp();
     let id = b.id;
-    ctx.state.bid_packages.put(b);
+    let company = crate::view::vendor_name(ctx.state, inv.vendor);
+    ctx.state.bid_packages.put(b.clone());
+    tell_team(ctx, &b, &format!("{company} asked a question"));
     Ok(json!({ "id": id, "number": number }))
 }
 

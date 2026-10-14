@@ -36,6 +36,7 @@ commands:
   run      --data DIR --company SLUG --as EMAIL|system COMMAND ['{json params}']
   mcp      --data DIR --company SLUG --as EMAIL        the MCP server on standard input and output (see docs/api.md)
   commands                                             list every command and its parameters
+  version                                              print the version (also --version, -V)
   token    --data DIR --company SLUG --as EMAIL [--name TEXT]   create an API token for POST /api/v1/commands/{id}
 ";
 
@@ -112,6 +113,10 @@ fn run(args: &[String]) -> Result<(), String> {
         "token" => token(&a),
         "mcp" => mcp(&a),
         "i18n-harvest" => i18n_harvest(&a),
+        "-V" | "--version" | "version" => {
+            println!("buildkiosk {}", env!("CARGO_PKG_VERSION"));
+            Ok(())
+        }
         "-h" | "--help" | "help" => {
             print!("{USAGE}");
             Ok(())

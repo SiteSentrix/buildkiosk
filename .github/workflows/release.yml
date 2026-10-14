@@ -1,0 +1,220 @@
+# Builds and publishes a BuildKiosk release.
+#
+# Push a version tag that matches the workspace version in Cargo.toml (for example `v0.1.0` for version 0.1.0):
+# the full gate (`cargo xtask ci`) runs, the program is built for Linux, macOS and Windows with the browser sheet
+# viewer embedded, each archive is checksummed and given a GitHub build attestation, and a GitHub release is
+# created with the archives, SHA256SUMS and install.sh. Versions below 1.0.0 (or with a `-suffix`) are marked as
+# pre-releases. Nothing is published until a tag is pushed.
+#
+# Run by hand from the Actions tab ("Run workflow") to check that everything builds: it uploads the archives as
+# workflow artifacts and publishes nothing.
+name: Release
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: 1
+  # Same toolchain as ci.yml; bump both on purpose.
+  RUST_TOOLCHAIN: 1.97.0
+
+jobs:
+  version:
+    name: Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      publish: ${{ steps.v.outputs.publish }}
+      prerelease: ${{ steps.v.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(sed -n '/^\[workspace\.package\]/,/^\[/{s/^version = "\(.*\)"/\1/p}' Cargo.toml | head -n 1)
+          [ -n "$version" ] || { echo "could not read the workspace version from Cargo.toml"; exit 1; }
+          publish=false
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+              echo "the tag is $GITHUB_REF_NAME but Cargo.toml says version $version: bump the version first (the tag must be v$version)"
+              exit 1
+            fi
+            publish=true
+          fi
+          prerelease=false
+          case "$version" in 0.* | *-*) prerelease=true ;; esac
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+          echo "Releasing $version (publish=$publish, prerelease=$prerelease)"
+
+  # The release is only built from code that passes the same gate as every commit.
+  gate:
+    name: cargo xtask ci
+    needs: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ci
+      - run: cargo xtask ci
+
+  # The sheet viewer (Rust to WebAssembly plus the generated loader) is built once; each platform embeds it.
+  viewer:
+    name: Sheet viewer
+    needs: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: viewer
+      - name: wasm-bindgen-cli at the version in Cargo.lock
+        run: |
+          V=$(grep -A1 '^name = "wasm-bindgen"$' Cargo.lock | sed -n 's/^version = "\(.*\)"/\1/p')
+          cargo install wasm-bindgen-cli --version "$V" --locked
+      - run: cargo xtask viewer
+      - uses: actions/upload-artifact@v4
+        with:
+          name: viewer
+          path: crates/server/assets/viewer
+          if-no-files-found: error
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: [version, viewer]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux builds are static (musl): they run on any distribution.
+          - { target: x86_64-unknown-linux-musl, os: ubuntu-latest, ext: tar.gz }
+          - { target: aarch64-unknown-linux-musl, os: ubuntu-24.04-arm, ext: tar.gz }
+          - { target: x86_64-apple-darwin, os: macos-15-intel, ext: tar.gz }
+          - { target: aarch64-apple-darwin, os: macos-latest, ext: tar.gz }
+          - { target: x86_64-pc-windows-msvc, os: windows-latest, ext: zip }
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      TARGET: ${{ matrix.target }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
+      - name: musl C compiler (for the few C parts of dependencies)
+        if: contains(matrix.target, 'musl')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+          echo "CC_${TARGET//-/_}=musl-gcc" >> "$GITHUB_ENV"
+      - uses: actions/download-artifact@v4
+        with:
+          name: viewer
+          path: crates/server/assets/viewer
+      - name: Build
+        run: cargo build --release --locked -p buildkiosk --target "$TARGET"
+      - name: Package
+        run: |
+          set -euo pipefail
+          exe=buildkiosk
+          if [ "${{ matrix.ext }}" = "zip" ]; then exe=buildkiosk.exe; fi
+          name="buildkiosk-$VERSION-$TARGET"
+          mkdir -p "dist/$name"
+          cp "target/$TARGET/release/$exe" "dist/$name/"
+          cp LICENSE-MIT LICENSE-APACHE NOTICE README.md contrib/buildkiosk.service "dist/$name/"
+          cd dist
+          if [ "${{ matrix.ext }}" = "zip" ]; then
+            7z a -tzip "$name.zip" "$name" > /dev/null
+          else
+            tar -czf "$name.tar.gz" "$name"
+          fi
+          rm -rf "$name"
+          ls -l
+      # The program built here has to start and work on the machine that built it: version, a demo company, and a
+      # replay of its journal.
+      - name: Smoke test
+        run: |
+          set -euo pipefail
+          cd dist
+          name="buildkiosk-$VERSION-$TARGET"
+          if [ "${{ matrix.ext }}" = "zip" ]; then 7z x -y "$name.zip" > /dev/null; exe=buildkiosk.exe; else tar -xzf "$name.tar.gz"; exe=buildkiosk; fi
+          "./$name/$exe" version | grep -x "buildkiosk $VERSION"
+          "./$name/$exe" demo --data "$RUNNER_TEMP/smoke" > /dev/null
+          "./$name/$exe" check --data "$RUNNER_TEMP/smoke"
+          rm -rf "$name"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: [version, gate, build]
+    if: needs.version.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the release
+      id-token: write # sign the build attestation
+      attestations: write
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dist-*
+          merge-multiple: true
+          path: dist
+      - name: Checksums
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum buildkiosk-* > SHA256SUMS
+          cat SHA256SUMS
+      # People can check that the files were built by this workflow from this repository:
+      #   gh attestation verify buildkiosk-<version>-<target>.tar.gz --repo SiteSentrix/buildkiosk
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/buildkiosk-*
+      - name: Create the release
+        run: |
+          set -euo pipefail
+          cp install.sh dist/install.sh
+          flags=(--title "BuildKiosk $VERSION" --generate-notes --verify-tag)
+          if [ "${{ needs.version.outputs.prerelease }}" = "true" ]; then flags+=(--prerelease); fi
+          gh release create "$GITHUB_REF_NAME" dist/* "${flags[@]}"

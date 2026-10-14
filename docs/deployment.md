@@ -4,6 +4,30 @@ _Status: written with the operations commands (M5.2). Covers a single self-hoste
 
 BuildKiosk is one binary and one data directory. There is no database server to run.
 
+## Install a release
+
+Each release on the [releases page](https://github.com/SiteSentrix/buildkiosk/releases) has an archive per platform
+(Linux x86_64 and aarch64 as static builds that run on any distribution, macOS Intel and Apple silicon, Windows
+x86_64), `SHA256SUMS` and `install.sh`. On Linux and macOS:
+
+```
+curl -fsSL https://raw.githubusercontent.com/SiteSentrix/buildkiosk/main/install.sh | sh
+```
+
+The script is short; read it first if you like (`install.sh --help`, `--dry-run`). It finds the newest release (pre-releases
+included, or give `--version v0.1.0`), downloads the archive for the machine, **checks it against `SHA256SUMS` and
+installs nothing if they differ**, and puts `buildkiosk` in `/usr/local/bin` as root or `~/.local/bin` otherwise
+(`--prefix DIR/bin` to choose). On Linux with systemd, `sudo sh install.sh --service` also creates the `buildkiosk`
+user, `/var/lib/buildkiosk` and the unit below (`--start` to enable and start it); it never overwrites an existing
+unit. On Windows, download the `.zip`, unpack it and run `buildkiosk.exe`.
+
+To check by hand: `sha256sum -c SHA256SUMS --ignore-missing`. Each archive also carries a GitHub build attestation, which
+shows it was built by this repository's release workflow from a tagged commit:
+`gh attestation verify buildkiosk-<version>-<target>.tar.gz --repo SiteSentrix/buildkiosk`.
+
+To uninstall, delete the binary (and, for a service install, `systemctl disable --now buildkiosk`, the unit file and, if
+you want the data gone too, `/var/lib/buildkiosk`: that is the company data, so take a backup first).
+
 ## Run it
 
 ```
@@ -170,7 +194,16 @@ Run it after a restore, before an upgrade, or after a crash if you want reassura
 
 ## Building a release
 
-`cargo xtask viewer` then `cargo build -p buildkiosk --release`. The first builds the browser sheet viewer
+**Publishing one** (maintainers): set `version` under `[workspace.package]` in `Cargo.toml`, commit it, then push a
+tag of the same number with a `v`: `git tag v0.1.0 && git push origin v0.1.0`. The `Release` workflow
+(`.github/workflows/release.yml`) refuses a tag that doesn't match the version, runs the whole gate (`cargo xtask ci`),
+builds the viewer once and the program for five targets, starts each build (`version`, a demo company, `check`),
+checksums and attests the archives, and creates the GitHub release with generated notes (marked a pre-release below
+1.0.0). Nothing is published until a tag is pushed; the "Run workflow" button on the Actions tab builds everything
+and keeps the archives as workflow artifacts without publishing. If a release is bad, delete the release and its tag on
+GitHub and fix forward with a new version.
+
+**By hand:** `cargo xtask viewer` then `cargo build -p buildkiosk --release`. The first builds the browser sheet viewer
 (WebAssembly) and the second embeds it in the binary; without the first step the binary still works and sheets are
 shown by the pages the server draws. Behind a proxy, allow `application/wasm` and serve `/static/viewer/*` as is.
 

@@ -157,6 +157,7 @@ The demo prints the sign-in details (all names are fictional). For real use, see
 - [`ROADMAP.md`](ROADMAP.md) and [`docs/gaps.md`](docs/gaps.md): what exists and what is missing, tool by tool
 - [`AGENTS.md`](AGENTS.md): the rules every contributor and agent follows (clean-room, no panics, no JavaScript,
   everything is a command)
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`SECURITY.md`](SECURITY.md): how to contribute, and how to report a vulnerability
 
 ## Clean-room, licence and credits
 

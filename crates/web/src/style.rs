@@ -73,6 +73,9 @@ code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font
 
 .crumbs{font-size:13px;color:var(--muted);margin-bottom:6px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .crumbs a{color:inherit;text-decoration:none}
+.langbar{margin:36px 0 8px;font-size:13px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 16px;justify-content:center}
+.langbar a{color:inherit;text-decoration:none}.langbar a:hover{text-decoration:underline}.langbar a[aria-current]{color:var(--text);font-weight:700}
+.no-print .langbar{display:none}
 .crumbs a:hover{text-decoration:underline}
 .page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap}
 .page-head h1{margin:0;display:flex;align-items:center;gap:10px;flex-wrap:wrap}

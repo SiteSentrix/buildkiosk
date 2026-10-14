@@ -6,6 +6,7 @@
 
 mod auth;
 mod exif;
+pub mod harvest;
 mod mail;
 mod render;
 pub mod s3;
@@ -274,6 +275,7 @@ pub fn router(app: Shared) -> Router {
         .route("/", get(home))
         .route("/login", get(login_page).post(login_post))
         .route("/logout", post(logout))
+        .route("/language", get(language_set))
         .route("/setup", get(setup_page).post(setup_post))
         .route("/directory", get(directory))
         .route("/prequalification", get(prequalification_page))
@@ -690,6 +692,7 @@ pub fn router(app: Shared) -> Router {
     let router = invoice_routes::<CommitmentInvoice>(router);
     router
         .fallback(not_found)
+        .layer(axum::middleware::from_fn(translate_pages))
         .layer(DefaultBodyLimit::max(MAX_BODY))
         .layer(axum::middleware::map_response_with_state(app.clone(), security_headers))
         .layer(CatchPanicLayer::new())
@@ -730,6 +733,61 @@ async fn security_headers(State(app): State<Shared>, mut res: Response) -> Respo
         put("strict-transport-security", "max-age=31536000");
     }
     res
+}
+
+// -- language
+
+const LANGUAGE_COOKIE: &str = "bk_lang";
+
+/// The language to show a request in: the one chosen with the links at the foot of each page, else the
+/// browser's own preference, else English.
+fn language_of(headers: &HeaderMap) -> buildkiosk_web::i18n::Lang {
+    use buildkiosk_web::i18n::Lang;
+    if let Some(l) = cookie(headers, LANGUAGE_COOKIE).as_deref().and_then(Lang::parse) {
+        return l;
+    }
+    headers.get("accept-language").and_then(|v| v.to_str().ok()).map_or(Lang::En, Lang::from_accept_language)
+}
+
+/// Pages go out in the reader's language: the page is built in English and its wording is looked up in the
+/// language's catalog on the way out. Only HTML is touched.
+async fn translate_pages(req: axum::extract::Request, next: axum::middleware::Next) -> Response {
+    let lang = language_of(req.headers());
+    let res = next.run(req).await;
+    let is_html = res.headers().get(CONTENT_TYPE).and_then(|v| v.to_str().ok()).is_some_and(|v| v.starts_with("text/html"));
+    if !is_html {
+        return res;
+    }
+    let (mut parts, body) = res.into_parts();
+    let Ok(bytes) = axum::body::to_bytes(body, 32 * 1024 * 1024).await else {
+        return plain(StatusCode::INTERNAL_SERVER_ERROR, "The page could not be read.");
+    };
+    let text = String::from_utf8_lossy(&bytes);
+    let mut page = buildkiosk_web::i18n::translate_html(&text, lang);
+    // Mark the language in use in the links that change it.
+    page = page.replace(&format!("href=\"/language?to={}\"", lang.code()), &format!("href=\"/language?to={}\" aria-current=\"true\"", lang.code()));
+    parts.headers.remove(axum::http::header::CONTENT_LENGTH);
+    if lang != buildkiosk_web::i18n::Lang::En
+        && let Ok(v) = HeaderValue::from_str(lang.code())
+    {
+        parts.headers.insert(axum::http::header::CONTENT_LANGUAGE, v);
+    }
+    Response::from_parts(parts, axum::body::Body::from(page))
+}
+
+/// Chooses the language (`/language?to=es`), remembers it in a cookie and goes back to the page the link was on.
+async fn language_set(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Response {
+    use buildkiosk_web::i18n::Lang;
+    let Some(lang) = q.get("to").map(String::as_str).and_then(Lang::parse) else { return redirect("/") };
+    // Back to the same place on this site, never anywhere else.
+    let back = headers
+        .get(axum::http::header::REFERER)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|r| r.split_once("://").map(|(_, rest)| rest))
+        .and_then(|rest| rest.find('/').and_then(|i| rest.get(i..)))
+        .filter(|p| p.starts_with('/') && !p.starts_with("//") && !p.starts_with("/language") && p.len() < 2000)
+        .unwrap_or("/");
+    with_cookie(redirect(back), &auth::set_cookie(LANGUAGE_COOKIE, lang.code(), 365 * 24 * 3600, app.secure))
 }
 
 // -- helpers

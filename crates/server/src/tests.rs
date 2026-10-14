@@ -3637,3 +3637,47 @@ async fn each_backup_is_uploaded_to_object_storage_and_the_page_says_how_it_went
         let _ = std::fs::remove_dir_all(d);
     }
 }
+
+#[tokio::test]
+async fn pages_come_out_in_the_language_chosen() {
+    let dir = temp("language");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str, extra: &str| Request::get(uri.to_string()).header("cookie", format!("{ada}{extra}")).body(Body::empty()).unwrap();
+
+    // English by default, with the choice offered and the one in use marked.
+    let (_, h, en) = send(&app, get("/", "")).await;
+    assert!(en.contains("<html lang=\"en\">") && en.contains(">Projects<") && h.get("content-language").is_none(), "{en}");
+    assert!(en.contains("href=\"/language?to=en\" aria-current=\"true\"") && en.contains(">Español<") && en.contains(">Nederlands<"), "{en}");
+
+    // The cookie wins; the browser's preference is the fallback.
+    let (_, h, es) = send(&app, get("/", "; bk_lang=es")).await;
+    assert!(es.contains("<html lang=\"es\">") && es.contains(">Proyectos<") && !es.contains(">Projects<"), "{es}");
+    assert_eq!(h.get("content-language").unwrap(), "es");
+    assert!(es.contains("href=\"/language?to=es\" aria-current=\"true\"") && es.contains(">English<"), "{es}");
+    let by_header = Request::get("/").header("cookie", &ada).header("accept-language", "es-MX,es;q=0.9,en;q=0.5").body(Body::empty()).unwrap();
+    assert!(send(&app, by_header).await.2.contains(">Proyectos<"));
+    let (_, _, back_to_en) = send(&app, get("/", "; bk_lang=en")).await;
+    assert!(back_to_en.contains(">Projects<"));
+
+    // Choosing sets the cookie and returns to the page the link was on; nowhere else.
+    let choose = |to: &str, referer: &str| Request::get(format!("/language?to={to}")).header("referer", referer).body(Body::empty()).unwrap();
+    let (st, h, _) = send(&app, choose("fr", "http://localhost:8080/projects/1/rfis?status=open")).await;
+    assert_eq!(st, StatusCode::SEE_OTHER);
+    assert_eq!(h.get(LOCATION).unwrap(), "/projects/1/rfis?status=open");
+    let set = h.get(SET_COOKIE).unwrap().to_str().unwrap();
+    assert!(set.starts_with("bk_lang=fr;") && set.contains("Max-Age=31536000") && set.contains("SameSite=Lax"), "{set}");
+    for referer in ["http://x/language?to=es", "http://x//evil.example", "nonsense", ""] {
+        let (_, h, _) = send(&app, choose("nl", referer)).await;
+        assert_eq!(h.get(LOCATION).unwrap(), "/", "{referer}");
+    }
+    let (_, h, _) = send(&app, choose("tlh", "http://x/a")).await;
+    assert_eq!((h.get(LOCATION).unwrap().to_str().unwrap(), h.get(SET_COOKIE).is_none()), ("/", true));
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}

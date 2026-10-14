@@ -20,6 +20,7 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 2. Next tools in the order of `docs/gaps.md` (item 8 onward; the financial remainder is listed under item 7).
 
 ## Progress log
+- 2026-10-14: Languages: the interface in Spanish, French and Dutch as well as English (a picker at the foot of every page; pages translated on the way out from catalogs; a check that keeps the catalogs complete).
 - 2026-10-14: Larger gaps: measuring paths and outlines on sheets, Primavera exchange (.xer) import, MCP resource subscriptions (also as an event stream over HTTP), backups pushed to S3-compatible storage; unembedded PDF fonts verified.
 - 2026-10-13: Small items: estimate templates, files on action plans, prequalification questionnaire versions, repeat rules for month-end, quarterly and yearly.
 - 2026-10-13: Company reports: saved reports with chosen columns, totals, a chart, CSV and PDF; the schedule exports as a project XML file.

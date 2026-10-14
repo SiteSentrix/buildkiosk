@@ -18,6 +18,7 @@ pub mod drawings;
 pub mod estimating;
 pub mod finance;
 pub mod forms;
+pub mod i18n;
 pub mod icons;
 pub mod inbox;
 pub mod inspections;

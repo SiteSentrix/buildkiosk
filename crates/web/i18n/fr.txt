@@ -1,0 +1,2468 @@
+# fr: translation of crates/web/i18n/en.txt, one `English<TAB>translation` per line.
+(none)	(aucun)
+(not prequalified)	(non préqualifié)
+) and MCP (	) et MCP (
+), with exactly your permissions. Treat it like a password.	), avec exactement vos permissions. Traitez-le comme un mot de passe.
+--backup-dir /path/to/backups	--backup-dir /path/to/backups
+/api/v1/commands/…	/api/v1/commands/…
+/mcp	/mcp
+0 switches a rule off. Weeks run Monday to Sunday and hours already paid as daily overtime are not counted again.	0 désactive une règle. Les semaines vont du lundi au dimanche et les heures déjà payées comme heures supplémentaires journalières ne sont pas comptées à nouveau.
+03-300, 120000, Concrete	03-300, 120000, Béton
+2027-01-01 New Year's Day	2027-01-01 Jour de l'An
+8'-6" above finished floor. The RCP will be revised.	8'-6" au-dessus du sol fini. Le plan de plafond réfléchi (RCP) sera révisé.
+9:00 AM	9:00
+A Forms admin needs to create a template first.	Un administrateur des formulaires doit d'abord créer un modèle.
+A baseline is the schedule's dates kept under a name, so progress can be measured against them. Save one when the contract is signed and another after a re-plan.	Un planning de référence conserve sous un nom les dates du planning, afin de mesurer l'avancement par rapport à elles. Enregistrez-en un à la signature du contrat et un autre après une replanification.
+A bid	Une offre
+A crew is a named group you log hours for together.	Une équipe est un groupe nommé pour lequel vous saisissez les heures ensemble.
+A draft commitment was started	Un engagement brouillon a été créé
+A file from {}	Un fichier de {}
+A formal record of what was sent, to whom and why	Un enregistrement formel de ce qui a été envoyé, à qui et pourquoi
+A line starting with # begins a section; every other line is an item. Assign owners and dates on the plan page. Editing the outline keeps the owner, date, note and done state of items whose wording and section are unchanged.	Une ligne commençant par # débute une section ; toute autre ligne est un élément. Assignez les responsables et les dates sur la page du plan. Modifier le plan conserve le responsable, la date, la note et l'état terminé des éléments dont le libellé et la section sont inchangés.
+A name already used is replaced. The new baseline becomes the one the chart and each task's slip compare against.	Un nom déjà utilisé est remplacé. Le nouveau planning de référence devient celui auquel le diagramme et le retard de chaque tâche se comparent.
+A new version of	Une nouvelle version de
+A project admin has full access to every tool, so overrides have no effect.	Un administrateur de projet a un accès complet à tous les outils, donc les exceptions n'ont aucun effet.
+A saved crew	Une équipe enregistrée
+A seventh to tenth column is optional	Une septième à dixième colonne est facultative
+A spreadsheet saved as CSV. Put the column names on the first line	Un tableur enregistré au format CSV. Placez les noms des colonnes sur la première ligne
+A takeoff from a drawing	Un métré à partir d'un plan
+A token lets a script or an AI agent act as you over the HTTP API (	Un jeton permet à un script ou à un agent IA d'agir en votre nom via l'API HTTP (
+A view keeps the columns you want to see and whether cost codes are grouped by division. It changes the table above and the CSV export, nothing else.	Une vue conserve les colonnes que vous voulez voir et indique si les codes de coût sont regroupés par division. Elle modifie le tableau ci-dessus et l'export CSV, rien d'autre.
+A, 2, Addendum 3	A, 2, Additif 3
+A-101.txt	A-101.txt
+API tokens	Jetons d'API
+About	À propos
+Accept	Accepter
+Accept or decline an alternate by {}	Accepter ou refuser une variante par {}
+Accepted	Accepté
+Accepted alternates	Variantes acceptées
+Access	Accès
+Acknowledge receipt	Accuser réception
+Acknowledge receipt by {}	Accuser réception par {}
+Action	Action
+Action items	Actions
+Action plan	Plan d'action
+Action plan #{}	Plan d'action #{}
+Action plans	Plans d'action
+Action {}	Action {}
+Action {} is done	L'action {} est terminée
+Active	Actif
+Active (inactive projects are hidden from the project list)	Actif (les projets inactifs sont masqués de la liste des projets)
+Add	Ajouter
+Add a bid to an estimate by {}	Ajouter une offre à une estimation par {}
+Add a catalogue item to an estimate by {}	Ajouter un article du catalogue à une estimation par {}
+Add a comment	Ajouter un commentaire
+Add a company	Ajouter une entreprise
+Add a company's prequalification below.	Ajoutez ci-dessous la préqualification d'une entreprise.
+Add a line for a cost code, or import a list below.	Ajoutez une ligne pour un code de coût, ou importez une liste ci-dessous.
+Add a permission template	Ajouter un modèle de permissions
+Add a person	Ajouter une personne
+Add a photo to a line	Ajouter une photo à une ligne
+Add a revision	Ajouter une révision
+Add a section	Ajouter une section
+Add a sheet	Ajouter une feuille
+Add a sheet below, or import your drawing log.	Ajoutez une feuille ci-dessous, ou importez votre registre de plans.
+Add a takeoff total to an estimate by {}	Ajouter un total de métré à une estimation par {}
+Add a task	Ajouter une tâche
+Add a task below or import a schedule.	Ajoutez une tâche ci-dessous ou importez un planning.
+Add a template	Ajouter un modèle
+Add an assembly	Ajouter un ouvrage composé
+Add an assembly to an estimate by {}	Ajouter un ouvrage composé à une estimation par {}
+Add an item	Ajouter un élément
+Add an item below, or import a list of prices.	Ajoutez un élément ci-dessous, ou importez une liste de prix.
+Add as a lump sum	Ajouter en somme forfaitaire
+Add company	Ajouter une entreprise
+Add company by {}	Ajouter une entreprise par {}
+Add cost code by {}	Ajouter un code de coût par {}
+Add crew	Ajouter une équipe
+Add distribution group by {}	Ajouter un groupe de distribution par {}
+Add document by {}	Ajouter un document par {}
+Add drawing by {}	Ajouter un plan par {}
+Add hours	Ajouter des heures
+Add incident by {}	Ajouter un incident par {}
+Add inspection template by {}	Ajouter un modèle d'inspection par {}
+Add items	Ajouter des éléments
+Add its lines	Ajouter ses lignes
+Add line	Ajouter une ligne
+Add lines from the catalogue, an assembly, a bid or a takeoff	Ajouter des lignes depuis le catalogue, un ouvrage composé, une offre ou un métré
+Add list	Ajouter une liste
+Add markup	Ajouter une annotation
+Add observation	Ajouter une observation
+Add observation by {}	Ajouter une observation par {}
+Add or update a record	Ajouter ou mettre à jour un enregistrement
+Add permission template by {}	Ajouter un modèle de permissions par {}
+Add person	Ajouter une personne
+Add person by {}	Ajouter une personne par {}
+Add person to project by {}	Ajouter une personne au projet par {}
+Add photo by {}	Ajouter une photo par {}
+Add punch item	Ajouter une réserve
+Add punch item by {}	Ajouter une réserve par {}
+Add reviewers from a group	Ajouter des relecteurs depuis un groupe
+Add revision	Ajouter une révision
+Add revision by {}	Ajouter une révision par {}
+Add schedule task by {}	Ajouter une tâche du planning par {}
+Add section	Ajouter une section
+Add sections one at a time or import your own list below.	Ajoutez les sections une par une ou importez votre propre liste ci-dessous.
+Add sheet	Ajouter une feuille
+Add specification section by {}	Ajouter une section de spécifications par {}
+Add starter inspection templates by {}	Ajouter les modèles d'inspection de départ par {}
+Add subtask	Ajouter une sous-tâche
+Add task	Ajouter une tâche
+Add task by {}	Ajouter une tâche par {}
+Add template	Ajouter un modèle
+Add the cost codes this project doesn't have yet (they take their names from the Description column)	Ajouter les codes de coût que ce projet n'a pas encore (ils prennent leur nom dans la colonne Description)
+Add the first item to get started.	Ajoutez le premier élément pour commencer.
+Add the first observation to get started.	Ajoutez la première observation pour commencer.
+Add the first revision below.	Ajoutez la première révision ci-dessous.
+Add the first task to get started.	Ajoutez la première tâche pour commencer.
+Add the starter templates	Ajouter les modèles de départ
+Add the total as a line	Ajouter le total comme ligne
+Add to level it	Ajouter pour le niveler
+Add to project	Ajouter au projet
+Add {}	Ajouter {}
+Added	Ajouté
+Added {}	{} ajouté
+Addenda	Additifs
+Addendum	Additif
+Addendum {}	Additif {}
+Addendum {} not acknowledged	Additif {} non accusé réception
+Address of this server	Adresse de ce serveur
+Adjust door closer, east entry	Régler le ferme-porte, entrée est
+Admin	Admin
+Administration	Administration
+Administrator	Administrateur
+Against budget	Par rapport au budget
+Agenda and notes	Ordre du jour et notes
+Agendas, attendance, minutes and who agreed to do what	Ordres du jour, présences, comptes rendus et qui s'est engagé à faire quoi
+Album	Album
+All RFIs	Toutes les RFI
+All albums	Tous les albums
+All areas	Toutes les zones
+All categories	Toutes les catégories
+All companies	Toutes les entreprises
+All days	Tous les jours
+All disciplines	Toutes les disciplines
+All documents	Tous les documents
+All hours, including waiting and draft	Toutes les heures, y compris en attente et brouillon
+All logs	Tous les journaux
+All photos	Toutes les photos
+All projects	Tous les projets
+All tasks	Toutes les tâches
+Alternate	Variante
+Alternate {}	Variante {}
+Alternate {} accepted	Variante {} acceptée
+Alternate {} amount	Montant de la variante {}
+Alternate {} cost code	Code de coût de la variante {}
+Alternate {} name	Nom de la variante {}
+Alternates	Variantes
+Alternates (options priced apart from the base)	Variantes (options chiffrées à part de la base)
+Alternates not included	Variantes non incluses
+Amount	Montant
+Amount (negative for a deduct)	Montant (négatif pour une déduction)
+Amount due	Montant dû
+Amount due this invoice	Montant dû pour cette facture
+Amount for {}	Montant pour {}
+Amount to add for {}	Montant à ajouter pour {}
+Amount, line {}	Montant, ligne {}
+An assembly	Un ouvrage composé
+Another day	Un autre jour
+Answer	Réponse
+Answer inspection checklist by {}	Répondre à la liste de contrôle d'inspection par {}
+Answer that shows question {}	Réponse qui affiche la question {}
+Answer the door hardware RFI	Répondre à la RFI sur la quincaillerie des portes
+Answer type	Type de réponse
+Answer type of question {}	Type de réponse de la question {}
+Answered	Répondu
+Answers	Réponses
+Any	Tous
+Any location	Tout emplacement
+Any stage	Toute étape
+Any status	Tout statut
+Any template	Tout modèle
+Any {}	Tout {}
+Anyone	Tout le monde
+Applied	Appliqué
+Approval	Approbation
+Approve	Approuver
+Approve budget change by {}	Approuver une modification du budget par {}
+Approve commitment by {}	Approuver l'engagement par {}
+Approve commitment change order by {}	Approuver l'avenant d'engagement par {}
+Approve commitment invoice by {}	Approuver la facture d'engagement par {}
+Approve hours by {}	Approuver les heures par {}
+Approve or decline action plan by {}	Approuver ou refuser le plan d'action par {}
+Approve or reject by {}	Approuver ou rejeter par {}
+Approve owner invoice by {}	Approuver la facture du maître d'ouvrage par {}
+Approve prime change order by {}	Approuver l'avenant au contrat principal par {}
+Approve prime contract by {}	Approuver le contrat principal par {}
+Approved	Approuvé
+Approved as noted	Approuvé avec remarques
+Approved by	Approuvé par
+Approved changes	Modifications approuvées
+Approved changes to the budget	Modifications approuvées du budget
+Approved changes to what a subcontract or purchase order costs	Modifications approuvées de ce que coûte un contrat de sous-traitance ou un bon de commande
+Approved hours in the range that were not posted before become one labour direct cost for each cost code, so they count in the budget. Everyone needs a pay rate first.	Les heures approuvées de la période qui n'ont pas encore été comptabilisées deviennent un coût direct de main-d'œuvre par code de coût, et comptent donc dans le budget. Chacun doit d'abord avoir un taux horaire.
+Approved hours only	Heures approuvées uniquement
+Approved until	Approuvé jusqu'au
+Approver	Approbateur
+Approving a commitment or awarding a bid to a company	Approbation d'un engagement ou attribution d'une offre à une entreprise
+Apr	avr.
+Architect	Architecte
+Architect / engineer	Architecte / ingénieur
+Architectural	Architecture
+Area	Zone
+Arrow	Flèche
+As late as possible	Le plus tard possible
+As requested	Comme demandé
+As soon as possible	Dès que possible
+Assemblies	Ouvrages composés
+Assembly	Ouvrage composé
+Assign	Assigner
+Assign the punch items to…	Assigner les réserves à…
+Assigned to	Assigné à
+Assigned to me	Assigné à moi
+Assignees	Personnes assignées
+At least 10 characters.	Au moins 10 caractères.
+Attach file	Joindre un fichier
+Attach file to RFI by {}	Joindre un fichier à la RFI par {}
+Attach file to a checklist line by {}	Joindre un fichier à une ligne de liste de contrôle par {}
+Attach file to action plan by {}	Joindre un fichier au plan d'action par {}
+Attach file to bid package by {}	Joindre un fichier au lot d'appel d'offres par {}
+Attach file to commitment by {}	Joindre un fichier à l'engagement par {}
+Attach file to correspondence by {}	Joindre un fichier à la correspondance par {}
+Attach file to daily log by {}	Joindre un fichier au journal de chantier par {}
+Attach file to form by {}	Joindre un fichier au formulaire par {}
+Attach file to incident by {}	Joindre un fichier à l'incident par {}
+Attach file to inspection by {}	Joindre un fichier à l'inspection par {}
+Attach file to meeting by {}	Joindre un fichier à la réunion par {}
+Attach file to observation by {}	Joindre un fichier à l'observation par {}
+Attach file to prequalification by {}	Joindre un fichier à la préqualification par {}
+Attach file to punch item by {}	Joindre un fichier à la réserve par {}
+Attach file to submittal by {}	Joindre un fichier à la soumission par {}
+Attach file to task by {}	Joindre un fichier à la tâche par {}
+Attach file to transmittal by {}	Joindre un fichier au bordereau de transmission par {}
+Attach the signed copy under Files if you haven't.	Joignez la copie signée sous Fichiers si ce n'est pas déjà fait.
+Attach to line	Joindre à la ligne
+Attach to this bid	Joindre à cette offre
+Attendance	Présence
+Attendees	Participants
+Aug	août
+Author	Auteur
+Average age of open RFIs (days)	Ancienneté moyenne des RFI ouvertes (jours)
+Average days in review	Nombre moyen de jours en révision
+Award	Attribuer
+Award and start a commitment	Attribuer et créer un engagement
+Award and start commitment	Attribuer et créer l'engagement
+Award package by {}	Attribuer le lot par {}
+Award to	Attribuer à
+Awarded	Attribué
+Awarded to {}.	Attribué à {}.
+Awards the package to a company and starts a draft commitment for its bid amount against	Attribue le lot à une entreprise et crée un engagement brouillon du montant de son offre sur
+Awards the package to a company and starts a draft commitment for its bid amount against {}.	Attribue le lot à une entreprise et crée un engagement brouillon du montant de son offre sur {}.
+Back	Retour
+Back to	Retour à
+Back to documents	Retour aux documents
+Back to draft	Remettre en brouillon
+Back to forms	Retour aux formulaires
+Back to incidents	Retour aux incidents
+Back to observations	Retour aux observations
+Back to photos	Retour aux photos
+Back to prequalification	Retour à la préqualification
+Back to submittals	Retour aux soumissions
+Back to the schedule	Retour au planning
+Back to the sheet	Retour au plan
+Back to timesheets	Retour aux feuilles de temps
+Back to {}	Retour à {}
+Back up now	Sauvegarder maintenant
+Backup	Sauvegarde
+Backups	Sauvegardes
+Backups kept	Sauvegardes conservées
+Balance to finish	Solde à terminer
+Ball in court	À traiter par
+Baselines	Plannings de référence
+Before closing in	Avant la mise hors d'eau
+Bid	Offre
+Bid amount	Montant de l'offre
+Bid amount (or price the lines below)	Montant de l'offre (ou chiffrez les lignes ci-dessous)
+Bid bond	Caution de soumission
+Bid bond required (percent of the bid)	Caution de soumission exigée (pourcentage de l'offre)
+Bid documents	Documents d'appel d'offres
+Bid form lines	Lignes du bordereau d'offre
+Bid form, scope checklist, alternates and bond	Bordereau d'offre, liste de contrôle du périmètre, variantes et caution
+Bid in	Offre remise
+Bid leveling	Comparaison des offres
+Bid package	Lot d'appel d'offres
+Bid package #{}	Lot d'appel d'offres #{}
+Bid package (its lowest bid)	Lot d'appel d'offres (son offre la plus basse)
+Bidding	Appel d'offres
+Bids	Offres
+Bids are compared on price alone. Add criteria to weigh other things, such as safety record or schedule.	Les offres sont comparées sur le seul prix. Ajoutez des critères pour pondérer d'autres éléments, comme le bilan de sécurité ou le délai.
+Bids due	Offres à remettre
+Bids due {}	Offres à remettre le {}
+Billed before	Facturé précédemment
+Billed to date	Facturé à ce jour
+Billing	Facturation
+Blank (use the lines below)	Vide (utiliser les lignes ci-dessous)
+Blank (use the outline below)	Vide (utiliser le plan ci-dessous)
+Blocking and backing are in place for fixtures and casework	Les renforts et supports sont en place pour les appareils et le mobilier
+Bond amount	Montant de la caution
+Bond in	Caution reçue
+Bonding	Cautionnement
+Bonding capacity	Capacité de cautionnement
+Box	Rectangle
+Break a constraint	Lever une contrainte
+Bring the actions still open from the previous meeting of this type into this one. They are marked as carried forward there, so each is counted once.	Reprenez dans cette réunion les actions encore ouvertes de la réunion précédente du même type. Elles y sont marquées comme reportées, de sorte que chacune n'est comptée qu'une fois.
+Budget	Budget
+Budget changes	Modifications du budget
+Budget file	Fichier du budget
+Budget views	Vues du budget
+BuildKiosk <noreply@example.com>	BuildKiosk <noreply@example.com>
+BuildKiosk sends each notification as an email through your own mail server (SMTP). People can turn it off on their account page. Nothing is sent until this is filled in.	BuildKiosk envoie chaque notification par e-mail via votre propre serveur de messagerie (SMTP). Chacun peut la désactiver sur sa page de compte. Rien n'est envoyé tant que ce n'est pas renseigné.
+Bulletin 1	Bulletin 1
+Bulletin 1 drawings	Plans du bulletin 1
+By	Par
+By cost code	Par code de coût
+By division	Par division
+By person	Par personne
+By severity	Par gravité
+CSV file	Fichier CSV
+CSV text	Texte CSV
+Calendar	Calendrier
+Can sign in	Peut se connecter
+Can sign in (needs an email)	Peut se connecter (nécessite un e-mail)
+Cancel	Annuler
+Cancelled	Annulé
+Caption	Légende
+Caption (used for every picture)	Légende (utilisée pour chaque image)
+Carpentry	Menuiserie
+Carried	Reporté
+Carried forward	Reporté
+Carry open actions forward	Reporter les actions ouvertes
+Carry open actions forward by {}	Reporter les actions ouvertes par {}
+Case	Dossier
+Cases	Dossiers
+Cash position	Position de trésorerie
+Cast-in-place concrete	Béton coulé en place
+Catalogue	Catalogue
+Category	Catégorie
+Cedar Street Lofts	Cedar Street Lofts
+Cedar Supply	Cedar Supply
+Ceilings	Plafonds
+Change event	Événement de modification
+Change events	Événements de modification
+Change order	Avenant
+Change orders	Avenants
+Change password	Changer le mot de passe
+Change project permissions by {}	Modifier les permissions du projet par {}
+Change the filter to see more.	Modifiez le filtre pour en voir plus.
+Change the filters to see more.	Modifiez les filtres pour en voir plus.
+Change this report	Modifier ce rapport
+Changing a prefix affects new items only; references already given stay.	Modifier un préfixe n'affecte que les nouveaux éléments ; les références déjà attribuées restent.
+Changing it signs you out everywhere else.	Le modifier vous déconnecte partout ailleurs.
+Changing the criteria clears the scores already given.	Modifier les critères efface les notes déjà attribuées.
+Chart	Graphique
+Chart it	Le représenter en graphique
+Check links	Vérifier les liens
+Checklist	Liste de contrôle
+Checklist lines (when no template)	Lignes de la liste de contrôle (sans modèle)
+Checklist template	Modèle de liste de contrôle
+Checklists and reports filled in from the project's own templates	Listes de contrôle et rapports remplis à partir des modèles propres au projet
+Checklists of work in sections, with an owner and a date for each item	Listes de contrôle de travaux par sections, avec un responsable et une date pour chaque élément
+Checklists walked on site	Listes de contrôle parcourues sur site
+Choices (for a list)	Choix (pour une liste)
+Choices for question {}	Choix de la question {}
+Choose RFIs	Choisir des RFI
+Choose approvers	Choisir les approbateurs
+Choose columns, chart and export	Choisir les colonnes, le graphique et l'export
+Choose companies	Choisir des entreprises
+Choose documents	Choisir des documents
+Choose forecasting method by {}	Choisir la méthode de prévision par {}
+Choose my default budget view by {}	Choisir ma vue de budget par défaut par {}
+Choose one	Choisir une option
+Choose people	Choisir des personnes
+Choose people to keep informed	Choisir les personnes à tenir informées
+Choose people who should answer	Choisir les personnes qui doivent répondre
+Choose submittals	Choisir des soumissions
+Choose the columns, and which projects, and how to sort. A saved report keeps its choices and can be shared with everyone in the company.	Choisissez les colonnes, les projets concernés et le tri. Un rapport enregistré conserve ses choix et peut être partagé avec toute l'entreprise.
+Choose who does the work	Choisir qui fait le travail
+Choosing a different questionnaire clears the answers.	Choisir un autre questionnaire efface les réponses.
+City	Ville
+Civil	Génie civil
+Clarify ceiling height at corridor 2	Préciser la hauteur sous plafond au couloir 2
+Claude on my laptop	Claude sur mon portable
+Cleanup	Nettoyage
+Clear	Effacer
+Clear and grub	Débroussaillage et essouchement
+Clear baseline	Effacer le planning de référence
+Clear prime change order signature status by {}	Effacer le statut de signature de l'avenant au contrat principal par {}
+Clear prime contract signature status by {}	Effacer le statut de signature du contrat principal par {}
+Clear signature status by {}	Effacer le statut de signature par {}
+Clear the signature	Effacer la signature
+Click one corner of the box.	Cliquez sur un coin du rectangle.
+Click the opposite corner.	Cliquez sur le coin opposé.
+Click the picture where the pin goes.	Cliquez sur l'image à l'endroit où placer l'épingle.
+Click to place the markup	Cliquez pour placer l'annotation
+Click where the arrow points.	Cliquez là où pointe la flèche.
+Click where the arrow starts.	Cliquez là où commence la flèche.
+Click where the words go.	Cliquez là où placer le texte.
+Close	Clôturer
+Close RFI	Clôturer la RFI
+Close RFI by {}	Clôturer la RFI par {}
+Close bidding	Clôturer l'appel d'offres
+Close bidding by {}	Clôturer l'appel d'offres par {}
+Close change event by {}	Clôturer l'événement de modification par {}
+Close correspondence by {}	Clôturer la correspondance par {}
+Close incident by {}	Clôturer l'incident par {}
+Close item	Clôturer l'élément
+Close observation by {}	Clôturer l'observation par {}
+Close punch item by {}	Clôturer la réserve par {}
+Close submittal	Clôturer la soumission
+Close submittal by {}	Clôturer la soumission par {}
+Close task by {}	Clôturer la tâche par {}
+Close with a final decision	Clôturer avec une décision finale
+Closed	Clôturé
+Closeout	Réception des travaux
+Closeout, procurement, permits…	Réception, approvisionnement, permis…
+Column to chart	Colonne à représenter
+Columns	Colonnes
+Comment	Commentaire
+Comment on incident by {}	Commenter l'incident par {}
+Comment on observation by {}	Commenter l'observation par {}
+Comment on plan item by {}	Commenter l'élément du plan par {}
+Comment on punch item by {}	Commenter la réserve par {}
+Comment on task by {}	Commenter la tâche par {}
+Comments	Commentaires
+Comments (	Commentaires (
+Comments ({})	Commentaires ({})
+Commercial, healthcare…	Commercial, santé…
+Commitment	Engagement
+Commitment change orders	Avenants d'engagement
+Commitment invoices	Factures d'engagement
+Commitments	Engagements
+Committed	Engagé
+Committed cost	Coût engagé
+Companies	Entreprises
+Company	Entreprise
+Company admin	Administrateur de l'entreprise
+Company holiday lists	Listes de jours fériés de l'entreprise
+Company holiday lists this project takes	Listes de jours fériés de l'entreprise retenues par ce projet
+Company name	Nom de l'entreprise
+Company reports	Rapports de l'entreprise
+Company settings	Paramètres de l'entreprise
+Compare	Comparer
+Compare estimates	Comparer les estimations
+Compare photos	Comparer les photos
+Compare with	Comparer avec
+Compare with now	Comparer avec maintenant
+Complete	Terminé
+Complete action plan by {}	Terminer le plan d'action par {}
+Complete commitment by {}	Terminer l'engagement par {}
+Complete inspection by {}	Terminer l'inspection par {}
+Completed	Terminé
+Completion	Achèvement
+Concrete	Béton
+Concrete crew	Équipe béton
+Concrete cylinders stored in direct sun	Éprouvettes de béton stockées en plein soleil
+Confirm the steel delivery date	Confirmer la date de livraison de l'acier
+Connections and hangers use the right fasteners	Les fixations et suspentes utilisent les bonnes attaches
+Constraint	Contrainte
+Constraint and resources	Contrainte et ressources
+Constraint date	Date de contrainte
+Construction	Construction
+Consultant	Consultant
+Contact only	Contact uniquement
+Contract	Contrat
+Contract signature	Signature du contrat
+Coordination	Coordination
+Copied	Copié
+Copies	Copies
+Copies of all the company data, each checked by loading it	Copies de toutes les données de l'entreprise, chacune vérifiée par rechargement
+Copy	Copier
+Copy a template from another project	Copier un modèle d'un autre projet
+Copy crews and equipment from	Copier les équipes et le matériel depuis
+Copy crews and equipment from {}	Copier les équipes et le matériel depuis {}
+Copy estimate as a new version by {}	Copier l'estimation comme nouvelle version par {}
+Copy form template to another project by {}	Copier le modèle de formulaire vers un autre projet par {}
+Copy here	Copier ici
+Copy inspection template from another project by {}	Copier le modèle d'inspection d'un autre projet par {}
+Copy to another project	Copier vers un autre projet
+Core tools	Outils de base
+Corrective action	Action corrective
+Correspondence	Correspondance
+Correspondence #{}	Correspondance #{}
+Correspondence types	Types de correspondance
+Cost	Coût
+Cost code	Code de coût
+Cost code (to compare with the budget)	Code de coût (à comparer au budget)
+Cost code for hours without one	Code de coût pour les heures sans code
+Cost code for parts without one	Code de coût pour les pièces sans code
+Cost code of line {}	Code de coût de la ligne {}
+Cost code {} {}	Code de coût {} {}
+Cost code, Amount (or Original budget), and optionally Description and Notes, in any order. Without a first line of names, the columns are code, amount, notes. A code that already has a line changes it. Up to 1 MB.	Cost code, Amount (ou Original budget), et éventuellement Description et Notes, dans n'importe quel ordre. Sans première ligne de noms, les colonnes sont code, montant, notes. Un code qui a déjà une ligne la modifie. Jusqu'à 1 Mo.
+Cost code, line {}	Code de coût, ligne {}
+Cost impact	Impact sur les coûts
+Cost now	Coût actuel
+Cost per unit	Coût unitaire
+Cost then	Coût à l'époque
+Cost to date	Coût à ce jour
+Costs paid without a commitment	Coûts payés sans engagement
+Country	Pays
+County inspector	Inspecteur du comté
+Covered?	Couvert ?
+Create RFI by {}	Créer une RFI par {}
+Create a package, invite companies and record the bids as they arrive.	Créez un lot, invitez des entreprises et enregistrez les offres à mesure qu'elles arrivent.
+Create a subcontract or purchase order to start tracking committed cost.	Créez un contrat de sous-traitance ou un bon de commande pour commencer à suivre le coût engagé.
+Create a template first.	Créez d'abord un modèle.
+Create a template on the Templates page, then start forms from it.	Créez un modèle sur la page Modèles, puis démarrez des formulaires à partir de celui-ci.
+Create a token	Créer un jeton
+Create action plan by {}	Créer un plan d'action par {}
+Create bid package by {}	Créer un lot d'appel d'offres par {}
+Create budget change by {}	Créer une modification du budget par {}
+Create change event by {}	Créer un événement de modification par {}
+Create commitment by {}	Créer un engagement par {}
+Create commitment change order by {}	Créer un avenant d'engagement par {}
+Create company	Créer une entreprise
+Create correspondence by {}	Créer une correspondance par {}
+Create estimate by {}	Créer une estimation par {}
+Create folder	Créer un dossier
+Create folder by {}	Créer un dossier par {}
+Create form template by {}	Créer un modèle de formulaire par {}
+Create meeting by {}	Créer une réunion par {}
+Create one to record what you send to the team.	Créez-en un pour consigner ce que vous envoyez à l'équipe.
+Create prime change order by {}	Créer un avenant au contrat principal par {}
+Create prime contract by {}	Créer un contrat principal par {}
+Create project by {}	Créer un projet par {}
+Create submittal by {}	Créer une soumission par {}
+Create the company and its first administrator.	Créez l'entreprise et son premier administrateur.
+Create the first RFI to get started.	Créez la première RFI pour commencer.
+Create the first one to get started.	Créez le premier pour commencer.
+Create the first submittal to get started.	Créez la première soumission pour commencer.
+Create the first template below.	Créez le premier modèle ci-dessous.
+Create transmittal by {}	Créer un bordereau de transmission par {}
+Created	Créé
+Created {}	Créé {}
+Crews	Équipes
+Crews and equipment copied from	Équipes et matériel copiés depuis
+Crews and equipment copied from {}. Change or remove what's different today.	Équipes et matériel copiés depuis {}. Modifiez ou retirez ce qui diffère aujourd'hui.
+Critical	Critique
+Critical path	Chemin critique
+Currency (ISO code)	Devise (code ISO)
+Current	Actuel
+Current password	Mot de passe actuel
+Daily	Quotidien
+Daily hours before overtime	Heures quotidiennes avant heures supplémentaires
+Daily log	Journal de chantier
+Daily log for {}	Journal de chantier du {}
+Date	Date
+Date it happened	Date de survenue
+Date observed	Date d'observation
+Date on it	Date indiquée
+Date sent	Date d'envoi
+Date signed	Date de signature
+Date taken	Date de prise
+Date taken (empty	Date de prise (vide
+Dates	Dates
+Dates and times are shown at UTC	Les dates et heures sont affichées en UTC
+Dates and times are shown at UTC{}. Amounts are in {}. Changing the currency doesn't convert existing amounts.	Les dates et heures sont affichées en UTC{}. Les montants sont en {}. Changer la devise ne convertit pas les montants existants.
+Day	Jour
+Day and weather	Jour et météo
+Days	Jours
+Days are working days of the project calendar. Float is the working days a task can slip without moving the last finish.	Les jours sont des jours ouvrés du calendrier du projet. La marge est le nombre de jours ouvrés dont une tâche peut glisser sans repousser la dernière fin.
+Days for a submittal review	Jours pour une révision de soumission
+Days logged	Jours saisis
+Days off	Jours de congé
+Days off from company lists	Jours de congé des listes de l'entreprise
+Days to answer an RFI	Jours pour répondre à une RFI
+Debris is removed and surfaces are cleaned	Les gravats sont évacués et les surfaces nettoyées
+Dec	déc.
+Decision	Décision
+Decline	Refuser
+Declined	Refusé
+Delays	Retards
+Delays and issues	Retards et problèmes
+Delete	Supprimer
+Delete RFI by {}	Supprimer la RFI par {}
+Delete a saved baseline by {}	Supprimer un planning de référence enregistré par {}
+Delete action plan by {}	Supprimer le plan d'action par {}
+Delete assembly by {}	Supprimer l'ouvrage composé par {}
+Delete bid package by {}	Supprimer le lot d'appel d'offres par {}
+Delete budget change by {}	Supprimer la modification du budget par {}
+Delete budget line by {}	Supprimer la ligne de budget par {}
+Delete budget snapshot by {}	Supprimer l'instantané du budget par {}
+Delete budget view by {}	Supprimer la vue du budget par {}
+Delete catalogue item by {}	Supprimer l'article du catalogue par {}
+Delete change event by {}	Supprimer l'événement de modification par {}
+Delete commitment by {}	Supprimer l'engagement par {}
+Delete commitment change order by {}	Supprimer l'avenant d'engagement par {}
+Delete commitment invoice by {}	Supprimer la facture d'engagement par {}
+Delete company by {}	Supprimer l'entreprise par {}
+Delete company holiday list by {}	Supprimer la liste de jours fériés de l'entreprise par {}
+Delete company report by {}	Supprimer le rapport de l'entreprise par {}
+Delete correspondence by {}	Supprimer la correspondance par {}
+Delete correspondence type by {}	Supprimer le type de correspondance par {}
+Delete cost code by {}	Supprimer le code de coût par {}
+Delete crew	Supprimer l'équipe
+Delete crew by {}	Supprimer l'équipe par {}
+Delete daily log by {}	Supprimer le journal de chantier par {}
+Delete direct cost by {}	Supprimer le coût direct par {}
+Delete distribution group by {}	Supprimer le groupe de distribution par {}
+Delete document	Supprimer le document
+Delete document by {}	Supprimer le document par {}
+Delete drawing by {}	Supprimer le plan par {}
+Delete estimate by {}	Supprimer l'estimation par {}
+Delete estimate template by {}	Supprimer le modèle d'estimation par {}
+Delete folder by {}	Supprimer le dossier par {}
+Delete form by {}	Supprimer le formulaire par {}
+Delete form schedule by {}	Supprimer la planification de formulaire par {}
+Delete form template by {}	Supprimer le modèle de formulaire par {}
+Delete hours by {}	Supprimer les heures par {}
+Delete incident by {}	Supprimer l'incident par {}
+Delete inspection by {}	Supprimer l'inspection par {}
+Delete inspection template by {}	Supprimer le modèle d'inspection par {}
+Delete list	Supprimer la liste
+Delete meeting by {}	Supprimer la réunion par {}
+Delete meeting template by {}	Supprimer le modèle de réunion par {}
+Delete observation by {}	Supprimer l'observation par {}
+Delete owner invoice by {}	Supprimer la facture au maître d'ouvrage par {}
+Delete permission template by {}	Supprimer le modèle de permissions par {}
+Delete person by {}	Supprimer la personne par {}
+Delete photo	Supprimer la photo
+Delete photo by {}	Supprimer la photo par {}
+Delete plan template by {}	Supprimer le modèle de plan par {}
+Delete prequalification by {}	Supprimer la préqualification par {}
+Delete prime change order by {}	Supprimer l'avenant du contrat principal par {}
+Delete prime contract by {}	Supprimer le contrat principal par {}
+Delete project by {}	Supprimer le projet par {}
+Delete punch item by {}	Supprimer la réserve par {}
+Delete questionnaire by {}	Supprimer le questionnaire par {}
+Delete schedule task by {}	Supprimer la tâche du planning par {}
+Delete sheet	Supprimer le plan
+Delete specification section by {}	Supprimer la section de spécifications par {}
+Delete submittal by {}	Supprimer la soumission par {}
+Delete task	Supprimer la tâche
+Delete task by {}	Supprimer la tâche par {}
+Delete this folder	Supprimer ce dossier
+Delete this report	Supprimer ce rapport
+Delete this template	Supprimer ce modèle
+Delete transmittal by {}	Supprimer le bordereau de transmission par {}
+Deleted	Supprimé
+Deleted documents wait here until an admin restores them.	Les documents supprimés restent ici jusqu'à ce qu'un administrateur les restaure.
+Deleted files	Fichiers supprimés
+Deliveries	Livraisons
+Delivery	Livraison
+Description	Description
+Description of line {}	Description de la ligne {}
+Description, line {}	Description, ligne {}
+DeserializeOwned	DeserializeOwned
+Detail	Détail
+Details	Détails
+Difference	Écart
+Differences between the two revisions	Différences entre les deux révisions
+Direct cost	Coût direct
+Direct costs	Coûts directs
+Directory	Annuaire
+Discipline	Discipline
+Distribution	Distribution
+Distribution list	Liste de distribution
+Division	Division
+Division {}	Division {}
+Document	Document
+Documents	Documents
+Documents sent for review before the work goes ahead	Documents envoyés pour examen avant le début des travaux
+Does not repeat	Ne se répète pas
+Does the bid cover {}	L'offre couvre-t-elle {}
+Done	Terminé
+Door 104 moved to the east wall	La porte 104 a été déplacée sur le mur est
+Door hardware answer needed.	Réponse attendue sur la quincaillerie des portes.
+Doors	Portes
+Doors and hardware operate and latch	Les portes et la quincaillerie fonctionnent et se verrouillent
+Download album	Télécharger l'album
+Download all	Tout télécharger
+Download all as zip	Tout télécharger en zip
+Download original	Télécharger l'original
+Draft	Brouillon
+Drafts	Brouillons
+Drawing	Plan
+Drawing log	Registre des plans
+Drawing number	Numéro de plan
+Drawing sheet	Feuille de plan
+Drawing {}	Plan {}
+Drawings	Plans
+Drywall and framing	Cloisons sèches et ossature
+Drywall delivery	Livraison des cloisons sèches
+Due	Échéance
+Due date	Échéance
+Due date of action {}	Échéance de l'action {}
+EMR	EMR
+Each has the same title, type, time, place, invitees and agenda topics, on the dates after this one.	Chacune a les mêmes titre, type, horaire, lieu, invités et sujets à l'ordre du jour, aux dates postérieures à celle-ci.
+Each person once; blank rows are ignored.	Chaque personne une seule fois ; les lignes vides sont ignorées.
+Each ticked person gets their own entry for this day. With nobody ticked, the hours are yours.	Chaque personne cochée reçoit sa propre entrée pour ce jour. Si personne n'est coché, les heures sont les vôtres.
+Each type is numbered on its own	Chaque type est numéroté séparément
+Edit	Modifier
+Edit RFI	Modifier la RFI
+Edit RFI by {}	Modifier la RFI par {}
+Edit action plan	Modifier le plan d'action
+Edit action plan by {}	Modifier le plan d'action par {}
+Edit assembly	Modifier l'ouvrage composé
+Edit bid package	Modifier le lot d'appel d'offres
+Edit bid package by {}	Modifier le lot d'appel d'offres par {}
+Edit budget change by {}	Modifier la modification budgétaire par {}
+Edit change event by {}	Modifier l'événement de modification par {}
+Edit commitment	Modifier l'engagement
+Edit commitment by {}	Modifier l'engagement par {}
+Edit commitment change order by {}	Modifier l'avenant d'engagement par {}
+Edit commitment invoice by {}	Modifier la facture d'engagement par {}
+Edit company by {}	Modifier l'entreprise par {}
+Edit company settings by {}	Modifier les paramètres de l'entreprise par {}
+Edit correspondence	Modifier le courrier
+Edit correspondence by {}	Modifier le courrier par {}
+Edit daily log	Modifier le journal de chantier
+Edit daily log by {}	Modifier le journal de chantier par {}
+Edit direct cost by {}	Modifier le coût direct par {}
+Edit distribution group by {}	Modifier le groupe de distribution par {}
+Edit document by {}	Modifier le document par {}
+Edit drawing by {}	Modifier le plan par {}
+Edit estimate	Modifier l'estimation
+Edit estimate by {}	Modifier l'estimation par {}
+Edit folder by {}	Modifier le dossier par {}
+Edit form by {}	Modifier le formulaire par {}
+Edit form template by {}	Modifier le modèle de formulaire par {}
+Edit hours by {}	Modifier les heures par {}
+Edit incident by {}	Modifier l'incident par {}
+Edit inspection	Modifier l'inspection
+Edit inspection by {}	Modifier l'inspection par {}
+Edit inspection template by {}	Modifier le modèle d'inspection par {}
+Edit item	Modifier l'élément
+Edit levels	Modifier les niveaux
+Edit meeting	Modifier la réunion
+Edit meeting by {}	Modifier la réunion par {}
+Edit observation by {}	Modifier l'observation par {}
+Edit owner invoice by {}	Modifier la facture au maître d'ouvrage par {}
+Edit permission template by {}	Modifier le modèle de permissions par {}
+Edit person by {}	Modifier la personne par {}
+Edit photo by {}	Modifier la photo par {}
+Edit prime change order by {}	Modifier l'avenant du contrat principal par {}
+Edit prime contract by {}	Modifier le contrat principal par {}
+Edit project by {}	Modifier le projet par {}
+Edit punch item by {}	Modifier la réserve par {}
+Edit questionnaire	Modifier le questionnaire
+Edit record	Modifier l'enregistrement
+Edit schedule task by {}	Modifier la tâche du planning par {}
+Edit submittal	Modifier la soumission
+Edit submittal by {}	Modifier la soumission par {}
+Edit task	Modifier la tâche
+Edit task by {}	Modifier la tâche par {}
+Edit template	Modifier le modèle
+Edit the plan to add sections and items.	Modifiez le plan pour ajouter des sections et des éléments.
+Edit this template	Modifier ce modèle
+Edit transmittal	Modifier le bordereau de transmission
+Edit transmittal by {}	Modifier le bordereau de transmission par {}
+Edit type	Modifier le type
+Edit {}	Modifier {}
+Electrical	Électricité
+Email	E-mail
+Email me my notifications	M'envoyer mes notifications par e-mail
+Embeds, sleeves and penetrations are in place and secured	Les inserts, fourreaux et traversées sont en place et fixés
+Enclosures	Pièces jointes
+Encryption	Chiffrement
+English	English
+Enter the work completed this period for each item. You can't bill an item beyond its scheduled value.	Saisissez les travaux réalisés sur cette période pour chaque élément. Vous ne pouvez pas facturer un élément au-delà de sa valeur prévue.
+Enter what the company sent. A new bid from the same company replaces its earlier one.	Saisissez ce que l'entreprise a envoyé. Une nouvelle offre de la même entreprise remplace la précédente.
+Equipment	Équipement
+Equipment and materials	Équipement et matériaux
+Español	Español
+Estimate	Estimation
+Estimate #{}	Estimation n° {}
+Estimated value	Valeur estimée
+Estimating	Estimation
+Every	Chaque
+Every form from one template side by side	Tous les formulaires d'un même modèle côte à côte
+Every month	Chaque mois
+Every project you can open, with the columns chosen	Tous les projets que vous pouvez ouvrir, avec les colonnes choisies
+Every task you can see, across your projects	Toutes les tâches que vous pouvez voir, tous projets confondus
+Every three months	Tous les trois mois
+Every two weeks	Toutes les deux semaines
+Every week	Chaque semaine
+Every {} days	Tous les {} jours
+Every {} hours, keeping the newest {}	Toutes les {} heures, en conservant les {} plus récentes
+Everyone in the company	Toute l'entreprise
+Everyone in the company directory who can sign in is already on this project.	Toutes les personnes de l'annuaire de l'entreprise qui peuvent se connecter sont déjà sur ce projet.
+Everyone in the group is added after the reviewers named above.	Toutes les personnes du groupe sont ajoutées après les relecteurs indiqués ci-dessus.
+Everyone this week	Tout le monde cette semaine
+Everyone who can open the folder	Toutes les personnes qui peuvent ouvrir le dossier
+Everyone with Correspondence access	Toutes les personnes ayant accès à la correspondance
+Everyone with Documents access	Toutes les personnes ayant accès aux documents
+Everyone with Transmittals access	Toutes les personnes ayant accès aux bordereaux de transmission
+Everything I can see	Tout ce que je peux voir
+Excavate and grade	Terrassement et nivellement
+Exchange file	Fichier d'échange
+Excluded	Exclu
+Experience modification rate	Taux de modification de l'expérience
+Expiring soon	Expire bientôt
+Export CSV	Exporter en CSV
+Export project file (XML)	Exporter le fichier de projet (XML)
+Export register	Exporter le registre
+Export the schedule from your planning software as an exchange (.xer) file. The work breakdown becomes summary tasks, and tasks, dates (actual, else scheduled, else planned), percent complete, milestones, links with their kind and lag, and date constraints come across; resources, calendars and costs are left behind. If the file holds more than one project, give the id of the one you want (the first is used otherwise). Up to 8 MB.	Exportez le planning depuis votre logiciel de planification sous forme de fichier d'échange (.xer). La structure de découpage devient des tâches récapitulatives, et les tâches, les dates (réelles, sinon prévues, sinon planifiées), l'avancement en pourcentage, les jalons, les liens avec leur type et leur décalage, ainsi que les contraintes de dates sont repris ; les ressources, les calendriers et les coûts ne le sont pas. Si le fichier contient plusieurs projets, indiquez l'identifiant de celui que vous voulez (sinon, le premier est utilisé). 8 Mo maximum.
+Exterior sealant colour	Couleur du mastic extérieur
+Fabricate and erect	Fabrication et montage
+Fail	Échec
+Fall, struck by, equipment, spill…	Chute, heurt, équipement, déversement…
+Fatalities	Décès
+Fatality	Décès
+Feb	févr.
+Federal holidays 2027	Jours fériés fédéraux 2027
+Feet	Pieds
+Fictional sample project.	Projet d'exemple fictif.
+File	Fichier
+File an email by {}	Classer un e-mail par {}
+File email	Classer l'e-mail
+File incoming	Classer l'entrant
+File incoming correspondence	Classer le courrier entrant
+File incoming correspondence by {}	Classer le courrier entrant par {}
+File it	Classer
+File to attach	Fichier à joindre
+Files	Fichiers
+Files (optional)	Fichiers (facultatif)
+Files can be at most 25 MB.	Les fichiers peuvent peser 25 Mo au maximum.
+Filled in by	Renseigné par
+Filter	Filtrer
+Final	Final
+Final decision	Décision finale
+Final decisions	Décisions finales
+Final walk-through	Visite finale
+Financial management	Gestion financière
+Financials	Finances
+Finish	Fin
+Finish it promised	Fin promise
+Finish no earlier than	Fin au plus tôt le
+Finish no later than	Fin au plus tard le
+Finish to finish	Fin à fin
+Finish to start	Fin à début
+Finishes	Finitions
+Fire blocking and draft stopping are installed	Les recoupements coupe-feu et les arrêts de tirage sont installés
+Fire extinguishers are accessible and first aid kits stocked	Les extincteurs sont accessibles et les trousses de premiers secours sont garnies
+Fire protection	Protection incendie
+First aid	Premiers secours
+First floor plan	Plan du premier étage
+First form on	Premier formulaire le
+First name	Prénom
+Fit	Ajuster
+Float	Marge
+Floor openings are guarded or covered, and open edges protected	Les ouvertures dans les planchers sont protégées ou couvertes, et les bords libres sont sécurisés
+Fog	Brouillard
+Folder	Dossier
+Folder settings	Paramètres du dossier
+Folders	Dossiers
+Followed by	Suivi de
+Follows	Suit
+For approval	Pour approbation
+For construction	Pour exécution
+For information	Pour information
+For review	Pour examen
+For the record	Pour mémoire
+Forecast the cost still to come	Prévoir le coût restant à engager
+Forecast to complete	Prévision à l'achèvement
+Forecasting method	Méthode de prévision
+Form	Formulaire
+Form templates	Modèles de formulaire
+Forms	Formulaires
+Forms are clean, braced and match the drawings	Les coffrages sont propres, étayés et conformes aux plans
+Forms report	Rapport des formulaires
+Formwork and reinforcement	Coffrage et armatures
+Foundations	Fondations
+Framed second-floor walls; started rough electrical in corridor 2.	Murs du deuxième étage ossaturés ; début de l'électricité brute dans le couloir 2.
+Framing	Ossature
+Framing inspection	Inspection de l'ossature
+Framing is plumb, level and dry	L'ossature est d'aplomb, de niveau et sèche
+Framing lumber package	Lot de bois d'ossature
+Framing walk-through	Visite de l'ossature
+Français	Français
+Fri	ven.
+From	De
+From (email)	De (e-mail)
+From (name)	De (nom)
+From RFI	Depuis une RFI
+From change event	Depuis un événement de modification
+From meeting	Depuis une réunion
+From the catalogue	Depuis le catalogue
+From “	De “
+From “{}”	De “{}”
+General	Général
+Group by	Regrouper par
+Group by assignee	Regrouper par personne assignée
+Group by location	Regrouper par emplacement
+Group by status	Regrouper par statut
+Group by {}	Regrouper par {}
+Grouping	Regroupement
+Handles RFIs, submittals and documents	Gère les RFI, les soumissions et les documents
+Harbor Design Studio	Harbor Design Studio
+Hazardous materials are labeled and stored properly	Les matières dangereuses sont étiquetées et stockées correctement
+Heating and cooling operate	Le chauffage et la climatisation fonctionnent
+Hide closed	Masquer les clôturés
+High	Élevée
+High {}	Élevée {}
+Highest first	Plus élevé d'abord
+History	Historique
+Home	Accueil
+Hours	Heures
+Hours counted	Heures comptabilisées
+Hours each	Heures chacune
+Hours priced at each person's rate, with overtime under the project's rules	Heures valorisées au taux de chaque personne, avec les heures supplémentaires selon les règles du projet
+Hours waiting for approval	Heures en attente d'approbation
+Hours worked	Heures travaillées
+Hours worked by people who aren't on timesheets, such as subcontractors, are added to the approved timesheet hours. Enter 0 to remove them.	Les heures travaillées par des personnes qui n'ont pas de feuille de temps, comme les sous-traitants, s'ajoutent aux heures des feuilles de temps approuvées. Saisissez 0 pour les retirer.
+How many more	Combien de plus
+How many of each resource you can have working on one day, one per line, such as Carpenter 6.	Combien de chaque ressource peuvent travailler le même jour, une par ligne, par exemple Charpentier 6.
+How many units	Combien d'unités
+How much of a code's work is done. Leave blank to remove it.	Avancement des travaux d'un code. Laissez vide pour le retirer.
+How often	À quelle fréquence
+If this company was entered twice, merge it into the one to keep. RFIs, commitments, bids, people and other records that name	Si cette entreprise a été saisie en double, fusionnez-la avec celle à conserver. Les RFI, engagements, offres, personnes et autres enregistrements qui mentionnent
+If this company was entered twice, merge it into the one to keep. RFIs, commitments, bids, people and other records that name {} will name the kept company instead, and {} is removed from the directory. Blank details of the kept company are filled in from this one.	Si cette entreprise a été saisie en double, fusionnez-la avec celle à conserver. Les RFI, engagements, offres, personnes et autres enregistrements qui mentionnent {} mentionneront à la place l'entreprise conservée, et {} est retirée de l'annuaire. Les informations vides de l'entreprise conservée sont complétées avec celles-ci.
+Import	Importer
+Import a budget	Importer un budget
+Import a budget from a file	Importer un budget depuis un fichier
+Import a drawing log	Importer un registre des plans
+Import a list of sections	Importer une liste de sections
+Import a planning-program exchange file by {}	Importer un fichier d'échange de logiciel de planification par {}
+Import a price list	Importer une liste de prix
+Import a project file (Microsoft Project XML)	Importer un fichier de projet (Microsoft Project XML)
+Import a project-planning XML file by {}	Importer un fichier XML de planification de projet par {}
+Import a register from CSV	Importer un registre depuis un CSV
+Import a schedule	Importer un planning
+Import an exchange file (.xer)	Importer un fichier d'échange (.xer)
+Import budget by {}	Importer le budget par {}
+Import catalogue by {}	Importer le catalogue par {}
+Import company cost codes by {}	Importer les codes de coûts de l'entreprise par {}
+Import cost codes by {}	Importer les codes de coûts par {}
+Import drawing log by {}	Importer le registre des plans par {}
+Import file	Importer un fichier
+Import from CSV	Importer depuis un CSV
+Import incidents by {}	Importer des incidents par {}
+Import observations by {}	Importer des observations par {}
+Import punch items by {}	Importer des réserves par {}
+Import schedule by {}	Importer le planning par {}
+Import specification sections by {}	Importer des sections de spécifications par {}
+Import submittal register by {}	Importer le registre des soumissions par {}
+Import tasks by {}	Importer des tâches par {}
+In	Entrant
+In progress	En cours
+In review	En examen
+In the budget	Dans le budget
+In use	Utilisé
+Inactive	Inactif
+Inches	Pouces
+Incident	Incident
+Incident #{}	Incident n° {}
+Incidents	Incidents
+Included	Inclus
+Incoming	Entrant
+Injuries, near misses and damage, with the investigation and what was done about it	Blessures, quasi-accidents et dommages, avec l'enquête et les suites données
+Injury log	Registre des blessures
+Injury log across projects,	Registre des blessures tous projets confondus,
+Injury log across projects, {}	Registre des blessures tous projets confondus, {}
+Injury log,	Registre des blessures,
+Injury log, {}	Registre des blessures, {}
+Inspection	Inspection
+Inspection #{}	Inspection n° {}
+Inspection templates	Modèles d'inspection
+Inspections	Inspections
+Inspections already started keep the checklist they were made with.	Les inspections déjà commencées conservent la liste de contrôle avec laquelle elles ont été créées.
+Inspector	Inspecteur
+Inspector / agency	Inspecteur / organisme
+Inspector, Superintendent	Inspecteur, conducteur de travaux
+Install guardrail and post a warning sign.	Installer un garde-corps et poser un panneau d'avertissement.
+Insurance	Assurance
+Insurance expires	Expiration de l'assurance
+Interior	Intérieur
+Interior rough-in	Gros œuvre intérieur
+Invite	Inviter
+Invite {}	Inviter {}
+Invited	Invité
+Invoice	Facture
+Invoice #{}	Facture n° {}
+Invoicing	Facturation
+Issue	Émettre
+Issue addendum	Émettre un addenda
+Issue addendum by {}	Émettre un addenda par {}
+Issue date	Date d'émission
+Issue estimate by {}	Émettre l'estimation par {}
+Issue minutes	Émettre le compte rendu
+Issue minutes by {}	Émettre le compte rendu par {}
+Issued	Émis
+It came back unsigned	Il est revenu non signé
+It has no file yet, or the file is not a PDF or a picture (PNG, JPEG, GIF or WebP) the viewer can draw. Download it from the sheet's page instead.	Il n'a pas encore de fichier, ou le fichier n'est pas un PDF ou une image (PNG, JPEG, GIF ou WebP) que la visionneuse peut afficher. Téléchargez-le depuis la page du plan.
+Item	Élément
+Item {} copies	{} copies de l'élément
+Item {} description	Description de l'élément {}
+Item {} document	Document de l'élément {}
+Item {} drawing	Plan de l'élément {}
+Items	Éléments
+Items needing action	Éléments à traiter
+Items sent	Éléments envoyés
+Jan	janv.
+Job number	Numéro de chantier
+Jul	juil.
+Jun	juin
+Keep a letter, notice or email that came from outside the company on the project record	Conservez au dossier du projet une lettre, un avis ou un e-mail venu de l'extérieur de l'entreprise
+Keep this company	Conserver cette entreprise
+Keeps the lines, markups and alternates for any project to start from. Cost codes are kept by number, so a project needs the same codes to use it.	Conserve les lignes, annotations et variantes pour démarrer n'importe quel projet. Les codes de coûts sont conservés par numéro : un projet doit donc avoir les mêmes codes pour l'utiliser.
+Keeps the sections and items for any project to start from, without owners, dates or progress.	Conserve les sections et éléments pour démarrer n'importe quel projet, sans responsables, dates ni avancement.
+Keeps the type, time, place, attendees and agenda topics (not the notes or actions) to start the next meeting from.	Conserve le type, l'horaire, le lieu, les participants et les sujets à l'ordre du jour (pas les notes ni les actions) pour démarrer la réunion suivante.
+Keys, manuals and warranty papers are ready for handover	Les clés, notices et garanties sont prêtes pour la remise
+Keystone Properties	Keystone Properties
+Kickoff meeting notes	Notes de la réunion de lancement
+Kind	Genre
+LTR	LTR
+LTR-001, LTR-002… With types set, every item must be one of them.	LTR-001, LTR-002… Lorsque des types sont définis, chaque élément doit être l'un d'eux.
+Labor	Main-d'œuvre
+Labour cost	Coût de main-d'œuvre
+Ladders and scaffolds are in good condition and used correctly	Les échelles et échafaudages sont en bon état et utilisés correctement
+Landscape	Paysage
+Language	Langue
+Lapsed	Expirée
+Large	Grand
+Last day of each month	Dernier jour de chaque mois
+Last finish	Dernière fin
+Last name	Nom
+Last upload	Dernier téléversement
+Late	En retard
+Late schedule tasks	Tâches du planning en retard
+Laydown yard	Aire de stockage
+Leave To empty to post the seven days from From.	Laissez À vide pour publier les sept jours à partir de De.
+Leave blank to use the template's name.	Laissez vide pour utiliser le nom du modèle.
+Leave the markups out	Exclure les annotations
+Length	Longueur
+Letter	Lettre
+Letter, Notice, Email…	Lettre, avis, e-mail…
+Letters, notices and emails kept on the project record	Lettres, avis et e-mails conservés au dossier du projet
+Level	Niveau
+Level 1	Niveau 1
+Level 1 corridor	Couloir du niveau 1
+Level 2	Niveau 2
+Level 2 stair hall	Cage d'escalier du niveau 2
+Level on {}	Niveau le {}
+Leveled	Nivelé
+Leveling	Nivellement
+Licence	Licence
+Licence expires	Expiration de la licence
+Licence number	Numéro de licence
+Lights, outlets and switches work	Les lampes, prises et interrupteurs fonctionnent
+Limit	Limite
+Limits	Limites
+Line	Ligne
+Line {} description	Description de la ligne {}
+Line {} quantity	Quantité de la ligne {}
+Line {} unit	Unité de la ligne {}
+Lines	Lignes
+Linked RFIs	RFI liées
+Linked documents	Documents liés
+Linked submittals	Soumissions liées
+Linked to this sheet	Lié à ce plan
+Links	Liens
+List	Liste
+Location	Emplacement
+Lock original budget by {}	Verrouiller le budget initial par {}
+Lock the budget	Verrouiller le budget
+Locked	Verrouillé
+Locking the original budget makes budget changes the only way to alter it.	Une fois le budget initial verrouillé, seules les modifications budgétaires permettent de le changer.
+Log	Journal
+Log hours	Saisir des heures
+Log hours by {}	Saisir des heures par {}
+Log the same hours for a crew	Saisir les mêmes heures pour une équipe
+Long text	Texte long
+Look ahead	Planning prévisionnel à court terme
+Lost time	Temps perdu
+Lost-time cases	Cas avec arrêt de travail
+Lost-time rate	Taux d'arrêts de travail
+Low	Faible
+Low bid	Offre la plus basse
+Lowest first	Plus bas d'abord
+Lumber package	Lot de bois
+Made	Fait
+Mail server	Serveur de messagerie
+Main	Principal
+Main lobby	Hall d'entrée principal
+Make a task	Créer une tâche
+Make a task from an action by {}	Créer une tâche à partir d'une action par {}
+Making a backup takes a moment and holds other requests up only while the small files are copied.	Une sauvegarde prend un instant et ne retient les autres requêtes que le temps de copier les petits fichiers.
+Manager	Responsable
+Manager (accepts the work)	Responsable (accepte les travaux)
+Manpower	Effectifs
+Mar	mars
+Mark action done by {}	Marquer l'action comme terminée par {}
+Mark all as read	Tout marquer comme lu
+Mark as official	Marquer comme officielle
+Mark as sent for signature	Marquer comme envoyée pour signature
+Mark complete	Marquer comme terminé
+Mark done	Marquer comme terminé
+Mark incident work done by {}	Marquer les travaux de l'incident comme terminés par {}
+Mark notifications as read by {}	Marquer les notifications comme lues par {}
+Mark observation work done by {}	Marquer les travaux de l'observation comme terminés par {}
+Mark official response by {}	Marquer la réponse officielle par {}
+Mark punch item work done by {}	Marquer les travaux de la réserve comme terminés par {}
+Mark task work done by {}	Marquer les travaux de la tâche comme terminés par {}
+Mark up	Annoter
+Mark up a sheet by {}	Annoter un plan par {}
+Mark work done	Marquer les travaux comme terminés
+Markup {} name	Nom de l'annotation {}
+Markup {} percent	Pourcentage de l'annotation {}
+Markups (a percentage of the subtotal)	Majorations (un pourcentage du sous-total)
+Markups go to	Les majorations vont à
+Markups on this page	Annotations sur cette page
+Material	Matériau
+Materials are stacked stably and out of the way	Les matériaux sont empilés de façon stable et dégagent le passage
+May	mai
+Measure	Mesurer
+Measured on this page	Mesuré sur cette page
+Mechanical	Mécanique
+Mechanical, electrical and plumbing rough-in is complete and visible	Le gros œuvre mécanique, électrique et plomberie est terminé et visible
+Medical treatment	Soins médicaux
+Medium	Moyenne
+Meeting	Réunion
+Meeting #{}	Réunion n° {}
+Meeting action items	Actions de la réunion
+Meeting minutes	Compte rendu de réunion
+Meetings	Réunions
+Members are the specified size and spacing	Les éléments ont les dimensions et l'espacement spécifiés
+Menu	Menu
+Merge and remove	Fusionner et supprimer
+Merge and remove {}	Fusionner et supprimer {}
+Merge duplicate companies by {}	Fusionner les entreprises en double par {}
+Merge into another company	Fusionner dans une autre entreprise
+Message	Message
+Method	Méthode
+Metres	Mètres
+Milestone	Jalon
+Millbrook	Millbrook
+Millimetres	Millimètres
+Mine	Les miens
+Minutes	Compte rendu
+Minutes east of UTC	Minutes à l'est d'UTC
+Minutes issued	Compte rendu émis
+Mix, delivery schedule and pump are confirmed with the supplier	Le mélange, le calendrier de livraison et la pompe sont confirmés avec le fournisseur
+Mon	lun.
+Month	Mois
+Monthly	Mensuel
+More	Plus
+Move	Déplacer
+Move or resize a task by {}	Déplacer ou redimensionner une tâche par {}
+Move tasks that start too early	Décaler les tâches qui commencent trop tôt
+Move tasks that start too early by {}	Décaler les tâches qui commencent trop tôt par {}
+Move this folder into	Déplacer ce dossier dans
+Move to the current version	Passer à la version actuelle
+Move to the shaded curing box.	Déplacer dans le caisson de cure ombragé.
+Must finish on	Doit finir le
+Must start on	Doit commencer le
+My account	Mon compte
+My hours	Mes heures
+My tasks	Mes tâches
+N/A	N/A
+Name	Nom
+Name (what it is for)	Nom (à quoi il sert)
+Name each file with its sheet number first, such as “E-101 Power plan.pdf”. New sheet numbers are added to the log (the discipline is guessed from the letters); sheets already logged get a new revision.	Nommez chaque fichier en commençant par son numéro de plan, par exemple “E-101 Power plan.pdf”. Les nouveaux numéros de plan sont ajoutés au registre (la discipline est devinée d'après les lettres) ; les plans déjà enregistrés reçoivent une nouvelle révision.
+Name or email	Nom ou e-mail
+Name what a task needs each working day (such as Carpenter 4) when you add or edit it.	Indiquez ce dont une tâche a besoin chaque jour ouvré (par exemple Charpentier 4) lorsque vous l'ajoutez ou la modifiez.
+Near miss	Quasi-accident
+Nederlands	Nederlands
+Needs action	À traiter
+Needs attention	Demande de l'attention
+Needs each working day	Besoin par jour ouvré
+New	Nouveau
+New RFI	Nouvelle RFI
+New action plan	Nouveau plan d'action
+New bid package	Nouveau lot d'appel d'offres
+New change order	Nouvel avenant
+New commitment	Nouvel engagement
+New correspondence	Nouveau courrier
+New crew	Nouvelle équipe
+New daily log	Nouveau journal de chantier
+New estimate	Nouvelle estimation
+New folder	Nouveau dossier
+New list	Nouvelle liste
+New meeting	Nouvelle réunion
+New password	Nouveau mot de passe
+New password again	Nouveau mot de passe (confirmation)
+New password for {}	Nouveau mot de passe pour {}
+New questionnaire	Nouveau questionnaire
+New submittal	Nouvelle soumission
+New subtask	Nouvelle sous-tâche
+New template	Nouveau modèle
+New transmittal	Nouveau bordereau de transmission
+New type	Nouveau type
+New version	Nouvelle version
+New {}	Nouveau {}
+Next	Suivant
+Next inspection	Prochaine inspection
+Next occurrence	Prochaine occurrence
+Next page	Page suivante
+Next page →	Page suivante →
+Next week	Semaine suivante
+Next week →	Semaine suivante →
+Next ›	Suivant ›
+Next →	Suivant →
+No	Non
+No RFI matches these filters.	Aucune RFI ne correspond à ces filtres.
+No RFIs here	Aucune RFI ici
+No RFIs yet	Aucune RFI pour le moment
+No action items.	Aucune action.
+No action plans	Aucun plan d'action
+No agenda items.	Aucun point à l'ordre du jour.
+No answer recorded.	Aucune réponse enregistrée.
+No assemblies yet.	Aucun ouvrage composé pour le moment.
+No assemblies yet. An assembly prices a unit of work from several catalogue items.	Aucun ouvrage composé pour le moment. Un ouvrage composé chiffre une unité de travaux à partir de plusieurs éléments du catalogue.
+No bid packages	Aucun lot d'appel d'offres
+No bid yet	Pas encore d'offre
+No bids yet.	Aucune offre pour le moment.
+No bond	Aucune caution
+No budget line	Aucune ligne budgétaire
+No budget yet	Pas encore de budget
+No category	Aucune catégorie
+No change orders.	Aucun avenant.
+No comments yet.	Aucun commentaire pour le moment.
+No commitment matches these filters.	Aucun engagement ne correspond à ces filtres.
+No commitments here	Aucun engagement ici
+No companies invited yet. Edit the package to invite some.	Aucune entreprise invitée pour le moment. Modifiez le lot pour en inviter.
+No correspondence	Aucune correspondance
+No cost code	Aucun code de coût
+No days off are listed.	Aucun jour de congé n'est indiqué.
+No direct costs yet	Aucun coût direct pour le moment
+No documents here	Aucun document ici
+No drawings yet	Aucun plan pour le moment
+No estimates	Aucune estimation
+No files attached.	Aucun fichier joint.
+No files yet. Attach the insurance certificate, financial statements or licences.	Aucun fichier pour le moment. Joignez l'attestation d'assurance, les états financiers ou les licences.
+No files yet. Attach the scope, drawing lists and the form of proposal.	Aucun fichier pour le moment. Joignez le périmètre, les listes de plans et le modèle d'offre.
+No files yet. Attach the signed contract, insurance certificates or the scope of work.	Aucun fichier pour le moment. Joignez le contrat signé, les attestations d'assurance ou le descriptif des travaux.
+No forms match.	Aucun formulaire ne correspond.
+No grouping	Aucun regroupement
+No hours in this range.	Aucune heure sur cette période.
+No hours logged this week.	Aucune heure saisie cette semaine.
+No inspection matches these filters.	Aucune inspection ne correspond à ces filtres.
+No inspections here	Aucune inspection ici
+No invoices yet	Aucune facture pour le moment
+No item matches these filters.	Aucun élément ne correspond à ces filtres.
+No items	Aucun élément
+No items here	Aucun élément ici
+No items listed.	Aucun élément listé.
+No lines yet.	Aucune ligne pour le moment.
+No location	Aucun emplacement
+No log	Aucun journal
+No logs here	Aucun journal ici
+No meetings	Aucune réunion
+No open tasks are assigned to you or managed by you.	Aucune tâche ouverte ne vous est assignée ni ne relève de vous.
+No pay rate	Aucun taux de rémunération
+No photos	Aucune photo
+No prices are recorded by date yet.	Aucun prix n'est encore enregistré par date.
+No project you can open lets you read incidents.	Aucun projet que vous pouvez ouvrir ne vous permet de lire les incidents.
+No projects	Aucun projet
+No projects yet	Aucun projet pour le moment
+No question text.	Aucun texte de question.
+No questionnaire chosen.	Aucun questionnaire choisi.
+No rates set.	Aucun taux défini.
+No recordable cases in	Aucun cas à déclarer en
+No recordable cases in {}.	Aucun cas à déclarer en {}.
+No records	Aucun enregistrement
+No replies yet.	Aucune réponse pour le moment.
+No resources yet	Aucune ressource pour le moment
+No responses yet.	Aucune réponse pour le moment.
+No reviews yet.	Aucune relecture pour le moment.
+No revisions yet	Aucune révision pour le moment
+No schedules. A schedule starts a draft of a template on a rhythm and tells the person who fills it in.	Aucune planification. Une planification crée périodiquement un brouillon à partir d'un modèle et prévient la personne qui doit le remplir.
+No sections yet	Aucune section pour le moment
+No sheet has measurements yet. Set a page's scale in the sheet viewer and draw lengths, areas or pins.	Aucun plan n'a encore de mesures. Définissez l'échelle d'une page dans la visionneuse de plans et tracez des longueurs, des surfaces ou des repères.
+No sheets match	Aucun plan ne correspond
+No snapshots yet. A snapshot keeps today's figures so the budget can be compared with them later.	Aucun instantané pour le moment. Un instantané conserve les chiffres du jour pour pouvoir y comparer le budget plus tard.
+No submittal matches these filters.	Aucune soumission ne correspond à ces filtres.
+No submittals here	Aucune soumission ici
+No submittals yet	Aucune soumission pour l'instant
+No subtasks. This task can't be closed until its subtasks are.	Aucune sous-tâche. Cette tâche ne peut pas être clôturée tant que ses sous-tâches ne le sont pas.
+No tasks match	Aucune tâche ne correspond
+No tasks yet	Aucune tâche pour l'instant
+No template (type the checklist below)	Aucun modèle (saisissez la liste de contrôle ci-dessous)
+No templates	Aucun modèle
+No templates yet	Aucun modèle pour l'instant
+No templates yet. Add your own or the starter set on the	Aucun modèle pour l'instant. Ajoutez les vôtres ou le jeu de départ sur la
+No transmittals	Aucun bordereau de transmission
+No types yet, so the type of an item is free text and items are numbered together. Add the first type below.	Aucun type pour l'instant : le type d'un élément est donc du texte libre et les éléments sont numérotés ensemble. Ajoutez le premier type ci-dessous.
+No, a task with a duration	Non, une tâche avec une durée
+No, everyone with access to incidents sees it	Non, toute personne ayant accès aux incidents le voit
+Nobody has logged hours this week.	Personne n'a saisi d'heures cette semaine.
+Nobody invited.	Personne n'est invité.
+None	Aucun
+None (trusted local relay only)	Aucun (relais local de confiance uniquement)
+None issued.	Aucun émis.
+None yet.	Aucun pour l'instant.
+None. Add --backup-copy-to FOLDER to copy each backup to another disk or a mounted share.	Aucune. Ajoutez --backup-copy-to FOLDER pour copier chaque sauvegarde sur un autre disque ou un partage monté.
+None. Add --backup-s3-bucket (see the deployment notes) to upload each backup to S3-compatible storage.	Aucune. Ajoutez --backup-s3-bucket (voir les notes de déploiement) pour envoyer chaque sauvegarde vers un stockage compatible S3.
+Northline Electric	Northline Electric
+Not a subtask	Pas une sous-tâche
+Not accepted	Non accepté
+Not answered	Sans réponse
+Not approved	Non approuvé
+Not clear	Pas clair
+Not closed	Non clôturé
+Not complete	Non terminé
+Not copied	Non copié
+Not found	Introuvable
+Not in the budget yet	Pas encore dans le budget
+Not received	Non reçu
+Not recorded	Non enregistré
+Not right yet?	Pas encore bon ?
+Not sent	Non envoyé
+Not sent yet	Pas encore envoyé
+Not signed	Non signé
+Not tagged to anything.	Associé à aucun élément.
+Not yet	Pas encore
+Note	Note
+Note (optional)	Note (facultative)
+Note for line {}	Note pour la ligne {}
+Notes	Notes
+Notes (inclusions, exclusions, alternates)	Notes (inclusions, exclusions, variantes)
+Notes on topic {}	Notes sur le sujet {}
+Nothing deleted	Rien de supprimé
+Nothing has been added yet.	Rien n'a encore été ajouté.
+Nothing here yet	Rien ici pour l'instant
+Nothing in the catalogue	Rien dans le catalogue
+Nothing is approved to invoice yet.	Rien n'est encore approuvé pour facturation.
+Nothing matches, or you can't open any project yet.	Aucun résultat, ou vous ne pouvez encore ouvrir aucun projet.
+Nothing recorded yet.	Rien d'enregistré pour l'instant.
+Nothing scheduled.	Rien de planifié.
+Nothing to chart	Rien à afficher dans le graphique
+Nothing to do	Rien à faire
+Nothing to show yet	Rien à afficher pour l'instant
+Nothing uploaded since the server started.	Rien n'a été téléversé depuis le démarrage du serveur.
+Nothing yet	Rien pour l'instant
+Notifications	Notifications
+Notifications, {} unread	Notifications, {} non lues
+Nov	nov.
+Now compared with “	Comparé maintenant à “
+Now compared with “{}”	Comparé maintenant à “{}”
+Number	Numéro
+Object storage	Stockage objet
+Observation	Observation
+Observation #	Observation n°
+Observation #{}	Observation n°{}
+Observation categories	Catégories d'observations
+Observation trends	Tendances des observations
+Observations	Observations
+Observations (6 months)	Observations (6 mois)
+Observed	Observé
+Occurred	Survenu
+Oct	oct.
+Official response	Réponse officielle
+Oldest open RFI (days)	RFI ouverte la plus ancienne (jours)
+On hold	En attente
+On the critical path	Sur le chemin critique
+Once there is something approved to invoice, start the first invoice below.	Dès qu'un élément est approuvé pour facturation, démarrez la première facture ci-dessous.
+One category per line. When there are some, new observations pick from them; leave it empty to type any category.	Une catégorie par ligne. Quand il y en a, les nouvelles observations les proposent ; laissez vide pour saisir n'importe quelle catégorie.
+One item per line	Un élément par ligne
+One line per cost code	Une ligne par code de coût
+One line per cost code. Amounts may be negative to take money away. Leave spare rows blank.	Une ligne par code de coût. Les montants peuvent être négatifs pour retirer de l'argent. Laissez les lignes inutiles vides.
+One line per cost code. Leave spare rows blank.	Une ligne par code de coût. Laissez les lignes inutiles vides.
+One of a list	Un choix dans une liste
+One per line	Un par ligne
+One row per crew. Hours are per worker, like 7.5. Leave spare rows blank.	Une ligne par équipe. Les heures sont par ouvrier, par exemple 7.5. Laissez les lignes inutiles vides.
+One section per `# Title` line; under it, one question per line as `Question | points` (points default to 10). Changing a questionnaire that companies have already answered saves a new version, so their answers stay with the wording they answered; move a company up to the new version from its page.	Une section par ligne `# Title` ; en dessous, une question par ligne sous la forme `Question | points` (10 points par défaut). Modifier un questionnaire auquel des entreprises ont déjà répondu enregistre une nouvelle version, afin que leurs réponses restent associées à la formulation à laquelle elles ont répondu ; faites passer une entreprise à la nouvelle version depuis sa page.
+One section per line	Une section par ligne
+One sheet per line	Un plan par ligne
+One submittal per line	Une soumission par ligne
+One task per line	Une tâche par ligne
+One unit is	Une unité vaut
+Only a Schedule admin can change the calendar.	Seul un administrateur du planning peut modifier le calendrier.
+Only approved and complete commitments count as committed cost in the budget.	Seuls les engagements approuvés et terminés comptent comme coût engagé dans le budget.
+Only if question no.	Seulement si la question n°
+Only me (and company admins)	Moi uniquement (et les administrateurs de l'entreprise)
+Only me, the recipients and admins	Moi, les destinataires et les administrateurs uniquement
+Only projects in	Uniquement les projets de
+Only the people I choose, and admins	Uniquement les personnes que je choisis, et les administrateurs
+Only the projects you can open, and only what you can see of each, are included.	Seuls les projets que vous pouvez ouvrir, et seulement ce que vous pouvez voir de chacun, sont inclus.
+Only the uploader,	Uniquement la personne qui a téléversé,
+Only the uploader, the people ticked below and admins	Uniquement la personne qui a téléversé, les personnes cochées ci-dessous et les administrateurs
+Open	Ouvert
+Open RFI	Ouvrir la RFI
+Open RFI by {}	Ouvrir la RFI par {}
+Open RFIs	RFI ouvertes
+Open action items	Actions ouvertes
+Open actions	Actions ouvertes
+Open actions from earlier meetings	Actions ouvertes des réunions précédentes
+Open floor edge at level 2 stair	Bord de plancher ouvert à l'escalier du niveau 2
+Open in viewer	Ouvrir dans la visionneuse
+Open punch items	Réserves ouvertes
+Open the standard layout by default	Ouvrir la mise en page standard par défaut
+Open this view by default	Ouvrir cette vue par défaut
+Opened	Ouvert le
+Openings are framed to the drawn sizes	Les ouvertures sont encadrées aux dimensions dessinées
+Optional. Bidders price the lines of the bid form; the scope checklist lets you compare bids on the same scope; alternates are options priced apart. They can't change once a bid is in.	Facultatif. Les soumissionnaires chiffrent les lignes du bordereau d'offre ; la liste de contrôle du périmètre permet de comparer les offres sur le même périmètre ; les variantes sont des options chiffrées à part. Ils ne peuvent plus être modifiés une fois qu'une offre est reçue.
+Or a group	Ou un groupe
+Or paste the lines	Ou collez les lignes
+Or paste the lines:	Ou collez les lignes :
+Order	Ordre
+Original	Original
+Original amount	Montant initial
+Original budget	Budget initial
+Original contract	Contrat initial
+Original {}	{} initial
+Other	Autre
+Other hours worked in	Autres heures travaillées en
+Other hours worked in {}	Autres heures travaillées en {}
+Other minutes	Autres minutes
+Other notes	Autres notes
+Our company	Notre entreprise
+Out for bid	En appel d'offres
+Out for signature	En attente de signature
+Outgoing email	E-mail sortant
+Outline	Plan
+Outline area	Zone du plan
+Over / under	Dépassement / économie
+Over low	Au-dessus de la plus basse
+Over low bid	Au-dessus de l'offre la plus basse
+Overcast	Couvert
+Overdue	En retard
+Overdue RFIs	RFI en retard
+Overhead	Frais généraux
+Override	Remplacer
+Override for {}	Remplacement pour {}
+Overtime hours	Heures supplémentaires
+Overtime pays (percent of the rate)	Taux des heures supplémentaires (pourcentage du taux)
+Overtime rules	Règles des heures supplémentaires
+Owner	Propriétaire
+Owner / client	Maître d'ouvrage / client
+Owner / design team	Maître d'ouvrage / équipe de conception
+Owner invoices	Factures du maître d'ouvrage
+Owner request, field condition, design change…	Demande du maître d'ouvrage, condition de chantier, modification de conception…
+Owners, architects and engineers	Maîtres d'ouvrage, architectes et ingénieurs
+PDF	PDF
+Package	Lot
+Packages of work out to bid, the bids received and the award	Lots de travaux mis en appel d'offres, offres reçues et attribution
+Page	Page
+Page {} of {}	Page {} sur {}
+Paid	Payé
+Paid (net)	Payé (net)
+Paint	Peinture
+Paint, electrical, glazing…	Peinture, électricité, vitrage…
+Paint, flooring and trim are complete and undamaged	Peinture, revêtements de sol et plinthes terminés et non endommagés
+Panel LP-2 shows 100A on the schedule and 125A on the one-line. Please confirm.	Le tableau LP-2 indique 100 A sur le tableau de répartition et 125 A sur le schéma unifilaire. Veuillez confirmer.
+Panel schedule conflicts with one-line diagram	Le tableau de répartition est en conflit avec le schéma unifilaire
+Part of (summary task)	Fait partie de (tâche récapitulative)
+Part {} item	Élément de la pièce {}
+Part {} quantity	Quantité de la pièce {}
+Partly cloudy	Partiellement nuageux
+Parts	Pièces
+Pass	Réussi
+Passed	Réussi
+Password	Mot de passe
+Past due	Échu
+Past-due RFIs	RFI échues
+Paste an email	Coller un e-mail
+Path	Chemin
+Path length	Longueur du chemin
+Pause	Pause
+Pay rates	Taux de rémunération
+Payment application	Demande de paiement
+Payment applications for the work completed each period	Demandes de paiement pour les travaux réalisés chaque période
+Pending	En attente
+Pending change events	Événements de modification en attente
+People	Personnes
+People and companies you work with	Personnes et entreprises avec lesquelles vous travaillez
+People for a private folder	Personnes pour un dossier privé
+People involved	Personnes impliquées
+People involved and witnesses	Personnes impliquées et témoins
+People who may see it when private	Personnes pouvant le voir s'il est privé
+Per hour	Par heure
+Percent	Pourcentage
+Percent complete	Pourcentage d'avancement
+Period ending	Fin de période
+Period ending {}	Fin de période {}
+Permission template	Modèle de permissions
+Permission templates	Modèles de permissions
+Permissions	Permissions
+Permit close-out paperwork	Dossiers de clôture du permis
+Permit set	Dossier de permis
+Person	Personne
+Person {}	Personne {}
+Phone	Téléphone
+Photo	Photo
+Photos	Photos
+Pick a tool above and click the sheet.	Choisissez un outil ci-dessus et cliquez sur le plan.
+Picture	Image
+Picture {} of {}	Image {} sur {}
+Pictures (JPEG, PNG, GIF or WebP; choose several)	Images (JPEG, PNG, GIF ou WebP ; plusieurs possibles)
+Pictures of the work, by album	Photos du chantier, par album
+Pin	Épingler
+Plan	Plan
+Plan a meeting to keep its agenda, minutes and action items together.	Planifiez une réunion pour regrouper son ordre du jour, son compte rendu et ses actions.
+Planned completion	Achèvement prévu
+Plans and files	Plans et fichiers
+Play	Lecture
+Plumbing	Plomberie
+Plumbing fixtures run without leaks	Les appareils sanitaires fonctionnent sans fuite
+Points	Points
+Polished slab	Dalle polie
+Port	Port
+Portfolio	Portefeuille
+Possible changes to cost, tracked while they are priced	Modifications possibles du coût, suivies pendant leur chiffrage
+Post	Publier
+Post comment	Publier le commentaire
+Post labour	Imputer la main-d'œuvre
+Post labour to direct costs by {}	Imputer la main-d'œuvre aux coûts directs par {}
+Post response	Publier la réponse
+Post to direct costs	Imputer aux coûts directs
+Postal code	Code postal
+Pre-pour concrete check	Contrôle avant coulage du béton
+Preconstruction	Préconstruction
+Predecessors (task numbers with an optional kind and lag, e.g. 3, 5+2, 7SS, 4FF-1)	Prédécesseurs (numéros de tâches avec un type et un décalage facultatifs, p. ex. 3, 5+2, 7SS, 4FF-1)
+Prefix	Préfixe
+Prequalification	Préqualification
+Prequalification questionnaires	Questionnaires de préqualification
+Prequalified	Préqualifié
+Present	Présent
+Preview	Aperçu
+Preview of {}	Aperçu de {}
+Previous page	Page précédente
+Previous week	Semaine précédente
+Price catalogue	Catalogue de prix
+Price the work by cost code, add markups, and put the result in the budget	Chiffrez les travaux par code de coût, ajoutez des majorations et placez le résultat dans le budget
+Priced apart from the base estimate. Accepted ones are added to the subtotal, and to the budget under their own cost codes.	Chiffrées à part de l'estimation de base. Les variantes retenues sont ajoutées au sous-total, et au budget sous leurs propres codes de coût.
+Prices are from	Les prix datent du
+Prices for	Prix pour
+Prices for {}	Prix pour {}
+Prime change orders	Avenants au contrat principal
+Prime contract	Contrat principal
+Print as letter	Imprimer au format lettre
+Print view	Version imprimable
+Printable checklist	Liste de contrôle imprimable
+Printable log	Journal imprimable
+Printable report	Rapport imprimable
+Priority	Priorité
+Private	Privé
+Private (only people on this RFI can see it)	Privé (seules les personnes sur cette RFI peuvent la voir)
+Private (only people on this submittal can see it)	Privé (seules les personnes sur cette soumission peuvent la voir)
+Product data	Fiche technique produit
+Progress	Avancement
+Project	Projet
+Project admin	Administrateur du projet
+Project creator	Créateur du projet
+Project directory	Annuaire du projet
+Project engineer	Ingénieur de projet
+Project file	Fichier du projet
+Project files in folders, each with its versions	Fichiers du projet dans des dossiers, chacun avec ses versions
+Project home	Accueil du projet
+Project id in the file (optional)	Identifiant du projet dans le fichier (facultatif)
+Project management	Gestion de projet
+Project manager	Chef de projet
+Project name	Nom du projet
+Project report	Rapport de projet
+Project settings	Paramètres du projet
+Project to copy to	Projet de destination de la copie
+Projected change	Variation projetée
+Projected change is shown as a gain when projected cost fell, and as a loss (red) when it rose.	La variation projetée apparaît comme un gain quand le coût projeté a baissé, et comme une perte (en rouge) quand il a augmenté.
+Projected cost	Coût projeté
+Projected now	Projeté maintenant
+Projected over / under	Dépassement / économie projeté
+Projected overrun	Dépassement projeté
+Projected then	Projeté alors
+Projected under budget	Économie projetée sous le budget
+Projects	Projets
+Projects you are part of appear here.	Les projets dont vous faites partie apparaissent ici.
+Property damage	Dommages matériels
+Provide curb detail at the east unit.	Prévoir le détail de bordure à l'unité est.
+Pump truck, footings	Camion-pompe, fondations
+Punch item	Réserve
+Punch item #	Réserve n°
+Punch item #{}	Réserve n°{}
+Punch item raised	Réserve signalée
+Punch list	Liste de réserves
+Purchase order	Bon de commande
+Purchase order #{}	Bon de commande n°{}
+Purpose	Objet
+Put estimate in budget by {}	Mettre l'estimation au budget par {}
+Put forward	Proposer
+Put forward for review by {}	Proposer pour examen par {}
+Put in the budget	Mettre au budget
+Put in the budget again	Remettre au budget
+Put in the budget {}	Mettre au budget {}
+Qty	Qté
+Quality	Qualité
+Quality and safety	Qualité et sécurité
+Quantity	Quantité
+Quantity of line {}	Quantité de la ligne {}
+Quantity per unit	Quantité par unité
+Question	Question
+Question {}	Question {}
+Question {} is asked only if this earlier question number	La question {} n'est posée que si ce numéro d'une question précédente
+Question {} is required	La question {} est obligatoire
+Questionnaire	Questionnaire
+Questionnaires	Questionnaires
+Questions	Questions
+Questions that need a documented answer	Questions nécessitant une réponse documentée
+Questions that need a documented answer are tracked here.	Les questions nécessitant une réponse documentée sont suivies ici.
+RFI	RFI
+RFI #	RFI n°
+RFI #{}	RFI n°{}
+RFI #{} {}	RFI n°{} {}
+RFIs	RFI
+Rain	Pluie
+Raise punch items	Créer des réserves
+Raise punch items for failed lines by {}	Créer des réserves pour les lignes non conformes par {}
+Rates are cases times 200,000 divided by hours worked. Only incidents the person printing this can see are included.	Les taux sont les cas multipliés par 200 000, divisés par les heures travaillées. Seuls les incidents que la personne qui imprime ce document peut voir sont inclus.
+Rates need hours worked	Les taux nécessitent les heures travaillées
+Read only	Lecture seule
+Ready for review	Prêt pour examen
+Ready-mix concrete, cy, 185, Concrete, 03-300	Ready-mix concrete, cy, 185, Concrete, 03-300
+Ready-mix, 220 cy	Béton prêt à l'emploi, 220 cy
+Real length	Longueur réelle
+Reason	Motif
+Receipt	Reçu
+Received	Reçu
+Received (sign and return)	Reçu (signer et retourner)
+Received {}	Reçu {}
+Recent RFIs	RFI récentes
+Recipient	Destinataire
+Record a bid	Enregistrer une offre
+Record a direct cost	Enregistrer un coût direct
+Record a price	Enregistrer un prix
+Record a price for a catalogue item by {}	Enregistrer un prix pour un article du catalogue par {}
+Record a purchase, a rental or another cost below.	Enregistrez ci-dessous un achat, une location ou un autre coût.
+Record addendum acknowledged by {}	Enregistrer l'accusé de réception de l'addendum par {}
+Record as declined	Enregistrer comme refusé
+Record bid	Enregistrer l'offre
+Record bid by {}	Enregistrer l'offre par {}
+Record cost	Enregistrer le coût
+Record declined contract by {}	Enregistrer le contrat refusé par {}
+Record direct cost by {}	Enregistrer un coût direct par {}
+Record payment	Enregistrer le paiement
+Record payment on commitment invoice by {}	Enregistrer le paiement d'une facture d'engagement par {}
+Record payment on owner invoice by {}	Enregistrer le paiement d'une facture du maître d'ouvrage par {}
+Record prime change order signature by {}	Enregistrer la signature d'un avenant au contrat principal par {}
+Record prime change order signature declined by {}	Enregistrer le refus de signature d'un avenant au contrat principal par {}
+Record prime contract signature by {}	Enregistrer la signature du contrat principal par {}
+Record prime contract signature declined by {}	Enregistrer le refus de signature du contrat principal par {}
+Record questionnaire answers by {}	Enregistrer les réponses au questionnaire par {}
+Record receipt	Enregistrer la réception
+Record signature	Enregistrer la signature
+Record signed contract by {}	Enregistrer le contrat signé par {}
+Record the signature	Enregistrer la signature
+Record the signed contract	Enregistrer le contrat signé
+Recordable	Enregistrable
+Recordable cases	Cas enregistrables
+Recordable cases and incident rates for the year, from the incidents you can see	Cas enregistrables et taux d'incidents de l'année, d'après les incidents que vous pouvez voir
+Recordable cases and rates for every project whose incidents you can read, from the incidents you can see	Cas enregistrables et taux de chaque projet dont vous pouvez lire les incidents, d'après les incidents que vous pouvez voir
+Recordable rate	Taux d'enregistrables
+Recurring forms	Formulaires récurrents
+Refers to	Concerne
+Regular hours	Heures normales
+Reinforcement size, spacing and cover match the drawings	Le diamètre, l'espacement et l'enrobage des armatures correspondent aux plans
+Reject	Rejeter
+Rejected	Rejeté
+Related	Lié
+Remaining	Restant
+Remove	Retirer
+Remove a markup by {}	Supprimer une annotation par {}
+Remove attachment from RFI by {}	Retirer un fichier d'une RFI par {}
+Remove attachment from daily log by {}	Retirer un fichier d'un journal de chantier par {}
+Remove attachment from incident by {}	Retirer un fichier d'un incident par {}
+Remove attachment from inspection by {}	Retirer un fichier d'une inspection par {}
+Remove attachment from observation by {}	Retirer un fichier d'une observation par {}
+Remove attachment from punch item by {}	Retirer un fichier d'une réserve par {}
+Remove attachment from submittal by {}	Retirer un fichier d'une soumission par {}
+Remove attachment from task by {}	Retirer un fichier d'une tâche par {}
+Remove file from a checklist line by {}	Retirer un fichier d'une ligne de liste de contrôle par {}
+Remove file from action plan by {}	Retirer un fichier d'un plan d'action par {}
+Remove file from bid package by {}	Retirer un fichier d'un lot d'appel d'offres par {}
+Remove file from commitment by {}	Retirer un fichier d'un engagement par {}
+Remove file from correspondence by {}	Retirer un fichier d'un courrier par {}
+Remove file from form by {}	Retirer un fichier d'un formulaire par {}
+Remove file from meeting by {}	Retirer un fichier d'une réunion par {}
+Remove file from prequalification by {}	Retirer un fichier d'une préqualification par {}
+Remove file from transmittal by {}	Retirer un fichier d'un bordereau de transmission par {}
+Remove from directory	Retirer de l'annuaire
+Remove official mark	Retirer la marque officielle
+Remove pay rate by {}	Supprimer un taux de rémunération par {}
+Remove person	Retirer la personne
+Remove person from project by {}	Retirer une personne du projet par {}
+Remove tag	Retirer l'étiquette
+Remove the scale of a sheet page by {}	Supprimer l'échelle d'une page de plan par {}
+Remove this page's scale	Supprimer l'échelle de cette page
+Removing a person keeps what they did in the history; they can no longer sign in.	Retirer une personne conserve ses actions dans l'historique ; elle ne peut plus se connecter.
+Reopen	Rouvrir
+Reopen RFI by {}	Rouvrir la RFI par {}
+Reopen action plan by {}	Rouvrir le plan d'action par {}
+Reopen as draft	Rouvrir en brouillon
+Reopen bidding	Rouvrir l'appel d'offres
+Reopen bidding by {}	Rouvrir l'appel d'offres par {}
+Reopen change event by {}	Rouvrir l'événement de modification par {}
+Reopen correspondence by {}	Rouvrir le courrier par {}
+Reopen daily log by {}	Rouvrir le journal de chantier par {}
+Reopen estimate by {}	Rouvrir l'estimation par {}
+Reopen form by {}	Rouvrir le formulaire par {}
+Reopen incident by {}	Rouvrir l'incident par {}
+Reopen inspection by {}	Rouvrir l'inspection par {}
+Reopen minutes	Rouvrir le compte rendu
+Reopen minutes by {}	Rouvrir le compte rendu par {}
+Reopen observation by {}	Rouvrir l'observation par {}
+Reopen punch item by {}	Rouvrir la réserve par {}
+Reopen task by {}	Rouvrir la tâche par {}
+Repeat every (days, blank for once)	Répéter tous les (jours, vide pour une seule fois)
+Repeat meeting by {}	Répéter la réunion par {}
+Repeat until	Répéter jusqu'au
+Repeats	Répétitions
+Replace baseline with current dates	Remplacer le planning de référence par les dates actuelles
+Replace cracked ceiling tile	Remplacer la dalle de plafond fissurée
+Replies	Réponses
+Reply	Répondre
+Reply by	Répondre avant le
+Reply requested by	Réponse demandée avant le
+Reply to correspondence by {}	Répondre au courrier par {}
+Reply wanted by	Réponse souhaitée avant le
+Report	Rapport
+Report an incident to record what happened and what was done.	Signalez un incident pour consigner ce qui s'est passé et ce qui a été fait.
+Report incident	Signaler un incident
+Reported by	Signalé par
+Reports	Rapports
+Require a signed contract before approval	Exiger un contrat signé avant approbation
+Require it	L'exiger
+Require prequalification	Exiger la préqualification
+Require prequalification by {}	Exiger la préqualification par {}
+Require signed contracts by {}	Exiger des contrats signés par {}
+Required	Obligatoire
+Required testing and special inspection are arranged	Les essais requis et l'inspection spéciale sont organisés
+Required to complete	Requis pour terminer
+Reset	Réinitialiser
+Reset to pending by {}	Remettre en attente par {}
+Resolve	Résoudre
+Resolve or reopen a markup by {}	Résoudre ou rouvrir une annotation par {}
+Resolved	Résolu
+Resource	Ressource
+Resource loading	Chargement des ressources
+Resource management	Gestion des ressources
+Resources	Ressources
+Resources needed each working day (e.g. Carpenter 4, Laborer 2)	Ressources nécessaires chaque jour ouvré (p. ex. Charpentier 4, Manœuvre 2)
+Respond to RFI by {}	Répondre à la RFI par {}
+Response	Réponse
+Response by	Réponse avant le
+Response due	Réponse attendue le
+Response wanted by	Réponse souhaitée avant le
+Responses	Réponses
+Restore	Restaurer
+Restore RFI by {}	Restaurer la RFI par {}
+Restore action plan by {}	Restaurer le plan d'action par {}
+Restore bid package by {}	Restaurer le lot d'appel d'offres par {}
+Restore budget change by {}	Restaurer la modification de budget par {}
+Restore change event by {}	Restaurer l'événement de modification par {}
+Restore commitment by {}	Restaurer l'engagement par {}
+Restore commitment change order by {}	Restaurer l'avenant d'engagement par {}
+Restore commitment invoice by {}	Restaurer la facture d'engagement par {}
+Restore company by {}	Restaurer l'entreprise par {}
+Restore correspondence by {}	Restaurer le courrier par {}
+Restore daily log by {}	Restaurer le journal de chantier par {}
+Restore direct cost by {}	Restaurer le coût direct par {}
+Restore document by {}	Restaurer le document par {}
+Restore drawing by {}	Restaurer le plan par {}
+Restore estimate by {}	Restaurer l'estimation par {}
+Restore form by {}	Restaurer le formulaire par {}
+Restore incident by {}	Restaurer l'incident par {}
+Restore inspection by {}	Restaurer l'inspection par {}
+Restore meeting by {}	Restaurer la réunion par {}
+Restore observation by {}	Restaurer l'observation par {}
+Restore owner invoice by {}	Restaurer la facture du maître d'ouvrage par {}
+Restore person by {}	Restaurer la personne par {}
+Restore photo by {}	Restaurer la photo par {}
+Restore prime change order by {}	Restaurer l'avenant au contrat principal par {}
+Restore prime contract by {}	Restaurer le contrat principal par {}
+Restore project by {}	Restaurer le projet par {}
+Restore punch item by {}	Restaurer la réserve par {}
+Restore schedule task by {}	Restaurer la tâche du planning par {}
+Restore submittal by {}	Restaurer la soumission par {}
+Restore task by {}	Restaurer la tâche par {}
+Restore transmittal by {}	Restaurer le bordereau de transmission par {}
+Restricted	Restreint
+Resubmit (new revision)	Soumettre à nouveau (nouvelle révision)
+Resubmit submittal by {}	Soumettre à nouveau la soumission par {}
+Result	Résultat
+Results for “	Résultats pour “
+Results for “{}” across the project ({})	Résultats pour “{}” dans tout le projet ({})
+Retainage	Retenue de garantie
+Retainage (%)	Retenue de garantie (%)
+Retainage held	Retenue de garantie conservée
+Retainage held to date	Retenue de garantie conservée à ce jour
+Retainage withheld (	Retenue de garantie retenue (
+Retainage withheld ({})	Retenue de garantie retenue ({})
+Retainage withheld this invoice	Retenue de garantie retenue sur cette facture
+Reusable checklists; starting an inspection copies one	Listes de contrôle réutilisables ; démarrer une inspection en copie une
+Rev.	Rév.
+Review submittal by {}	Examiner la soumission par {}
+Reviewed by	Examiné par
+Reviewer	Examinateur
+Reviewer group	Groupe d'examinateurs
+Reviewer {}	Examinateur {}
+Reviewers	Examinateurs
+Reviewers (in order)	Examinateurs (dans l'ordre)
+Reviewers answer in order. You'll be asked when it's your turn.	Les examinateurs répondent dans l'ordre. Vous serez sollicité à votre tour.
+Reviewers answer one after another, in this order	Les examinateurs répondent l'un après l'autre, dans cet ordre
+Reviewers, in review order	Examinateurs, dans l'ordre d'examen
+Reviews	Examens
+Revise and resubmit	Réviser et soumettre à nouveau
+Revised budget	Budget révisé
+Revised budget for this cost code	Budget révisé pour ce code de coût
+Revised commitment	Engagement révisé
+Revised contract	Contrat révisé
+Revised now	Révisé maintenant
+Revised sheet A-101	Feuille A-101 révisée
+Revised then	Révisé alors
+Revised total (approved changes included)	Total révisé (avenants approuvés inclus)
+Revision	Révision
+Revision (leave blank to log the sheet only)	Révision (laissez vide pour consigner seulement le plan)
+Revisions	Révisions
+Revoke	Révoquer
+Riverside Medical Office	Riverside Medical Office
+Role	Rôle
+Rooftop unit shop drawings	Plans d'atelier des groupes de toiture
+Rooftop units set	Groupes de toiture posés
+Room 208	Salle 208
+Root cause	Cause racine
+Rough carpentry	Charpente brute
+Runs projects	Dirige les projets
+Runs the field	Dirige le chantier
+STARTTLS (usual, port 587)	STARTTLS (usuel, port 587)
+Safety	Sécurité
+Safety&#10;Quality&#10;Housekeeping	Sécurité&#10;Qualité&#10;Propreté du chantier
+Safety, quality and housekeeping findings	Constats de sécurité, de qualité et de propreté du chantier
+Safety, quality, housekeeping…	Sécurité, qualité, propreté du chantier…
+Save	Enregistrer
+Save a named baseline by {}	Enregistrer un planning de référence nommé par {}
+Save a report	Enregistrer un rapport
+Save access	Enregistrer l'accès
+Save amounts	Enregistrer les montants
+Save and complete	Enregistrer et terminer
+Save and open	Enregistrer et ouvrir
+Save and send for review	Enregistrer et envoyer pour examen
+Save and submit	Enregistrer et soumettre
+Save answers	Enregistrer les réponses
+Save approvers	Enregistrer les approbateurs
+Save as a new report	Enregistrer comme nouveau rapport
+Save as a new view	Enregistrer comme nouvelle vue
+Save as a template	Enregistrer comme modèle
+Save as draft	Enregistrer comme brouillon
+Save assembly	Enregistrer l'ouvrage composé
+Save assembly by {}	Enregistrer l'ouvrage composé par {}
+Save baseline	Enregistrer le planning de référence
+Save baseline by {}	Enregistrer le planning de référence par {}
+Save budget snapshot by {}	Enregistrer l'instantané du budget par {}
+Save budget view by {}	Enregistrer la vue du budget par {}
+Save calendar	Enregistrer le calendrier
+Save catalogue item by {}	Enregistrer l'article du catalogue par {}
+Save changes	Enregistrer les modifications
+Save changes to this view	Enregistrer les modifications de cette vue
+Save company holiday list by {}	Enregistrer la liste des jours fériés de l'entreprise par {}
+Save company report by {}	Enregistrer le rapport de l'entreprise par {}
+Save correspondence type by {}	Enregistrer le type de courrier par {}
+Save crew	Enregistrer l'équipe
+Save crew by {}	Enregistrer l'équipe par {}
+Save criteria	Enregistrer les critères
+Save draft	Enregistrer le brouillon
+Save estimate as template by {}	Enregistrer l'estimation comme modèle par {}
+Save forecast	Enregistrer la prévision
+Save hours	Enregistrer les heures
+Save item	Enregistrer l'élément
+Save levels	Enregistrer les niveaux
+Save limits	Enregistrer les limites
+Save line	Enregistrer la ligne
+Save list	Enregistrer la liste
+Save markup	Enregistrer l'annotation
+Save meeting template by {}	Enregistrer le modèle de réunion par {}
+Save password	Enregistrer le mot de passe
+Save percent complete	Enregistrer le pourcentage d'avancement
+Save plan as template by {}	Enregistrer le plan comme modèle par {}
+Save points and score	Enregistrer les points et le score
+Save prequalification by {}	Enregistrer la préqualification par {}
+Save questionnaire	Enregistrer le questionnaire
+Save questionnaire by {}	Enregistrer le questionnaire par {}
+Save rules	Enregistrer les règles
+Save scores	Enregistrer les scores
+Save snapshot	Enregistrer l'instantané
+Save template	Enregistrer le modèle
+Save the current dates as	Enregistrer les dates actuelles sous
+Save the email from your mail program as a .eml file, open it in a text editor and paste everything here. The subject, date, sender and text are read from it, and people whose email address is on the To or Cc line are told.	Enregistrez l'e-mail depuis votre messagerie au format .eml, ouvrez-le dans un éditeur de texte et collez tout son contenu ici. L'objet, la date, l'expéditeur et le texte en sont extraits, et les personnes dont l'adresse figure sur la ligne À ou Cc sont prévenues.
+Save the schedule from your planning software as XML. Tasks, dates, percent complete, milestones, outline levels, links with their kind and lag, and start and finish constraints come across; resources, calendars and costs are left behind. Up to 8 MB.	Enregistrez le planning depuis votre logiciel de planification au format XML. Les tâches, dates, pourcentages d'avancement, jalons, niveaux de plan, liens avec leur type et leur décalage, et contraintes de début et de fin sont repris ; les ressources, calendriers et coûts ne le sont pas. 8 Mo maximum.
+Save type	Enregistrer le type
+Saved	Enregistré
+Scale	Échelle
+Schedule	Planning
+Schedule a recurring form by {}	Planifier un formulaire récurrent par {}
+Schedule actions	Planifier des actions
+Schedule impact	Impact sur le planning
+Schedule more of these meetings	Planifier d'autres réunions de ce type
+Schedule of values	Échéancier de valeurs
+Schedule task	Planifier la tâche
+Schedule tasks	Planifier les tâches
+Scheduled	Planifié
+Scheduled backups are not turned on. Start the server with	Les sauvegardes planifiées ne sont pas activées. Démarrez le serveur avec
+Scheduled for	Planifié pour
+Scheduled value	Valeur planifiée
+Scope	Périmètre
+Scope checklist	Liste de contrôle du périmètre
+Scope item	Élément du périmètre
+Scope item {}	Élément du périmètre {}
+Scope of work	Périmètre des travaux
+Score	Note
+Score a bid by {}	Noter une offre par {}
+Score questionnaire answers by {}	Noter les réponses au questionnaire par {}
+Score {}	Noter {}
+Scoring	Notation
+Search	Rechercher
+Search RFIs	Rechercher des RFI
+Search action plans	Rechercher des plans d'action
+Search bid packages	Rechercher des lots d'appel d'offres
+Search caption, album or place	Rechercher une légende, un album ou un lieu
+Search commitments	Rechercher des engagements
+Search correspondence	Rechercher des courriers
+Search documents	Rechercher des documents
+Search drawings	Rechercher des plans
+Search every folder by title or file name	Rechercher dans tous les dossiers par titre ou nom de fichier
+Search forms	Rechercher des formulaires
+Search inspections	Rechercher des inspections
+Search meetings	Rechercher des réunions
+Search name or category	Rechercher un nom ou une catégorie
+Search photos	Rechercher des photos
+Search sheet number or title	Rechercher un numéro de feuille ou un titre
+Search subject or items	Rechercher un objet ou des éléments
+Search subject or number	Rechercher un objet ou un numéro
+Search subject, type or text	Rechercher un objet, un type ou un texte
+Search submittals	Rechercher des soumissions
+Search the catalogue	Rechercher dans le catalogue
+Search title or answers	Rechercher un titre ou des réponses
+Search title or items	Rechercher un titre ou des éléments
+Search title or number	Rechercher un titre ou un numéro
+Search title or scope	Rechercher un titre ou un périmètre
+Search title, location or number	Rechercher un titre, un emplacement ou un numéro
+Search title, spec section or number	Rechercher un titre, une section de spécifications ou un numéro
+Search title, type or agenda	Rechercher un titre, un type ou un ordre du jour
+Search transmittals	Rechercher des bordereaux de transmission
+Search {}	Rechercher {}
+Second copy	Deuxième exemplaire
+Section	Section
+Section number	Numéro de section
+Sections	Sections
+Sections and items	Sections et éléments
+Sections of questions, each worth points; the share earned becomes a company's score	Sections de questions, chacune valant des points ; la part obtenue devient la note d'une entreprise
+See the project report	Voir le rapport du projet
+Sees every project tool except financials; changes nothing.	Voit tous les outils du projet sauf les finances ; ne modifie rien.
+Send	Envoyer
+Send a test email	Envoyer un e-mail de test
+Send back	Renvoyer
+Send commitment invoice back to draft by {}	Renvoyer la facture d'engagement en brouillon par {}
+Send contract for signature by {}	Envoyer le contrat pour signature par {}
+Send correspondence by {}	Envoyer le courrier par {}
+Send for review	Envoyer pour révision
+Send from	Envoyer depuis
+Send hours back by {}	Renvoyer les heures par {}
+Send incident back by {}	Renvoyer l'incident par {}
+Send notifications	Envoyer les notifications
+Send notifications to people's inboxes	Envoyer les notifications dans la boîte de réception des personnes
+Send observation back by {}	Renvoyer l'observation par {}
+Send out for bid	Envoyer en appel d'offres
+Send out for bid by {}	Envoyer en appel d'offres par {}
+Send owner invoice back to draft by {}	Renvoyer la facture du maître d'ouvrage en brouillon par {}
+Send prime change order for signature by {}	Envoyer l'avenant du contrat principal pour signature par {}
+Send prime contract for signature by {}	Envoyer le contrat principal pour signature par {}
+Send punch item back by {}	Renvoyer la réserve par {}
+Send submittal for review by {}	Envoyer la soumission pour révision par {}
+Send task back by {}	Renvoyer la tâche par {}
+Send transmittal by {}	Envoyer le bordereau de transmission par {}
+Sends a short message to your own address.	Envoie un court message à votre propre adresse.
+Sent	Envoyé
+Sent back	Renvoyé
+Sent to	Envoyé à
+Sep	sept.
+Set	Définir
+Set a budget line	Définir une ligne de budget
+Set bid scoring criteria by {}	Définir les critères de notation des offres par {}
+Set budget line by {}	Définir la ligne de budget par {}
+Set forecast to complete by {}	Définir la prévision à l'achèvement par {}
+Set how many of each resource the project has by {}	Définir le nombre de chaque ressource du projet par {}
+Set other hours worked by {}	Définir les autres heures travaillées par {}
+Set overtime rules by {}	Définir les règles d'heures supplémentaires par {}
+Set password	Définir le mot de passe
+Set pay rate by {}	Définir le taux de rémunération par {}
+Set percent complete by {}	Définir l'avancement en pourcentage par {}
+Set plan approvers by {}	Définir les approbateurs du plan par {}
+Set rate	Définir le taux
+Set scale	Définir l'échelle
+Set task progress by {}	Définir l'avancement de la tâche par {}
+Set the criteria	Définir les critères
+Set the project's working days and holidays by {}	Définir les jours ouvrés et les jours fériés du projet par {}
+Set the scale	Définir l'échelle
+Set the scale of a sheet page from a stretch of known length by {}	Définir l'échelle d'une page de feuille à partir d'une longueur connue par {}
+Set up outgoing email	Configurer l'e-mail sortant
+Set up the company by {}	Configurer l'entreprise par {}
+Set up your company	Configurer votre entreprise
+Set what the template allows on each tool after adding it.	Définissez ce que le modèle autorise sur chaque outil après l'avoir ajouté.
+Sets each cost code's original budget to its amount in this estimate. Choose a cost code to hold the markups, or leave them out. The original budget must be unlocked.	Définit le budget initial de chaque code de coût sur son montant dans cette estimation. Choisissez un code de coût pour recevoir les annotations, ou omettez-les. Le budget initial doit être déverrouillé.
+Setting a cost code that already has a line changes its amount.	Définir un code de coût qui a déjà une ligne modifie son montant.
+Settings	Paramètres
+Severity	Gravité
+Shared	Partagé
+Shared by every project that takes them. Changing a list changes those projects' calendars; their task dates stay until recalculated.	Partagé par chaque projet qui les utilise. Modifier une liste modifie les calendriers de ces projets ; leurs dates de tâches restent inchangées jusqu'au recalcul.
+Sheet	Feuille
+Sheet file	Fichier de feuille
+Sheet files	Fichiers de feuilles
+Sheet number	Numéro de feuille
+Sheet viewer	Visionneuse de plans
+Sheet {} page {}	Feuille {} page {}
+Sheets	Feuilles
+Shop drawing	Plan d'atelier
+Shop drawing, product data, sample…	Plan d'atelier, fiche technique, échantillon…
+Short text	Texte court
+Show	Afficher
+Show closed	Afficher les éléments clôturés
+Show measurements	Afficher les mesures
+Show month	Afficher le mois
+Show them	Les afficher
+Side by side	Côte à côte
+Sign	Signer
+Sign as	Signer en tant que
+Sign form by {}	Signer le formulaire par {}
+Sign in	Se connecter
+Sign out	Se déconnecter
+Sign to complete (type your full name)	Signer pour terminer (saisissez votre nom complet)
+Sign-in	Connexion
+Sign-in sheet	Feuille d'émargement
+Signature	Signature
+Signatures	Signatures
+Signed	Signé
+Signed by	Signé par
+Signed contracts	Contrats signés
+Signed off	Validé
+Signed off by {} on {}.	Validé par {} le {}.
+Signing opens once the form is submitted.	La signature s'ouvre une fois le formulaire soumis.
+Signing roles (separated by commas)	Rôles de signature (séparés par des virgules)
+Sincerely,	Cordialement,
+Site	Site
+Site and conditions	Site et conditions
+Site safety walk-through	Visite de sécurité du site
+Site trailer	Baraque de chantier
+Site work	Travaux de site
+Size	Taille
+Skip to content	Aller au contenu
+Sky	Ciel
+Slab A	Dalle A
+Slab concrete	Béton de dalle
+Slab on grade	Dalle sur terre-plein
+Slideshow	Diaporama
+Small items to fix or finish before closeout	Petits éléments à corriger ou à terminer avant la clôture
+Snapshots	Instantanés
+Snow	Neige
+Sort by	Trier par
+Spec	Spéc.
+Spec section	Section de spécifications
+Specification section	Section de spécifications
+Specifications	Spécifications
+Stage	Étape
+Standard	Standard
+Start	Début
+Start a form	Démarrer un formulaire
+Start a log for the day to record weather, crews, deliveries and notes.	Démarrez un journal pour la journée afin d'y noter la météo, les équipes, les livraisons et les remarques.
+Start action plan by {}	Démarrer le plan d'action par {}
+Start an estimate and price each cost code.	Démarrez une estimation et chiffrez chaque code de coût.
+Start an inspection from a template to get going.	Démarrez une inspection à partir d'un modèle pour commencer.
+Start an invoice	Démarrer une facture
+Start before a link allows	Début avant ce qu'autorise un lien
+Start commitment invoice by {}	Démarrer la facture d'engagement par {}
+Start daily log by {}	Démarrer le journal de chantier par {}
+Start form by {}	Démarrer le formulaire par {}
+Start from a template	Partir d'un modèle
+Start inspection	Démarrer l'inspection
+Start inspection by {}	Démarrer l'inspection par {}
+Start invoice	Démarrer la facture
+Start no earlier than	Début au plus tôt le
+Start no later than	Début au plus tard le
+Start of construction	Début des travaux
+Start owner invoice by {}	Démarrer la facture du maître d'ouvrage par {}
+Start the forms that are due by {}	Démarrer les formulaires à échéance par {}
+Start the plan	Démarrer le plan
+Start to finish	Fin à début
+Start to start	Début à début
+Start today's log	Démarrer le journal du jour
+Started	Démarré
+Started by	Démarré par
+Started from	Démarré du
+Started to	Démarré au
+Started {}	Démarré {}
+Started {} by {}	Démarré {} par {}
+State or region	État ou région
+Status	Statut
+Steel arrives the week after next.	L'acier arrive la semaine après la prochaine.
+Stop requiring it	Ne plus l'exiger
+Stop requiring signatures	Ne plus exiger de signatures
+Stopped	Arrêté
+Storefront glazing product data	Fiche technique du vitrage de façade commerciale
+Storm	Tempête
+Street	Rue
+Structural	Structure
+Structural steel	Acier de structure
+Structural steel supply and erection	Fourniture et montage de l'acier de structure
+Structure	Ouvrage
+Subcontract	Contrat de sous-traitance
+Subcontract #{}	Contrat de sous-traitance n° {}
+Subcontractor	Sous-traitant
+Subcontracts and purchase orders	Contrats de sous-traitance et bons de commande
+Subgrade is firm and free of standing water and debris	Le fond de forme est ferme, sans eau stagnante ni débris
+Subject	Objet
+Submit	Soumettre
+Submit commitment invoice by {}	Soumettre la facture d'engagement par {}
+Submit daily log by {}	Soumettre le journal de chantier par {}
+Submit form by {}	Soumettre le formulaire par {}
+Submit hours by {}	Soumettre les heures par {}
+Submit log	Soumettre le journal
+Submit owner invoice by {}	Soumettre la facture du maître d'ouvrage par {}
+Submit review	Soumettre la révision
+Submit the week for approval	Soumettre la semaine pour approbation
+Submittal	Soumission
+Submittal #{}	Soumission n° {}
+Submittal #{} (revision {})	Soumission n° {} (révision {})
+Submittal #{} {}	Soumission n° {} {}
+Submittal log	Journal des soumissions
+Submittals	Soumissions
+Submittals in review	Soumissions en révision
+Submitted	Soumis
+Submitted by	Soumis par
+Submitter	Auteur de la soumission
+Substantial completion	Réception provisoire
+Subtask	Sous-tâche
+Subtask of	Sous-tâche de
+Subtasks	Sous-tâches
+Subtotal	Sous-total
+Such as mon-fri, mon-sat, or mon, tue, thu.	Par exemple mon-fri, mon-sat ou mon, tue, thu.
+Summit Ridge Builders	Summit Ridge Builders
+Sun	dim.
+Superintendent	Conducteur de travaux
+Supplier	Fournisseur
+Supplier (if it is their price list)	Fournisseur (s'il s'agit de son bordereau de prix)
+Swap sides	Inverser les côtés
+System	Système
+Systems	Systèmes
+TLS (port 465)	TLS (port 465)
+Table	Tableau
+Tag	Étiquette
+Tag it to	L'associer à
+Tag photo to an item by {}	Associer la photo à un élément par {}
+Tagged to	Associé à
+Take back	Reprendre
+Taken	Prise le
+Task	Tâche
+Task #{}	Tâche n° {}
+Task calendar	Calendrier de la tâche
+Task {}	Tâche {}
+Tasks	Tâches
+Tasks assigned to you or that you manage, across your projects	Tâches qui vous sont assignées ou que vous gérez, dans tous vos projets
+Tasks in working days (	Tâches en jours ouvrés (
+Tasks in working days ({}), linked finish to start (or start to start, finish to finish, start to finish); the critical path is the chain with no float	Tâches en jours ouvrés ({}), liées de fin à début (ou de début à début, de fin à fin, de début à fin) ; le chemin critique est la chaîne sans marge
+Team	Équipe
+Team members	Membres de l'équipe
+Telehandler	Chariot télescopique
+Tell people a sheet revision was issued by {}	Informer les personnes qu'une révision de feuille a été émise par {}
+Tell people the current revision was issued	Informer les personnes que la révision en vigueur a été émise
+Template	Modèle
+Template gives	Le modèle donne
+Template name	Nom du modèle
+Templates	Modèles
+Test it	Le tester
+Text	Texte
+That page doesn't exist, or you don't have access to it.	Cette page n'existe pas, ou vous n'y avez pas accès.
+The address of this server is used for the links in messages.	L'adresse de ce serveur sert à créer les liens dans les messages.
+The catalogue is empty.	Le catalogue est vide.
+The dashed line is today. Red bars are on the critical path. Grey columns are days off. Float is the working days a task can slip without moving the last finish.	La ligne en pointillés indique aujourd'hui. Les barres rouges sont sur le chemin critique. Les colonnes grises sont des jours non travaillés. La marge correspond aux jours ouvrés dont une tâche peut glisser sans repousser la dernière fin.
+The days work is done on. Task dates and durations are counted in these days.	Les jours travaillés. Les dates et les durées des tâches sont comptées en ces jours.
+The email	L'e-mail
+The finish schedule lists two sealant colours for the east elevation. Please confirm.	Le tableau des finitions indique deux couleurs de mastic pour la façade est. Merci de confirmer.
+The inspector must sign (type their name) to complete it	L'inspecteur doit signer (saisir son nom) pour la terminer
+The item's own	Propre à l'élément
+The level this template gives on each tool. People with it get these levels on the projects they join, unless a person has an override.	Le niveau que ce modèle donne sur chaque outil. Les personnes qui l'ont obtiennent ces niveaux sur les projets qu'elles rejoignent, sauf si une personne a une dérogation.
+The log lists every submittal once there are some.	Le journal liste chaque soumission dès qu'il y en a.
+The most of each resource needed on any one working day in each week, from tasks that aren't finished. Red is over the limit you set.	Le maximum de chaque ressource nécessaire sur un même jour ouvré de chaque semaine, d'après les tâches non terminées. Le rouge dépasse la limite que vous avez fixée.
+The plan cannot start until every approver has approved. Changing the wording of items clears the answers.	Le plan ne peut pas démarrer tant que chaque approbateur n'a pas approuvé. Modifier le libellé des éléments efface les réponses.
+The project's section list; submittals link to a section by its number	La liste des sections du projet ; les soumissions renvoient à une section par son numéro
+The questions each kind of form asks. Forms already started keep the questions they were started with.	Les questions posées par chaque type de formulaire. Les formulaires déjà démarrés conservent les questions avec lesquelles ils ont commencé.
+The reflected ceiling plan shows 9'-0" but the section shows 8'-6". Which governs?	Le plan de plafond réfléchi indique 9'-0" mais la coupe indique 8'-6". Lequel prévaut ?
+The section governs	La section prévaut
+The sheet log	Le journal des feuilles
+The template	Le modèle
+The thin bar under a task is its baseline.	La fine barre sous une tâche est son planning de référence.
+There are no tasks in your projects.	Il n'y a aucune tâche dans vos projets.
+There is nothing to show.	Il n'y a rien à afficher.
+These answers are to version	Ces réponses sont à la version
+Things to get done, with an owner and a due date	Choses à faire, avec un responsable et une échéance
+This is the view you open by default.	C'est la vue que vous ouvrez par défaut.
+This month	Ce mois-ci
+This period	Cette période
+This period, {}	Cette période, {}
+This project needs a signed contract before a commitment can be approved.	Ce projet nécessite un contrat signé avant qu'un engagement puisse être approuvé.
+This project needs a signed contract before this can be approved.	Ce projet nécessite un contrat signé avant que cela puisse être approuvé.
+This sheet can't be shown	Cette feuille ne peut pas être affichée
+Three-week look-ahead	Planning prévisionnel à trois semaines
+Thu	jeu.
+Time	Heure
+Timesheet	Feuille de temps
+Timesheets	Feuilles de temps
+Title	Titre
+Title (default	Titre (par défaut
+Title (optional)	Titre (facultatif)
+To	À
+To be determined	À déterminer
+To date	À ce jour
+Today's log	Journal du jour
+Tool	Outil
+Tool access	Accès aux outils
+Top level	Niveau supérieur
+Topic	Sujet
+Topic {}	Sujet {}
+Total	Total
+Total (of 10)	Total (sur 10)
+Total cost	Coût total
+Total with markups	Total avec majorations
+Touch up paint at door 114	Retouche de peinture à la porte 114
+Trade	Corps de métier
+Trade partners	Partenaires de métier
+Transmittal	Bordereau de transmission
+Transmittal #{}	Bordereau de transmission n° {}
+Transmittals	Bordereaux de transmission
+Trends	Tendances
+Trends appear once observations are recorded.	Les tendances apparaissent dès que des observations sont enregistrées.
+Tue	mar.
+Turn email off	Désactiver l'e-mail
+Two coats applied.	Deux couches appliquées.
+Two weeks	Deux semaines
+Type	Type
+Type it in	Le saisir
+Type the real length of the stretch you just drew, from a dimension printed on the sheet or a known size. Anything else on this page is measured against it.	Saisissez la longueur réelle du tronçon que vous venez de tracer, d'après une cote imprimée sur la feuille ou une dimension connue. Tout le reste de cette page est mesuré par rapport à elle.
+Type your full name	Saisissez votre nom complet
+Types	Types
+USD	USD
+Unassigned	Non assigné
+Unit	Unité
+Unit cost	Coût unitaire
+Unit cost of line {}	Coût unitaire de la ligne {}
+Unit costs and assemblies, shared by every project's estimates	Coûts unitaires et ouvrages composés, partagés par les estimations de tous les projets
+Unit of line {}	Unité de la ligne {}
+Unit price	Prix unitaire
+Unit price of {}	Prix unitaire de {}
+Unit prices	Prix unitaires
+Unlock original budget by {}	Déverrouiller le budget initial par {}
+Unlock the budget	Déverrouiller le budget
+Up to 25 MB in one upload.	Jusqu'à 25 Mo par envoi.
+Up to 50 files, 25 MB each and 100 MB in all.	Jusqu'à 50 fichiers, 25 Mo chacun et 100 Mo au total.
+Up to 50 files, 25 MB each and 100 MB in all. Each file becomes a document titled with its file name.	Jusqu'à 50 fichiers, 25 Mo chacun et 100 Mo au total. Chaque fichier devient un document intitulé du nom du fichier.
+Update plan item by {}	Mettre à jour l'élément du plan par {}
+Updated	Mis à jour
+Upload	Téléverser
+Upload a file	Téléverser un fichier
+Upload a file below or create a folder.	Téléversez un fichier ci-dessous ou créez un dossier.
+Upload a new version	Téléverser une nouvelle version
+Upload a set of sheets	Téléverser un jeu de feuilles
+Upload files	Téléverser des fichiers
+Upload new version by {}	Téléverser une nouvelle version par {}
+Upload photos	Téléverser des photos
+Upload pictures below.	Téléversez des images ci-dessous.
+Upload several files at once	Téléverser plusieurs fichiers à la fois
+Upload the set	Téléverser le jeu
+Upload version	Téléverser la version
+Uploaded	Téléversé
+Urgent	Urgent
+Use	Utiliser
+Use a saved baseline by {}	Utiliser un planning de référence enregistré par {}
+Use the template	Utiliser le modèle
+Use this method	Utiliser cette méthode
+Use this questionnaire	Utiliser ce questionnaire
+User name	Nom d'utilisateur
+Version	Version
+Version {}	Version {}
+Versions	Versions
+View only	Lecture seule
+Viewer	Lecteur
+Visibility	Visibilité
+Visible to	Visible par
+Visitor	Visiteur
+Visitors	Visiteurs
+Void	Annuler
+Void budget change by {}	Annuler la modification de budget par {}
+Void change event by {}	Annuler l'événement de modification par {}
+Void commitment by {}	Annuler l'engagement par {}
+Void commitment change order by {}	Annuler l'avenant d'engagement par {}
+Void commitment invoice by {}	Annuler la facture d'engagement par {}
+Void owner invoice by {}	Annuler la facture du maître d'ouvrage par {}
+Void prime change order by {}	Annuler l'avenant du contrat principal par {}
+Void prime contract by {}	Annuler le contrat principal par {}
+Waiting	En attente
+Waiting for approval	En attente d'approbation
+Waiting on me	En attente de moi
+Waiting on you	En attente de vous
+Walkways and access routes are clear	Les cheminements et les accès sont dégagés
+Warn before approvals lapse by {}	Avertir avant l'expiration des approbations par {}
+Warnings sent	Avertissements envoyés
+Warranty	Garantie
+Was in	Était dans
+Weather	Météo
+Weather and curing plan are confirmed	La météo et le plan de cure sont confirmés
+Weather notes	Remarques météo
+Website	Site web
+Wed	mer.
+Week	Semaine
+Week ends	La semaine se termine le
+Week ends {}.	La semaine se termine le {}.
+Week of	Semaine du
+Week of {}	Semaine du {}
+Week of {} to {}	Semaine du {} au {}
+Week {}	Semaine {}
+Weekdays worked	Jours travaillés
+Weekly	Hebdomadaire
+Weekly coordination	Coordination hebdomadaire
+Weekly hours before overtime	Heures hebdomadaires avant heures supplémentaires
+Weekly summary	Synthèse hebdomadaire
+Weekly walk	Visite hebdomadaire
+Weeks	Semaines
+What	Quoi
+What changed	Ce qui a changé
+What changed, or what to do about it	Ce qui a changé, ou ce qu'il faut faire
+What each cost code was budgeted, what is committed and what has been spent	Ce qui a été budgété pour chaque code de coût, ce qui est engagé et ce qui a été dépensé
+What happened	Ce qui s'est passé
+What happened on site, day by day	Ce qui s'est passé sur le site, jour par jour
+What it is for	À quoi cela sert
+What still needs doing	Ce qu'il reste à faire
+What subcontractors and suppliers bill against their commitments	Ce que les sous-traitants et les fournisseurs facturent au titre de leurs engagements
+What the bid covers	Ce que couvre l'offre
+What the owner pays	Ce que paie le maître d'ouvrage
+What you did	Ce que vous avez fait
+Whatever you leave blank below (type, time, place, attendees, agenda) comes from the template.	Tout ce que vous laissez vide ci-dessous (type, heure, lieu, participants, ordre du jour) provient du modèle.
+When	Quand
+Where each tool stands today, for the tools you can see	L'état de chaque outil aujourd'hui, pour les outils que vous voyez
+Where on site	Où sur le site
+Which companies have been vetted to work for you, and when their approval, insurance or licence lapses	Les entreprises qui ont été vérifiées pour travailler pour vous, et la date d'expiration de leur agrément, de leur assurance ou de leur licence
+Who	Qui
+Who can open it	Qui peut l'ouvrir
+Who does action {}	Qui réalise l'action {}
+Who should see it	Qui doit le voir
+Who signed for the other party	Qui a signé pour l'autre partie
+Who signed for the owner	Qui a signé pour le maître d'ouvrage
+Why	Pourquoi
+Windy	Venteux
+With a forecast, the projected cost is the cost to date plus the forecast. Leave the amount blank to remove a forecast. A code with no forecast is projected by the project's method	Avec une prévision, le coût projeté est le coût à ce jour plus la prévision. Laissez le montant vide pour supprimer une prévision. Un code sans prévision est projeté selon la méthode du projet
+Withdraw	Retirer
+Withdraw bid by {}	Retirer l'offre par {}
+Withdrawn	Retiré
+Words	Mots
+Words or note (words are needed for text)	Mots ou remarque (les mots sont nécessaires pour un texte)
+Work completed this period	Travaux réalisés cette période
+Work done	Travaux effectués
+Work performed	Travaux exécutés
+Work that is under way or starts in each week, and isn't finished	Travaux en cours ou qui démarrent chaque semaine, et non terminés
+Worker-days	Jours-ouvriers
+Worker-hours	Heures-ouvriers
+Workers	Ouvriers
+Workers on site	Ouvriers sur site
+Workers wear the protective gear the task needs	Les ouvriers portent l'équipement de protection que la tâche exige
+Working calendar	Calendrier de travail
+Working days	Jours ouvrés
+Write a letter or notice to keep it on the record.	Rédigez un courrier ou un avis pour le conserver au dossier.
+Write a plan to track a body of work item by item.	Rédigez un plan pour suivre un ensemble de travaux élément par élément.
+Write your own below, or add the small starter set and change it to suit.	Rédigez le vôtre ci-dessous, ou ajoutez le petit jeu de départ et adaptez-le à vos besoins.
+Year	Année
+Yearly	Annuel
+Yes	Oui
+Yes or no	Oui ou non
+Yes, a single day	Oui, un seul jour
+Yes, enter it on the injury log	Oui, l'inscrire au registre des accidents
+Yes, only the people below, the manager and the tool's admins	Oui, seulement les personnes ci-dessous, le responsable et les administrateurs de l'outil
+You have no tokens.	Vous n'avez aucun jeton.
+You'll be told here when something needs you, like a submittal waiting for your review.	Vous serez informé ici lorsque quelque chose requiert votre action, comme une soumission en attente de votre révision.
+Your first name	Votre prénom
+Your last name	Votre nom de famille
+Your reply	Votre réponse
+Your response	Votre réponse
+Zoom	Zoom
+Zoom in	Zoom avant
+Zoom out	Zoom arrière
+a date as YYYY-MM-DD, then what it is (optional). Task dates don't move when this changes; use Recalculate on the schedule to push tasks that now start too early.	une date au format YYYY-MM-DD, puis ce qu'elle représente (facultatif). Les dates des tâches ne bougent pas quand cela change ; utilisez Recalculer dans le planning pour repousser les tâches qui démarrent maintenant trop tôt.
+a, b, c	a, b, c
+ada@example.com	ada@example.com
+add, remove or move money between cost codes	ajouter, retirer ou déplacer de l'argent entre des codes de coût
+admin on every project tool, can create projects and add people.	administrateur de chaque outil du projet, peut créer des projets et ajouter des personnes.
+admin on quality, safety and daily tools, standard on project management, read-only financials.	administrateur des outils qualité, sécurité et journaux, standard sur la gestion de projet, finances en lecture seule.
+answer RFIs and review submittals; read the rest except internal cost tools.	répondre aux RFI et réviser les soumissions ; lecture du reste sauf les outils de coûts internes.
+approved timesheets count, and a project's admin can add the hours of people who aren't on timesheets on its own injury log.	les feuilles de temps approuvées comptent, et l'administrateur d'un projet peut ajouter les heures des personnes qui n'ont pas de feuille de temps dans le registre des accidents de ce projet.
+approved timesheets count, and an admin can add the hours of people who aren't on timesheets below.	les feuilles de temps approuvées comptent, et un administrateur peut ajouter ci-dessous les heures des personnes qui n'ont pas de feuille de temps.
+average	moyenne
+baseline {} to {}	planning de référence {} à {}
+can raise and answer RFIs, send submittals, work punch items and tasks; reads drawings and the schedule; no financials.	peut émettre et répondre aux RFI, envoyer des soumissions, traiter les réserves et les tâches ; lit les plans et le planning ; aucune finance.
+cases per 200,000 hours	cas pour 200 000 heures
+code, amount, notes (optional), separated by commas or tabs. Codes must already be in the project's cost code list.	code, montant, remarques (facultatif), séparés par des virgules ou des tabulations. Les codes doivent déjà figurer dans la liste des codes de coût du projet.
+company default	valeur par défaut de l'entreprise
+doesn't need one	n'en a pas besoin
+each sheet with its revisions; the newest revision is current	chaque feuille avec ses révisions ; la révision la plus récente est la courante
+elena.cruz@example.com	elena.cruz@example.com
+from {}	de {}
+hana.berg@example.com	hana.berg@example.com
+has the answer	a la réponse
+high	haute
+https://buildkiosk.example.com	https://buildkiosk.example.com
+id, name, start, finish, percent, predecessors, parent. Dates are YYYY-MM-DD. Predecessors are other ids in the file separated by ;, each with an optional lag such as 4+2. Ids are renumbered when imported.	id, name, start, finish, percent, predecessors, parent. Les dates sont au format YYYY-MM-DD. Les prédécesseurs sont d'autres id du fichier séparés par ;, chacun avec un décalage facultatif comme 4+2. Les id sont renumérotés à l'importation.
+kickoff-notes.txt	kickoff-notes.txt
+last six months	six derniers mois
+leveled	nivelé
+lines can't be edited, added or imported.	les lignes ne peuvent pas être modifiées, ajoutées ou importées.
+low {}	bas {}
+marcus.lee@example.com	marcus.lee@example.com
+milestone (yes or no), then a constraint (snet, mso or fnlt) and its date.	jalon (yes ou no), puis une contrainte (snet, mso ou fnlt) et sa date.
+name, unit, unit cost, category (optional), cost code (optional, from the company's standard list). An item with the same name has its price changed.	name, unit, unit cost, category (facultatif), cost code (facultatif, issu de la liste standard de l'entreprise). Un article du même nom voit son prix modifié.
+name, weight (adding up to 100), then price for the one worked out from the bids	nom, pondération (total de 100), puis prix pour celui calculé à partir des offres
+no file	aucun fichier
+no project has a figure for	aucun projet n'a de chiffre pour
+no project has a figure for {} that you can see.	aucun projet que vous pouvez voir n'a de chiffre pour {}.
+none yet	aucun pour l'instant
+not required	non requis
+nothing	rien
+number, then title, separated by a comma or a tab. Sections already in the list are skipped.	numéro, puis titre, séparés par une virgule ou une tabulation. Les sections déjà dans la liste sont ignorées.
+number, title, discipline, area, separated by commas or tabs. A header line is skipped, and sheets already in the log are left alone. Add each sheet's file later as a revision.	numéro, titre, discipline, zone, séparés par des virgules ou des tabulations. Une ligne d'en-tête est ignorée et les feuilles déjà dans le journal sont laissées telles quelles. Ajoutez le fichier de chaque feuille plus tard comme révision.
+only Documents admins see this	visible uniquement par les administrateurs de Documents
+open RFIs	RFI ouvertes
+people, companies and permission templates	personnes, entreprises et modèles de permissions
+priya.raman@example.com	priya.raman@example.com
+reopen	rouvrir
+revision {}	révision {}
+sent {} by {}	envoyé {} par {}
+sets the level on each tool. An override replaces it for this person on this project only.	définit le niveau sur chaque outil. Une dérogation le remplace pour cette personne sur ce projet uniquement.
+sf	sf
+smtp.example.com	smtp.example.com
+standard on project management, read-only financials.	standard sur la gestion de projet, finances en lecture seule.
+submitted {}	soumis {}
+the date in the picture, else today)	la date de la photo, sinon aujourd'hui)
+the file name)	le nom du fichier)
+the schedule of values that gets invoiced	l'échéancier de valeurs qui est facturé
+title, location,	titre, emplacement,
+title, location, {}, priority (low, medium, high, urgent), due date (YYYY-MM-DD), assignees (email addresses separated by semicolons). A header line starting with title is skipped. Nothing is added unless every line is good.	title, location, {}, priority (low, medium, high, urgent), due date (YYYY-MM-DD), assignees (adresses e-mail séparées par des points-virgules). Une ligne d'en-tête commençant par title est ignorée. Rien n'est ajouté sauf si chaque ligne est correcte.
+title, spec section, type, due date (YYYY-MM-DD). A header line is skipped. Each row becomes a draft.	title, spec section, type, due date (YYYY-MM-DD). Une ligne d'en-tête est ignorée. Chaque ligne devient un brouillon.
+title,location,kind,priority,due,assignees	title,location,kind,priority,due,assignees
+title,spec_section,kind,due	title,spec_section,kind,due
+to take one every day and keep the last seven. See the deployment notes for restoring one.	pour en faire une chaque jour et conserver les sept dernières. Consultez les notes de déploiement pour en restaurer une.
+tom.okafor@example.com	tom.okafor@example.com
+undo	annuler
+weekly summary	synthèse hebdomadaire
+{} ({} lines)	{} ({} lignes)
+{} by project	{} par projet
+{} committed	{} engagé
+{} in all	{} au total
+{} lines	{} lignes
+{} of 7 days logged	{} jours sur 7 renseignés
+{} of {} have acknowledged receiving it.	{} sur {} en ont accusé réception.
+{} of {}, {} failed	{} sur {}, {} en échec
+{} on timesheets, {} other	{} sur feuilles de temps, {} autres
+{} people on this project	{} personnes sur ce projet
+{} to {}, {}% done	{} à {}, {} % terminé
+{} unread	{} non lus
+{} was present	{} était présent
+{} was submitted	{} a été soumis
+{} worker-days	{} jours-ouvriers
+{} worker-hours	{} heures-ouvriers
+{} workers, {} hours	{} ouvriers, {} heures
+{}, one bar per project	{}, une barre par projet
+{}Directory	{}Annuaire
+{}Prequalification	{}Préqualification
+← Previous week	← Semaine précédente

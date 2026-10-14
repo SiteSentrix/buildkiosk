@@ -268,6 +268,18 @@ pub fn page(req: &Req<'_>, id: Id<Project>, filter: &str, drag: bool) -> Markup 
             }
             div class="card" {
                 details class="disclosure" {
+                    summary { "Import an exchange file (.xer)" }
+                    p class="muted small" { "Export the schedule from your planning software as an exchange (.xer) file. The work breakdown becomes summary tasks, and tasks, dates (actual, else scheduled, else planned), percent complete, milestones, links with their kind and lag, and date constraints come across; resources, calendars and costs are left behind. If the file holds more than one project, give the id of the one you want (the first is used otherwise). Up to 8 MB." }
+                    form method="post" action=(format!("{base}/import-xer")) enctype="multipart/form-data" {
+                        input type="hidden" name="_csrf" value=(req.csrf);
+                        (field("Exchange file", "sched_xer", true, true, html! { input type="file" id="sched_xer" name="file" accept=".xer,text/plain" required; }))
+                        (field("Project id in the file (optional)", "sched_xer_id", false, true, html! { input type="text" id="sched_xer_id" name="proj_id" maxlength="40"; }))
+                        div class="form-actions" { button type="submit" class="btn primary" { "Import file" } }
+                    }
+                }
+            }
+            div class="card" {
+                details class="disclosure" {
                     summary { "Import a schedule" }
                     p class="muted small" { "One task per line: id, name, start, finish, percent, predecessors, parent. Dates are YYYY-MM-DD. Predecessors are other ids in the file separated by ;, each with an optional lag such as 4+2. Ids are renumbered when imported." }
                     p class="muted small" { "A seventh to tenth column is optional: milestone (yes or no), then a constraint (snet, mso or fnlt) and its date." }

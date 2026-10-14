@@ -43,6 +43,10 @@ choice! {
         Dimension = ("dim", "Length"),
         /// The area of the box from (x, y) to (x2, y2) at the page's scale.
         Area = ("area", "Area"),
+        /// A length measured along a path through `points` at the page's scale.
+        Polyline = ("polyline", "Path length"),
+        /// The area inside the outline through `points` at the page's scale.
+        Polygon = ("polygon", "Outline area"),
     }
 }
 
@@ -176,6 +180,115 @@ impl PageScale {
         let height = (dy.unsigned_abs() as f64 * 1_000.0) / along * self.length_um as f64;
         to_micrometres(width * height, 1e18)
     }
+
+    /// The real length along a path through `points`, in micrometres.
+    pub fn path_length(&self, points: &[(u16, u16)]) -> Option<u64> {
+        let mut total: u64 = 0;
+        for w in points.windows(2) {
+            let (a, b) = (w.first()?, w.get(1)?);
+            total = total.checked_add(self.length(a.0, a.1, b.0, b.1)?)?;
+        }
+        (total as f64 <= MAX_SCALE_LENGTH_UM as f64).then_some(total)
+    }
+
+    /// The real area inside the outline through `points`, in square micrometres (the shoelace sum,
+    /// worked out from the first corner so large coordinates don't swamp it).
+    pub fn polygon_area(&self, points: &[(u16, u16)]) -> Option<u64> {
+        if !self.usable() || points.len() < 3 {
+            return None;
+        }
+        let (cx, cy) = Self::steps(self.x, self.y, self.x2, self.y2);
+        let along = (self.span2(cx, cy) as f64).sqrt();
+        let (fx, fy) = (f64::from(self.aspect) / along * self.length_um as f64, 1_000.0 / along * self.length_um as f64);
+        let first = points.first()?;
+        let real: Vec<(f64, f64)> =
+            points.iter().map(|p| ((f64::from(p.0) - f64::from(first.0)) * fx, (f64::from(p.1) - f64::from(first.1)) * fy)).collect();
+        let mut twice = 0.0f64;
+        for (i, a) in real.iter().enumerate() {
+            let b = real.get((i + 1) % real.len())?;
+            twice += a.0 * b.1 - b.0 * a.1;
+        }
+        to_micrometres(twice.abs() / 2.0, 1e18)
+    }
+
+    /// What a markup of `kind` through the given corners measures at this scale, if it measures anything.
+    pub fn measure_markup(&self, kind: MarkupKind, x: u16, y: u16, x2: u16, y2: u16, points: &[(u16, u16)]) -> Option<u64> {
+        match kind {
+            MarkupKind::Dimension => self.length(x, y, x2, y2),
+            MarkupKind::Area => self.area(x, y, x2, y2),
+            MarkupKind::Polyline => self.path_length(points),
+            MarkupKind::Polygon => self.polygon_area(points),
+            _ => None,
+        }
+    }
+}
+
+/// The most corners a path or outline has.
+pub const MAX_POINTS: usize = 200;
+
+impl MarkupKind {
+    /// Whether the markup is drawn through a list of points rather than one or two.
+    pub fn is_path(self) -> bool {
+        matches!(self, MarkupKind::Polyline | MarkupKind::Polygon)
+    }
+
+    /// Whether it measures a length (a straight one or along a path).
+    pub fn measures_length(self) -> bool {
+        matches!(self, MarkupKind::Dimension | MarkupKind::Polyline)
+    }
+
+    /// Whether it measures an area (a box or an outline).
+    pub fn measures_area(self) -> bool {
+        matches!(self, MarkupKind::Area | MarkupKind::Polygon)
+    }
+}
+
+/// Which side of the line from `a` to `b` the point `c` is on: positive left, negative right, 0 on it.
+fn side(a: (u16, u16), b: (u16, u16), c: (u16, u16)) -> i64 {
+    let v = |p: (u16, u16)| (i64::from(p.0), i64::from(p.1));
+    let ((ax, ay), (bx, by), (cx, cy)) = (v(a), v(b), v(c));
+    ((bx - ax) * (cy - ay) - (by - ay) * (cx - ax)).signum()
+}
+
+/// Whether `c` lies within the box of the segment `a`-`b` (used once the three are known to be in a line).
+fn within(a: (u16, u16), b: (u16, u16), c: (u16, u16)) -> bool {
+    c.0 >= a.0.min(b.0) && c.0 <= a.0.max(b.0) && c.1 >= a.1.min(b.1) && c.1 <= a.1.max(b.1)
+}
+
+/// Whether the segments `a`-`b` and `c`-`d` touch or cross.
+fn segments_meet(a: (u16, u16), b: (u16, u16), c: (u16, u16), d: (u16, u16)) -> bool {
+    let (s1, s2, s3, s4) = (side(a, b, c), side(a, b, d), side(c, d, a), side(c, d, b));
+    if s1 != s2 && s3 != s4 {
+        return true;
+    }
+    (s1 == 0 && within(a, b, c)) || (s2 == 0 && within(a, b, d)) || (s3 == 0 && within(c, d, a)) || (s4 == 0 && within(c, d, b))
+}
+
+/// Whether a path (or, when `closed`, an outline) goes through no corner twice in a row and no two of
+/// its sides touch except where neighbours meet. An outline that crosses itself has no clear area.
+pub fn outline_is_simple(points: &[(u16, u16)], closed: bool) -> bool {
+    let n = points.len();
+    if points.windows(2).any(|w| w.first() == w.get(1)) || (closed && n > 1 && points.first() == points.last()) {
+        return false;
+    }
+    let sides = if closed { n } else { n.saturating_sub(1) };
+    let at = |i: usize| (points.get(i % n).copied().unwrap_or((0, 0)), points.get((i + 1) % n).copied().unwrap_or((0, 0)));
+    for i in 0..sides {
+        for j in (i + 1)..sides {
+            let neighbours = j == i + 1 || (closed && i == 0 && j == sides - 1);
+            let ((a, b), (c, d)) = (at(i), at(j));
+            if neighbours {
+                // Neighbours share a corner; they must not also run back over each other.
+                let (shared, p, q) = if j == i + 1 { (b, a, d) } else { (a, b, c) };
+                if side(shared, p, q) == 0 && (within(shared, p, q) || within(shared, q, p)) {
+                    return false;
+                }
+            } else if segments_meet(a, b, c, d) {
+                return false;
+            }
+        }
+    }
+    true
 }
 
 fn to_micrometres(value: f64, most: f64) -> Option<u64> {
@@ -201,6 +314,9 @@ pub struct Markup {
     pub x2: u16,
     #[serde(default)]
     pub y2: u16,
+    /// The corners of a path or outline, in order (x, y and x2, y2 are its first two).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub points: Vec<(u16, u16)>,
     #[serde(default)]
     pub text: String,
     #[serde(default)]
@@ -225,8 +341,8 @@ impl Markup {
     pub fn measure_text(&self) -> Option<String> {
         let unit = self.unit?;
         match self.kind {
-            MarkupKind::Dimension if self.measure > 0 => Some(unit.length_text(self.measure)),
-            MarkupKind::Area if self.measure > 0 => Some(unit.area_text(self.measure)),
+            k if k.measures_length() && self.measure > 0 => Some(unit.length_text(self.measure)),
+            k if k.measures_area() && self.measure > 0 => Some(unit.area_text(self.measure)),
             _ => None,
         }
     }
@@ -374,5 +490,60 @@ mod measure_tests {
         assert_eq!(LengthUnit::Millimeters.length_text(1_500_000), "1500 mm");
         assert_eq!(LengthUnit::Feet.area_text(100 * 304_800 * 304_800), "100.0 sq ft");
         assert_eq!(LengthUnit::Meters.area_text(2_500_000_000_000), "2.50 sq m");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing)]
+    use super::*;
+    use buildkiosk_core::Timestamp;
+
+    /// A square page where the stretch (0,0)-(1000,0) is 10 ft long: 100 units a foot.
+    fn scale() -> PageScale {
+        PageScale {
+            page: 1,
+            x: 0,
+            y: 0,
+            x2: 1000,
+            y2: 0,
+            aspect: 1000,
+            length_um: 10 * 304_800,
+            unit: LengthUnit::Feet,
+            by: None,
+            at: Timestamp::default(),
+        }
+    }
+
+    #[test]
+    fn paths_and_outlines_are_measured() {
+        let s = scale();
+        // A path of 10 ft along x and then 5 ft along y.
+        assert_eq!(s.path_length(&[(0, 0), (1000, 0), (1000, 500)]), Some(15 * 304_800));
+        // A 10 ft by 5 ft rectangle drawn as an outline matches the box tool.
+        let rect = [(0, 0), (1000, 0), (1000, 500), (0, 500)];
+        assert_eq!(s.polygon_area(&rect), s.area(0, 0, 1000, 500));
+        assert_eq!(s.polygon_area(&rect).map(|a| LengthUnit::Feet.area_text(a)).as_deref(), Some("50.0 sq ft"));
+        // An L shape: 10 x 10 ft minus a 5 x 5 ft corner = 75 sq ft; the corner order doesn't matter.
+        let l = [(0, 0), (1000, 0), (1000, 500), (500, 500), (500, 1000), (0, 1000)];
+        let rev: Vec<_> = l.iter().rev().copied().collect();
+        assert_eq!(s.polygon_area(&l), s.polygon_area(&rev));
+        assert_eq!(s.polygon_area(&l).map(|a| LengthUnit::Feet.area_text(a)).as_deref(), Some("75.0 sq ft"));
+        assert_eq!(s.polygon_area(&[(0, 0), (10, 10)]), None);
+        assert_eq!(s.measure_markup(MarkupKind::Pin, 0, 0, 0, 0, &[]), None);
+    }
+
+    #[test]
+    fn outlines_that_cross_themselves_are_refused() {
+        let bow_tie = [(0, 0), (1000, 1000), (1000, 0), (0, 1000)];
+        assert!(!outline_is_simple(&bow_tie, true));
+        assert!(outline_is_simple(&[(0, 0), (1000, 0), (1000, 1000), (0, 1000)], true));
+        // A path may not cross itself either, nor repeat a corner or double back.
+        assert!(!outline_is_simple(&[(0, 0), (1000, 1000), (1000, 0), (0, 1000)], false));
+        assert!(!outline_is_simple(&[(0, 0), (0, 0), (10, 10)], false));
+        assert!(!outline_is_simple(&[(0, 0), (1000, 0), (500, 0)], false));
+        assert!(outline_is_simple(&[(0, 0), (1000, 0), (1000, 1000)], false));
+        // An open path whose last point touches an earlier side is refused; a closed one is not "open".
+        assert!(!outline_is_simple(&[(0, 0), (1000, 0), (1000, 1000), (500, 0)], false));
     }
 }

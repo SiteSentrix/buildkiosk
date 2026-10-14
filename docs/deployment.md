@@ -114,6 +114,25 @@ rclone's), keeping the same number. If the second place is full or missing the b
 failure is logged. The copy is a plain folder you can restore from. For storage that can't be mounted, run your own
 sync tool (`rclone`, `aws s3 sync`) from cron against the backup folder.
 
+**Object storage.** Add `--backup-s3-bucket NAME` and every finished backup is also uploaded to storage that speaks
+the S3 protocol (Amazon S3, MinIO, Backblaze B2, Cloudflare R2, Wasabi). Each file of the backup folder becomes one
+object under `<prefix>backup-<seconds>/…`, signed with AWS Signature Version 4 and streamed (never held whole in memory).
+The keys come from the environment of the server process, not the command line:
+
+```
+BUILDKIOSK_S3_ACCESS_KEY=… BUILDKIOSK_S3_SECRET_KEY=… \
+buildkiosk serve --data /var/lib/buildkiosk --backup-dir /backups/buildkiosk \
+  --backup-s3-bucket my-company-backups --backup-s3-region us-east-2 --backup-s3-prefix buildkiosk/
+```
+
+`--backup-s3-endpoint https://…` names the service (default `https://s3.<region>.amazonaws.com`; a MinIO on your own
+network is `http://host:9000`), and `--backup-s3-virtual-host` addresses the bucket as `bucket.host` instead of
+`host/bucket`. A key that may only write to the bucket is enough. Like the second copy, the upload is best effort: the
+backup is kept locally either way, a failure is logged, and *My account → Backups* shows how the last upload went. Old
+backups are not removed from the bucket; set a lifecycle rule there (expire after, say, 30 days). To restore, fetch
+the folder (`aws s3 sync s3://bucket/buildkiosk/backup-1760000000 ./backup-1760000000`, or the same with `rclone`) and
+run `buildkiosk restore` on it.
+
 **Back up now.** Company admins open *My account → Backups* (`/admin/backups`) to see the backups kept, whether each
 reached the second place, and a *Back up now* button.
 

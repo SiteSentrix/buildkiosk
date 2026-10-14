@@ -1593,6 +1593,23 @@ async fn schedule_page_gantt_and_csv() {
     assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("error="), "{h:?}");
     let (st, _, _) = send(&app, multipart(&[("_csrf", "wrong")], xml)).await;
     assert_eq!(st, StatusCode::FORBIDDEN);
+    // An exchange (.xer) file, in a Windows code page (the é is one byte), uploaded.
+    let mut xer = b"ERMHDR\t19.12\n%T\tTASK\n%F\ttask_id\tproj_id\ttask_name\ttask_type\ttarget_start_date\ttarget_end_date\n%R\t5\t1\tCaf".to_vec();
+    xer.push(0xE9);
+    xer.extend_from_slice(b" slab\tTT_Task\t2026-11-09 08:00\t2026-11-10 17:00\n%E\n");
+    let mut body = Vec::new();
+    body.extend_from_slice(format!("--B\r\nContent-Disposition: form-data; name=\"_csrf\"\r\n\r\n{csrf}\r\n--B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"plan.xer\"\r\nContent-Type: text/plain\r\n\r\n").as_bytes());
+    body.extend_from_slice(&xer);
+    body.extend_from_slice(b"\r\n--B--\r\n");
+    let req = Request::post("/projects/1/schedule/import-xer")
+        .header("cookie", &session)
+        .header("content-type", "multipart/form-data; boundary=B")
+        .body(Body::from(body))
+        .unwrap();
+    let (_, h, _) = send(&app, req).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok=Imported%201%20task"), "{h:?}");
+    let (_, _, xer_page) = send(&app, get("/projects/1/schedule")).await;
+    assert!(xer_page.contains("Caf\u{e9} slab") && xer_page.contains("Import an exchange file"), "{xer_page}");
     let (_, _, after) = send(&app, get("/projects/1/schedule")).await;
     assert!(after.contains("Imported pour"), "{after}");
     let (st, _, ahead) = send(&app, get("/projects/1/schedule/lookahead?weeks=2&from=2026-10-12")).await;
@@ -3491,4 +3508,132 @@ async fn admins_back_up_now_and_each_backup_is_copied_to_a_second_folder() {
 
 fn form_has_task_fields(form: &str) -> bool {
     ["name=\"repeat\"", "name=\"repeat_until\"", "name=\"rfi\"", "name=\"meeting\""].iter().all(|f| form.contains(f))
+}
+
+#[tokio::test]
+async fn mcp_over_http_can_follow_a_resource_and_stream_the_changes() {
+    let dir = temp("mcpsub");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    send(&app, post("/setup", &anon, body)).await;
+    let (token, v1, v2) = {
+        let mut inner = app.lock();
+        let person = inner.tenant.as_ref().unwrap().engine.state().people.iter().next().unwrap().id.raw();
+        let t = inner.creds.create_token(person, "agent", Timestamp::from_millis(now_ms())).unwrap();
+        let blobs = &inner.tenant.as_ref().unwrap().store.blobs;
+        (t, blobs.put(b"first").unwrap(), blobs.put(b"second").unwrap())
+    };
+    let rpc = |session: Option<&str>, msg: String| {
+        let mut r = Request::post("/mcp").header("content-type", "application/json").header("authorization", format!("Bearer {token}"));
+        if let Some(s) = session {
+            r = r.header("mcp-session-id", s);
+        }
+        r.body(Body::from(msg)).unwrap()
+    };
+    let call = |id: u32, name: &str, args: Value| {
+        json!({"jsonrpc": "2.0", "id": id, "method": "tools/call", "params": {"name": name, "arguments": args}}).to_string()
+    };
+    send(&app, rpc(None, call(1, "project_create", json!({"name": "P"})))).await;
+    let (_, _, out) = send(
+        &app,
+        rpc(
+            None,
+            call(2, "document_add", json!({"project": 1, "title": "Notes", "sha256": v1.0, "size": v1.1, "name": "n.txt", "mime": "text/plain"})),
+        ),
+    )
+    .await;
+    assert!(!out.contains("\"isError\":true"), "{out}");
+
+    // Without a session there are no subscriptions; initialize starts one and names it in a header.
+    let sub = json!({"jsonrpc": "2.0", "id": 3, "method": "resources/subscribe", "params": {"uri": "buildkiosk://document/1/1"}}).to_string();
+    let (_, _, out) = send(&app, rpc(None, sub.clone())).await;
+    assert!(out.contains("-32601"), "{out}");
+    let (st, h, out) = send(&app, rpc(None, json!({"jsonrpc": "2.0", "id": 4, "method": "initialize", "params": {}}).to_string())).await;
+    let session = h.get("mcp-session-id").unwrap().to_str().unwrap().to_string();
+    assert!(st == StatusCode::OK && out.contains("\"subscribe\":true") && session.len() == 32, "{out}");
+    let (_, _, out) = send(&app, rpc(Some(&session), sub)).await;
+    assert!(out.contains("\"result\":{}"), "{out}");
+    // A made-up session is gone, not silently stateless.
+    let (st, ..) = send(&app, rpc(Some("nope"), json!({"jsonrpc": "2.0", "id": 5, "method": "ping"}).to_string())).await;
+    assert_eq!(st, StatusCode::NOT_FOUND);
+
+    // The stream reports a change made by anyone: here, a new version through another connection.
+    let stream =
+        Request::get("/mcp").header("authorization", format!("Bearer {token}")).header("mcp-session-id", &session).body(Body::empty()).unwrap();
+    let res = router(app.clone()).oneshot(stream).await.unwrap();
+    assert_eq!(res.headers().get(CONTENT_TYPE).unwrap(), "text/event-stream");
+    let mut body = res.into_body();
+    let (_, _, out) = send(
+        &app,
+        rpc(
+            None,
+            call(6, "document_add_version", json!({"project": 1, "id": 1, "sha256": v2.0, "size": v2.1, "name": "n.txt", "mime": "text/plain"})),
+        ),
+    )
+    .await;
+    assert!(!out.contains("\"isError\":true"), "{out}");
+    let frame = tokio::time::timeout(std::time::Duration::from_secs(10), body.frame()).await.expect("a frame within 10 seconds").unwrap().unwrap();
+    let text = String::from_utf8_lossy(frame.data_ref().unwrap()).into_owned();
+    assert!(text.starts_with("data: ") && text.contains("notifications/resources/updated") && text.contains("buildkiosk://document/1/1"), "{text}");
+    drop(body);
+
+    // The stream needs the connection's own session and token; DELETE ends the connection.
+    let other = Request::get("/mcp").header("authorization", format!("Bearer {token}")).header("mcp-session-id", "nope").body(Body::empty()).unwrap();
+    assert_eq!(send(&app, other).await.0, StatusCode::NOT_FOUND);
+    let anon_stream = Request::get("/mcp").header("mcp-session-id", &session).body(Body::empty()).unwrap();
+    assert_eq!(send(&app, anon_stream).await.0, StatusCode::UNAUTHORIZED);
+    let del =
+        Request::delete("/mcp").header("authorization", format!("Bearer {token}")).header("mcp-session-id", &session).body(Body::empty()).unwrap();
+    assert_eq!(send(&app, del).await.0, StatusCode::NO_CONTENT);
+    let (st, ..) = send(&app, rpc(Some(&session), json!({"jsonrpc": "2.0", "id": 7, "method": "ping"}).to_string())).await;
+    assert_eq!(st, StatusCode::NOT_FOUND);
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
+async fn each_backup_is_uploaded_to_object_storage_and_the_page_says_how_it_went() {
+    let dir = temp("s3-backup");
+    let backups = temp("s3-backup-out");
+    let (endpoint, rx) = crate::s3::tests::serve("200 OK");
+    let target = crate::s3::S3Target::new(&endpoint, "bucket", "us-east-1", "bk", "AK", "SK", true).unwrap();
+    let plain = App::open(DataDir::open(temp("s3-backup-plain")).unwrap(), None).unwrap();
+    assert!(plain.with_backup_object_store(target.clone()).is_err(), "uploads need backups");
+    let app = Arc::new(
+        App::open(DataDir::open(&dir).unwrap(), None)
+            .unwrap()
+            .with_backups(backups.clone(), 24, 2)
+            .unwrap()
+            .with_backup_object_store(target)
+            .unwrap(),
+    );
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    let (_, _, before) = send(&app, get("/admin/backups")).await;
+    assert!(before.contains("Nothing uploaded since the server started") && before.contains("/bucket/bk/"), "{before}");
+    let (_, h, _) = send(&app, post("/admin/backups/run", &ada, format!("_csrf={csrf}"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let sent: Vec<_> = rx.try_iter().collect();
+    assert!(
+        sent.len() >= 2 && sent.iter().all(|(path, ..)| path.starts_with("/bucket/bk/backup-")),
+        "{:?}",
+        sent.iter().map(|s| &s.0).collect::<Vec<_>>()
+    );
+    assert!(sent.iter().any(|(path, ..)| path.ends_with("/instance.json")));
+    let (_, _, after) = send(&app, get("/admin/backups")).await;
+    assert!(after.contains("files uploaded"), "{after}");
+    drop(app);
+    for d in [&dir, &backups] {
+        let _ = std::fs::remove_dir_all(d);
+    }
 }

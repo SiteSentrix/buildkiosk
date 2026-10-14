@@ -326,7 +326,7 @@ fn sheet_json(here: &str, sheet: &str, d: &buildkiosk_engine::model::drawing::Dr
             let marks: Vec<serde_json::Value> = r
                 .markups
                 .iter()
-                .map(|m| serde_json::json!({ "id": m.id, "page": m.page, "kind": m.kind, "x": m.x, "y": m.y, "x2": m.x2, "y2": m.y2, "text": m.text, "resolved": m.resolved, "measure": m.measure_text() }))
+                .map(|m| serde_json::json!({ "id": m.id, "page": m.page, "kind": m.kind, "x": m.x, "y": m.y, "x2": m.x2, "y2": m.y2, "points": m.points, "text": m.text, "resolved": m.resolved, "measure": m.measure_text() }))
                 .collect();
             Some(serde_json::json!({ "label": r.label, "file": format!("{sheet}/files/{}", file.sha256), "marks": marks, "scales": r.scales }))
         })
@@ -467,7 +467,7 @@ pub fn viewer(req: &Req<'_>, id: Id<Project>, did: Id<Drawing>, v: &View, shape:
                                     button type="button" class="chip tool-btn" data-tool=(key) { (label) }
                                 }
                                 span class="muted" { "Measure" }
-                                @for (key, label) in [("scale", "Scale"), ("dim", "Length"), ("area", "Area")] {
+                                @for (key, label) in [("scale", "Scale"), ("dim", "Length"), ("area", "Area"), ("polyline", "Path"), ("polygon", "Outline")] {
                                     button type="button" class="chip tool-btn" data-tool=(key) { (label) }
                                 }
                             }
@@ -534,6 +534,7 @@ pub fn viewer(req: &Req<'_>, id: Id<Project>, did: Id<Drawing>, v: &View, shape:
                                     input type="hidden" id="mk-y" name="y" value="0";
                                     input type="hidden" id="mk-x2" name="x2" value="0" disabled;
                                     input type="hidden" id="mk-y2" name="y2" value="0" disabled;
+                                    input type="hidden" id="mk-points" name="points" value="" disabled;
                                     (field("Words or note (words are needed for text)", "mk-text", false, true, html! { input type="text" id="mk-text" name="text" maxlength="1000"; }))
                                     div class="form-actions" {
                                         button type="button" class="btn" data-action="cancel" { "Cancel" }
@@ -570,6 +571,11 @@ pub fn viewer(req: &Req<'_>, id: Id<Project>, did: Id<Drawing>, v: &View, shape:
                                 MarkupKind::Text => { text x=(x) y=(y) font-size="16" font-weight="600" fill=(color) { (m.id) ". " (m.text) } }
                                 MarkupKind::Dimension => { line x1=(x) y1=(y) x2=(x2) y2=(y2) stroke=(color) stroke-width="2" {} text x=(x + 4.0) y=(y - 4.0) font-size="12" font-weight="700" fill=(color) { (m.id) @if let Some(t) = m.measure_text() { " · " (t) } } }
                                 MarkupKind::Area => { rect x=(x.min(x2)) y=(y.min(y2)) width=((x - x2).abs()) height=((y - y2).abs()) fill="none" stroke=(color) stroke-width="2" {} text x=(x.min(x2) + 3.0) y=(y.min(y2) - 4.0) font-size="12" font-weight="700" fill=(color) { (m.id) @if let Some(t) = m.measure_text() { " · " (t) } } }
+                                MarkupKind::Polyline | MarkupKind::Polygon => {
+                                    @let pts = m.points.iter().map(|p| format!("{},{}", scale(p.0, width), scale(p.1, height))).collect::<Vec<_>>().join(" ");
+                                    @if m.kind == MarkupKind::Polygon { polygon points=(pts) fill="none" stroke=(color) stroke-width="2" {} } @else { polyline points=(pts) fill="none" stroke=(color) stroke-width="2" {} }
+                                    text x=(x + 4.0) y=(y - 4.0) font-size="12" font-weight="700" fill=(color) { (m.id) @if let Some(t) = m.measure_text() { " · " (t) } }
+                                }
                             }
                         }
                         @if let Some((fx, fy)) = v.first { circle cx=(scale(fx, width)) cy=(scale(fy, height)) r="5" fill="#1565c0" {} }
@@ -629,8 +635,8 @@ pub fn viewer(req: &Req<'_>, id: Id<Project>, did: Id<Drawing>, v: &View, shape:
                         @for pg in pages {
                             @let visible = rv.label == r.label && pg == page;
                             @let back = format!("{here}?{}", { let mut n = v.clone(); n.click = None; n.first = None; n.compare = String::new(); n.page = pg; n.rev = if ri + 1 == d.revisions.len() { String::new() } else { rv.label.clone() }; n.query() });
-                            @let lengths: u64 = rv.markups.iter().filter(|m| m.page == pg && m.kind == MarkupKind::Dimension).map(|m| m.measure).fold(0u64, |a, b| a.saturating_add(b));
-                            @let areas: u64 = rv.markups.iter().filter(|m| m.page == pg && m.kind == MarkupKind::Area).map(|m| m.measure).fold(0u64, |a, b| a.saturating_add(b));
+                            @let lengths: u64 = rv.markups.iter().filter(|m| m.page == pg && m.kind.measures_length()).map(|m| m.measure).fold(0u64, |a, b| a.saturating_add(b));
+                            @let areas: u64 = rv.markups.iter().filter(|m| m.page == pg && m.kind.measures_area()).map(|m| m.measure).fold(0u64, |a, b| a.saturating_add(b));
                             @let unit = rv.scales.iter().find(|s| s.page == pg).map(|s| s.unit);
                             div class="marklist" data-rev=(rv.label) data-page=(pg) hidden[!visible] {
                                 @if let Some(u) = unit.filter(|_| lengths > 0 || areas > 0) {

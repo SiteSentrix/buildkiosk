@@ -367,3 +367,71 @@ fn prompts_are_offered_filled_in_and_name_real_tools() {
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn a_client_can_follow_a_resource_and_is_told_when_it_changes() {
+    let dir = temp("subscribe");
+    let (_data, mut t) = company(&dir);
+    let admin = Actor::Person(buildkiosk_core::Id::new(1));
+    let stranger = Actor::Person(buildkiosk_core::Id::new(99));
+    let now = Timestamp::from_millis(1_760_000_100_000);
+    let put = |t: &Tenant, bytes: &[u8]| t.store.blobs.put(bytes).unwrap();
+    let (v1, n1) = put(&t, b"first draft");
+    let (v2, n2) = put(&t, b"second draft");
+    let r = call_tool(
+        &mut t,
+        admin,
+        "document_add",
+        json!({"project": 1, "title": "Notes", "sha256": v1, "size": n1, "name": "n.txt", "mime": "text/plain"}),
+    );
+    assert_eq!(r["result"]["isError"], false, "{r}");
+    let uri = "buildkiosk://document/1/1";
+    let say = |s: &mut Session, t: &mut Tenant, who: Actor, v: Value| -> Value {
+        serde_json::from_str(&s.handle_line(t, who, now, &v.to_string()).expect("a reply")).unwrap()
+    };
+
+    // The handshake offers subscriptions only to a connection that keeps state.
+    let mut s = Session::default();
+    let r = say(&mut s, &mut t, admin, json!({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}));
+    assert_eq!(r["result"]["capabilities"]["resources"]["subscribe"], true);
+    let r = send(&mut t, admin, json!({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}));
+    assert_eq!(r["result"]["capabilities"]["resources"]["subscribe"], false);
+    let r = send(&mut t, admin, json!({"jsonrpc": "2.0", "id": 2, "method": "resources/subscribe", "params": {"uri": uri}}));
+    assert_eq!(r["error"]["code"], -32601);
+
+    // Something you can't open can't be followed; what you can, can.
+    let mut other = Session::default();
+    let r = say(&mut other, &mut t, stranger, json!({"jsonrpc": "2.0", "id": 3, "method": "resources/subscribe", "params": {"uri": uri}}));
+    assert_eq!(r["error"]["code"], -32002);
+    for bad in [json!({}), json!({"uri": 5}), json!({"uri": "buildkiosk://document/1/99"}), json!({"uri": "file:///etc/passwd"})] {
+        let r = say(&mut s, &mut t, admin, json!({"jsonrpc": "2.0", "id": 4, "method": "resources/subscribe", "params": bad}));
+        assert!(r["error"].is_object(), "{bad}");
+    }
+    let r = say(&mut s, &mut t, admin, json!({"jsonrpc": "2.0", "id": 5, "method": "resources/subscribe", "params": {"uri": uri}}));
+    assert!(r["result"].is_object(), "{r}");
+    assert_eq!(s.subscriptions(), 1);
+
+    // Nothing changed: nothing to say. A new version: one notification, then quiet again.
+    assert!(s.poll(&t, admin).is_empty());
+    let r = call_tool(
+        &mut t,
+        admin,
+        "document_add_version",
+        json!({"project": 1, "id": 1, "sha256": v2, "size": n2, "name": "n.txt", "mime": "text/plain"}),
+    );
+    assert_eq!(r["result"]["isError"], false, "{r}");
+    let sent = s.poll(&t, admin);
+    assert_eq!(sent.len(), 1);
+    let note: Value = serde_json::from_str(&sent[0]).unwrap();
+    assert_eq!((note["method"].as_str(), note["params"]["uri"].as_str(), note.get("id")), (Some("notifications/resources/updated"), Some(uri), None));
+    assert!(s.poll(&t, admin).is_empty());
+
+    // Deleting it is a change too (a read now says not found); unsubscribing stops the news.
+    let r = call_tool(&mut t, admin, "document_delete", json!({"project": 1, "id": 1}));
+    assert_eq!(r["result"]["isError"], false, "{r}");
+    assert_eq!(s.poll(&t, admin).len(), 1);
+    let r = say(&mut s, &mut t, admin, json!({"jsonrpc": "2.0", "id": 6, "method": "resources/unsubscribe", "params": {"uri": uri}}));
+    assert!(r["result"].is_object());
+    assert_eq!(s.subscriptions(), 0);
+    let _ = std::fs::remove_dir_all(&dir);
+}

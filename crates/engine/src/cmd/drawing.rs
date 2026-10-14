@@ -46,9 +46,9 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Mark up a sheet",
         Tool::Drawings,
         Access::Project(Level::Standard),
-        "project: project id; id: drawing id; revision?: label (default the current one); page?: page number from 1 (default 1); kind: pin|rect|arrow|text|dim|area; \
-         x, y: 0..10000 across and down the page; x2?, y2?: the far corner of a box or area, the head of an arrow, or the far end of a length (required for those); \
-         text?: the note (required for text). A length (dim) or area needs the page's scale (drawing.scale_set) and is worked out from it.",
+        "project: project id; id: drawing id; revision?: label (default the current one); page?: page number from 1 (default 1); kind: pin|rect|arrow|text|dim|area|polyline|polygon; \
+         x, y: 0..10000 across and down the page (not needed for polyline and polygon); points?: for polyline (a length along a path, 2 to 200 points) and polygon (the area inside an outline, 3 to 200), `x,y x,y x,y` in order, sides that meet only at corners; x2?, y2?: the far corner of a box or area, the head of an arrow, or the far end of a length (required for those); \
+         text?: the note (required for text). A length (dim, polyline) or area (area, polygon) needs the page's scale (drawing.scale_set) and is worked out from it.",
         markup_add,
     ),
     CommandSpec::mutate(
@@ -246,6 +246,30 @@ fn revision_index(d: &Drawing, p: &Params<'_>) -> Result<usize> {
     }
 }
 
+/// The corners of a path or outline, written `x,y x,y x,y` (spaces or semicolons between them).
+fn parse_points(p: &Params<'_>, kind: buildkiosk_model::drawing::MarkupKind) -> Result<Vec<(u16, u16)>> {
+    use buildkiosk_model::drawing::{MARKUP_SCALE, MAX_POINTS, MarkupKind, outline_is_simple};
+    let raw = p.text_or_empty("points", 10_000)?;
+    let mut out: Vec<(u16, u16)> = Vec::new();
+    for part in raw.split(|c: char| c.is_whitespace() || c == ';').filter(|s| !s.is_empty()) {
+        let bad = || p.bad("points", format!("`{part}` is not a point written x,y with each from 0 to {MARKUP_SCALE}"));
+        let (a, b) = part.split_once(',').ok_or_else(bad)?;
+        let num = |s: &str| s.trim().parse::<u16>().ok().filter(|v| *v <= MARKUP_SCALE);
+        out.push((num(a).ok_or_else(bad)?, num(b).ok_or_else(bad)?));
+        if out.len() > MAX_POINTS {
+            return Err(p.bad("points", format!("has more than {MAX_POINTS} points")));
+        }
+    }
+    let least = if kind == MarkupKind::Polygon { 3 } else { 2 };
+    if out.len() < least {
+        return Err(p.bad("points", format!("needs at least {least} points")));
+    }
+    if !outline_is_simple(&out, kind == MarkupKind::Polygon) {
+        return Err(EngineError::conflict("the path crosses itself, repeats a point or doubles back; draw it so its sides only meet at corners"));
+    }
+    Ok(out)
+}
+
 fn markup_add(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     use buildkiosk_model::drawing::{MARKUP_SCALE, Markup, MarkupKind};
     let mut d = load(ctx, p)?;
@@ -258,9 +282,14 @@ fn markup_add(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
             None => Ok(0),
         }
     };
-    let (x, y) = (coord("x", true)?, coord("y", true)?);
-    let two_points = matches!(kind, MarkupKind::Rectangle | MarkupKind::Arrow | MarkupKind::Dimension | MarkupKind::Area);
-    let (x2, y2) = (coord("x2", two_points)?, coord("y2", two_points)?);
+    let points = if kind.is_path() { parse_points(p, kind)? } else { Vec::new() };
+    let (x, y, x2, y2) = if let (Some(a), Some(b)) = (points.first(), points.get(1)) {
+        (a.0, a.1, b.0, b.1)
+    } else {
+        let (x, y) = (coord("x", true)?, coord("y", true)?);
+        let two_points = matches!(kind, MarkupKind::Rectangle | MarkupKind::Arrow | MarkupKind::Dimension | MarkupKind::Area);
+        (x, y, coord("x2", two_points)?, coord("y2", two_points)?)
+    };
     let text = p.text_or_empty("text", 1_000)?;
     if kind == MarkupKind::Text && text.trim().is_empty() {
         return Err(p.bad("text", "is required for a text markup"));
@@ -273,15 +302,15 @@ fn markup_add(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     }
     let id = rev.markups.iter().map(|m| m.id).max().unwrap_or(0).saturating_add(1);
     let (mut measure, mut unit) = (0, None);
-    if matches!(kind, MarkupKind::Dimension | MarkupKind::Area) {
+    if kind.measures_length() || kind.measures_area() {
         let Some(scale) = rev.scales.iter().find(|s| s.page == page) else {
             return Err(EngineError::conflict(format!("set the scale of page {page} first (drawing.scale_set)")));
         };
-        let worked = if kind == MarkupKind::Dimension { scale.length(x, y, x2, y2) } else { scale.area(x, y, x2, y2) };
+        let worked = scale.measure_markup(kind, x, y, x2, y2, &points);
         measure = worked.ok_or_else(|| EngineError::conflict("that is too large to measure"))?;
         unit = Some(scale.unit);
     }
-    rev.markups.push(Markup { id, page, kind, x, y, x2, y2, text, resolved: false, measure, unit, by: person, at: now });
+    rev.markups.push(Markup { id, page, kind, x, y, x2, y2, points, text, resolved: false, measure, unit, by: person, at: now });
     d.updated = ctx.stamp();
     let did = d.id;
     ctx.state.drawings.put(d);
@@ -295,11 +324,9 @@ fn page_number(p: &Params<'_>) -> Result<u32> {
 
 /// Works the lengths and areas on a page out again from its scale (or clears them when it has none).
 fn remeasure(rev: &mut buildkiosk_model::drawing::DrawingRevision, page: u32) {
-    use buildkiosk_model::drawing::MarkupKind;
     let scale = rev.scales.iter().find(|s| s.page == page).cloned();
-    for m in rev.markups.iter_mut().filter(|m| m.page == page && matches!(m.kind, MarkupKind::Dimension | MarkupKind::Area)) {
-        let worked =
-            scale.as_ref().and_then(|s| if m.kind == MarkupKind::Dimension { s.length(m.x, m.y, m.x2, m.y2) } else { s.area(m.x, m.y, m.x2, m.y2) });
+    for m in rev.markups.iter_mut().filter(|m| m.page == page && (m.kind.measures_length() || m.kind.measures_area())) {
+        let worked = scale.as_ref().and_then(|s| s.measure_markup(m.kind, m.x, m.y, m.x2, m.y2, &m.points));
         m.measure = worked.unwrap_or(0);
         m.unit = worked.and(scale.as_ref().map(|s| s.unit));
     }

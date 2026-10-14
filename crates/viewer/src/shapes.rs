@@ -20,6 +20,9 @@ pub struct Mark {
     pub x2: u16,
     #[serde(default)]
     pub y2: u16,
+    /// The corners of a path or outline.
+    #[serde(default)]
+    pub points: Vec<(u16, u16)>,
     #[serde(default)]
     pub text: String,
     #[serde(default)]
@@ -73,6 +76,12 @@ pub enum Shape {
         y: f64,
         label: String,
     },
+    /// A path (open) or an outline (closed) through corners in window coordinates.
+    Poly {
+        points: Vec<(f64, f64)>,
+        closed: bool,
+        label: String,
+    },
 }
 
 /// A shape and whether it is resolved (drawn in grey).
@@ -92,6 +101,11 @@ pub fn shapes(marks: &[Mark], camera: &Camera) -> Vec<Drawn> {
                 MarkupKind::Text => Shape::Text { x, y, label: format!("{id}. {}", m.text) },
                 MarkupKind::Dimension => Shape::Line { x1: x, y1: y, x2, y2, label: with_measure(&id, m) },
                 MarkupKind::Area => Shape::Box { x: x.min(x2), y: y.min(y2), w: (x - x2).abs(), h: (y - y2).abs(), label: with_measure(&id, m) },
+                MarkupKind::Polyline | MarkupKind::Polygon => Shape::Poly {
+                    points: m.points.iter().map(|p| camera.to_screen(from_units(p.0), from_units(p.1))).collect(),
+                    closed: m.kind == MarkupKind::Polygon,
+                    label: with_measure(&id, m),
+                },
             };
             (shape, m.resolved)
         })
@@ -161,6 +175,17 @@ mod tests {
         assert!(matches!(&drawn[0].0, Shape::Line { label, .. } if label == "4 · 12.50 ft"));
         assert!(matches!(&drawn[1].0, Shape::Box { label, .. } if label == "5 · 100.0 sq ft"));
         assert!(matches!(&drawn[2].0, Shape::Line { label, .. } if label == "6"), "a measurement without a scale shows only its number");
+    }
+
+    #[test]
+    fn paths_and_outlines_are_drawn_through_their_corners() {
+        let cam = Camera::fit(Stage { w: 800.0, h: 600.0 }, 1.0);
+        let marks = parse(
+            r#"[{"id":8,"kind":"polyline","x":0,"y":0,"x2":5000,"y2":0,"points":[[0,0],[5000,0],[5000,5000]],"measure":"25.0 ft"},{"id":9,"kind":"polygon","x":0,"y":0,"x2":5000,"y2":0,"points":[[0,0],[5000,0],[5000,5000]],"measure":"12.5 sq ft"}]"#,
+        );
+        let drawn = shapes(&marks, &cam);
+        assert!(matches!(&drawn[0].0, Shape::Poly { points, closed: false, label } if points.len() == 3 && label == "8 · 25.0 ft"));
+        assert!(matches!(&drawn[1].0, Shape::Poly { closed: true, label, .. } if label == "9 · 12.5 sq ft"));
     }
 
     #[test]

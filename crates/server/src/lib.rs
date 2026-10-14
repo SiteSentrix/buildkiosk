@@ -8,6 +8,7 @@ mod auth;
 mod exif;
 mod mail;
 mod render;
+pub mod s3;
 mod zip;
 
 /// The browser sheet viewer, when `cargo xtask viewer` built it before this crate was compiled.
@@ -78,7 +79,21 @@ struct Inner {
     tenant: Option<Tenant>,
     creds: Credentials,
     limiter: RateLimit,
+    /// MCP connections that keep state (what they follow), by the id sent as `Mcp-Session-Id`.
+    mcp_sessions: HashMap<String, McpSession>,
 }
+
+/// One MCP client's state between requests.
+struct McpSession {
+    person: u64,
+    session: buildkiosk_mcp::Session,
+    /// When it last did anything (milliseconds), to drop the ones left behind.
+    last_ms: i64,
+}
+
+/// MCP connections kept at once, and how long an idle one is kept.
+const MAX_MCP_SESSIONS: usize = 200;
+const MCP_IDLE_MS: i64 = 60 * 60 * 1000;
 
 /// The running server's state: one company in one data directory.
 pub struct App {
@@ -97,6 +112,10 @@ struct BackupPlan {
     keep: usize,
     /// A second place every finished backup is copied to (another disk or a mounted share).
     copy_to: Option<PathBuf>,
+    /// Object storage every finished backup is also uploaded to.
+    object_store: Option<s3::S3Target>,
+    /// How the last upload went: the backup's name and the number of files, or why it failed.
+    last_upload: Mutex<Option<(String, Result<usize, String>)>>,
 }
 
 type Shared = Arc<App>;
@@ -124,7 +143,14 @@ impl App {
         };
         Ok(App {
             data,
-            inner: Mutex::new(Inner { drafts: HashMap::new(), pictures: render::Pictures::default(), tenant, creds, limiter: RateLimit::default() }),
+            inner: Mutex::new(Inner {
+                drafts: HashMap::new(),
+                pictures: render::Pictures::default(),
+                tenant,
+                creds,
+                limiter: RateLimit::default(),
+                mcp_sessions: HashMap::new(),
+            }),
             secure: false,
             backups: None,
         })
@@ -141,7 +167,14 @@ impl App {
             return Err("backups need an interval of at least one hour and to keep at least one".into());
         }
         std::fs::create_dir_all(&dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
-        self.backups = Some(BackupPlan { dir, every_secs: every_hours.saturating_mul(3600), keep, copy_to: None });
+        self.backups = Some(BackupPlan {
+            dir,
+            every_secs: every_hours.saturating_mul(3600),
+            keep,
+            copy_to: None,
+            object_store: None,
+            last_upload: Mutex::new(None),
+        });
         Ok(self)
     }
 
@@ -154,6 +187,13 @@ impl App {
         }
         std::fs::create_dir_all(&dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
         plan.copy_to = Some(dir);
+        Ok(self)
+    }
+
+    /// Also uploads every finished backup to object storage that speaks the S3 protocol. Needs `with_backups` first.
+    pub fn with_backup_object_store(mut self, target: s3::S3Target) -> Result<App, String> {
+        let Some(plan) = self.backups.as_mut() else { return Err("uploading backups needs --backup-dir".into()) };
+        plan.object_store = Some(target);
         Ok(self)
     }
 
@@ -431,6 +471,13 @@ pub fn router(app: Shared) -> Router {
             .layer(DefaultBodyLimit::max(8 * 1024 * 1024 + 64 * 1024)),
         )
         .route(
+            "/projects/{id}/schedule/import-xer",
+            post(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, m: Multipart| async move {
+                import_file(s.0, h, id, "schedule", "schedule.import_xer", "task", ("8 MB", "exchange (.xer) file"), &["proj_id"], m).await
+            })
+            .layer(DefaultBodyLimit::max(8 * 1024 * 1024 + 64 * 1024)),
+        )
+        .route(
             "/projects/{id}/budget/import-file",
             post(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, m: Multipart| async move {
                 import_file(s.0, h, id, "budget", "budget.import", "budget line", ("1 MB", "CSV file"), &["add_codes"], m).await
@@ -609,7 +656,7 @@ pub fn router(app: Shared) -> Router {
         .route("/projects/{id}/rfis/{rid}/respond", post(rfi_respond).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
         .route("/projects/{id}/rfis/{rid}/edit", get(rfi_edit))
         .route("/do/{command}", post(do_command))
-        .route("/mcp", post(mcp_http))
+        .route("/mcp", post(mcp_http).get(mcp_stream).delete(mcp_close))
         .route("/api/v1/commands/{id}", post(api_command))
         .route("/static/app.css", get(css))
         .route("/static/favicon.svg", get(favicon))
@@ -3099,8 +3146,11 @@ async fn import_file(
         return plain(StatusCode::FORBIDDEN, "The form expired. Go back, reload the page and try again.");
     }
     let Some(bytes) = file.filter(|b| !b.is_empty()) else { return redirect(&with_flash(&back, false, &format!("Choose a {what} to import."))) };
-    let Ok(text) = String::from_utf8(bytes.to_vec()) else {
-        return redirect(&with_flash(&back, false, &format!("The file isn't text. Save it as a {what} (UTF-8) and try again.")));
+    // Exchange files from planning programs are usually in a Windows code page, not UTF-8; their text is read as Latin-1 then.
+    let text = match String::from_utf8(bytes.to_vec()) {
+        Ok(t) => t,
+        Err(_) if command == "schedule.import_xer" && bytes.starts_with(b"ERMHDR") => bytes.iter().map(|&b| char::from(b)).collect(),
+        Err(_) => return redirect(&with_flash(&back, false, &format!("The file isn't text. Save it as a {what} (UTF-8) and try again."))),
     };
     let text = text.trim_start_matches('\u{feff}');
     params.insert("project".into(), json!(id));
@@ -3723,6 +3773,15 @@ fn take_backup(app: &App, plan: &BackupPlan, now_secs: u64) -> Result<Option<Pat
             log::error!("the backup {name} was made but could not be copied to {}: {e}", second.display());
         }
     }
+    if let Some(target) = &plan.object_store {
+        // Like the second copy, the upload is best effort: the backup is kept either way, and the result is shown on the backups page.
+        let result = target.upload_folder(&kept, &name, now_secs);
+        match &result {
+            Ok(n) => log::info!("the backup {name} was uploaded to {} ({n} files)", target.describe()),
+            Err(e) => log::error!("the backup {name} was made but could not be uploaded to {}: {e}", target.describe()),
+        }
+        *plan.last_upload.lock().unwrap_or_else(|e| e.into_inner()) = Some((name.clone(), result));
+    }
     Ok(Some(kept))
 }
 
@@ -3792,6 +3851,11 @@ fn backups_info(app: &App) -> buildkiosk_web::account::BackupInfo {
         configured: true,
         dir: plan.dir.display().to_string(),
         copy_to: plan.copy_to.as_ref().map(|d| d.display().to_string()),
+        object_store: plan.object_store.as_ref().map(s3::S3Target::describe),
+        last_upload: plan.last_upload.lock().unwrap_or_else(|e| e.into_inner()).as_ref().map(|(name, r)| match r {
+            Ok(n) => format!("{name}: {n} files uploaded"),
+            Err(e) => format!("{name}: failed. {e}"),
+        }),
         every_hours: plan.every_secs / 3600,
         keep: plan.keep,
         rows,
@@ -3991,30 +4055,141 @@ fn json_response(status: StatusCode, v: &Value) -> Response {
     res
 }
 
-/// The MCP server over HTTP: one JSON-RPC message (or batch) per POST, with an API token. A
-/// notification answers 202 with no body.
-async fn mcp_http(State(app): State<Shared>, headers: HeaderMap, body: Bytes) -> Response {
+/// The person an MCP request's API token belongs to, if the token is valid and they can sign in.
+fn mcp_person(inner: &Inner, headers: &HeaderMap) -> Option<u64> {
     let token = headers.get(AUTHORIZATION).and_then(|v| v.to_str().ok()).and_then(|v| v.strip_prefix("Bearer ")).unwrap_or("");
-    let mut inner = app.lock();
-    let person = inner
+    inner
         .creds
         .token_person(token)
-        .filter(|p| inner.tenant.as_ref().and_then(|t| t.engine.state().people.get(Id::new(*p))).is_some_and(|p| p.is_enabled() && p.is_user));
-    let Some(person) = person else {
-        return json_response(
-            StatusCode::UNAUTHORIZED,
-            &json!({"jsonrpc": "2.0", "id": null, "error": {"code": -32001, "message": "send a valid API token as `Authorization: Bearer <token>`"}}),
-        );
-    };
-    let Some(tenant) = inner.tenant.as_mut() else { return plain(StatusCode::SERVICE_UNAVAILABLE, "The company is not set up.") };
+        .filter(|p| inner.tenant.as_ref().and_then(|t| t.engine.state().people.get(Id::new(*p))).is_some_and(|p| p.is_enabled() && p.is_user))
+}
+
+fn mcp_unauthorized() -> Response {
+    json_response(
+        StatusCode::UNAUTHORIZED,
+        &json!({"jsonrpc": "2.0", "id": null, "error": {"code": -32001, "message": "send a valid API token as `Authorization: Bearer <token>`"}}),
+    )
+}
+
+fn mcp_session_header(headers: &HeaderMap) -> Option<String> {
+    headers.get("mcp-session-id").and_then(|v| v.to_str().ok()).filter(|v| !v.is_empty() && v.len() <= 64).map(str::to_string)
+}
+
+/// The MCP server over HTTP: one JSON-RPC message (or batch) per POST, with an API token. A
+/// notification answers 202 with no body. The `initialize` request starts a connection that keeps
+/// state: the answer carries an `Mcp-Session-Id` header, which later requests send back to follow
+/// resources (`resources/subscribe`) and to open `GET /mcp`, a stream of the changes.
+async fn mcp_http(State(app): State<Shared>, headers: HeaderMap, body: Bytes) -> Response {
+    let mut inner = app.lock();
+    let Some(person) = mcp_person(&inner, &headers) else { return mcp_unauthorized() };
     let text = String::from_utf8_lossy(&body).into_owned();
-    match buildkiosk_mcp::handle_line(tenant, Actor::Person(Id::new(person)), Timestamp::from_millis(now_ms()), &text) {
+    let now = now_ms();
+    let Inner { tenant, mcp_sessions, .. } = &mut *inner;
+    let Some(tenant) = tenant.as_mut() else { return plain(StatusCode::SERVICE_UNAVAILABLE, "The company is not set up.") };
+    let actor = Actor::Person(Id::new(person));
+    let starting = serde_json::from_str::<Value>(&text).ok().is_some_and(|v| v.get("method").and_then(Value::as_str) == Some("initialize"));
+    let (id, mut held) = match mcp_session_header(&headers) {
+        Some(id) => match mcp_sessions.remove(&id) {
+            Some(s) if s.person == person => (Some(id), Some(s)),
+            // Not theirs, or gone (expired, or the server restarted): the client starts again.
+            _ => {
+                return json_response(
+                    StatusCode::NOT_FOUND,
+                    &json!({"jsonrpc": "2.0", "id": null, "error": {"code": -32001, "message": "that session has ended; send initialize again"}}),
+                );
+            }
+        },
+        None if starting => {
+            mcp_sessions.retain(|_, s| now.saturating_sub(s.last_ms) < MCP_IDLE_MS);
+            while mcp_sessions.len() >= MAX_MCP_SESSIONS {
+                let Some(oldest) = mcp_sessions.iter().min_by_key(|(_, s)| s.last_ms).map(|(k, _)| k.clone()) else { break };
+                mcp_sessions.remove(&oldest);
+            }
+            let id = random_bytes::<16>().map(|b| hex(&b)).ok();
+            let fresh = McpSession { person, session: buildkiosk_mcp::Session::default(), last_ms: now };
+            (id, Some(fresh))
+        }
+        None => (None, None),
+    };
+    let reply = match held.as_mut() {
+        Some(s) => {
+            s.last_ms = now;
+            s.session.handle_line(tenant, actor, Timestamp::from_millis(now), &text)
+        }
+        None => buildkiosk_mcp::handle_line(tenant, actor, Timestamp::from_millis(now), &text),
+    };
+    if let (Some(id), Some(s)) = (id.clone(), held) {
+        mcp_sessions.insert(id, s);
+    }
+    match reply {
         Some(reply) => {
             let mut res = reply.into_response();
             res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+            if let (true, Some(Ok(v))) = (starting, id.as_deref().map(HeaderValue::from_str)) {
+                res.headers_mut().insert("mcp-session-id", v);
+            }
             res
         }
         None => StatusCode::ACCEPTED.into_response(),
+    }
+}
+
+/// `GET /mcp` with an `Mcp-Session-Id`: a server-sent-events stream of `notifications/resources/updated` for
+/// the resources that connection follows. It ends when the connection is closed, expires or is replaced.
+async fn mcp_stream(State(app): State<Shared>, headers: HeaderMap) -> Response {
+    let id = {
+        let inner = app.lock();
+        let Some(person) = mcp_person(&inner, &headers) else { return mcp_unauthorized() };
+        match mcp_session_header(&headers).filter(|id| inner.mcp_sessions.get(id).is_some_and(|s| s.person == person)) {
+            Some(id) => id,
+            None => return plain(StatusCode::NOT_FOUND, "Send the Mcp-Session-Id that initialize returned."),
+        }
+    };
+    // Every two seconds look for changes; a comment line every fifteen keeps proxies from closing the stream.
+    let stream = futures_util::stream::unfold((app, id, 0u32), |(app, id, mut quiet)| async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            let now = now_ms();
+            let lines = {
+                let mut inner = app.lock();
+                let Inner { tenant, mcp_sessions, .. } = &mut *inner;
+                let (Some(tenant), Some(s)) = (tenant.as_ref(), mcp_sessions.get_mut(&id)) else { return None };
+                if now.saturating_sub(s.last_ms) >= MCP_IDLE_MS {
+                    mcp_sessions.remove(&id);
+                    return None;
+                }
+                s.session.poll(tenant, Actor::Person(Id::new(s.person)))
+            };
+            let chunk = if lines.is_empty() {
+                quiet += 1;
+                if quiet < 8 {
+                    continue;
+                }
+                quiet = 0;
+                ": keep-alive\n\n".to_string()
+            } else {
+                quiet = 0;
+                lines.iter().map(|l| format!("data: {l}\n\n")).collect()
+            };
+            return Some((Ok::<_, std::convert::Infallible>(Bytes::from(chunk)), (app, id, quiet)));
+        }
+    });
+    let mut res = Response::new(axum::body::Body::from_stream(stream));
+    res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("text/event-stream"));
+    res.headers_mut().insert("cache-control", HeaderValue::from_static("no-cache"));
+    res
+}
+
+/// `DELETE /mcp` ends a connection that keeps state.
+async fn mcp_close(State(app): State<Shared>, headers: HeaderMap) -> Response {
+    let mut inner = app.lock();
+    let Some(person) = mcp_person(&inner, &headers) else { return mcp_unauthorized() };
+    match mcp_session_header(&headers) {
+        Some(id) if inner.mcp_sessions.get(&id).is_some_and(|s| s.person == person) => {
+            inner.mcp_sessions.remove(&id);
+            StatusCode::NO_CONTENT.into_response()
+        }
+        _ => plain(StatusCode::NOT_FOUND, "No such session."),
     }
 }
 

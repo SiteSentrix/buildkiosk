@@ -43,6 +43,10 @@ enum Tool {
     Scale,
     Length,
     Area,
+    /// Any number of clicks along a path, measured end to end.
+    Path,
+    /// Any number of clicks round an outline, whose area is measured.
+    Outline,
 }
 
 impl Tool {
@@ -56,6 +60,8 @@ impl Tool {
             "scale" => Tool::Scale,
             "dim" => Tool::Length,
             "area" => Tool::Area,
+            "polyline" => Tool::Path,
+            "polygon" => Tool::Outline,
             _ => return None,
         })
     }
@@ -70,6 +76,8 @@ impl Tool {
             Tool::Text => "text",
             Tool::Length => "dim",
             Tool::Area => "area",
+            Tool::Path => "polyline",
+            Tool::Outline => "polygon",
             Tool::Scale => "",
         }
     }
@@ -78,8 +86,22 @@ impl Tool {
         matches!(self, Tool::Box | Tool::Arrow | Tool::Scale | Tool::Length | Tool::Area)
     }
 
+    /// Whether the tool takes any number of clicks and ends with a finishing click or Enter.
+    fn many_points(self) -> bool {
+        matches!(self, Tool::Path | Tool::Outline)
+    }
+
+    /// The fewest corners the tool needs.
+    fn least_points(self) -> usize {
+        if self == Tool::Outline { 3 } else { 2 }
+    }
+
     fn hint(self, started: bool) -> &'static str {
         match (self, started) {
+            (Tool::Path, false) => "Click where the path starts.",
+            (Tool::Path, true) => "Click each bend. Click the last point again, or press Enter, to finish; Backspace undoes a point.",
+            (Tool::Outline, false) => "Click a corner of the outline.",
+            (Tool::Outline, true) => "Click each corner. Click the first corner again, or press Enter, to close it; Backspace undoes a point.",
             (Tool::Move, _) => "Drag to move the sheet. Scroll or pinch to zoom.",
             (Tool::Pin, _) => "Click the sheet where the pin goes.",
             (Tool::Text, _) => "Click where the words go.",
@@ -167,6 +189,8 @@ struct Viewer {
     tool: Tool,
     /// The first corner of a box or arrow, as fractions of the page.
     first: Option<(f64, f64)>,
+    /// The corners clicked so far of a path or outline, as fractions of the page.
+    path: Vec<(f64, f64)>,
     /// Where the pointer is, in the window (to show the shape being drawn).
     hover: Option<(f64, f64)>,
     fingers: Vec<Finger>,
@@ -307,6 +331,7 @@ async fn run(window: Window, document: Document, root: Element) -> Result<(), St
         can_mark: boot.can_mark,
         tool: Tool::Move,
         first: None,
+        path: Vec::new(),
         hover: None,
         fingers: Vec::new(),
         press: None,
@@ -406,6 +431,17 @@ fn measure_text(v: &Viewer, tool: Tool, a: (f64, f64), b: (f64, f64)) -> Option<
     }
 }
 
+/// What a path or outline through `pts` (fractions of the page) measures on this page, as text.
+fn measure_path(v: &Viewer, tool: Tool, pts: &[(f64, f64)]) -> Option<String> {
+    let s = scale_here(v)?;
+    let units: Vec<(u16, u16)> = pts.iter().map(|p| (geom::to_units(p.0), geom::to_units(p.1))).collect();
+    match tool {
+        Tool::Path => s.path_length(&units).map(|um| s.unit.length_text(um)),
+        Tool::Outline => s.polygon_area(&units).map(|um| s.unit.area_text(um)),
+        _ => None,
+    }
+}
+
 fn paint(v: &Viewer) {
     let c = &v.ctx;
     c.set_fill_style_str("#dfe3e8");
@@ -423,7 +459,7 @@ fn paint(v: &Viewer) {
     }
     // The stretch the page's scale was set from, faintly, while a measuring tool is in use.
     if v.compare.is_none()
-        && matches!(v.tool, Tool::Scale | Tool::Length | Tool::Area)
+        && matches!(v.tool, Tool::Scale | Tool::Length | Tool::Area | Tool::Path | Tool::Outline)
         && let Some(s) = scale_here(v)
     {
         let ((x1, y1), (x2, y2)) =
@@ -436,6 +472,29 @@ fn paint(v: &Viewer) {
         c.line_to(x2, y2);
         c.stroke();
         ok(c.set_line_dash(&js_sys::Array::new()));
+    }
+    // The path or outline being placed: the corners so far and a line to the pointer.
+    if !v.path.is_empty() {
+        let screen: Vec<(f64, f64)> = v.path.iter().map(|p| v.cam.to_screen(p.0, p.1)).collect();
+        let mut shown = screen.clone();
+        let mut pts = v.path.clone();
+        if let Some((hx, hy)) = v.hover {
+            shown.push((hx, hy));
+            if let Some(b) = v.cam.to_page(hx, hy) {
+                pts.push(b);
+            }
+        }
+        let reading = if pts.len() >= v.tool.least_points() { measure_path(v, v.tool, &pts).unwrap_or_default() } else { String::new() };
+        draw_shape(c, &Shape::Poly { points: shown, closed: v.tool == Tool::Outline && pts.len() >= 3, label: String::new() }, BLUE);
+        c.set_fill_style_str(BLUE);
+        for (x, y) in &screen {
+            c.begin_path();
+            ok(c.arc(*x, *y, 4.0, 0.0, std::f64::consts::TAU));
+            c.fill();
+        }
+        if let Some((hx, hy)) = v.hover {
+            label_at(c, &reading, hx + 12.0, hy - 8.0, BLUE);
+        }
     }
     // The markup being placed.
     if let Some((fx, fy)) = v.first {
@@ -512,6 +571,20 @@ fn draw_shape(c: &CanvasRenderingContext2d, shape: &Shape, color: &str) {
             c.set_font("bold 16px sans-serif");
             label_at(c, label, *x, *y, color);
         }
+        Shape::Poly { points, closed, label } => {
+            if let Some(((fx, fy), rest)) = points.split_first() {
+                c.begin_path();
+                c.move_to(*fx, *fy);
+                for (x, y) in rest {
+                    c.line_to(*x, *y);
+                }
+                if *closed {
+                    c.close_path();
+                }
+                c.stroke();
+                label_at(c, label, *fx + 4.0, *fy - 6.0, color);
+            }
+        }
     }
 }
 
@@ -531,7 +604,7 @@ fn label_at(c: &CanvasRenderingContext2d, text: &str, x: f64, y: f64, color: &st
 }
 
 fn set_hint(v: &Viewer) {
-    set_status(v, v.tool.hint(v.first.is_some()));
+    set_status(v, v.tool.hint(v.first.is_some() || !v.path.is_empty()));
 }
 
 fn set_status(v: &Viewer, text: &str) {
@@ -543,6 +616,7 @@ fn set_status(v: &Viewer, text: &str) {
 fn set_tool(v: &mut Viewer, tool: Tool) {
     v.tool = tool;
     v.first = None;
+    v.path.clear();
     ok(v.canvas.class_list().toggle_with_force("marking", tool != Tool::Move));
     each(v.root.get_elements_by_class_name("tool-btn"), |b| {
         let on = b.get_attribute("data-tool").as_deref().and_then(Tool::from_key) == Some(tool);
@@ -680,6 +754,7 @@ fn open_form(v: &mut Viewer, a: (f64, f64), b: Option<(f64, f64)>) {
     set("mk-y", geom::to_units(a.1).to_string(), true);
     // A pin or a piece of text has one point; the far corner is only sent for a box or arrow.
     let far = b.unwrap_or(a);
+    set("mk-points", String::new(), false);
     set("mk-x2", geom::to_units(far.0).to_string(), b.is_some());
     set("mk-y2", geom::to_units(far.1).to_string(), b.is_some());
     // What a length or area measures, so the person can check it before saving.
@@ -699,16 +774,81 @@ fn open_form(v: &mut Viewer, a: (f64, f64), b: Option<(f64, f64)>) {
     set_hint(v);
 }
 
+/// Ends a path or outline: opens the form with its corners, or says how many more are needed.
+fn finish_path(v: &mut Viewer) {
+    let pts = std::mem::take(&mut v.path);
+    if pts.len() < v.tool.least_points() {
+        set_status(v, "That needs more points. Keep clicking, or press Escape to start over.");
+        v.path = pts;
+        return;
+    }
+    let units: Vec<(u16, u16)> = pts.iter().map(|p| (geom::to_units(p.0), geom::to_units(p.1))).collect();
+    // The engine refuses a path that crosses itself; say so here, before the form.
+    if !buildkiosk_model::drawing::outline_is_simple(&units, v.tool == Tool::Outline) {
+        set_status(v, "The sides cross or double back. Backspace removes the last point; draw it so the sides only meet at corners.");
+        v.path = pts;
+        return;
+    }
+    let set = |id: &str, value: String, enabled: bool| {
+        if let Some(i) = input(v, id) {
+            i.set_value(&value);
+            i.set_disabled(!enabled);
+        }
+    };
+    let first = units.first().copied().unwrap_or((0, 0));
+    let second = units.get(1).copied().unwrap_or(first);
+    set("mk-kind", v.tool.kind().to_string(), true);
+    set("mk-x", first.0.to_string(), true);
+    set("mk-y", first.1.to_string(), true);
+    set("mk-x2", second.0.to_string(), false);
+    set("mk-y2", second.1.to_string(), false);
+    set("mk-points", units.iter().map(|p| format!("{},{}", p.0, p.1)).collect::<Vec<_>>().join(" "), true);
+    let reading = measure_path(v, v.tool, &pts).map(|t| format!("Measures {t}")).unwrap_or_default();
+    if let Some(e) = v.document.get_element_by_id("mk-reading") {
+        e.set_text_content(Some(&reading));
+    }
+    if let Some(form) = v.document.get_element_by_id("wasm-markup") {
+        ok(form.remove_attribute("hidden"));
+        form.scroll_into_view();
+    }
+    if let Some(text) = input(v, "mk-text") {
+        text.set_required(false);
+        ok(text.focus());
+    }
+    set_hint(v);
+}
+
 fn place(v: &mut Viewer, sx: f64, sy: f64) {
     if !v.can_mark || v.tool == Tool::Move || v.compare.is_some() {
         return;
     }
     let Some(p) = v.cam.to_page(sx, sy) else { return };
-    if matches!(v.tool, Tool::Length | Tool::Area) && scale_here(v).is_none() {
+    if matches!(v.tool, Tool::Length | Tool::Area | Tool::Path | Tool::Outline) && scale_here(v).is_none() {
         set_status(v, "Set this page's scale first: pick Scale, then click both ends of a stretch whose real length you know.");
         return;
     }
-    if v.tool.two_points() {
+    if v.tool.many_points() {
+        // Clicking on the last corner again (or, for an outline, the first) finishes; anything else adds a corner.
+        let near = |a: (f64, f64)| {
+            let (ax, ay) = v.cam.to_screen(a.0, a.1);
+            (ax - sx).hypot(ay - sy) <= 10.0
+        };
+        let closing = match v.tool {
+            Tool::Outline => v.path.len() >= 3 && v.path.first().is_some_and(|f| near(*f)),
+            _ => v.path.last().is_some_and(|l| near(*l)) && v.path.len() >= 2,
+        };
+        if closing {
+            finish_path(v);
+        } else if v.path.last().is_none_or(|l| !near(*l)) {
+            if v.path.len() >= buildkiosk_model::drawing::MAX_POINTS {
+                set_status(v, "That is as many points as one path can have; press Enter to finish.");
+            } else {
+                v.path.push(p);
+                v.hover = Some((sx, sy));
+                set_hint(v);
+            }
+        }
+    } else if v.tool.two_points() {
         match v.first.take() {
             None => {
                 v.first = Some(p);
@@ -787,6 +927,7 @@ fn switch(v: &mut Viewer, req: Go) -> Result<(), String> {
     let pages = v.revs.get(v.rev).and_then(|r| r.sheet.as_ref()).map_or(1, |s| s.pages());
     v.page = req.page.unwrap_or(v.page).min(pages.saturating_sub(1));
     v.first = None;
+    v.path.clear();
     // Fit the new picture; the one before stays if the new one can't be drawn.
     let width = geom::render_width(&Camera::fit(v.stage, v.aspect), v.ratio);
     if let Err(e) = make_picture(v, width) {
@@ -835,7 +976,7 @@ fn wire(shared: &Shared) {
             let (x, y) = local(&v.canvas, &e);
             v.hover = Some((x, y));
             let Some(i) = v.fingers.iter().position(|f| f.id == e.pointer_id()) else {
-                if v.first.is_some() {
+                if v.first.is_some() || !v.path.is_empty() {
                     paint(v);
                 }
                 return;
@@ -938,6 +1079,7 @@ fn wire(shared: &Shared) {
             } else if find("[data-action=cancel]").is_some() {
                 e.prevent_default();
                 v.first = None;
+                v.path.clear();
                 close_form(v);
                 set_hint(v);
                 paint(v);
@@ -949,15 +1091,30 @@ fn wire(shared: &Shared) {
     });
 
     let s = shared.clone();
-    listen(&document, "keydown", move |e: KeyboardEvent| {
-        if e.key() == "Escape" {
-            with(&s, |v| {
-                v.first = None;
-                close_form(v);
+    listen(&document, "keydown", move |e: KeyboardEvent| match e.key().as_str() {
+        "Escape" => with(&s, |v| {
+            v.first = None;
+            v.path.clear();
+            close_form(v);
+            set_hint(v);
+            paint(v);
+        }),
+        "Enter" => with(&s, |v| {
+            if v.tool.many_points() && !v.path.is_empty() {
+                e.prevent_default();
+                finish_path(v);
+                paint(v);
+            }
+        }),
+        "Backspace" => with(&s, |v| {
+            if v.tool.many_points() && !v.path.is_empty() {
+                e.prevent_default();
+                v.path.pop();
                 set_hint(v);
                 paint(v);
-            });
-        }
+            }
+        }),
+        _ => {}
     });
 
     let s = shared.clone();

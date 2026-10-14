@@ -19,11 +19,14 @@ usage: buildkiosk <command> [options]
 
 commands:
   serve    --data DIR [--company SLUG] [--bind ADDR] [--secure-cookies]
-           [--backup-dir DIR [--backup-every-hours N] [--backup-keep N] [--backup-copy-to DIR]]
+           [--backup-dir DIR [--backup-every-hours N] [--backup-keep N] [--backup-copy-to DIR]
+            [--backup-s3-bucket B [--backup-s3-endpoint URL] [--backup-s3-region R] [--backup-s3-prefix P] [--backup-s3-virtual-host]]]
                                                        run the web app (default bind 127.0.0.1:8080); use
                                                        --secure-cookies behind an HTTPS proxy; --backup-dir takes
                                                        a backup while it runs (default every 24 hours, keeping 7);
-                                                       --backup-copy-to also copies each one to a second folder
+                                                       --backup-copy-to also copies each one to a second folder;
+                                                       --backup-s3-bucket uploads each one to S3-compatible storage
+                                                       (keys in BUILDKIOSK_S3_ACCESS_KEY and BUILDKIOSK_S3_SECRET_KEY)
   backup   --data DIR --to DIR                         copy the data directory (server stopped) and verify the copy
   restore  --from DIR --data DIR [--replace | --company SLUG]  put a backup in place as the data directory, or put one
                                                        company of it back into the existing one (server stopped);
@@ -129,8 +132,25 @@ fn serve(a: &Args) -> Result<(), String> {
         if let Some(second) = a.get("backup-copy-to") {
             app = app.with_backup_copy(second.into())?;
         }
-    } else if a.get("backup-every-hours").is_some() || a.get("backup-keep").is_some() || a.get("backup-copy-to").is_some() {
-        return Err("--backup-every-hours, --backup-keep and --backup-copy-to need --backup-dir".into());
+        if let Some(bucket) = a.get("backup-s3-bucket") {
+            // The keys come from the environment so they are not on the command line for anyone to read in a process list.
+            let key = |name: &str| std::env::var(name).map_err(|_| format!("set {name} in the environment to upload backups to object storage"));
+            let region = a.get("backup-s3-region").unwrap_or("us-east-1");
+            let endpoint = a.get("backup-s3-endpoint").map_or_else(|| format!("https://s3.{region}.amazonaws.com"), str::to_string);
+            let target = buildkiosk_server::s3::S3Target::new(
+                &endpoint,
+                bucket,
+                region,
+                a.get("backup-s3-prefix").unwrap_or("buildkiosk/"),
+                &key("BUILDKIOSK_S3_ACCESS_KEY")?,
+                &key("BUILDKIOSK_S3_SECRET_KEY")?,
+                a.get("backup-s3-virtual-host").is_none(),
+            )
+            .map_err(|e| format!("--backup-s3-*: {e}"))?;
+            app = app.with_backup_object_store(target)?;
+        }
+    } else if ["backup-every-hours", "backup-keep", "backup-copy-to", "backup-s3-bucket"].iter().any(|f| a.get(f).is_some()) {
+        return Err("--backup-every-hours, --backup-keep, --backup-copy-to and --backup-s3-bucket need --backup-dir".into());
     }
     let app = Arc::new(app);
     let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().map_err(|e| e.to_string())?;
@@ -245,12 +265,17 @@ fn mcp(a: &Args) -> Result<(), String> {
     }
     let stdin = std::io::stdin();
     let mut out = std::io::stdout().lock();
+    let mut session = buildkiosk_mcp::Session::default();
     for line in stdin.lock().lines() {
         let line = line.map_err(|e| format!("reading standard input: {e}"))?;
-        if let Some(reply) = buildkiosk_mcp::handle_line(&mut t, actor, now(), &line) {
-            writeln!(out, "{reply}").map_err(|e| format!("writing standard output: {e}"))?;
-            out.flush().map_err(|e| format!("writing standard output: {e}"))?;
+        let reply = session.handle_line(&mut t, actor, now(), &line);
+        // After every message, tell the client about subscribed resources that changed (this server is the data
+        // directory's only writer, so a change is always one this client's own calls made).
+        let notes = session.poll(&t, actor);
+        for text in reply.into_iter().chain(notes) {
+            writeln!(out, "{text}").map_err(|e| format!("writing standard output: {e}"))?;
         }
+        out.flush().map_err(|e| format!("writing standard output: {e}"))?;
     }
     Ok(())
 }

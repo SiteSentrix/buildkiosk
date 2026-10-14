@@ -2,6 +2,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing)]
 
 use buildkiosk_core::Money;
+use buildkiosk_engine::Actor;
 use buildkiosk_engine::cmd::bidding::spread;
 use buildkiosk_model::bidding::BidStatus;
 use buildkiosk_testkit::World;
@@ -265,5 +266,72 @@ fn weighted_scoring_and_the_size_of_the_bond() {
     // An award is refused while the recorded bond is short of the bid (Northline gave none: amount unknown is allowed).
     w.ok(pm, "bid_package.award", json!({"project": p, "id": id, "vendor": b}));
     w.err(pm, "bid_package.set_criteria", json!({"project": p, "id": id, "text": "Price, 100, price"}));
+    w.assert_replay();
+}
+
+#[test]
+fn bid_links_are_invited_resent_and_cancelled() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let reader = w.member(p, "Rory", "Reader", "Read only");
+    let a = w.ok(w.admin(), "vendor.create", json!({"name": "Keystone Concrete", "kind": "subcontractor"}))["id"].as_u64().unwrap();
+    let b = w.ok(w.admin(), "vendor.create", json!({"name": "Northline Concrete", "kind": "subcontractor"}))["id"].as_u64().unwrap();
+    let id = w.ok(pm, "bid_package.create", json!({"project": p, "title": "Concrete", "invite": [a]}))["id"].as_u64().unwrap();
+    let args = |extra: serde_json::Value| {
+        let mut v = json!({"project": p, "id": id});
+        v.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+        v
+    };
+
+    // A link needs a valid address, a real company and a future expiry; only people with Bidding access can send one.
+    w.err(pm, "bid_package.invite", args(json!({"vendor": a, "email": "not an address"})));
+    w.err(pm, "bid_package.invite", args(json!({"vendor": a})));
+    w.err(pm, "bid_package.invite", args(json!({"vendor": 9999, "email": "x@example.com"})));
+    w.err(pm, "bid_package.invite", args(json!({"vendor": a, "email": "x@example.com", "expires": "2000-01-01"})));
+    w.err(reader, "bid_package.invite", args(json!({"vendor": a, "email": "x@example.com"})));
+
+    let first = w.ok(pm, "bid_package.invite", args(json!({"vendor": a, "email": "Estimator@Keystone.example", "expires": "2099-01-01"})));
+    assert_eq!(first["number"], 1);
+    w.err(pm, "bid_package.invite", args(json!({"vendor": a, "email": "estimator@keystone.example"})));
+    // A second contact at the company, and a company not yet on the invited list (which is added to it).
+    assert_eq!(w.ok(pm, "bid_package.invite", args(json!({"vendor": a, "email": "owner@keystone.example"})))["number"], 2);
+    assert_eq!(w.ok(pm, "bid_package.invite", args(json!({"vendor": b, "email": "bids@northline.example"})))["number"], 3);
+    let pkg = w.engine.state().bid_packages.iter().next().unwrap().clone();
+    assert_eq!(pkg.invited.len(), 2);
+    assert_eq!(pkg.invitations[0].email, "estimator@keystone.example", "addresses are lowercased");
+    assert!(pkg.invitations.iter().all(|i| i.sent.is_none() && i.generation == 0));
+
+    // The list never carries a secret, and says what state each link is in.
+    let list = w.ok(pm, "bid_package.invitations", args(json!({})));
+    assert_eq!(list["invitations"].as_array().unwrap().len(), 3);
+    assert_eq!(list["invitations"][0]["state"], "waiting to be sent");
+    assert!(!list.to_string().contains("secret") && !list.to_string().contains("token"));
+    w.err(reader, "bid_package.resend_invite", args(json!({"number": 1})));
+
+    // The server marks a link sent only for the generation it emailed; sending again bumps the generation.
+    w.ok(pm, "bid_package.resend_invite", args(json!({"number": 1, "email": "new@keystone.example"})));
+    w.ok(Actor::System, "bid_package.invite_sent", args(json!({"number": 1, "generation": 0})));
+    let pkg = w.engine.state().bid_packages.iter().next().unwrap().clone();
+    assert!(pkg.invitations[0].sent.is_none(), "an email for the old link doesn't count");
+    assert_eq!((pkg.invitations[0].generation, pkg.invitations[0].email.as_str()), (1, "new@keystone.example"));
+    w.ok(Actor::System, "bid_package.invite_sent", args(json!({"number": 1, "generation": 1})));
+    assert!(w.engine.state().bid_packages.iter().next().unwrap().invitations[0].sent.is_some());
+    w.err(pm, "bid_package.invite_sent", args(json!({"number": 1, "generation": 1})));
+
+    // Cancelling is final: it can't be repeated or resent, and a new link can go to the same address.
+    w.ok(pm, "bid_package.revoke_invite", args(json!({"number": 2})));
+    w.err(pm, "bid_package.revoke_invite", args(json!({"number": 2})));
+    w.err(pm, "bid_package.resend_invite", args(json!({"number": 2})));
+    w.err(pm, "bid_package.revoke_invite", args(json!({"number": 99})));
+    assert_eq!(w.ok(pm, "bid_package.invite", args(json!({"vendor": a, "email": "owner@keystone.example"})))["number"], 4);
+    let list = w.ok(pm, "bid_package.invitations", args(json!({})));
+    assert_eq!(list["invitations"][1]["state"], "cancelled");
+
+    // Links stop going out once bidding has closed.
+    w.ok(pm, "bid_package.open", args(json!({})));
+    w.ok(pm, "bid_package.close", args(json!({})));
+    w.err(pm, "bid_package.invite", args(json!({"vendor": b, "email": "late@northline.example"})));
+    w.err(pm, "bid_package.resend_invite", args(json!({"number": 1})));
     w.assert_replay();
 }

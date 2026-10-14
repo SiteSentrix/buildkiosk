@@ -330,6 +330,7 @@ Calendar	Calendario
 Can sign in	Puede iniciar sesión
 Can sign in (needs an email)	Puede iniciar sesión (necesita un correo electrónico)
 Cancel	Cancelar
+Cancel bid link by {}	Cancelar enlace de oferta por {}
 Cancelled	Cancelado
 Caption	Leyenda
 Caption (used for every picture)	Leyenda (se usa en cada imagen)
@@ -1626,6 +1627,7 @@ Record addendum acknowledged by {}	Registrar acuse de adenda por {}
 Record as declined	Registrar como rechazado
 Record bid	Registrar oferta
 Record bid by {}	Registrar oferta por {}
+Record bid link emailed by {}	Registrar enlace de oferta enviado por correo por {}
 Record cost	Registrar costo
 Record declined contract by {}	Registrar contrato rechazado por {}
 Record direct cost by {}	Registrar costo directo por {}
@@ -1949,6 +1951,8 @@ Sees every project tool except financials; changes nothing.	Ve todas las herrami
 Send	Enviar
 Send a test email	Enviar un correo de prueba
 Send back	Devolver
+Send bid link again by {}	Volver a enviar enlace de oferta por {}
+Send bid link by {}	Enviar enlace de oferta por {}
 Send commitment invoice back to draft by {}	Devolver factura de compromiso a borrador por {}
 Send contract for signature by {}	Enviar contrato para firma por {}
 Send correspondence by {}	Enviar correspondencia por {}

@@ -330,6 +330,7 @@ Calendar	Kalender
 Can sign in	Kan inloggen
 Can sign in (needs an email)	Kan inloggen (e-mailadres nodig)
 Cancel	Annuleren
+Cancel bid link by {}	Biedlink annuleren door {}
 Cancelled	Geannuleerd
 Caption	Bijschrift
 Caption (used for every picture)	Bijschrift (gebruikt voor elke afbeelding)
@@ -1626,6 +1627,7 @@ Record addendum acknowledged by {}	Bevestiging van addendum vastleggen door {}
 Record as declined	Vastleggen als afgewezen
 Record bid	Inschrijving vastleggen
 Record bid by {}	Inschrijving vastleggen door {}
+Record bid link emailed by {}	Verzonden biedlink per e-mail vastleggen door {}
 Record cost	Kosten vastleggen
 Record declined contract by {}	Afgewezen contract vastleggen door {}
 Record direct cost by {}	Directe kosten vastleggen door {}
@@ -1949,6 +1951,8 @@ Sees every project tool except financials; changes nothing.	Ziet alle projecttoo
 Send	Verzenden
 Send a test email	Testmail verzenden
 Send back	Terugsturen
+Send bid link again by {}	Biedlink opnieuw versturen door {}
+Send bid link by {}	Biedlink versturen door {}
 Send commitment invoice back to draft by {}	Verplichtingsfactuur terug naar concept zetten door {}
 Send contract for signature by {}	Contract ter ondertekening verzenden door {}
 Send correspondence by {}	Correspondentie verzenden door {}

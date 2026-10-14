@@ -330,6 +330,7 @@ Calendar
 Can sign in
 Can sign in (needs an email)
 Cancel
+Cancel bid link by {}
 Cancelled
 Caption
 Caption (used for every picture)
@@ -1626,6 +1627,7 @@ Record addendum acknowledged by {}
 Record as declined
 Record bid
 Record bid by {}
+Record bid link emailed by {}
 Record cost
 Record declined contract by {}
 Record direct cost by {}
@@ -1949,6 +1951,8 @@ Sees every project tool except financials; changes nothing.
 Send
 Send a test email
 Send back
+Send bid link again by {}
+Send bid link by {}
 Send commitment invoice back to draft by {}
 Send contract for signature by {}
 Send correspondence by {}

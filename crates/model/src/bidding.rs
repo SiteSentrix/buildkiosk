@@ -117,6 +117,37 @@ pub struct BondReceipt {
     pub note: String,
 }
 
+/// A link sent to one contact at an invited company so they can open the package themselves. The secret part of
+/// the link is never stored: the server works it out from its own secret, the package, `number` and `generation`,
+/// so nothing here (or in the journal) can open the portal.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BidInvitation {
+    /// Counts up from 1 within the package; names the link.
+    pub number: u32,
+    pub vendor: Id<Vendor>,
+    /// Where the link is sent.
+    pub email: String,
+    /// Bumped when the link is sent again, which makes the earlier link stop working.
+    #[serde(default)]
+    pub generation: u32,
+    /// The link stops working after this day; none means until the package is closed or awarded.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expires: Option<Date>,
+    pub created: Stamp,
+    /// When the server emailed the current link; none while it still has to be sent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sent: Option<Stamp>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revoked: Option<Stamp>,
+}
+
+impl BidInvitation {
+    /// Whether the link opens the package on `today`.
+    pub fn active(&self, today: Date) -> bool {
+        self.revoked.is_none() && self.expires.is_none_or(|e| today <= e)
+    }
+}
+
 /// A bid from one company. Only the latest bid from a company stands.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Bid {
@@ -204,6 +235,9 @@ pub struct BidPackage {
     pub attachments: Vec<FileRef>,
     #[serde(default)]
     pub bids: Vec<Bid>,
+    /// Links sent to bidders' contacts (see `BidInvitation`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub invitations: Vec<BidInvitation>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub awarded_to: Option<Id<Vendor>>,
     /// The draft commitment made when the package was awarded.

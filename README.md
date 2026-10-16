@@ -143,6 +143,13 @@ download against published checksums first, and `--help` lists the options (see 
 curl -fsSL https://raw.githubusercontent.com/SiteSentrix/buildkiosk/main/install.sh | sh
 ```
 
+Or run the container image (Linux x86_64 and aarch64; the data lives in the `/data` volume, and Compose and proxy notes are in
+[`docs/deployment.md`](docs/deployment.md)):
+
+```sh
+docker run -d --init -p 127.0.0.1:8080:8080 -v buildkiosk-data:/data ghcr.io/sitesentrix/buildkiosk:<version>
+```
+
 To build it yourself you need Rust 1.97 or newer.
 
 ```sh

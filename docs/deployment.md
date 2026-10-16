@@ -1,6 +1,6 @@
 # Deploying BuildKiosk
 
-_Status: written with the operations commands (M5.2). Covers a single self-hosted server._
+_Status: written with the operations commands (M5.2); container image added with the release workflow. Covers a single self-hosted server._
 
 BuildKiosk is one binary and one data directory. There is no database server to run.
 
@@ -27,6 +27,41 @@ shows it was built by this repository's release workflow from a tagged commit:
 
 To uninstall, delete the binary (and, for a service install, `systemctl disable --now buildkiosk`, the unit file and, if
 you want the data gone too, `/var/lib/buildkiosk`: that is the company data, so take a backup first).
+
+## Run it in Docker
+
+Each release also publishes a container image for Linux x86_64 and aarch64 (the same static binary as the
+archives) to `ghcr.io/sitesentrix/buildkiosk`. Tags are the version (`0.1.0`); `latest` follows stable releases only,
+so while BuildKiosk is below 1.0 give the version.
+
+```
+docker run -d --init --name buildkiosk -p 127.0.0.1:8080:8080 -v buildkiosk-data:/data ghcr.io/sitesentrix/buildkiosk:0.1.0
+```
+
+Or with Compose:
+
+```
+services:
+  buildkiosk:
+    image: ghcr.io/sitesentrix/buildkiosk:0.1.0
+    restart: unless-stopped
+    init: true
+    ports: ["127.0.0.1:8080:8080"]
+    volumes: ["buildkiosk-data:/data"]
+    # Behind an HTTPS reverse proxy (see HTTPS below), add the flag; the first three words are the image's default:
+    # command: ["serve", "--data", "/data", "--bind", "0.0.0.0:8080", "--secure-cookies"]
+volumes:
+  buildkiosk-data:
+```
+
+- The image runs as an unprivileged user (uid 65532) and keeps all company data in the `/data` volume: that volume
+  is the whole system, so back it up (below). A bind-mounted folder must be writable by uid 65532.
+- It listens on port 8080 inside the container. Publish it on the loopback address as above and put the TLS proxy
+  in front; don't expose plain HTTP to the internet.
+- Other commands run the same way: `docker run --rm -v buildkiosk-data:/data ghcr.io/sitesentrix/buildkiosk:0.1.0 check --data /data`
+  (stop the server first: the data directory is locked while it runs). Run it with `--init` (`init: true` in Compose): the server has no signal handler of its own, so as the container's first process it would ignore `docker stop` until Docker kills it after 10 seconds. Nothing is lost either way, because each change is fsynced to the journal before it takes effect.
+- Verify an image the way you verify an archive: `gh attestation verify oci://ghcr.io/sitesentrix/buildkiosk:0.1.0 --repo SiteSentrix/buildkiosk`.
+- To build one yourself from a release archive, see the comment at the top of `contrib/docker/Dockerfile`.
 
 ## Run it
 

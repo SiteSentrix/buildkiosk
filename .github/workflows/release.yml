@@ -3,11 +3,12 @@
 # Push a version tag that matches the workspace version in Cargo.toml (for example `v0.1.0` for version 0.1.0):
 # the full gate (`cargo xtask ci`) runs, the program is built for Linux, macOS and Windows with the browser sheet
 # viewer embedded, each archive is checksummed and given a GitHub build attestation, and a GitHub release is
-# created with the archives, SHA256SUMS and install.sh. Versions below 1.0.0 (or with a `-suffix`) are marked as
+# created with the archives, SHA256SUMS and install.sh, and a multi-architecture container image (Linux x86_64 and
+# aarch64) is pushed to ghcr.io/<owner>/buildkiosk. Versions below 1.0.0 (or with a `-suffix`) are marked as
 # pre-releases. Nothing is published until a tag is pushed.
 #
 # Run by hand from the Actions tab ("Run workflow") to check that everything builds: it uploads the archives as
-# workflow artifacts and publishes nothing.
+# workflow artifacts, builds the container image without pushing it, and publishes nothing.
 name: Release
 
 on:
@@ -218,3 +219,76 @@ jobs:
           flags=(--title "BuildKiosk $VERSION" --generate-notes --verify-tag)
           if [ "${{ needs.version.outputs.prerelease }}" = "true" ]; then flags+=(--prerelease); fi
           gh release create "$GITHUB_REF_NAME" dist/* "${flags[@]}"
+
+  # The container image holds the Linux binaries built above, so it runs exactly what the archives contain.
+  image:
+    name: Container image
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # push to ghcr.io
+      id-token: write # sign the build attestation
+      attestations: write
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dist-*-linux-musl
+          merge-multiple: true
+          path: dist
+      - name: Build context
+        run: |
+          set -euo pipefail
+          for pair in amd64:x86_64 arm64:aarch64; do
+            arch=${pair%%:*}; target=${pair##*:}-unknown-linux-musl
+            name="buildkiosk-$VERSION-$target"
+            mkdir -p "ctx/$arch"
+            tar -xzf "dist/$name.tar.gz" --strip-components=1 -C "ctx/$arch" "$name/buildkiosk"
+          done
+          cp contrib/docker/Dockerfile ctx/Dockerfile
+          ls -lR ctx
+      - id: meta
+        name: Image name and tags
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          tags="$image:$VERSION"
+          # `latest` follows stable releases only.
+          if [ "${{ needs.version.outputs.prerelease }}" != "true" ]; then tags="$tags,$image:latest"; fi
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        if: needs.version.outputs.publish == 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      # The image for this runner's architecture has to start and work before anything is pushed.
+      - name: Smoke test
+        run: |
+          set -euo pipefail
+          docker buildx build --load --platform linux/amd64 -t buildkiosk:test ctx
+          docker run --rm buildkiosk:test version | grep -x "buildkiosk $VERSION"
+          docker run --rm -v "$RUNNER_TEMP/image-smoke:/data" --user root buildkiosk:test demo --data /data/demo > /dev/null
+          docker run --rm -v "$RUNNER_TEMP/image-smoke:/data" --user root buildkiosk:test check --data /data/demo
+      - id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: ctx
+          platforms: linux/amd64,linux/arm64
+          push: ${{ needs.version.outputs.publish == 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ needs.version.outputs.version }}
+            org.opencontainers.image.licenses=MIT OR Apache-2.0
+      - uses: actions/attest-build-provenance@v2
+        if: needs.version.outputs.publish == 'true'
+        with:
+          subject-name: ${{ steps.meta.outputs.image }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true

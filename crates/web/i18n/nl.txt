@@ -188,6 +188,7 @@ Any template	Elk sjabloon
 Any {}	Elke {}
 Anyone	Iedereen
 Anyone with this link can ask to be invited to bid. Nobody gets the bid documents until you approve their request.	Iedereen met deze link kan vragen om uitgenodigd te worden om te bieden. Niemand krijgt de aanbestedingsdocumenten voordat u het verzoek goedkeurt.
+Anyone with this link can read the contract and sign it for the other party. Send it only to them.	Iedereen met deze link kan het contract lezen en namens de andere partij ondertekenen. Stuur hem alleen naar hen.
 Anyone with this link can read the package and send or change a bid for	Iedereen met deze link kan het pakket lezen en een bieding versturen of wijzigen voor
 Anyone with this link can read the package and send or change a bid for {}. Send it only to them.	Iedereen met deze link kan het pakket lezen en een bieding versturen of wijzigen voor {}. Stuur hem alleen naar hen.
 Applied	Toegepast
@@ -225,6 +226,7 @@ As late as possible	Zo laat mogelijk
 As requested	Zoals gevraagd
 As soon as possible	Zo snel mogelijk
 Ask the team a question	Stel het team een vraag
+Ask the team if you want to look at it again.	Vraag het team of u het opnieuw wilt bekijken.
 Ask to bid	Vraag om mee te bieden
 Asked	Gevraagd
 Assemblies	Samenstellingen
@@ -610,6 +612,8 @@ Dec	Dec
 Decision	Beslissing
 Decline	Afwijzen
 Decline a request to bid by {}	Een verzoek om te bieden afwijzen door {}
+Decline to sign	Weigeren te ondertekenen
+Decline to sign through the link by {}	Weigering van ondertekening via de link door {}
 Declined	Afgewezen
 Delays	Vertragingen
 Delays and issues	Vertragingen en problemen
@@ -794,6 +798,7 @@ Edit type	Type bewerken
 Edit {}	{} bewerken
 Electrical	Elektra
 Email	E-mail
+Email a signing link to	Ondertekeningslink mailen naar
 Email address	E-mailadres
 Email me my notifications	Mijn meldingen e-mailen
 Embeds, sleeves and penetrations are in place and secured	Inbouwdelen, hulzen en doorvoeren zijn aangebracht en vastgezet
@@ -892,6 +897,7 @@ Folder settings	Mapinstellingen
 Folders	Mappen
 Followed by	Gevolgd door
 Follows	Volgt op
+For	Voor
 For approval	Ter goedkeuring
 For construction	Voor uitvoering
 For information	Ter informatie
@@ -953,7 +959,10 @@ How many of each resource you can have working on one day, one per line, such as
 How many units	Hoeveel eenheden
 How much of a code's work is done. Leave blank to remove it.	Hoeveel werk van een code is gereed. Laat leeg om het te verwijderen.
 How often	Hoe vaak
+I can't sign this	Ik kan dit niet ondertekenen
 I have read this addendum	Ik heb dit addendum gelezen
+I have read this contract and agree to it, and I am authorised to sign for	Ik heb dit contract gelezen, ga ermee akkoord en ben bevoegd om te tekenen namens
+I have read this contract and agree to it, and I am authorised to sign for {}.	Ik heb dit contract gelezen, ga ermee akkoord en ben bevoegd om te tekenen namens {}.
 If the link ends up somewhere you don't want it, use Replace the link	Als de link ergens terechtkomt waar u hem niet wilt, gebruik dan Link vervangen
 If this company was entered twice, merge it into the one to keep. RFIs, commitments, bids, people and other records that name	Als dit bedrijf twee keer is ingevoerd, voeg het dan samen met het bedrijf dat je wilt behouden. RFI's, verplichtingen, inschrijvingen, personen en andere records die verwijzen naar
 If this company was entered twice, merge it into the one to keep. RFIs, commitments, bids, people and other records that name {} will name the kept company instead, and {} is removed from the directory. Blank details of the kept company are filled in from this one.	Als dit bedrijf twee keer is ingevoerd, voeg het dan samen met het bedrijf dat je wilt behouden. RFI's, verplichtingen, inschrijvingen, personen en andere records die verwijzen naar {} verwijzen daarna naar het behouden bedrijf, en {} wordt uit het adresboek verwijderd. Lege gegevens van het behouden bedrijf worden aangevuld vanuit dit bedrijf.
@@ -1071,6 +1080,7 @@ Late schedule tasks	Te late planningstaken
 Laydown yard	Opslagterrein
 Leave To empty to post the seven days from From.	Laat Tot leeg om de zeven dagen vanaf Van te boeken.
 Leave blank to use the template's name.	Laat leeg om de naam van het sjabloon te gebruiken.
+Leave empty to sign on paper	Leeg laten om op papier te ondertekenen
 Leave the markups out	De markeringen weglaten
 Leave this empty	Laat dit leeg
 Length	Lengte
@@ -1097,6 +1107,7 @@ Line {} quantity	Hoeveelheid van regel {}
 Line {} unit	Eenheid van regel {}
 Lines	Regels
 Link not valid	Link niet geldig
+Link works until	Link werkt tot
 Linked RFIs	Gekoppelde RFI's
 Linked documents	Gekoppelde documenten
 Linked submittals	Gekoppelde submittals
@@ -1135,7 +1146,6 @@ Mar	Mrt
 Mark action done by {}	Actie als gereed markeren door {}
 Mark all as read	Alles als gelezen markeren
 Mark as official	Als officieel markeren
-Mark as sent for signature	Als verzonden ter ondertekening markeren
 Mark complete	Als voltooid markeren
 Mark done	Als gereed markeren
 Mark incident work done by {}	Incidentwerk als gereed markeren door {}
@@ -1695,6 +1705,7 @@ Record questionnaire answers by {}	Antwoorden op vragenlijst vastleggen door {}
 Record receipt	Ontvangst vastleggen
 Record signature	Handtekening vastleggen
 Record signed contract by {}	Ondertekend contract vastleggen door {}
+Record that a signing link was emailed by {}	Registratie dat een ondertekeningslink is gemaild door {}
 Record the signature	De handtekening vastleggen
 Record the signed contract	Het ondertekende contract vastleggen
 Recordable	Registreerbaar
@@ -2014,6 +2025,7 @@ Send commitment invoice back to draft by {}	Verplichtingsfactuur terug naar conc
 Send contract for signature by {}	Contract ter ondertekening verzenden door {}
 Send correspondence by {}	Correspondentie verzenden door {}
 Send for review	Ter beoordeling verzenden
+Send for signature	Ter ondertekening versturen
 Send from	Verzenden vanaf
 Send hours back by {}	Uren terugsturen door {}
 Send incident back by {}	Incident terugsturen door {}
@@ -2089,6 +2101,7 @@ Show the link	De link tonen
 Show them	Toon ze
 Side by side	Naast elkaar
 Sign	Ondertekenen
+Sign a contract through its link by {}	Ondertekening van een contract via de link door {}
 Sign as	Ondertekenen als
 Sign form by {}	Formulier ondertekenen door {}
 Sign in	Inloggen
@@ -2103,6 +2116,10 @@ Signed by	Ondertekend door
 Signed contracts	Ondertekende contracten
 Signed off	Afgetekend
 Signed off by {} on {}.	Afgetekend door {} op {}.
+Signed through the link	Ondertekend via de link
+Signing link	Ondertekeningslink
+Signing link for	Ondertekeningslink voor
+Signing link for {}	Ondertekeningslink voor {}
 Signing opens once the form is submitted.	Ondertekenen kan zodra het formulier is ingediend.
 Signing roles (separated by commas)	Ondertekenrollen (gescheiden door komma's)
 Sincerely,	Met vriendelijke groet,
@@ -2242,6 +2259,7 @@ Text	Tekst
 That page doesn't exist, or you don't have access to it.	Die pagina bestaat niet, of je hebt er geen toegang toe.
 The address of this server is used for the links in messages.	Het adres van deze server wordt gebruikt voor de links in berichten.
 The catalogue is empty.	De catalogus is leeg.
+The contract	Het contract
 The dashed line is today. Red bars are on the critical path. Grey columns are days off. Float is the working days a task can slip without moving the last finish.	De stippellijn is vandaag. Rode balken liggen op het kritieke pad. Grijze kolommen zijn vrije dagen. Speling is het aantal werkdagen dat een taak kan opschuiven zonder de laatste einddatum te verplaatsen.
 The days work is done on. Task dates and durations are counted in these days.	De dagen waarop wordt gewerkt. Taakdatums en duur worden in deze dagen geteld.
 The due date for this package has passed, so it is no longer taking bids. Ask the team if you need more time.	De uiterste datum voor dit pakket is verstreken, dus het neemt geen biedingen meer aan. Vraag het team om meer tijd.
@@ -2262,10 +2280,13 @@ The sheet log	De tekeninglog
 The team answers you here. They may share a question and its answer with the other bidders, without your name.	Het team antwoordt u hier. Het kan een vraag en het antwoord delen met de andere bieders, zonder uw naam.
 The template	Het sjabloon
 The thin bar under a task is its baseline.	De dunne balk onder een taak is de basisplanning.
+There are no lines on this contract yet.	Dit contract heeft nog geen regels.
 There are no tasks in your projects.	Er zijn geen taken in je projecten.
 There is nothing to show.	Er is niets om te tonen.
 These answers are to version	Deze antwoorden zijn voor versie
 Things to get done, with an owner and a due date	Dingen die gedaan moeten worden, met een eigenaar en een vervaldatum
+This contract can't be signed now. Ask the team.	Dit contract kan nu niet worden ondertekend. Vraag het team.
+This contract is not out for signature. Ask the team.	Dit contract staat niet open voor ondertekening. Vraag het team.
 This is the view you open by default.	Dit is de weergave die je standaard opent.
 This link doesn't work	Deze link werkt niet
 This month	Deze maand
@@ -2317,6 +2338,7 @@ Type it in	Zelf typen
 Type the real length of the stretch you just drew, from a dimension printed on the sheet or a known size. Anything else on this page is measured against it.	Typ de werkelijke lengte van het stuk dat je zojuist hebt getekend, uit een maat die op de tekening staat of een bekende afmeting. Al het andere op deze pagina wordt ermee vergeleken.
 Type your full name	Typ je volledige naam
 Types	Typen
+Typing your name here is your signature. We record your name, the date and time, and the version of the contract you saw.	Uw naam hier typen is uw handtekening. We leggen uw naam, de datum en tijd en de versie van het contract vast die u zag.
 USD	USD
 Unassigned	Niet toegewezen
 Unit	Eenheid
@@ -2426,6 +2448,7 @@ Who should see it	Wie het moet zien
 Who signed for the other party	Wie tekende namens de andere partij
 Who signed for the owner	Wie tekende namens de opdrachtgever
 Why	Waarom
+Why (optional)	Reden (optioneel)
 Windy	Winderig
 With a forecast, the projected cost is the cost to date plus the forecast. Leave the amount blank to remove a forecast. A code with no forecast is projected by the project's method	Met een prognose zijn de verwachte kosten de kosten tot nu toe plus de prognose. Laat het bedrag leeg om een prognose te verwijderen. Een code zonder prognose wordt berekend volgens de methode van het project
 Withdraw	Intrekken
@@ -2456,6 +2479,7 @@ Yes, a single day	Ja, één dag
 Yes, enter it on the injury log	Ja, op het letselregister invoeren
 Yes, only the people below, the manager and the tool's admins	Ja, alleen de mensen hieronder, de manager en de beheerders van de tool
 You can change your bid below until the due date.	U kunt uw bieding hieronder wijzigen tot de uiterste datum.
+You declined to sign this contract.	U hebt geweigerd dit contract te ondertekenen.
 You have no tokens.	Je hebt geen tokens.
 You have read this	U heeft dit gelezen
 You'll be told here when something needs you, like a submittal waiting for your review.	Hier krijg je een melding wanneer iets jouw aandacht nodig heeft, zoals een submittal die op jouw beoordeling wacht.

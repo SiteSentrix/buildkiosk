@@ -13,6 +13,7 @@ pub mod prequal;
 pub mod project;
 pub mod report;
 pub mod rfi;
+pub mod signing;
 // -- project management
 pub mod correspondence;
 pub mod meeting;
@@ -135,6 +136,7 @@ const MODULES: &[&[CommandSpec]] = &[
     directory::COMMANDS,
     perm::COMMANDS,
     prequal::COMMANDS,
+    signing::COMMANDS,
     project::COMMANDS,
     report::COMMANDS,
     rfi::COMMANDS,

@@ -97,7 +97,7 @@ differs; [`docs/gaps.md`](docs/gaps.md) lists what each one still lacks.
 | Tool | What you can do |
 | --- | --- |
 | **Budget** | By cost code with forecast, saved views, snapshots and comparison, and a lock; PDF and CSV |
-| **Commitments** | Subcontracts and purchase orders with schedule of values, change orders, approvals, signatures and files |
+| **Commitments** | Subcontracts and purchase orders with schedule of values, change orders, approvals, signatures (the other party can sign through an emailed link) and files |
 | **Direct costs** | Costs outside commitments, posted to the budget |
 | **Prime contract** | The owner's contract, its change orders, and owner invoices (payment applications designed from first principles) |
 | **Commitment invoices** | Invoices against commitments with retainage |
@@ -131,7 +131,7 @@ differs; [`docs/gaps.md`](docs/gaps.md) lists what each one still lacks.
 ### Not yet
 
 A way to share documents by link, offline field mode and mobile apps, native
-Microsoft Project (.mpp) files, integrations with other software, electronic signing inside BuildKiosk, and the
+Microsoft Project (.mpp) files, integrations with other software, and the
 long tail of each tool. These are tracked in [`docs/gaps.md`](docs/gaps.md) and [`ROADMAP.md`](ROADMAP.md).
 
 ## Install or build it

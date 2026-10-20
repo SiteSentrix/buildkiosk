@@ -188,6 +188,7 @@ Any template	Cualquier plantilla
 Any {}	Cualquier {}
 Anyone	Cualquier persona
 Anyone with this link can ask to be invited to bid. Nobody gets the bid documents until you approve their request.	Cualquiera con este enlace puede pedir que lo inviten a licitar. Nadie recibe los documentos de la licitación hasta que usted apruebe su solicitud.
+Anyone with this link can read the contract and sign it for the other party. Send it only to them.	Cualquiera con este enlace puede leer el contrato y firmarlo por la otra parte. Envíelo solo a ella.
 Anyone with this link can read the package and send or change a bid for	Cualquiera con este enlace puede leer el paquete y enviar o cambiar una oferta de
 Anyone with this link can read the package and send or change a bid for {}. Send it only to them.	Cualquiera con este enlace puede leer el paquete y enviar o cambiar una oferta de {}. Envíelo solo a esa empresa.
 Applied	Aplicado
@@ -225,6 +226,7 @@ As late as possible	Lo más tarde posible
 As requested	Según lo solicitado
 As soon as possible	Lo antes posible
 Ask the team a question	Hacer una pregunta al equipo
+Ask the team if you want to look at it again.	Pregunte al equipo si quiere revisarlo de nuevo.
 Ask to bid	Pedir participar en la licitación
 Asked	Solicitada
 Assemblies	Ensambles
@@ -610,6 +612,8 @@ Dec	Dic
 Decision	Decisión
 Decline	Rechazar
 Decline a request to bid by {}	Rechazar una solicitud para licitar por {}
+Decline to sign	Rechazar la firma
+Decline to sign through the link by {}	Rechazo de firma mediante el enlace por {}
 Declined	Rechazado
 Delays	Retrasos
 Delays and issues	Retrasos y problemas
@@ -794,6 +798,7 @@ Edit type	Editar tipo
 Edit {}	Editar {}
 Electrical	Eléctrico
 Email	Correo electrónico
+Email a signing link to	Enviar un enlace de firma por correo a
 Email address	Correo electrónico
 Email me my notifications	Enviarme mis notificaciones por correo
 Embeds, sleeves and penetrations are in place and secured	Los empotrados, manguitos y pasos están colocados y asegurados
@@ -892,6 +897,7 @@ Folder settings	Configuración de la carpeta
 Folders	Carpetas
 Followed by	Seguida de
 Follows	Sigue a
+For	Para
 For approval	Para aprobación
 For construction	Para construcción
 For information	Para información
@@ -953,7 +959,10 @@ How many of each resource you can have working on one day, one per line, such as
 How many units	Cuántas unidades
 How much of a code's work is done. Leave blank to remove it.	Cuánto del trabajo de un código está hecho. Déjalo en blanco para quitarlo.
 How often	Con qué frecuencia
+I can't sign this	No puedo firmar esto
 I have read this addendum	He leído esta adenda
+I have read this contract and agree to it, and I am authorised to sign for	He leído este contrato, estoy de acuerdo y estoy autorizado para firmar por
+I have read this contract and agree to it, and I am authorised to sign for {}.	He leído este contrato, estoy de acuerdo y estoy autorizado para firmar por {}.
 If the link ends up somewhere you don't want it, use Replace the link	Si el enlace acaba donde no quiere, use Reemplazar el enlace
 If this company was entered twice, merge it into the one to keep. RFIs, commitments, bids, people and other records that name	Si esta empresa se introdujo dos veces, combínala con la que quieres conservar. Los RFI, compromisos, ofertas, personas y otros registros que nombran
 If this company was entered twice, merge it into the one to keep. RFIs, commitments, bids, people and other records that name {} will name the kept company instead, and {} is removed from the directory. Blank details of the kept company are filled in from this one.	Si esta empresa se introdujo dos veces, combínala con la que quieres conservar. Los RFI, compromisos, ofertas, personas y otros registros que nombran a {} nombrarán en su lugar a la empresa conservada, y {} se quita del directorio. Los datos en blanco de la empresa conservada se completan con los de esta.
@@ -1071,6 +1080,7 @@ Late schedule tasks	Tareas del cronograma atrasadas
 Laydown yard	Patio de acopio
 Leave To empty to post the seven days from From.	Deja Hasta vacío para publicar los siete días desde Desde.
 Leave blank to use the template's name.	Déjalo en blanco para usar el nombre de la plantilla.
+Leave empty to sign on paper	Déjelo vacío para firmar en papel
 Leave the markups out	Omitir las anotaciones
 Leave this empty	Deje esto vacío
 Length	Longitud
@@ -1097,6 +1107,7 @@ Line {} quantity	Cantidad de la línea {}
 Line {} unit	Unidad de la línea {}
 Lines	Líneas
 Link not valid	Enlace no válido
+Link works until	El enlace funciona hasta
 Linked RFIs	RFI vinculados
 Linked documents	Documentos vinculados
 Linked submittals	Submittals vinculados
@@ -1135,7 +1146,6 @@ Mar	Mar
 Mark action done by {}	Marcar acción como hecha por {}
 Mark all as read	Marcar todo como leído
 Mark as official	Marcar como oficial
-Mark as sent for signature	Marcar como enviado para firma
 Mark complete	Marcar como completo
 Mark done	Marcar como hecho
 Mark incident work done by {}	Marcar trabajo del incidente como hecho por {}
@@ -1695,6 +1705,7 @@ Record questionnaire answers by {}	Registrar respuestas del cuestionario por {}
 Record receipt	Registrar recepción
 Record signature	Registrar firma
 Record signed contract by {}	Registrar contrato firmado por {}
+Record that a signing link was emailed by {}	Registro del envío por correo de un enlace de firma por {}
 Record the signature	Registra la firma
 Record the signed contract	Registra el contrato firmado
 Recordable	Registrable
@@ -2014,6 +2025,7 @@ Send commitment invoice back to draft by {}	Devolver factura de compromiso a bor
 Send contract for signature by {}	Enviar contrato para firma por {}
 Send correspondence by {}	Enviar correspondencia por {}
 Send for review	Enviar a revisión
+Send for signature	Enviar a firma
 Send from	Enviar desde
 Send hours back by {}	Devolver horas por {}
 Send incident back by {}	Devolver incidente por {}
@@ -2089,6 +2101,7 @@ Show the link	Mostrar el enlace
 Show them	Mostrarlos
 Side by side	Lado a lado
 Sign	Firmar
+Sign a contract through its link by {}	Firma de un contrato mediante su enlace por {}
 Sign as	Firmar como
 Sign form by {}	Firmar formulario por {}
 Sign in	Iniciar sesión
@@ -2103,6 +2116,10 @@ Signed by	Firmado por
 Signed contracts	Contratos firmados
 Signed off	Aprobado
 Signed off by {} on {}.	Aprobado por {} el {}.
+Signed through the link	Firmado mediante el enlace
+Signing link	Enlace de firma
+Signing link for	Enlace de firma para
+Signing link for {}	Enlace de firma para {}
 Signing opens once the form is submitted.	La firma se habilita cuando se envía el formulario.
 Signing roles (separated by commas)	Roles de firma (separados por comas)
 Sincerely,	Atentamente,
@@ -2242,6 +2259,7 @@ Text	Texto
 That page doesn't exist, or you don't have access to it.	Esa página no existe, o no tienes acceso a ella.
 The address of this server is used for the links in messages.	La dirección de este servidor se usa para los vínculos en los mensajes.
 The catalogue is empty.	El catálogo está vacío.
+The contract	El contrato
 The dashed line is today. Red bars are on the critical path. Grey columns are days off. Float is the working days a task can slip without moving the last finish.	La línea punteada es hoy. Las barras rojas están en la ruta crítica. Las columnas grises son días libres. La holgura son los días laborables que una tarea puede retrasarse sin mover la última fecha de fin.
 The days work is done on. Task dates and durations are counted in these days.	Los días en que se trabaja. Las fechas y duraciones de las tareas se cuentan en estos días.
 The due date for this package has passed, so it is no longer taking bids. Ask the team if you need more time.	La fecha límite de este paquete ya pasó, por lo que ya no recibe ofertas. Consulte al equipo si necesita más tiempo.
@@ -2262,10 +2280,13 @@ The sheet log	El registro de planos
 The team answers you here. They may share a question and its answer with the other bidders, without your name.	El equipo le responde aquí. Puede compartir una pregunta y su respuesta con los demás licitantes, sin su nombre.
 The template	La plantilla
 The thin bar under a task is its baseline.	La barra delgada bajo una tarea es su línea base.
+There are no lines on this contract yet.	Este contrato aún no tiene líneas.
 There are no tasks in your projects.	No hay tareas en tus proyectos.
 There is nothing to show.	No hay nada que mostrar.
 These answers are to version	Estas respuestas son de la versión
 Things to get done, with an owner and a due date	Cosas por hacer, con un responsable y una fecha de vencimiento
+This contract can't be signed now. Ask the team.	Este contrato no se puede firmar ahora. Pregunte al equipo.
+This contract is not out for signature. Ask the team.	Este contrato no está pendiente de firma. Pregunte al equipo.
 This is the view you open by default.	Esta es la vista que se abre por defecto.
 This link doesn't work	Este enlace no funciona
 This month	Este mes
@@ -2317,6 +2338,7 @@ Type it in	Escríbelo
 Type the real length of the stretch you just drew, from a dimension printed on the sheet or a known size. Anything else on this page is measured against it.	Escribe la longitud real del tramo que acabas de dibujar, según una cota impresa en el plano o un tamaño conocido. Todo lo demás en esta página se mide con respecto a ella.
 Type your full name	Escribe tu nombre completo
 Types	Tipos
+Typing your name here is your signature. We record your name, the date and time, and the version of the contract you saw.	Escribir su nombre aquí es su firma. Registramos su nombre, la fecha y la hora, y la versión del contrato que vio.
 USD	USD
 Unassigned	Sin asignar
 Unit	Unidad
@@ -2426,6 +2448,7 @@ Who should see it	Quién debería verlo
 Who signed for the other party	Quién firmó por la otra parte
 Who signed for the owner	Quién firmó por el propietario
 Why	Por qué
+Why (optional)	Motivo (opcional)
 Windy	Ventoso
 With a forecast, the projected cost is the cost to date plus the forecast. Leave the amount blank to remove a forecast. A code with no forecast is projected by the project's method	Con una proyección, el costo proyectado es el costo a la fecha más la proyección. Deja el monto en blanco para quitar una proyección. Un código sin proyección se proyecta con el método del proyecto
 Withdraw	Retirar
@@ -2456,6 +2479,7 @@ Yes, a single day	Sí, un solo día
 Yes, enter it on the injury log	Sí, anótalo en el registro de lesiones
 Yes, only the people below, the manager and the tool's admins	Sí, solo las personas de abajo, el gerente y los administradores de la herramienta
 You can change your bid below until the due date.	Puede cambiar su oferta más abajo hasta la fecha límite.
+You declined to sign this contract.	Usted rechazó firmar este contrato.
 You have no tokens.	No tienes tokens.
 You have read this	Usted ha leído esto
 You'll be told here when something needs you, like a submittal waiting for your review.	Aquí se te avisará cuando algo requiera tu atención, como un submittal esperando tu revisión.

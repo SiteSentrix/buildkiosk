@@ -188,6 +188,7 @@ Any template
 Any {}
 Anyone
 Anyone with this link can ask to be invited to bid. Nobody gets the bid documents until you approve their request.
+Anyone with this link can read the contract and sign it for the other party. Send it only to them.
 Anyone with this link can read the package and send or change a bid for
 Anyone with this link can read the package and send or change a bid for {}. Send it only to them.
 Applied
@@ -225,6 +226,7 @@ As late as possible
 As requested
 As soon as possible
 Ask the team a question
+Ask the team if you want to look at it again.
 Ask to bid
 Asked
 Assemblies
@@ -610,6 +612,8 @@ Dec
 Decision
 Decline
 Decline a request to bid by {}
+Decline to sign
+Decline to sign through the link by {}
 Declined
 Delays
 Delays and issues
@@ -794,6 +798,7 @@ Edit type
 Edit {}
 Electrical
 Email
+Email a signing link to
 Email address
 Email me my notifications
 Embeds, sleeves and penetrations are in place and secured
@@ -892,6 +897,7 @@ Folder settings
 Folders
 Followed by
 Follows
+For
 For approval
 For construction
 For information
@@ -953,7 +959,10 @@ How many of each resource you can have working on one day, one per line, such as
 How many units
 How much of a code's work is done. Leave blank to remove it.
 How often
+I can't sign this
 I have read this addendum
+I have read this contract and agree to it, and I am authorised to sign for
+I have read this contract and agree to it, and I am authorised to sign for {}.
 If the link ends up somewhere you don't want it, use Replace the link
 If this company was entered twice, merge it into the one to keep. RFIs, commitments, bids, people and other records that name
 If this company was entered twice, merge it into the one to keep. RFIs, commitments, bids, people and other records that name {} will name the kept company instead, and {} is removed from the directory. Blank details of the kept company are filled in from this one.
@@ -1071,6 +1080,7 @@ Late schedule tasks
 Laydown yard
 Leave To empty to post the seven days from From.
 Leave blank to use the template's name.
+Leave empty to sign on paper
 Leave the markups out
 Leave this empty
 Length
@@ -1097,6 +1107,7 @@ Line {} quantity
 Line {} unit
 Lines
 Link not valid
+Link works until
 Linked RFIs
 Linked documents
 Linked submittals
@@ -1135,7 +1146,6 @@ Mar
 Mark action done by {}
 Mark all as read
 Mark as official
-Mark as sent for signature
 Mark complete
 Mark done
 Mark incident work done by {}
@@ -1695,6 +1705,7 @@ Record questionnaire answers by {}
 Record receipt
 Record signature
 Record signed contract by {}
+Record that a signing link was emailed by {}
 Record the signature
 Record the signed contract
 Recordable
@@ -2014,6 +2025,7 @@ Send commitment invoice back to draft by {}
 Send contract for signature by {}
 Send correspondence by {}
 Send for review
+Send for signature
 Send from
 Send hours back by {}
 Send incident back by {}
@@ -2089,6 +2101,7 @@ Show the link
 Show them
 Side by side
 Sign
+Sign a contract through its link by {}
 Sign as
 Sign form by {}
 Sign in
@@ -2103,6 +2116,10 @@ Signed by
 Signed contracts
 Signed off
 Signed off by {} on {}.
+Signed through the link
+Signing link
+Signing link for
+Signing link for {}
 Signing opens once the form is submitted.
 Signing roles (separated by commas)
 Sincerely,
@@ -2242,6 +2259,7 @@ Text
 That page doesn't exist, or you don't have access to it.
 The address of this server is used for the links in messages.
 The catalogue is empty.
+The contract
 The dashed line is today. Red bars are on the critical path. Grey columns are days off. Float is the working days a task can slip without moving the last finish.
 The days work is done on. Task dates and durations are counted in these days.
 The due date for this package has passed, so it is no longer taking bids. Ask the team if you need more time.
@@ -2262,10 +2280,13 @@ The sheet log
 The team answers you here. They may share a question and its answer with the other bidders, without your name.
 The template
 The thin bar under a task is its baseline.
+There are no lines on this contract yet.
 There are no tasks in your projects.
 There is nothing to show.
 These answers are to version
 Things to get done, with an owner and a due date
+This contract can't be signed now. Ask the team.
+This contract is not out for signature. Ask the team.
 This is the view you open by default.
 This link doesn't work
 This month
@@ -2317,6 +2338,7 @@ Type it in
 Type the real length of the stretch you just drew, from a dimension printed on the sheet or a known size. Anything else on this page is measured against it.
 Type your full name
 Types
+Typing your name here is your signature. We record your name, the date and time, and the version of the contract you saw.
 USD
 Unassigned
 Unit
@@ -2426,6 +2448,7 @@ Who should see it
 Who signed for the other party
 Who signed for the owner
 Why
+Why (optional)
 Windy
 With a forecast, the projected cost is the cost to date plus the forecast. Leave the amount blank to remove a forecast. A code with no forecast is projected by the project's method
 Withdraw
@@ -2456,6 +2479,7 @@ Yes, a single day
 Yes, enter it on the injury log
 Yes, only the people below, the manager and the tool's admins
 You can change your bid below until the due date.
+You declined to sign this contract.
 You have no tokens.
 You have read this
 You'll be told here when something needs you, like a submittal waiting for your review.

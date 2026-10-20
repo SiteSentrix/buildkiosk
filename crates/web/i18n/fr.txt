@@ -188,6 +188,7 @@ Any template	Tout modèle
 Any {}	Tout {}
 Anyone	Tout le monde
 Anyone with this link can ask to be invited to bid. Nobody gets the bid documents until you approve their request.	Toute personne ayant ce lien peut demander à être invitée à soumissionner. Personne ne reçoit les documents avant que vous n’approuviez sa demande.
+Anyone with this link can read the contract and sign it for the other party. Send it only to them.	Toute personne disposant de ce lien peut lire le contrat et le signer pour l'autre partie. Ne l'envoyez qu'à elle.
 Anyone with this link can read the package and send or change a bid for	Toute personne ayant ce lien peut lire le lot et envoyer ou modifier une soumission pour
 Anyone with this link can read the package and send or change a bid for {}. Send it only to them.	Toute personne ayant ce lien peut lire le lot et envoyer ou modifier une soumission pour {}. Ne l’envoyez qu’à eux.
 Applied	Appliqué
@@ -225,6 +226,7 @@ As late as possible	Le plus tard possible
 As requested	Comme demandé
 As soon as possible	Dès que possible
 Ask the team a question	Poser une question à l’équipe
+Ask the team if you want to look at it again.	Demandez à l'équipe si vous voulez le revoir.
 Ask to bid	Demander à soumissionner
 Asked	Demandée
 Assemblies	Ouvrages composés
@@ -610,6 +612,8 @@ Dec	déc.
 Decision	Décision
 Decline	Refuser
 Decline a request to bid by {}	Refuser une demande de soumission par {}
+Decline to sign	Refuser de signer
+Decline to sign through the link by {}	Refus de signature via le lien par {}
 Declined	Refusé
 Delays	Retards
 Delays and issues	Retards et problèmes
@@ -794,6 +798,7 @@ Edit type	Modifier le type
 Edit {}	Modifier {}
 Electrical	Électricité
 Email	E-mail
+Email a signing link to	Envoyer un lien de signature par e-mail à
 Email address	Adresse courriel
 Email me my notifications	M'envoyer mes notifications par e-mail
 Embeds, sleeves and penetrations are in place and secured	Les inserts, fourreaux et traversées sont en place et fixés
@@ -892,6 +897,7 @@ Folder settings	Paramètres du dossier
 Folders	Dossiers
 Followed by	Suivi de
 Follows	Suit
+For	Pour
 For approval	Pour approbation
 For construction	Pour exécution
 For information	Pour information
@@ -953,7 +959,10 @@ How many of each resource you can have working on one day, one per line, such as
 How many units	Combien d'unités
 How much of a code's work is done. Leave blank to remove it.	Avancement des travaux d'un code. Laissez vide pour le retirer.
 How often	À quelle fréquence
+I can't sign this	Je ne peux pas signer ceci
 I have read this addendum	J’ai lu cet addenda
+I have read this contract and agree to it, and I am authorised to sign for	J'ai lu ce contrat, je l'accepte et je suis autorisé à signer pour
+I have read this contract and agree to it, and I am authorised to sign for {}.	J'ai lu ce contrat, je l'accepte et je suis autorisé à signer pour {}.
 If the link ends up somewhere you don't want it, use Replace the link	Si le lien se retrouve là où vous ne le souhaitez pas, utilisez Remplacer le lien
 If this company was entered twice, merge it into the one to keep. RFIs, commitments, bids, people and other records that name	Si cette entreprise a été saisie en double, fusionnez-la avec celle à conserver. Les RFI, engagements, offres, personnes et autres enregistrements qui mentionnent
 If this company was entered twice, merge it into the one to keep. RFIs, commitments, bids, people and other records that name {} will name the kept company instead, and {} is removed from the directory. Blank details of the kept company are filled in from this one.	Si cette entreprise a été saisie en double, fusionnez-la avec celle à conserver. Les RFI, engagements, offres, personnes et autres enregistrements qui mentionnent {} mentionneront à la place l'entreprise conservée, et {} est retirée de l'annuaire. Les informations vides de l'entreprise conservée sont complétées avec celles-ci.
@@ -1071,6 +1080,7 @@ Late schedule tasks	Tâches du planning en retard
 Laydown yard	Aire de stockage
 Leave To empty to post the seven days from From.	Laissez À vide pour publier les sept jours à partir de De.
 Leave blank to use the template's name.	Laissez vide pour utiliser le nom du modèle.
+Leave empty to sign on paper	Laissez vide pour signer sur papier
 Leave the markups out	Exclure les annotations
 Leave this empty	Laissez ceci vide
 Length	Longueur
@@ -1097,6 +1107,7 @@ Line {} quantity	Quantité de la ligne {}
 Line {} unit	Unité de la ligne {}
 Lines	Lignes
 Link not valid	Lien non valide
+Link works until	Le lien fonctionne jusqu'au
 Linked RFIs	RFI liées
 Linked documents	Documents liés
 Linked submittals	Soumissions liées
@@ -1135,7 +1146,6 @@ Mar	mars
 Mark action done by {}	Marquer l'action comme terminée par {}
 Mark all as read	Tout marquer comme lu
 Mark as official	Marquer comme officielle
-Mark as sent for signature	Marquer comme envoyée pour signature
 Mark complete	Marquer comme terminé
 Mark done	Marquer comme terminé
 Mark incident work done by {}	Marquer les travaux de l'incident comme terminés par {}
@@ -1695,6 +1705,7 @@ Record questionnaire answers by {}	Enregistrer les réponses au questionnaire pa
 Record receipt	Enregistrer la réception
 Record signature	Enregistrer la signature
 Record signed contract by {}	Enregistrer le contrat signé par {}
+Record that a signing link was emailed by {}	Enregistrement de l'envoi d'un lien de signature par e-mail par {}
 Record the signature	Enregistrer la signature
 Record the signed contract	Enregistrer le contrat signé
 Recordable	Enregistrable
@@ -2014,6 +2025,7 @@ Send commitment invoice back to draft by {}	Renvoyer la facture d'engagement en 
 Send contract for signature by {}	Envoyer le contrat pour signature par {}
 Send correspondence by {}	Envoyer le courrier par {}
 Send for review	Envoyer pour révision
+Send for signature	Envoyer pour signature
 Send from	Envoyer depuis
 Send hours back by {}	Renvoyer les heures par {}
 Send incident back by {}	Renvoyer l'incident par {}
@@ -2089,6 +2101,7 @@ Show the link	Afficher le lien
 Show them	Les afficher
 Side by side	Côte à côte
 Sign	Signer
+Sign a contract through its link by {}	Signature d'un contrat via son lien par {}
 Sign as	Signer en tant que
 Sign form by {}	Signer le formulaire par {}
 Sign in	Se connecter
@@ -2103,6 +2116,10 @@ Signed by	Signé par
 Signed contracts	Contrats signés
 Signed off	Validé
 Signed off by {} on {}.	Validé par {} le {}.
+Signed through the link	Signé via le lien
+Signing link	Lien de signature
+Signing link for	Lien de signature pour
+Signing link for {}	Lien de signature pour {}
 Signing opens once the form is submitted.	La signature s'ouvre une fois le formulaire soumis.
 Signing roles (separated by commas)	Rôles de signature (séparés par des virgules)
 Sincerely,	Cordialement,
@@ -2242,6 +2259,7 @@ Text	Texte
 That page doesn't exist, or you don't have access to it.	Cette page n'existe pas, ou vous n'y avez pas accès.
 The address of this server is used for the links in messages.	L'adresse de ce serveur sert à créer les liens dans les messages.
 The catalogue is empty.	Le catalogue est vide.
+The contract	Le contrat
 The dashed line is today. Red bars are on the critical path. Grey columns are days off. Float is the working days a task can slip without moving the last finish.	La ligne en pointillés indique aujourd'hui. Les barres rouges sont sur le chemin critique. Les colonnes grises sont des jours non travaillés. La marge correspond aux jours ouvrés dont une tâche peut glisser sans repousser la dernière fin.
 The days work is done on. Task dates and durations are counted in these days.	Les jours travaillés. Les dates et les durées des tâches sont comptées en ces jours.
 The due date for this package has passed, so it is no longer taking bids. Ask the team if you need more time.	La date limite de ce lot est passée; il n’accepte donc plus de soumissions. Demandez à l’équipe si vous avez besoin de plus de temps.
@@ -2262,10 +2280,13 @@ The sheet log	Le journal des feuilles
 The team answers you here. They may share a question and its answer with the other bidders, without your name.	L’équipe vous répond ici. Elle peut partager une question et sa réponse avec les autres soumissionnaires, sans votre nom.
 The template	Le modèle
 The thin bar under a task is its baseline.	La fine barre sous une tâche est son planning de référence.
+There are no lines on this contract yet.	Ce contrat n'a pas encore de lignes.
 There are no tasks in your projects.	Il n'y a aucune tâche dans vos projets.
 There is nothing to show.	Il n'y a rien à afficher.
 These answers are to version	Ces réponses sont à la version
 Things to get done, with an owner and a due date	Choses à faire, avec un responsable et une échéance
+This contract can't be signed now. Ask the team.	Ce contrat ne peut pas être signé maintenant. Demandez à l'équipe.
+This contract is not out for signature. Ask the team.	Ce contrat n'est pas soumis à signature. Demandez à l'équipe.
 This is the view you open by default.	C'est la vue que vous ouvrez par défaut.
 This link doesn't work	Ce lien ne fonctionne pas
 This month	Ce mois-ci
@@ -2317,6 +2338,7 @@ Type it in	Le saisir
 Type the real length of the stretch you just drew, from a dimension printed on the sheet or a known size. Anything else on this page is measured against it.	Saisissez la longueur réelle du tronçon que vous venez de tracer, d'après une cote imprimée sur la feuille ou une dimension connue. Tout le reste de cette page est mesuré par rapport à elle.
 Type your full name	Saisissez votre nom complet
 Types	Types
+Typing your name here is your signature. We record your name, the date and time, and the version of the contract you saw.	Saisir votre nom ici vaut signature. Nous enregistrons votre nom, la date et l'heure, et la version du contrat que vous avez vue.
 USD	USD
 Unassigned	Non assigné
 Unit	Unité
@@ -2426,6 +2448,7 @@ Who should see it	Qui doit le voir
 Who signed for the other party	Qui a signé pour l'autre partie
 Who signed for the owner	Qui a signé pour le maître d'ouvrage
 Why	Pourquoi
+Why (optional)	Motif (facultatif)
 Windy	Venteux
 With a forecast, the projected cost is the cost to date plus the forecast. Leave the amount blank to remove a forecast. A code with no forecast is projected by the project's method	Avec une prévision, le coût projeté est le coût à ce jour plus la prévision. Laissez le montant vide pour supprimer une prévision. Un code sans prévision est projeté selon la méthode du projet
 Withdraw	Retirer
@@ -2456,6 +2479,7 @@ Yes, a single day	Oui, un seul jour
 Yes, enter it on the injury log	Oui, l'inscrire au registre des accidents
 Yes, only the people below, the manager and the tool's admins	Oui, seulement les personnes ci-dessous, le responsable et les administrateurs de l'outil
 You can change your bid below until the due date.	Vous pouvez modifier votre soumission ci-dessous jusqu’à la date limite.
+You declined to sign this contract.	Vous avez refusé de signer ce contrat.
 You have no tokens.	Vous n'avez aucun jeton.
 You have read this	Vous avez lu ceci
 You'll be told here when something needs you, like a submittal waiting for your review.	Vous serez informé ici lorsque quelque chose requiert votre action, comme une soumission en attente de votre révision.

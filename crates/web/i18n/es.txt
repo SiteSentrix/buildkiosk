@@ -2556,3 +2556,45 @@ weekly summary	resumen semanal
 {}Directory	{}Directorio
 {}Prequalification	{}Precalificación
 ← Previous week	← Semana anterior
+A message for the reviewers (optional)	Un mensaje para los revisores (opcional)
+Answer the questions, give your dates, attach your documents and send your record for review.	Responda las preguntas, indique sus fechas, adjunte sus documentos y envíe su registro para revisión.
+Anyone with this link can change	Cualquiera que tenga este enlace puede cambiar
+Anyone with this link can change {}'s prequalification answers, dates and documents. Send it only to them.	Cualquiera que tenga este enlace puede cambiar las respuestas, fechas y documentos de precalificación de {}. Envíelo solo a esa empresa.
+Attach document	Adjuntar documento
+Cancel a prequalification link by {}	Enlace de precalificación cancelado por {}
+Company attaches a file by {}	Archivo adjuntado por la empresa {}
+Company leaves a message by {}	Mensaje dejado por la empresa {}
+Company puts its record forward by {}	Registro presentado por la empresa {}
+Company removes a file it attached by {}	Archivo retirado por la empresa {}
+Company saves its answers by {}	Respuestas guardadas por la empresa {}
+Contact's email	Correo electrónico del contacto
+Document to attach	Documento por adjuntar
+Experience modification rate (such as 0.85)	Índice de modificación de experiencia (como 0.85)
+Link	Enlace
+Link for the company	Enlace para la empresa
+Link works until (optional)	El enlace funciona hasta (opcional)
+Message from the company	Mensaje de la empresa
+Message the reviewers	Enviar un mensaje a los revisores
+No documents yet. Attach your insurance certificate, financial statements and the like.	Aún no hay documentos. Adjunte su certificado de seguro, estados financieros y similares.
+No link has been sent.	No se ha enviado ningún enlace.
+Past its last day	Pasó su último día
+Prequalification link	Enlace de precalificación
+Prequalification link for	Enlace de precalificación para
+Prequalification link for {}	Enlace de precalificación para {}
+Record a warning emailed to a company by {}	Aviso enviado por correo a una empresa registrado por {}
+Record that a prequalification link was emailed by {}	Envío por correo de un enlace de precalificación registrado por {}
+Save and come back later	Guardar y volver más tarde
+Send a company a prequalification link by {}	Enlace de precalificación enviado a una empresa por {}
+Send a link	Enviar un enlace
+Send a prequalification link again by {}	Enlace de precalificación enviado de nuevo por {}
+Send message	Enviar mensaje
+Sending needs every question answered. Once sent, your answers are locked until the reviewers return the record.	Para enviar hay que responder todas las preguntas. Una vez enviado, sus respuestas quedan bloqueadas hasta que los revisores devuelvan el registro.
+The record was put forward by the company through link	El registro fue presentado por la empresa mediante el enlace
+The record was put forward by the company through link {}.	El registro fue presentado por la empresa mediante el enlace {}.
+To send a renewed insurance certificate or licence, attach it below and leave a message. The team updates the dates.	Para enviar un certificado de seguro o una licencia renovados, adjúntelo abajo y deje un mensaje. El equipo actualiza las fechas.
+Up to 25 MB each.	Hasta 25 MB cada uno.
+Waiting to be emailed	Esperando a ser enviado por correo
+Your details	Sus datos
+Your record is approved	Su registro está aprobado
+Your record was not approved this time. Correct what the reviewers asked for, and send it again.	Su registro no fue aprobado esta vez. Corrija lo que pidieron los revisores y envíelo de nuevo.
+Your record was sent and is waiting for review. You can still attach files and leave a message below.	Su registro fue enviado y espera revisión. Todavía puede adjuntar archivos y dejar un mensaje abajo.

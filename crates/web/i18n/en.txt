@@ -22,6 +22,7 @@ A file from {}
 A formal record of what was sent, to whom and why
 A line starting with # begins a section; every other line is an item. Assign owners and dates on the plan page. Editing the outline keeps the owner, date, note and done state of items whose wording and section are unchanged.
 A link lets one contact at an invited company read the documents, acknowledge addenda and send or change a bid, with no account. Links are emailed once the package is out for bid. Bids sent this way stay sealed until bidding closes.
+A message for the reviewers (optional)
 A name already used is replaced. The new baseline becomes the one the chart and each task's slip compare against.
 A new version of
 A project admin has full access to every tool, so overrides have no effect.
@@ -176,6 +177,7 @@ Answer a bidder's question by {}
 Answer inspection checklist by {}
 Answer that shows question {}
 Answer the door hardware RFI
+Answer the questions, give your dates, attach your documents and send your record for review.
 Answer type
 Answer type of question {}
 Answered
@@ -188,6 +190,8 @@ Any template
 Any {}
 Anyone
 Anyone with this link can ask to be invited to bid. Nobody gets the bid documents until you approve their request.
+Anyone with this link can change
+Anyone with this link can change {}'s prequalification answers, dates and documents. Send it only to them.
 Anyone with this link can read the package and send or change a bid for
 Anyone with this link can read the package and send or change a bid for {}. Send it only to them.
 Applied
@@ -236,6 +240,7 @@ Assigned to me
 Assignees
 At least 10 characters.
 Attach a proposal, bond or other document (up to 25 MB each, 10 files).
+Attach document
 Attach file
 Attach file to RFI by {}
 Attach file to a checklist line by {}
@@ -356,6 +361,7 @@ Calendar
 Can sign in
 Can sign in (needs an email)
 Cancel
+Cancel a prequalification link by {}
 Cancel bid link by {}
 Cancelled
 Caption
@@ -472,11 +478,16 @@ Committed cost
 Companies
 Company
 Company admin
+Company attaches a file by {}
 Company holiday lists
 Company holiday lists this project takes
 Company in the directory
+Company leaves a message by {}
 Company name
+Company puts its record forward by {}
+Company removes a file it attached by {}
 Company reports
+Company saves its answers by {}
 Company settings
 Compare
 Compare estimates
@@ -501,6 +512,7 @@ Construction
 Consultant
 Contact
 Contact only
+Contact's email
 Contract
 Contract signature
 Coordination
@@ -700,6 +712,7 @@ Distribution list
 Division
 Division {}
 Document
+Document to attach
 Documents
 Documents sent for review before the work goes ahead
 Does not repeat
@@ -833,6 +846,7 @@ Excavate and grade
 Exchange file
 Excluded
 Experience modification rate
+Experience modification rate (such as 0.85)
 Expired
 Expiring soon
 Export CSV
@@ -1096,7 +1110,10 @@ Line {} description
 Line {} quantity
 Line {} unit
 Lines
+Link
+Link for the company
 Link not valid
+Link works until (optional)
 Linked RFIs
 Linked documents
 Linked submittals
@@ -1173,6 +1190,8 @@ Merge and remove {}
 Merge duplicate companies by {}
 Merge into another company
 Message
+Message from the company
+Message the reviewers
 Method
 Metres
 Milestone
@@ -1270,6 +1289,7 @@ No cost code
 No days off are listed.
 No direct costs yet
 No documents here
+No documents yet. Attach your insurance certificate, financial statements and the like.
 No drawings yet
 No estimates
 No files attached.
@@ -1288,6 +1308,7 @@ No items
 No items here
 No items listed.
 No lines yet.
+No link has been sent.
 No location
 No log
 No logs here
@@ -1501,6 +1522,7 @@ Pass
 Passed
 Password
 Past due
+Past its last day
 Past-due RFIs
 Paste an email
 Path
@@ -1563,6 +1585,9 @@ Preconstruction
 Predecessors (task numbers with an optional kind and lag, e.g. 3, 5+2, 7SS, 4FF-1)
 Prefix
 Prequalification
+Prequalification link
+Prequalification link for
+Prequalification link for {}
 Prequalification questionnaires
 Prequalified
 Present
@@ -1676,6 +1701,7 @@ Record a direct cost
 Record a price
 Record a price for a catalogue item by {}
 Record a purchase, a rental or another cost below.
+Record a warning emailed to a company by {}
 Record addendum acknowledged by {}
 Record as declined
 Record bid
@@ -1695,6 +1721,7 @@ Record questionnaire answers by {}
 Record receipt
 Record signature
 Record signed contract by {}
+Record that a prequalification link was emailed by {}
 Record the signature
 Record the signed contract
 Recordable
@@ -1888,6 +1915,7 @@ Save a named baseline by {}
 Save a report
 Save access
 Save amounts
+Save and come back later
 Save and complete
 Save and open
 Save and send for review
@@ -2004,6 +2032,9 @@ Sections of questions, each worth points; the share earned becomes a company's s
 See the project report
 Sees every project tool except financials; changes nothing.
 Send
+Send a company a prequalification link by {}
+Send a link
+Send a prequalification link again by {}
 Send a test email
 Send again
 Send back
@@ -2017,6 +2048,7 @@ Send for review
 Send from
 Send hours back by {}
 Send incident back by {}
+Send message
 Send notifications
 Send notifications to people's inboxes
 Send observation back by {}
@@ -2032,6 +2064,7 @@ Send submittal for review by {}
 Send task back by {}
 Send transmittal by {}
 Send your bid
+Sending needs every question answered. Once sent, your answers are locked until the reviewers return the record.
 Sends a short message to your own address.
 Sent
 Sent back
@@ -2256,6 +2289,8 @@ The most of each resource needed on any one working day in each week, from tasks
 The plan cannot start until every approver has approved. Changing the wording of items clears the answers.
 The project's section list; submittals link to a section by its number
 The questions each kind of form asks. Forms already started keep the questions they were started with.
+The record was put forward by the company through link
+The record was put forward by the company through link {}.
 The reflected ceiling plan shows 9'-0" but the section shows 8'-6". Which governs?
 The section governs
 The sheet log
@@ -2288,6 +2323,7 @@ Title (optional)
 To
 To be determined
 To date
+To send a renewed insurance certificate or licence, attach it below and leave a message. The team updates the dates.
 Today's log
 Tool
 Tool access
@@ -2330,6 +2366,7 @@ Unit price of {}
 Unit prices
 Unlock original budget by {}
 Unlock the budget
+Up to 25 MB each.
 Up to 25 MB in one upload.
 Up to 50 files, 25 MB each and 100 MB in all.
 Up to 50 files, 25 MB each and 100 MB in all. Each file becomes a document titled with its file name.
@@ -2377,6 +2414,7 @@ Waiting
 Waiting for approval
 Waiting on me
 Waiting on you
+Waiting to be emailed
 Walkways and access routes are clear
 Warn before approvals lapse by {}
 Warnings sent
@@ -2460,10 +2498,14 @@ You have no tokens.
 You have read this
 You'll be told here when something needs you, like a submittal waiting for your review.
 Your bid
+Your details
 Your first name
 Your last name
 Your name
 Your question
+Your record is approved
+Your record was not approved this time. Correct what the reviewers asked for, and send it again.
+Your record was sent and is waiting for review. You can still attach files and leave a message below.
 Your reply
 Your response
 Zoom

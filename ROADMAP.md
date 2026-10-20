@@ -30,6 +30,7 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 - 2026-10-13: Company reports: saved reports with chosen columns, totals, a chart, CSV and PDF; the schedule exports as a project XML file.
 - 2026-10-13: Bidding: bid form lines and alternates, scope checklist and leveling matrix, addenda with acknowledgements, bid files, required bid bonds.
 - 2026-10-13: Estimating: company price catalogue and assemblies, takeoff totals from sheet measurements, estimate versions and comparison, alternates, bids as lines.
+- 2026-10-20: Prequalification: companies fill in their own questionnaire, dates and documents through an emailed link (no account), warnings reach the company as well as the admins, and the commitments list shows each company's standing.
 - 2026-10-13: Prequalification: scored questionnaires, files, warnings before expiry, standing shown on bids and commitments, an optional rule requiring a current prequalification.
 - 2026-10-13: Transmittals: items linked to documents and drawings with the version sent, recipient acknowledgement of receipt, cover sheet with a receipt block.
 - 2026-10-13: Meetings: repeat a meeting on a schedule, carry open actions forward, make a task from an action, printable sign-in sheet.

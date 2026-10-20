@@ -2556,3 +2556,45 @@ weekly summary	synthèse hebdomadaire
 {}Directory	{}Annuaire
 {}Prequalification	{}Préqualification
 ← Previous week	← Semaine précédente
+A message for the reviewers (optional)	Un message pour les évaluateurs (facultatif)
+Answer the questions, give your dates, attach your documents and send your record for review.	Répondez aux questions, indiquez vos dates, joignez vos documents et envoyez votre dossier pour examen.
+Anyone with this link can change	Quiconque possède ce lien peut modifier
+Anyone with this link can change {}'s prequalification answers, dates and documents. Send it only to them.	Quiconque possède ce lien peut modifier les réponses, dates et documents de préqualification de {}. Ne l'envoyez qu'à cette entreprise.
+Attach document	Joindre le document
+Cancel a prequalification link by {}	Lien de préqualification annulé par {}
+Company attaches a file by {}	Fichier joint par l'entreprise {}
+Company leaves a message by {}	Message laissé par l'entreprise {}
+Company puts its record forward by {}	Dossier présenté par l'entreprise {}
+Company removes a file it attached by {}	Fichier retiré par l'entreprise {}
+Company saves its answers by {}	Réponses enregistrées par l'entreprise {}
+Contact's email	E-mail du contact
+Document to attach	Document à joindre
+Experience modification rate (such as 0.85)	Taux de modification de l'expérience (comme 0.85)
+Link	Lien
+Link for the company	Lien pour l'entreprise
+Link works until (optional)	Le lien fonctionne jusqu'au (facultatif)
+Message from the company	Message de l'entreprise
+Message the reviewers	Envoyer un message aux évaluateurs
+No documents yet. Attach your insurance certificate, financial statements and the like.	Aucun document pour l'instant. Joignez votre attestation d'assurance, vos états financiers, etc.
+No link has been sent.	Aucun lien n'a été envoyé.
+Past its last day	Dernier jour dépassé
+Prequalification link	Lien de préqualification
+Prequalification link for	Lien de préqualification pour
+Prequalification link for {}	Lien de préqualification pour {}
+Record a warning emailed to a company by {}	Avertissement envoyé par e-mail à une entreprise enregistré par {}
+Record that a prequalification link was emailed by {}	Envoi par e-mail d'un lien de préqualification enregistré par {}
+Save and come back later	Enregistrer et revenir plus tard
+Send a company a prequalification link by {}	Lien de préqualification envoyé à une entreprise par {}
+Send a link	Envoyer un lien
+Send a prequalification link again by {}	Lien de préqualification renvoyé par {}
+Send message	Envoyer le message
+Sending needs every question answered. Once sent, your answers are locked until the reviewers return the record.	Pour envoyer, il faut répondre à toutes les questions. Une fois envoyé, vos réponses sont verrouillées jusqu'à ce que les évaluateurs renvoient le dossier.
+The record was put forward by the company through link	Le dossier a été présenté par l'entreprise au moyen du lien
+The record was put forward by the company through link {}.	Le dossier a été présenté par l'entreprise au moyen du lien {}.
+To send a renewed insurance certificate or licence, attach it below and leave a message. The team updates the dates.	Pour envoyer une attestation d'assurance ou une licence renouvelée, joignez-la ci-dessous et laissez un message. L'équipe met à jour les dates.
+Up to 25 MB each.	Jusqu'à 25 Mo chacun.
+Waiting to be emailed	En attente d'envoi par e-mail
+Your details	Vos informations
+Your record is approved	Votre dossier est approuvé
+Your record was not approved this time. Correct what the reviewers asked for, and send it again.	Votre dossier n'a pas été approuvé cette fois. Corrigez ce que les évaluateurs ont demandé et renvoyez-le.
+Your record was sent and is waiting for review. You can still attach files and leave a message below.	Votre dossier a été envoyé et attend l'examen. Vous pouvez encore joindre des fichiers et laisser un message ci-dessous.

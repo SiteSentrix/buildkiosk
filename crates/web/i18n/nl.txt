@@ -2556,3 +2556,45 @@ weekly summary	weekoverzicht
 {}Directory	{}Adresboek
 {}Prequalification	{}Voorkwalificatie
 ← Previous week	← Vorige week
+A message for the reviewers (optional)	Een bericht voor de beoordelaars (optioneel)
+Answer the questions, give your dates, attach your documents and send your record for review.	Beantwoord de vragen, geef uw data op, voeg uw documenten toe en stuur uw dossier ter beoordeling.
+Anyone with this link can change	Iedereen met deze link kan wijzigen
+Anyone with this link can change {}'s prequalification answers, dates and documents. Send it only to them.	Iedereen met deze link kan de antwoorden, data en documenten voor de prekwalificatie van {} wijzigen. Stuur hem alleen naar dat bedrijf.
+Attach document	Document toevoegen
+Cancel a prequalification link by {}	Prekwalificatielink geannuleerd door {}
+Company attaches a file by {}	Bestand toegevoegd door het bedrijf {}
+Company leaves a message by {}	Bericht achtergelaten door het bedrijf {}
+Company puts its record forward by {}	Dossier ingediend door het bedrijf {}
+Company removes a file it attached by {}	Bestand verwijderd door het bedrijf {}
+Company saves its answers by {}	Antwoorden opgeslagen door het bedrijf {}
+Contact's email	E-mailadres van de contactpersoon
+Document to attach	Toe te voegen document
+Experience modification rate (such as 0.85)	Ervaringsmodificatiefactor (zoals 0.85)
+Link	Link
+Link for the company	Link voor het bedrijf
+Link works until (optional)	Link werkt tot (optioneel)
+Message from the company	Bericht van het bedrijf
+Message the reviewers	Bericht aan de beoordelaars
+No documents yet. Attach your insurance certificate, financial statements and the like.	Nog geen documenten. Voeg uw verzekeringsbewijs, jaarrekeningen en dergelijke toe.
+No link has been sent.	Er is nog geen link verstuurd.
+Past its last day	Laatste dag verstreken
+Prequalification link	Prekwalificatielink
+Prequalification link for	Prekwalificatielink voor
+Prequalification link for {}	Prekwalificatielink voor {}
+Record a warning emailed to a company by {}	Waarschuwing per e-mail aan een bedrijf vastgelegd door {}
+Record that a prequalification link was emailed by {}	Verzending per e-mail van een prekwalificatielink vastgelegd door {}
+Save and come back later	Opslaan en later terugkomen
+Send a company a prequalification link by {}	Prekwalificatielink naar een bedrijf gestuurd door {}
+Send a link	Een link sturen
+Send a prequalification link again by {}	Prekwalificatielink opnieuw gestuurd door {}
+Send message	Bericht versturen
+Sending needs every question answered. Once sent, your answers are locked until the reviewers return the record.	Verzenden kan pas als alle vragen zijn beantwoord. Eenmaal verzonden zijn uw antwoorden vergrendeld totdat de beoordelaars het dossier terugsturen.
+The record was put forward by the company through link	Het dossier is door het bedrijf ingediend via link
+The record was put forward by the company through link {}.	Het dossier is door het bedrijf ingediend via link {}.
+To send a renewed insurance certificate or licence, attach it below and leave a message. The team updates the dates.	Om een vernieuwd verzekeringsbewijs of een vernieuwde vergunning te sturen, voegt u het hieronder toe en laat u een bericht achter. Het team werkt de data bij.
+Up to 25 MB each.	Maximaal 25 MB per bestand.
+Waiting to be emailed	Wacht op verzending per e-mail
+Your details	Uw gegevens
+Your record is approved	Uw dossier is goedgekeurd
+Your record was not approved this time. Correct what the reviewers asked for, and send it again.	Uw dossier is deze keer niet goedgekeurd. Verbeter wat de beoordelaars vroegen en stuur het opnieuw.
+Your record was sent and is waiting for review. You can still attach files and leave a message below.	Uw dossier is verzonden en wacht op beoordeling. U kunt nog bestanden toevoegen en hieronder een bericht achterlaten.

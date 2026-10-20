@@ -9,6 +9,7 @@ mod exif;
 pub mod harvest;
 mod mail;
 mod portal;
+mod prequal_portal;
 mod render;
 pub mod s3;
 mod zip;
@@ -285,6 +286,7 @@ pub fn router(app: Shared) -> Router {
         .route("/prequalification", get(prequalification_page))
         .route("/prequalification/forms", get(prequal_forms_page))
         .route("/prequalification/{vendor}", get(prequal_detail_page))
+        .route("/prequalification/{vendor}/links/{n}", get(prequal_link_page))
         .route("/prequalification/{vendor}/upload", post(prequal_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
         .route("/prequalification/{vendor}/files/{sha}", get(prequal_download))
         .route("/my-tasks", get(my_tasks_page))
@@ -697,6 +699,7 @@ pub fn router(app: Shared) -> Router {
     let router = invoice_routes::<OwnerInvoice>(router);
     let router = invoice_routes::<CommitmentInvoice>(router);
     let router = portal::routes(router);
+    let router = prequal_portal::routes(router);
     router
         .fallback(not_found)
         .layer(axum::middleware::from_fn(translate_pages))
@@ -2732,6 +2735,28 @@ async fn bid_link_page(State(app): State<Shared>, headers: HeaderMap, Path((id, 
 }
 
 /// Shows the package's open bid link so the team can share it.
+/// Shows one prequalification link so the team can copy it. Needs Prequalification at standard level.
+async fn prequal_link_page(State(app): State<Shared>, headers: HeaderMap, Path((vendor, n)): Path<(u64, u32)>, Query(q): Q) -> Response {
+    let found = {
+        let inner = app.lock();
+        let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+        let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+        let state = t.engine.state();
+        let allowed = buildkiosk_engine::model::perm::company_level(state, s.person, Tool::Prequalification) >= Level::Standard;
+        let today = Timestamp::from_millis(now_ms()).date_at(state.utc_offset());
+        state
+            .prequalifications
+            .iter()
+            .find(|r| r.vendor.raw() == vendor && r.deleted.is_none())
+            .filter(|_| allowed)
+            .and_then(|r| r.invitations.iter().find(|i| i.number == n && i.active(today)).cloned())
+            .map(|i| (i, t.slug.clone(), view::vendor_name(state, Id::new(vendor))))
+    };
+    let Some((inv, slug, company)) = found else { return not_found(State(app), headers).await };
+    let url = prequal_portal::team_link(&app, &slug, vendor, inv.number, inv.generation);
+    page(&app, &headers, &q, |r, _| buildkiosk_web::prequal::link_page(r, Id::new(vendor), &company, &inv.email, &url))
+}
+
 async fn bid_open_link_page(State(app): State<Shared>, headers: HeaderMap, Path((id, bid)): Path<(u64, u64)>, Query(q): Q) -> Response {
     let found = {
         let inner = app.lock();
@@ -4007,6 +4032,7 @@ async fn mail_loop(app: Shared) {
         if let Err(e) = tokio::task::spawn_blocking(move || {
             mail_pass(&a);
             portal::invite_pass(&a);
+            prequal_portal::mail_pass(&a);
         })
         .await
         {

@@ -32,6 +32,7 @@ pub mod pdfs;
 pub mod photos;
 pub mod portal;
 pub mod prequal;
+pub mod prequal_portal;
 pub mod reports;
 pub mod restore;
 pub mod schedule;

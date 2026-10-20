@@ -271,3 +271,159 @@ fn changing_an_answered_questionnaire_makes_a_new_version() {
     assert_eq!((r.answers[0].question, r.answers[0].text.as_str(), r.answers[0].points), (1, "0.85", None));
     w.assert_replay();
 }
+
+#[test]
+fn companies_fill_in_their_own_prequalification_through_a_link() {
+    use buildkiosk_engine::Actor;
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let admin = w.admin();
+    let v = vendor(&mut w, "Keystone Concrete");
+    let other = vendor(&mut w, "Other Steel");
+    let form_text = "# Safety\nDo you have a written safety program? | 20\nWhat is your EMR? | 10\n# Financial\nBonding capacity | 30\n";
+    let f = w.ok(admin, "prequal.form_save", json!({"name": "Subcontractors", "text": form_text}))["id"].as_u64().unwrap();
+    w.ok(admin, "prequal.save", json!({"vendor": v, "notes": "Team note, not for the company", "valid_until": "2027-10-01"}));
+    w.ok(admin, "prequal.answer", json!({"vendor": v, "form": f, "replies": []}));
+    let link = |generation: u32, extra: serde_json::Value| {
+        let mut m = extra.as_object().cloned().unwrap_or_default();
+        m.insert("vendor".into(), json!(v));
+        m.insert("invitation".into(), json!(1));
+        m.insert("generation".into(), json!(generation));
+        serde_json::Value::Object(m)
+    };
+
+    // The team sends a link; people without Prequalification access can't, and a bad address or past day is refused.
+    w.err(pm, "prequal.invite", json!({"vendor": v, "email": "office@keystone.example"}));
+    w.err(admin, "prequal.invite", json!({"vendor": v, "email": "not an address"}));
+    w.err(admin, "prequal.invite", json!({"vendor": v, "email": "office@keystone.example", "expires": "2020-01-01"}));
+    w.err(admin, "prequal.invite", json!({"vendor": 9999, "email": "office@keystone.example"}));
+    assert_eq!(w.ok(admin, "prequal.invite", json!({"vendor": v, "email": "office@keystone.example", "expires": "2030-01-01"}))["number"], 1);
+    w.err(admin, "prequal.invite", json!({"vendor": v, "email": "office@keystone.example"}));
+    // Until the server has seen to it, the link is unsent; only the system records that, and a person cannot use the portal commands.
+    assert!(w.ok(admin, "prequal.invitations", json!({"vendor": v}))[0]["sent"].is_null());
+    w.err(admin, "prequal.portal_view", link(0, json!({})));
+    w.err(pm, "prequal.invite_sent", json!({"vendor": v, "number": 1, "generation": 0}));
+    w.ok(Actor::System, "prequal.invite_sent", json!({"vendor": v, "number": 1, "generation": 0}));
+    assert!(!w.ok(admin, "prequal.invitations", json!({"vendor": v}))[0]["sent"].is_null());
+
+    // What the company sees: its questionnaire and its own figures, never the team's notes or score.
+    let view = w.ok(Actor::System, "prequal.portal_view", link(0, json!({})));
+    assert_eq!(
+        (view["company"].clone(), view["status"].clone(), view["editable"].clone()),
+        (json!("Keystone Concrete"), json!("pending"), json!(true))
+    );
+    assert_eq!(view["sections"].as_array().unwrap().len(), 2);
+    let text = view.to_string();
+    assert!(!text.contains("Team note") && !text.contains("score"), "{text}");
+    assert!(view["valid_until"].is_null(), "an approval date only shows once approved");
+    // A wrong generation, number, company or a cancelled or expired link is the same answer.
+    for bad in
+        [link(1, json!({})), json!({"vendor": other, "invitation": 1, "generation": 0}), json!({"vendor": v, "invitation": 2, "generation": 0})]
+    {
+        assert_eq!(w.err(Actor::System, "prequal.portal_view", bad).to_string(), "this link is not valid");
+    }
+
+    // Saving answers and figures; bad ones are refused; nothing is submitted yet.
+    w.err(Actor::System, "prequal.portal_save", link(0, json!({"replies": [{"section": 9, "question": 0, "text": "x"}]})));
+    w.err(Actor::System, "prequal.portal_save", link(0, json!({"emr": "lots"})));
+    w.err(Actor::System, "prequal.portal_save", link(0, json!({"bonding_capacity": "-5"})));
+    w.ok(
+        Actor::System,
+        "prequal.portal_save",
+        link(0, json!({"replies": [{"section": 0, "question": 0, "text": "Yes, reviewed yearly"}], "insurance_expires": "2027-03-01", "emr": "0.9", "bonding_capacity": "2,000,000"})),
+    );
+    w.err(Actor::System, "prequal.portal_submit", link(0, json!({})));
+    w.ok(
+        Actor::System,
+        "prequal.portal_save",
+        link(0, json!({"replies": [{"section": 0, "question": 1, "text": "0.90"}, {"section": 1, "question": 0, "text": "$2M"}]})),
+    );
+    let r = w.engine.state().prequalifications.iter().next().unwrap().clone();
+    assert_eq!((r.emr_hundredths, r.insurance_expires.map(|d| d.to_string())), (Some(90), Some("2027-03-01".to_string())));
+    assert_eq!(r.valid_until.map(|d| d.to_string()).as_deref(), Some("2027-10-01"), "the approval date is the team's");
+
+    // Files: the company attaches its own and can remove only those.
+    w.ok(Actor::System, "prequal.portal_attach", link(0, json!({"sha256": SHA, "name": "insurance.pdf", "size": 100, "mime": "application/pdf"})));
+    w.err(Actor::System, "prequal.portal_attach", link(0, json!({"sha256": "nope", "name": "x", "size": 1})));
+    w.ok(
+        admin,
+        "prequal.attach",
+        json!({"vendor": v, "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", "name": "team.pdf", "size": 5}),
+    );
+    w.err(Actor::System, "prequal.portal_detach", link(0, json!({"sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"})));
+    w.ok(Actor::System, "prequal.portal_detach", link(0, json!({"sha256": SHA})));
+    w.ok(Actor::System, "prequal.portal_attach", link(0, json!({"sha256": SHA, "name": "insurance.pdf", "size": 100})));
+
+    // Putting the record forward tells the admins and locks the answers; the company may still leave a message.
+    let before = w.engine.state().notifications.iter().count();
+    w.ok(Actor::System, "prequal.portal_submit", link(0, json!({"message": "Insurance certificate attached"})));
+    assert!(w.engine.state().notifications.iter().count() > before);
+    assert_eq!(w.engine.state().prequalifications.iter().next().unwrap().status.to_string(), "Submitted");
+    assert_eq!(w.ok(admin, "prequal.get", json!({"vendor": v}))["submitted_via"], 1);
+    w.err(Actor::System, "prequal.portal_save", link(0, json!({"emr": "0.5"})));
+    w.err(Actor::System, "prequal.portal_submit", link(0, json!({})));
+    w.err(Actor::System, "prequal.portal_detach", link(0, json!({"sha256": SHA})));
+    w.ok(Actor::System, "prequal.portal_message", link(0, json!({"message": "Sent the bond letter by post"})));
+    w.err(Actor::System, "prequal.portal_message", link(0, json!({"message": ""})));
+    assert_eq!(w.ok(Actor::System, "prequal.portal_view", link(0, json!({})))["editable"], false);
+
+    // A rejected record can be corrected and put forward again; approval then hides the figures from change.
+    w.ok(admin, "prequal.review", json!({"vendor": v, "decision": "rejected", "notes": "Need a bonding letter"}));
+    assert_eq!(w.ok(Actor::System, "prequal.portal_view", link(0, json!({})))["editable"], true);
+    w.ok(Actor::System, "prequal.portal_submit", link(0, json!({})));
+    w.ok(admin, "prequal.review", json!({"vendor": v, "decision": "approved", "score": 80, "valid_until": "2027-10-01"}));
+    assert_eq!(w.ok(Actor::System, "prequal.portal_view", link(0, json!({})))["valid_until"], "2027-10-01");
+    w.err(Actor::System, "prequal.portal_save", link(0, json!({"insurance_expires": "2040-01-01"})));
+    w.ok(
+        Actor::System,
+        "prequal.portal_attach",
+        link(0, json!({"sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "name": "renewal.pdf", "size": 9})),
+    );
+
+    // Sending the link again makes the first one stop working; cancelling stops the new one.
+    assert_eq!(w.ok(admin, "prequal.resend_invite", json!({"vendor": v, "number": 1}))["generation"], 1);
+    w.err(Actor::System, "prequal.portal_view", link(0, json!({})));
+    w.ok(Actor::System, "prequal.portal_view", link(1, json!({})));
+    w.err(Actor::System, "prequal.resend_invite", json!({"vendor": v, "number": 7}));
+    w.ok(admin, "prequal.revoke_invite", json!({"vendor": v, "number": 1}));
+    w.err(Actor::System, "prequal.portal_view", link(1, json!({})));
+    w.err(admin, "prequal.revoke_invite", json!({"vendor": v, "number": 1}));
+    w.err(admin, "prequal.resend_invite", json!({"vendor": v, "number": 1}));
+    w.assert_replay();
+}
+
+#[test]
+fn warnings_reach_the_company_through_its_link() {
+    use buildkiosk_engine::Actor;
+    let mut w = World::new();
+    let admin = w.admin();
+    let v = vendor(&mut w, "Keystone Concrete");
+    w.ok(admin, "prequal.save", json!({"vendor": v, "insurance_expires": "2026-11-20", "license_expires": "2028-01-01"}));
+    w.ok(admin, "prequal.submit", json!({"vendor": v}));
+    w.ok(admin, "prequal.review", json!({"vendor": v, "decision": "approved", "valid_until": "2028-01-01"}));
+    // Nothing is due while no link was emailed.
+    assert_eq!(w.ok(Actor::System, "prequal.company_due", json!({})), json!([]));
+    w.ok(admin, "prequal.invite", json!({"vendor": v, "email": "office@keystone.example"}));
+    assert_eq!(w.ok(Actor::System, "prequal.company_due", json!({})), json!([]), "a link that was not sent reaches no one");
+    w.ok(Actor::System, "prequal.invite_sent", json!({"vendor": v, "number": 1, "generation": 0}));
+    // The test clock is 2026-10-12: the insurance lapses within 60 days.
+    let due = w.ok(Actor::System, "prequal.company_due", json!({}));
+    assert_eq!(due.as_array().unwrap().len(), 1);
+    assert_eq!(
+        (due[0]["what"].clone(), due[0]["days"].clone(), due[0]["email"].clone()),
+        (json!("insurance"), json!(60), json!("office@keystone.example"))
+    );
+    assert_eq!((due[0]["number"].clone(), due[0]["generation"].clone()), (json!(1), json!(0)));
+    w.err(admin, "prequal.company_due", json!({}));
+    w.err(admin, "prequal.company_reminded", json!({"vendor": v, "what": "insurance", "date": "2026-11-20", "days": 60}));
+    w.err(Actor::System, "prequal.company_reminded", json!({"vendor": v, "what": "parking", "date": "2026-11-20", "days": 60}));
+    w.ok(Actor::System, "prequal.company_reminded", json!({"vendor": v, "what": "insurance", "date": "2026-11-20", "days": 60}));
+    assert_eq!(w.ok(Actor::System, "prequal.company_due", json!({})), json!([]), "each warning goes once");
+    // Closer to the date it is a new, stronger warning; a cancelled link reaches no one.
+    w.advance_days(20);
+    assert_eq!(w.ok(Actor::System, "prequal.company_due", json!({}))[0]["days"], 30);
+    w.ok(admin, "prequal.revoke_invite", json!({"vendor": v, "number": 1}));
+    assert_eq!(w.ok(Actor::System, "prequal.company_due", json!({})), json!([]));
+    w.assert_replay();
+}

@@ -277,7 +277,7 @@ dependencies = [
 
 [[package]]
 name = "buildkiosk"
-version = "0.1.0"
+version = "0.0.1-rc.1"
 dependencies = [
  "buildkiosk-core",
  "buildkiosk-engine",
@@ -292,7 +292,7 @@ dependencies = [
 
 [[package]]
 name = "buildkiosk-core"
-version = "0.1.0"
+version = "0.0.1-rc.1"
 dependencies = [
  "proptest",
  "serde",
@@ -301,7 +301,7 @@ dependencies = [
 
 [[package]]
 name = "buildkiosk-engine"
-version = "0.1.0"
+version = "0.0.1-rc.1"
 dependencies = [
  "buildkiosk-core",
  "buildkiosk-model",
@@ -316,7 +316,7 @@ dependencies = [
 
 [[package]]
 name = "buildkiosk-mcp"
-version = "0.1.0"
+version = "0.0.1-rc.1"
 dependencies = [
  "base64 0.22.1",
  "buildkiosk-core",
@@ -327,7 +327,7 @@ dependencies = [
 
 [[package]]
 name = "buildkiosk-model"
-version = "0.1.0"
+version = "0.0.1-rc.1"
 dependencies = [
  "buildkiosk-core",
  "proptest",
@@ -338,7 +338,7 @@ dependencies = [
 
 [[package]]
 name = "buildkiosk-server"
-version = "0.1.0"
+version = "0.0.1-rc.1"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -367,7 +367,7 @@ dependencies = [
 
 [[package]]
 name = "buildkiosk-store"
-version = "0.1.0"
+version = "0.0.1-rc.1"
 dependencies = [
  "argon2",
  "buildkiosk-core",
@@ -384,7 +384,7 @@ dependencies = [
 
 [[package]]
 name = "buildkiosk-testkit"
-version = "0.1.0"
+version = "0.0.1-rc.1"
 dependencies = [
  "buildkiosk-core",
  "buildkiosk-engine",
@@ -394,7 +394,7 @@ dependencies = [
 
 [[package]]
 name = "buildkiosk-viewer"
-version = "0.1.0"
+version = "0.0.1-rc.1"
 dependencies = [
  "buildkiosk-model",
  "hayro",
@@ -408,7 +408,7 @@ dependencies = [
 
 [[package]]
 name = "buildkiosk-web"
-version = "0.1.0"
+version = "0.0.1-rc.1"
 dependencies = [
  "buildkiosk-core",
  "buildkiosk-engine",
@@ -2576,7 +2576,7 @@ checksum = "3ad82d2a33cdc9674dc7465672f271e096168fcdbe0f799d9e6db8c5892679dc"
 
 [[package]]
 name = "xtask"
-version = "0.1.0"
+version = "0.0.1-rc.1"
 dependencies = [
  "serde_json",
 ]

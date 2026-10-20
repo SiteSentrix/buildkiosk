@@ -7,6 +7,7 @@
 /api/v1/commands/…
 /mcp
 0 switches a rule off. Weeks run Monday to Sunday and hours already paid as daily overtime are not counted again.
+03-300 material
 03-300, 120000, Concrete
 2027-01-01 New Year's Day
 8'-6" above finished floor. The RCP will be revised.
@@ -30,7 +31,7 @@ A seventh to tenth column is optional
 A spreadsheet saved as CSV. Put the column names on the first line
 A takeoff from a drawing
 A token lets a script or an AI agent act as you over the HTTP API (
-A view keeps the columns you want to see and whether cost codes are grouped by division. It changes the table above and the CSV export, nothing else.
+A view keeps the columns you want to see and whether cost codes are grouped (by division, section or cost type). It changes the table above and the CSV export, nothing else.
 A, 2, Addendum 3
 A-101.txt
 API tokens
@@ -347,8 +348,10 @@ Bulletin 1
 Bulletin 1 drawings
 By
 By cost code
+By cost type
 By division
 By person
+By section
 By severity
 CSV file
 CSV text
@@ -536,6 +539,7 @@ Cost per unit
 Cost then
 Cost to add if excluded
 Cost to date
+Cost types
 Costs paid without a commitment
 Country
 County inspector
@@ -1912,6 +1916,7 @@ Save changes to this view
 Save company holiday list by {}
 Save company report by {}
 Save correspondence type by {}
+Save cost types
 Save crew
 Save crew by {}
 Save criteria
@@ -1942,6 +1947,7 @@ Save the email from your mail program as a .eml file, open it in a text editor a
 Save the schedule from your planning software as XML. Tasks, dates, percent complete, milestones, outline levels, links with their kind and lag, and start and finish constraints come across; resources, calendars and costs are left behind. Up to 8 MB.
 Save type
 Saved
+Say what kind of cost each cost code is (labor, material, equipment, subcontract or other) so a budget view can group the budget by cost type. One per line
 Scale
 Schedule
 Schedule a recurring form by {}
@@ -1998,6 +2004,7 @@ Search {}
 Second copy
 Section
 Section number
+Section {}
 Sections
 Sections and items
 Sections of questions, each worth points; the share earned becomes a company's score
@@ -2040,6 +2047,7 @@ Sent to {}
 Sep
 Set
 Set a budget line
+Set a cost code's cost type by {}
 Set bid scoring criteria by {}
 Set budget line by {}
 Set forecast to complete by {}
@@ -2053,6 +2061,7 @@ Set plan approvers by {}
 Set rate
 Set scale
 Set task progress by {}
+Set the cost type of many cost codes by {}
 Set the criteria
 Set the project's working days and holidays by {}
 Set the scale
@@ -2522,6 +2531,7 @@ sf
 smtp.example.com
 standard on project management, read-only financials.
 submitted {}
+the cost code, then the type, or none to clear it. All lines are applied, or none if one is wrong.
 the date in the picture, else today)
 the file name)
 the old one stops working at once.

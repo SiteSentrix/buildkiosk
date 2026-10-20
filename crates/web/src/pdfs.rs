@@ -401,7 +401,6 @@ pub fn estimate(req: &Req<'_>, id: Id<Project>, eid: Id<buildkiosk_engine::model
 }
 
 pub fn budget(req: &Req<'_>, id: Id<Project>, chosen: Option<Id<buildkiosk_engine::model::finance::BudgetView>>) -> Option<Pdf> {
-    use buildkiosk_engine::model::finance::BudgetGroup;
     let state = req.engine.state();
     let p = project_of(req, id, Tool::Budget)?;
     let rows = view::budget_rows(state, id).ok()?;
@@ -412,19 +411,10 @@ pub fn budget(req: &Req<'_>, id: Id<Project>, chosen: Option<Id<buildkiosk_engin
         None => format!("As of {}", req.today().pretty()),
     };
     let (mut doc, _) = start(req, p, "Budget".into(), &sub);
-    let code_of = |r: &view::BudgetRow| state.cost_codes.get(r.cost_code).map(|c| c.code.clone()).unwrap_or_default();
     let mut body: Vec<Vec<String>> = Vec::new();
-    let mut at = 0;
-    while let Some(first) = rows.get(at) {
-        let key = (group == BudgetGroup::Division).then(|| view::code_division(&code_of(first)).to_string());
-        let end = rows
-            .iter()
-            .skip(at)
-            .position(|r| (group == BudgetGroup::Division).then(|| view::code_division(&code_of(r)).to_string()) != key)
-            .map_or(rows.len(), |n| at + n);
-        let list: Vec<&view::BudgetRow> = rows.iter().skip(at).take(end - at).collect();
+    for (key, list) in view::budget_groups(state, &rows, group) {
         if let Some(k) = &key {
-            let mut head = vec![format!("Division {k}")];
+            let mut head = vec![crate::finance::group_heading(group, k)];
             head.extend(columns.iter().map(|_| String::new()));
             body.push(head);
         }
@@ -442,7 +432,6 @@ pub fn budget(req: &Req<'_>, id: Id<Project>, chosen: Option<Id<buildkiosk_engin
                 body.push(line);
             }
         }
-        at = end;
     }
     let mut total = vec!["Total".to_string()];
     total.extend(columns.iter().map(|col| crate::finance::total_text(&t, *col)));

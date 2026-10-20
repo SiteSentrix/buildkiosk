@@ -295,7 +295,15 @@ fn import(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
             Some(id) => id,
             None => {
                 let id = ctx.state.cost_codes.alloc();
-                ctx.state.cost_codes.put(CostCode { id, project: Some(project), code: code_text, description, created: stamp, deleted: None });
+                ctx.state.cost_codes.put(CostCode {
+                    id,
+                    project: Some(project),
+                    code: code_text,
+                    description,
+                    cost_type: None,
+                    created: stamp,
+                    deleted: None,
+                });
                 added += 1;
                 id
             }

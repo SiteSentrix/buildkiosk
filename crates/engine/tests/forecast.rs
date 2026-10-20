@@ -200,3 +200,71 @@ fn divisions_of_cost_codes() {
     assert_eq!(code_division(""), "");
     assert_eq!(code_division("  07-100 "), "07");
 }
+
+#[test]
+fn sections_of_cost_codes() {
+    use buildkiosk_engine::view::code_section;
+    assert_eq!(code_section("03-300-10"), "03-300");
+    assert_eq!(code_section("03-300"), "03-300");
+    assert_eq!(code_section("03"), "03");
+    assert_eq!(code_section("03 30 00"), "03 30");
+    assert_eq!(code_section("A/12/b/9"), "A/12");
+    assert_eq!(code_section("03--300"), "03--300", "an empty second part leaves the code whole");
+    assert_eq!(code_section(" 07-100.5 "), "07-100");
+    assert_eq!(code_section(""), "");
+}
+
+#[test]
+fn grouping_the_budget_by_section_and_cost_type() {
+    use buildkiosk_engine::view::budget_groups;
+    use buildkiosk_model::finance::BudgetGroup;
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let eng = w.member(p, "Eli", "Engineer", "Project engineer");
+    w.ok(pm, "cost_code.create", json!({"project": p, "code": "03-300-10", "description": "Slab"}));
+    w.ok(pm, "cost_code.create", json!({"project": p, "code": "03-300-20", "description": "Walls", "cost_type": "Material"}));
+    w.ok(pm, "cost_code.create", json!({"project": p, "code": "03-400-10", "description": "Precast", "cost_type": "subcontract"}));
+    w.err(pm, "cost_code.create", json!({"project": p, "code": "09-100", "description": "Paint", "cost_type": "magic"}));
+    w.ok(pm, "budget.import", json!({"project": p, "text": "03-300-10, 1000\n03-300-20, 2000\n03-400-10, 4000"}));
+
+    // Setting types: one at a time and many at once; all or none; the project's admins only.
+    let slab = code(&w, "03-300-10");
+    w.err(eng, "cost_code.set_type", json!({"project": p, "id": slab, "cost_type": "labor"}));
+    w.err(pm, "cost_code.set_type", json!({"project": p, "id": slab, "cost_type": "sideways"}));
+    w.ok(pm, "cost_code.set_type", json!({"project": p, "id": slab, "cost_type": "labor"}));
+    w.err(pm, "cost_code.set_type", json!({"project": 9999, "id": slab, "cost_type": "labor"}));
+    let out = w.ok(pm, "cost_code.set_types", json!({"project": p, "text": "03-400-10 other\n# a comment\n03-300-20, material\n03-300-10\tnone"}));
+    assert_eq!(out["changed"], 3);
+    for bad in ["03-400-10", "99-999 labor", "03-400-10 labor\n03-300-20 sideways", ""] {
+        w.err(pm, "cost_code.set_types", json!({"project": p, "text": bad}));
+    }
+    w.err(eng, "cost_code.set_types", json!({"project": p, "text": "03-400-10 labor"}));
+    let list = w.ok(pm, "cost_code.list", json!({"project": p}));
+    let kind = |c: &str| list.as_array().unwrap().iter().find(|x| x["code"] == c).unwrap()["cost_type"].clone();
+    assert_eq!(
+        (kind("03-300-10"), kind("03-300-20"), kind("03-400-10")),
+        (json!(null), json!("material"), json!("other")),
+        "a refused list changed nothing"
+    );
+    // The import takes a third cell with tabs.
+    w.ok(pm, "cost_code.import", json!({"project": p, "text": "05-100\tSteel, structural\tlabor\n05-200,Joists"}));
+    w.err(pm, "cost_code.import", json!({"project": p, "text": "06-100\tWood\tfurniture"}));
+
+    let rows = budget_rows(w.engine.state(), buildkiosk_core::Id::new(p.raw())).unwrap();
+    let groups = |g| -> Vec<(String, usize)> {
+        budget_groups(w.engine.state(), &rows, g).into_iter().map(|(k, l)| (k.unwrap_or_default(), l.len())).collect()
+    };
+    assert_eq!(groups(BudgetGroup::None), [(String::new(), 3)]);
+    assert_eq!(groups(BudgetGroup::Division), [("03".to_string(), 3)]);
+    assert_eq!(groups(BudgetGroup::Section), [("03-300".to_string(), 2), ("03-400".to_string(), 1)]);
+    // By cost type: material, then other, then the codes with no type, each group in code order.
+    assert_eq!(groups(BudgetGroup::Type), [("Material".to_string(), 1), ("Other".to_string(), 1), ("No cost type".to_string(), 1)]);
+    // A saved view can group the new ways.
+    for g in ["section", "type"] {
+        let id =
+            w.ok(pm, "budget.view_save", json!({"project": p, "name": format!("By {g}"), "columns": "original", "group": g}))["id"].as_u64().unwrap();
+        assert!(id > 0);
+    }
+    w.assert_replay();
+}

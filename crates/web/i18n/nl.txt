@@ -30,7 +30,6 @@ A seventh to tenth column is optional	Een zevende tot tiende kolom is optioneel
 A spreadsheet saved as CSV. Put the column names on the first line	Een spreadsheet opgeslagen als CSV. Zet de kolomnamen op de eerste regel
 A takeoff from a drawing	Een opmeting van een tekening
 A token lets a script or an AI agent act as you over the HTTP API (	Met een token kan een script of een AI-agent via de HTTP-API namens jou handelen (
-A view keeps the columns you want to see and whether cost codes are grouped by division. It changes the table above and the CSV export, nothing else.	Een weergave bewaart de kolommen die je wilt zien en of kostencodes per divisie worden gegroepeerd. Dit verandert de tabel hierboven en de CSV-export, niets anders.
 A, 2, Addendum 3	A, 2, Addendum 3
 A-101.txt	A-101.txt
 API tokens	API-tokens
@@ -2556,3 +2555,14 @@ weekly summary	weekoverzicht
 {}Directory	{}Adresboek
 {}Prequalification	{}Voorkwalificatie
 ← Previous week	← Vorige week
+03-300 material	03-300 material
+A view keeps the columns you want to see and whether cost codes are grouped (by division, section or cost type). It changes the table above and the CSV export, nothing else.	Een weergave bewaart de kolommen die u wilt zien en of kostencodes worden gegroepeerd (per afdeling, sectie of kostensoort). Ze verandert de tabel hierboven en de CSV-export, niets anders.
+By cost type	Per kostensoort
+By section	Per sectie
+Cost types	Kostensoorten
+Save cost types	Kostensoorten opslaan
+Say what kind of cost each cost code is (labor, material, equipment, subcontract or other) so a budget view can group the budget by cost type. One per line	Geef aan welke soort kosten elke kostencode is (labor, material, equipment, subcontract of other) zodat een budgetweergave het per kostensoort kan groeperen. Eén per regel
+Section {}	Sectie {}
+Set a cost code's cost type by {}	Kostensoort van een kostencode ingesteld door {}
+Set the cost type of many cost codes by {}	Kostensoorten van meerdere kostencodes ingesteld door {}
+the cost code, then the type, or none to clear it. All lines are applied, or none if one is wrong.	de kostencode, dan de soort, of none om te wissen. Alle regels worden toegepast, of geen als er één fout is.

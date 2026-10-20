@@ -30,7 +30,6 @@ A seventh to tenth column is optional	Une septième à dixième colonne est facu
 A spreadsheet saved as CSV. Put the column names on the first line	Un tableur enregistré au format CSV. Placez les noms des colonnes sur la première ligne
 A takeoff from a drawing	Un métré à partir d'un plan
 A token lets a script or an AI agent act as you over the HTTP API (	Un jeton permet à un script ou à un agent IA d'agir en votre nom via l'API HTTP (
-A view keeps the columns you want to see and whether cost codes are grouped by division. It changes the table above and the CSV export, nothing else.	Une vue conserve les colonnes que vous voulez voir et indique si les codes de coût sont regroupés par division. Elle modifie le tableau ci-dessus et l'export CSV, rien d'autre.
 A, 2, Addendum 3	A, 2, Additif 3
 A-101.txt	A-101.txt
 API tokens	Jetons d'API
@@ -2556,3 +2555,14 @@ weekly summary	synthèse hebdomadaire
 {}Directory	{}Annuaire
 {}Prequalification	{}Préqualification
 ← Previous week	← Semaine précédente
+03-300 material	03-300 material
+A view keeps the columns you want to see and whether cost codes are grouped (by division, section or cost type). It changes the table above and the CSV export, nothing else.	Une vue garde les colonnes que vous voulez voir et si les codes de coût sont regroupés (par division, section ou type de coût). Elle change le tableau ci-dessus et l'export CSV, rien d'autre.
+By cost type	Par type de coût
+By section	Par section
+Cost types	Types de coût
+Save cost types	Enregistrer les types de coût
+Say what kind of cost each cost code is (labor, material, equipment, subcontract or other) so a budget view can group the budget by cost type. One per line	Indiquez de quel type de coût est chaque code de coût (labor, material, equipment, subcontract ou other) pour qu'une vue du budget puisse le regrouper par type de coût. Un par ligne
+Section {}	Section {}
+Set a cost code's cost type by {}	Type de coût d'un code de coût défini par {}
+Set the cost type of many cost codes by {}	Types de coût de plusieurs codes de coût définis par {}
+the cost code, then the type, or none to clear it. All lines are applied, or none if one is wrong.	le code de coût, puis le type, ou none pour l'effacer. Toutes les lignes sont appliquées, ou aucune si l'une est erronée.

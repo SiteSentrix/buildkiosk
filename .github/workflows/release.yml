@@ -398,6 +398,9 @@ jobs:
   image:
     name: Container image
     needs: [version, package]
+    # Not the default `success()`: that is false when any job further up the chain was skipped, and the signing jobs
+    # are skipped in a dry run. The image is still built then (it is only pushed for a tag).
+    if: ${{ !cancelled() && needs.package.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

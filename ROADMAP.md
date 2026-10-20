@@ -1,6 +1,6 @@
 # BuildKiosk roadmap
 
-_Status: 2026-10-14. Stage: every scoped tool is built end to end and most go well past a first slice (see the progress log). Numbers are estimated, not measured._
+_Status: 2026-10-20. Stage: every scoped tool is built end to end and most go well past a first slice (see the progress log). Numbers are estimated, not measured._
 
 Scope (owner decision, 2026-10-12): Procore's tools only; BuildKiosk-only extras are parked (see AGENTS.md).
 The ranked work list is [`docs/gaps.md`](docs/gaps.md).
@@ -8,16 +8,18 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 ## Where we are
 | Area | State |
 | --- | --- |
-| Engine (commands, permissions, journal) | company setup, directory, permission templates, projects, project team, cost codes, RFIs, submittals, specification sections, notifications, daily logs, punch list, observations, inspections, budget, commitments, direct costs, change events, commitment change orders, budget changes, prime contract, prime change orders, owner invoices, commitment invoices, folders and documents with versions, drawings with revisions, schedule tasks with links and critical path, transmittals, meetings, tasks, incidents, photos, correspondence, forms, timesheets, action plans, bidding, estimating, prequalification, project report |
-| Store | journal, snapshots, blobs, credentials on disk |
-| Web UI | schedule (task table with a Gantt chart in inline SVG, critical path, float, baseline, import, CSV); drawings (sheet log with filters, import, revisions, files, CSV); documents (folders, private folders, upload, versions, search, download); budget (rolled up by cost code), commitments (schedule of values), direct costs; inspections (list, checklist, form, templates); observations (same views as the punch list, plus category, date observed, corrective action); punch list (list, detail, form, comments, files, CSV); daily log (list by month, detail, form with crews, equipment, deliveries, visitors); submittals (list, detail, form, reviews, close, resubmit, files); sign-in, first-run setup, projects, project home, team, RFIs (list, detail, new, edit, respond, open, close, reopen, delete, files, history, distribution list, CSV export) |
-| Directory | company directory page: people, companies, permission templates (view), add forms, admin sets passwords |
-| Server | signed session cookies, CSRF on every form, `POST /do/{command}`, `POST /api/v1/commands/{id}` (bearer token) |
-| App | `serve`, `demo`, `run`, `commands`, `token`, `mcp`, `backup`, `check` |
-| Not yet | file attachments, submittals and every other tool |
+| Engine (commands, permissions, journal) | company setup, directory, permission templates, projects, project team, cost codes, RFIs, submittals, specification sections, notifications, daily logs, punch list, observations, inspections, budget, commitments, direct costs, change events, commitment change orders, budget changes, prime contract, prime change orders, owner invoices, commitment invoices, folders and documents with versions, drawings with revisions and sheet measurements, schedule tasks with links, baselines and critical path, transmittals, meetings, tasks, incidents, photos, correspondence, forms, timesheets, action plans, estimating, bidding (with the bidder portal), prequalification, company reports, project report |
+| Store | journal, snapshots, blobs, credentials on disk; scheduled backups, restore |
+| Web UI | a set of pages for every tool above (list, detail, forms, files, comments, CSV and PDF export where it applies); schedule with a Gantt chart, critical path and float; drawings with the sheet viewer (a Rust-to-WebAssembly module, with a server-drawn fallback); budget views, commitments, invoices and change management; estimating and bid leveling; the company directory with the team page (template, role and per-tool overrides); saved company reports; My account (password, API tokens); the interface in English, Spanish, French and Dutch |
+| Outside companies | bidder portal: invited companies open an emailed link (no account), read the bid documents, ask questions and send a bid (`docs/bidder-portal.md`) |
+| Server | signed session cookies, CSRF on every form, `POST /do/{command}`, `POST /api/v1/commands/{id}` and MCP over HTTP (`POST /mcp`) with a bearer token, email notifications through the company's own SMTP server |
+| App | `serve`, `demo`, `run`, `commands`, `token`, `mcp`, `backup`, `restore`, `check`, `version` |
+| Releases | a version tag builds Linux (static), macOS and Windows with the sheet viewer embedded; Windows is signed and macOS signed and notarized; a multi-architecture container image; archives with `SHA256SUMS`, build attestations and `install.sh` (`docs/deployment.md`). No release has been published yet. |
+| Not yet | the remaining parts listed in `docs/gaps.md`; sharing documents by link, offline field mode and mobile apps, native Microsoft Project (.mpp) files, integrations with other software and electronic signing inside BuildKiosk; it has not been run on a real job site |
 
 ## Upcoming
-2. Next tools in the order of `docs/gaps.md` (item 8 onward; the financial remainder is listed under item 7).
+1. Publish the first release (tag `v0.1.0`; the version in `Cargo.toml` and the tag must match).
+2. The open parts of the tools already built, in the order of `docs/gaps.md`: inspections (4), drawings (5), schedule (6), financials (7), company reports (10), prequalification (11), languages (12).
 
 ## Progress log
 - 2026-10-14: Releases: pushing a version tag runs the gate, builds the program for Linux (static), macOS and Windows with the sheet viewer embedded, checksums and attests the archives, and publishes a GitHub release; `install.sh` installs one after checking its checksum (`docs/deployment.md`). `buildkiosk version` added.

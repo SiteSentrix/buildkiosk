@@ -26,7 +26,6 @@ A name already used is replaced. The new baseline becomes the one the chart and 
 A new version of	Una nueva versión de
 A project admin has full access to every tool, so overrides have no effect.	Un administrador del proyecto tiene acceso total a todas las herramientas, así que las excepciones no tienen efecto.
 A saved crew	Una cuadrilla guardada
-A seventh to tenth column is optional	Una séptima a décima columna es opcional
 A spreadsheet saved as CSV. Put the column names on the first line	Una hoja de cálculo guardada como CSV. Pon los nombres de las columnas en la primera línea
 A takeoff from a drawing	Una medición de cantidades de un plano
 A token lets a script or an AI agent act as you over the HTTP API (	Un token permite que un script o un agente de IA actúe como tú mediante la API HTTP (
@@ -1939,7 +1938,6 @@ Save snapshot	Guardar instantánea
 Save template	Guardar plantilla
 Save the current dates as	Guarda las fechas actuales como
 Save the email from your mail program as a .eml file, open it in a text editor and paste everything here. The subject, date, sender and text are read from it, and people whose email address is on the To or Cc line are told.	Guarda el correo de tu programa de correo como archivo .eml, ábrelo en un editor de texto y pega todo aquí. De él se leen el asunto, la fecha, el remitente y el texto, y se avisa a las personas cuyo correo está en la línea Para o Cc.
-Save the schedule from your planning software as XML. Tasks, dates, percent complete, milestones, outline levels, links with their kind and lag, and start and finish constraints come across; resources, calendars and costs are left behind. Up to 8 MB.	Guarda el cronograma de tu software de planificación como XML. Pasan las tareas, las fechas, el porcentaje completado, los hitos, los niveles de esquema, los vínculos con su tipo y desfase, y las restricciones de inicio y fin; los recursos, calendarios y costos no se incluyen. Hasta 8 MB.
 Save type	Guardar tipo
 Saved	Guardado
 Scale	Escala
@@ -2499,7 +2497,6 @@ leveled	nivelado
 lines can't be edited, added or imported.	no se pueden editar, añadir ni importar líneas.
 low {}	bajo {}
 marcus.lee@example.com	marcus.lee@example.com
-milestone (yes or no), then a constraint (snet, mso or fnlt) and its date.	hito (yes o no), luego una restricción (snet, mso o fnlt) y su fecha.
 name, unit, unit cost, category (optional), cost code (optional, from the company's standard list). An item with the same name has its price changed.	nombre, unidad, costo unitario, categoría (opcional), código de costo (opcional, de la lista estándar de la empresa). Un elemento con el mismo nombre cambia su precio.
 name, weight (adding up to 100), then price for the one worked out from the bids	nombre, peso (que sumen 100), luego el precio para el que se calcula a partir de las ofertas
 no file	sin archivo
@@ -2556,3 +2553,22 @@ weekly summary	resumen semanal
 {}Directory	{}Directorio
 {}Prequalification	{}Precalificación
 ← Previous week	← Semana anterior
+A seventh to eleventh column is optional	Una séptima a undécima columna es opcional
+Apply this plan	Aplicar este plan
+Delays tasks that need more of a resource than the limit allows on a working day, and what follows them through their links. Finished work, started work and work pinned to a date stay where they are. Tasks only move later. Look at the plan first	Retrasa las tareas que necesitan más de un recurso de lo que permite el límite en un día laborable, y lo que las sigue por sus vínculos. El trabajo terminado, el iniciado y el fijado a una fecha se quedan donde están. Las tareas solo se mueven más tarde. Mire primero el plan
+Level resources	Nivelar recursos
+Level resources by {}	Nivelar recursos por {}
+No resource is over its limit, so nothing needs to move.	Ningún recurso supera su límite, así que no hace falta mover nada.
+Now	Ahora
+Preview, keeping the finish date	Vista previa, manteniendo la fecha de fin
+Preview, letting the finish move	Vista previa, dejando que el fin se mueva
+Project finish	Fin del proyecto
+Replace this project's working days and days off with the file's calendar (then recalculate)	Sustituir los días laborables y los días libres de este proyecto por el calendario del archivo (luego recalcular)
+Save the schedule from your planning software as XML. Tasks, dates, percent complete, milestones, outline levels, links with their kind and lag, and start and finish constraints come across. Tick the boxes below to take more from the file. Costs are left behind. Up to 8 MB.	Guarde el cronograma desde su programa de planificación como XML. Llegan las tareas, las fechas, el porcentaje completado, los hitos, los niveles del esquema, los vínculos con su tipo y desfase, y las restricciones de inicio y fin. Marque las casillas de abajo para tomar más del archivo. Los costos se dejan fuera. Hasta 8 MB.
+Set the resource limits from the file's maximum of each resource	Fijar los límites de recursos según el máximo de cada recurso en el archivo
+Still over a limit	Aún por encima de un límite
+Take the resources assigned to each task (100% is one a day, rounded to whole numbers)	Tomar los recursos asignados a cada tarea (100 % es uno al día, redondeado a números enteros)
+Working days later	Días laborables más tarde
+Would be	Quedaría
+milestone (yes or no), then a constraint (snet, mso or fnlt) and its date, then the resources the task needs each working day, such as Carpenter 4, Laborer 2.	hito (sí o no), luego una restricción (snet, mso o fnlt) y su fecha, luego los recursos que la tarea necesita cada día laborable, como Carpenter 4, Laborer 2.
+nothing changes until you apply it.	no cambia nada hasta que lo aplique.

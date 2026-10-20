@@ -20,6 +20,7 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 2. Next tools in the order of `docs/gaps.md` (item 8 onward; the financial remainder is listed under item 7).
 
 ## Progress log
+- 2026-10-20: Schedule: resource levelling (preview and apply on the resources page; `schedule.level_plan`, `schedule.level`), and resources, limits and the working calendar read from Microsoft Project XML files on request.
 - 2026-10-14: Releases: pushing a version tag runs the gate, builds the program for Linux (static), macOS and Windows with the sheet viewer embedded, checksums and attests the archives, and publishes a GitHub release; `install.sh` installs one after checking its checksum (`docs/deployment.md`). `buildkiosk version` added.
 - 2026-10-16: Container image: the release workflow also builds a multi-architecture (Linux x86_64 and aarch64) image from the same static binaries and pushes it to `ghcr.io/sitesentrix/buildkiosk` on a tag (`contrib/docker/Dockerfile`, `docs/deployment.md`).
 - 2026-10-20: Signed releases: the Windows program is signed with Azure Artifact Signing and the macOS programs with a Developer ID certificate and notarized (jobs in the `release` environment; unsigned with a warning when the secrets are missing), before the archives, checksums and attestations are made (`.github/workflows/release.yml`, `contrib/macos/`, `docs/deployment.md`).

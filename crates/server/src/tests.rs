@@ -1451,6 +1451,66 @@ async fn drawings_log_revisions_and_csv() {
 }
 
 #[tokio::test]
+async fn resource_levelling_preview_and_apply() {
+    let dir = temp("level");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let session = cookies(&h);
+    let (_, _, home) = send(&app, Request::get("/").header("cookie", &session).body(Body::empty()).unwrap()).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &session, format!("_csrf={csrf}&name=P"))).await;
+    for (name, start, days, res) in [("Framing", "2026-10-12", 3, "Carpenter+4"), ("Blocking", "2026-10-13", 2, "Carpenter+3")] {
+        send(&app, post("/do/schedule.add", &session, format!("_csrf={csrf}&project=1&name={name}&start={start}&days={days}&resources={res}"))).await;
+    }
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &session).body(Body::empty()).unwrap();
+    // With no limits there is nothing to level.
+    let (_, _, res) = send(&app, get("/projects/1/schedule/resources?from=2026-10-12")).await;
+    assert!(!res.contains("Level resources"), "{res}");
+    send(&app, post("/do/schedule.resource_limits", &session, format!("_csrf={csrf}&project=1&text=Carpenter+5"))).await;
+    let (st, _, res) = send(&app, get("/projects/1/schedule/resources?from=2026-10-12")).await;
+    assert!(st == StatusCode::OK && res.contains("Level resources") && res.contains("Preview, keeping the finish date"), "{res}");
+    assert!(!res.contains("Apply this plan"), "no plan is shown until one is asked for");
+    // The preview lists what would move and offers to apply it; nothing has changed yet.
+    let (_, _, res) = send(&app, get("/projects/1/schedule/resources?from=2026-10-12&level=all")).await;
+    assert!(res.contains("Blocking") && res.contains("Apply this plan") && res.contains("Working days later"), "{res}");
+    let (_, _, list) = send(&app, get("/projects/1/schedule.csv")).await;
+    assert!(list.contains("2026-10-13"), "{list}");
+    // Applying moves the task, so the page then finds nothing to do.
+    let (_, h, _) =
+        send(&app, post("/do/schedule.level", &session, format!("_csrf={csrf}&project=1&within_float=false&_next=%2Fprojects%2F1%2Fschedule"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, res) = send(&app, get("/projects/1/schedule/resources?from=2026-10-12&level=all")).await;
+    assert!(res.contains("nothing needs to move") && !res.contains("Apply this plan"), "{res}");
+    let (_, _, list) = send(&app, get("/projects/1/schedule.csv")).await;
+    assert!(list.contains("Blocking") && list.contains("2026-10-15"), "{list}");
+
+    // A project file uploaded with the boxes ticked brings its resources, limits and calendar.
+    let xml = r#"<Project xmlns="http://schemas.microsoft.com/project"><Calendars><Calendar><UID>1</UID><IsBaseCalendar>1</IsBaseCalendar><WeekDays><WeekDay><DayType>1</DayType><DayWorking>0</DayWorking></WeekDay><WeekDay><DayType>2</DayType><DayWorking>1</DayWorking></WeekDay><WeekDay><DayType>7</DayType><DayWorking>1</DayWorking></WeekDay></WeekDays></Calendar></Calendars><Resources><Resource><UID>1</UID><Name>Mason</Name><MaxUnits>3</MaxUnits></Resource></Resources><Tasks><Task><UID>1</UID><Name>Pour</Name><Start>2026-11-02T08:00:00</Start><Finish>2026-11-03T17:00:00</Finish></Task></Tasks><Assignments><Assignment><TaskUID>1</TaskUID><ResourceUID>1</ResourceUID><Units>2</Units></Assignment></Assignments></Project>"#;
+    let mut body = String::new();
+    for (k, v) in [("_csrf", csrf.as_str()), ("resources", "true"), ("limits", "true"), ("calendar", "true")] {
+        body.push_str(&format!("--B\r\nContent-Disposition: form-data; name=\"{k}\"\r\n\r\n{v}\r\n"));
+    }
+    body.push_str(&format!(
+        "--B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"plan.xml\"\r\nContent-Type: text/xml\r\n\r\n{xml}\r\n--B--\r\n"
+    ));
+    let upload = Request::post("/projects/1/schedule/import-xml")
+        .header("cookie", &session)
+        .header("content-type", "multipart/form-data; boundary=B")
+        .body(Body::from(body))
+        .unwrap();
+    let (_, h, _) = send(&app, upload).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, res) = send(&app, get("/projects/1/schedule/resources?from=2026-11-02&weeks=1")).await;
+    assert!(res.contains("Mason") && res.contains(">3<"), "the limit from the file is shown: {res}");
+    let (_, _, cal) = send(&app, get("/projects/1/schedule/calendar")).await;
+    assert!(cal.contains("value=\"mon, sat\""), "the file's weekdays, Monday and Saturday only here");
+}
+
+#[tokio::test]
 async fn schedule_page_gantt_and_csv() {
     let dir = temp("schedule");
     let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());

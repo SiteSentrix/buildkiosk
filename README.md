@@ -143,6 +143,11 @@ download against published checksums first, and `--help` lists the options (see 
 curl -fsSL https://raw.githubusercontent.com/SiteSentrix/buildkiosk/main/install.sh | sh
 ```
 
+The Windows and macOS programs are signed (Windows: Authenticode; macOS: Developer ID, notarized by Apple), so the system does
+not warn about an unknown publisher. To check a signature, on Windows `Get-AuthenticodeSignature .\buildkiosk.exe`, on macOS
+`codesign --verify --strict --check-notarization buildkiosk` (see [Signed builds](docs/deployment.md#signed-builds)). Linux
+programs are not signed; the checksums and build attestations cover every archive.
+
 Or run the container image (Linux x86_64 and aarch64; the data lives in the `/data` volume, and Compose and proxy notes are in
 [`docs/deployment.md`](docs/deployment.md)):
 

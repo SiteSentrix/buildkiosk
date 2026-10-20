@@ -1,6 +1,6 @@
 # Deploying BuildKiosk
 
-_Status: written with the operations commands (M5.2); container image added with the release workflow. Covers a single self-hosted server._
+_Status: written with the operations commands (M5.2); container image and signed builds added with the release workflow. Covers a single self-hosted server._
 
 BuildKiosk is one binary and one data directory. There is no database server to run.
 
@@ -21,12 +21,31 @@ installs nothing if they differ**, and puts `buildkiosk` in `/usr/local/bin` as 
 user, `/var/lib/buildkiosk` and the unit below (`--start` to enable and start it); it never overwrites an existing
 unit. On Windows, download the `.zip`, unpack it and run `buildkiosk.exe`.
 
-To check by hand: `sha256sum -c SHA256SUMS --ignore-missing`. Each archive also carries a GitHub build attestation, which
+To check by hand: `sha256sum -c SHA256SUMS --ignore-missing`. The Windows and macOS programs are also signed (see Signed builds below). Each archive also carries a GitHub build attestation, which
 shows it was built by this repository's release workflow from a tagged commit:
 `gh attestation verify buildkiosk-<version>-<target>.tar.gz --repo SiteSentrix/buildkiosk`.
 
 To uninstall, delete the binary (and, for a service install, `systemctl disable --now buildkiosk`, the unit file and, if
 you want the data gone too, `/var/lib/buildkiosk`: that is the company data, so take a backup first).
+
+### Signed builds
+
+The Windows and macOS programs in a release are signed, so the system does not warn about an unknown publisher:
+
+- **Windows:** `buildkiosk.exe` carries an Authenticode signature (Azure Artifact Signing) with a trusted timestamp.
+  Check it in PowerShell: `Get-AuthenticodeSignature .\buildkiosk.exe | Format-List Status, SignerCertificate`
+  (Status should be `Valid`), or right-click the file, Properties, Digital Signatures.
+- **macOS (Intel and Apple silicon):** `buildkiosk` is signed with a Developer ID Application certificate (hardened
+  runtime, secure timestamp) and notarized by Apple. A command-line program cannot carry the notarization ticket
+  inside the file, so macOS looks it up online the first time it is opened. Check it:
+  `codesign --verify --strict --verbose=2 buildkiosk` prints nothing wrong; `codesign --display --verbose=2 buildkiosk`
+  shows the `Developer ID Application` authority and team and the `runtime` flag;
+  `codesign --verify --strict --check-notarization buildkiosk` confirms the notarization (needs a network connection).
+- **Linux** programs are not signed. Use the checksums and the build attestation above.
+
+The checksums and the build attestation cover the archives, which hold the signed files, so they stay valid after the
+signing. A release built without the signing secrets (a fork, for example) is unsigned, and says so in the workflow
+run's warnings.
 
 ## Run it in Docker
 

@@ -6,6 +6,7 @@
 # build attestation, and a GitHub release is created with the archives, SHA256SUMS and install.sh, and a
 # multi-architecture container image (Linux x86_64 and aarch64) is pushed to ghcr.io/<owner>/buildkiosk. Versions
 # below 1.0.0 (or with a `-suffix`) are marked as pre-releases. Nothing is published until a tag is pushed.
+# If a release for the tag already exists, its files are replaced by this run's.
 #
 # Signing. The jobs that sign (`sign-windows`, `sign-macos`) run in the `release` environment, which holds the signing
 # secrets and only allows the `release` branch and `v*` tags. Windows: buildkiosk.exe is signed with Azure Artifact
@@ -392,7 +393,10 @@ jobs:
           cp install.sh dist/install.sh
           flags=(--title "BuildKiosk $VERSION" --generate-notes --verify-tag)
           if [ "${{ needs.version.outputs.prerelease }}" = "true" ]; then flags+=(--prerelease); fi
-          gh release create "$GITHUB_REF_NAME" dist/* "${flags[@]}"
+          # A release for this tag may already exist (for instance one made by hand from the releases page): then add
+          # the files to it, replacing any with the same name. Its title, notes and pre-release flag are left alone.
+          gh release create "$GITHUB_REF_NAME" dist/* "${flags[@]}" \
+            || gh release upload "$GITHUB_REF_NAME" dist/* --clobber
 
   # The container image holds the Linux binaries built above, so it runs exactly what the archives contain.
   image:

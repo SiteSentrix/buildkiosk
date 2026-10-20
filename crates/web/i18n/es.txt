@@ -2556,3 +2556,41 @@ weekly summary	resumen semanal
 {}Directory	{}Directorio
 {}Prequalification	{}Precalificación
 ← Previous week	← Semana anterior
+A pie needs figures that are not negative and add up to more than nothing. Use bars or columns for	Un gráfico circular necesita cifras no negativas que sumen más de cero. Use barras o columnas para
+A pie needs figures that are not negative and add up to more than nothing. Use bars or columns for {}.	Un gráfico circular necesita cifras no negativas que sumen más de cero. Use barras o columnas para {}.
+Bars	Barras
+Day of the month (monthly)	Día del mes (mensual)
+Draft transmittals	Transmitales en borrador
+Each person gets the report as they themselves would see it, as a table in the email and a CSV file, from about six in the morning. Outgoing email has to be set up first. The first email is the next time the rhythm comes round.	Cada persona recibe el informe tal como ella misma lo vería, como una tabla en el correo y un archivo CSV, desde las seis de la mañana aproximadamente. Primero hay que configurar el correo saliente. El primer correo se envía la próxima vez que llegue el momento.
+Email a report on a schedule by {}	Informe programado para enviarse por correo por {}
+Email this report	Enviar este informe por correo
+Emailed every	Enviado cada
+Emailed every day	Enviado todos los días
+Emailed every {}	Enviado cada {}
+Emailed on day	Enviado el día
+Emailed on day {} of every month	Enviado el día {} de cada mes
+Every day	Todos los días
+Forms in draft	Formularios en borrador
+Friday	Viernes
+Kind of chart	Tipo de gráfico
+Monday	Lunes
+Not emailed	No se envía por correo
+Not emailed. Pick a rhythm and who gets it.	No se envía por correo. Elija la frecuencia y quién lo recibe.
+Open change events	Eventos de cambio abiertos
+Open commitments	Compromisos abiertos
+Open correspondence	Correspondencia abierta
+Open incidents	Incidentes abiertos
+Open inspections	Inspecciones abiertas
+Open meeting actions	Acciones de reunión abiertas
+Open observations	Observaciones abiertas
+Open tasks	Tareas abiertas
+Pie	Circular
+Record that a report was emailed by {}	Envío de un informe por correo registrado por {}
+Saturday	Sábado
+Sunday	Domingo
+Thursday	Jueves
+Tuesday	Martes
+Unfinished schedule tasks	Tareas del cronograma sin terminar
+Wednesday	Miércoles
+Weekday (weekly)	Día de la semana (semanal)
+Who gets it	Quién lo recibe

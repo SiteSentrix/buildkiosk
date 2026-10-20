@@ -2556,3 +2556,41 @@ weekly summary	synthèse hebdomadaire
 {}Directory	{}Annuaire
 {}Prequalification	{}Préqualification
 ← Previous week	← Semaine précédente
+A pie needs figures that are not negative and add up to more than nothing. Use bars or columns for	Un camembert demande des chiffres non négatifs dont la somme dépasse zéro. Utilisez des barres ou des colonnes pour
+A pie needs figures that are not negative and add up to more than nothing. Use bars or columns for {}.	Un camembert demande des chiffres non négatifs dont la somme dépasse zéro. Utilisez des barres ou des colonnes pour {}.
+Bars	Barres
+Day of the month (monthly)	Jour du mois (mensuel)
+Draft transmittals	Transmissions en brouillon
+Each person gets the report as they themselves would see it, as a table in the email and a CSV file, from about six in the morning. Outgoing email has to be set up first. The first email is the next time the rhythm comes round.	Chaque personne reçoit le rapport tel qu'elle le verrait elle-même, sous forme de tableau dans l'e-mail et de fichier CSV, vers six heures du matin. Le courrier sortant doit d'abord être configuré. Le premier e-mail part la prochaine fois que le rythme revient.
+Email a report on a schedule by {}	Rapport programmé pour envoi par e-mail par {}
+Email this report	Envoyer ce rapport par e-mail
+Emailed every	Envoyé chaque
+Emailed every day	Envoyé tous les jours
+Emailed every {}	Envoyé chaque {}
+Emailed on day	Envoyé le jour
+Emailed on day {} of every month	Envoyé le {} de chaque mois
+Every day	Tous les jours
+Forms in draft	Formulaires en brouillon
+Friday	Vendredi
+Kind of chart	Type de graphique
+Monday	Lundi
+Not emailed	Pas envoyé par e-mail
+Not emailed. Pick a rhythm and who gets it.	Pas envoyé par e-mail. Choisissez le rythme et les destinataires.
+Open change events	Événements de changement ouverts
+Open commitments	Engagements ouverts
+Open correspondence	Correspondance ouverte
+Open incidents	Incidents ouverts
+Open inspections	Inspections ouvertes
+Open meeting actions	Actions de réunion ouvertes
+Open observations	Observations ouvertes
+Open tasks	Tâches ouvertes
+Pie	Camembert
+Record that a report was emailed by {}	Envoi d'un rapport par e-mail enregistré par {}
+Saturday	Samedi
+Sunday	Dimanche
+Thursday	Jeudi
+Tuesday	Mardi
+Unfinished schedule tasks	Tâches du planning non terminées
+Wednesday	Mercredi
+Weekday (weekly)	Jour de la semaine (hebdomadaire)
+Who gets it	Qui le reçoit

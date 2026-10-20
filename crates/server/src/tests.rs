@@ -1451,6 +1451,76 @@ async fn drawings_log_revisions_and_csv() {
 }
 
 #[tokio::test]
+async fn company_report_chart_kinds_and_email_schedule() {
+    let dir = temp("report-email");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let session = cookies(&h);
+    let (_, _, home) = send(&app, Request::get("/").header("cookie", &session).body(Body::empty()).unwrap()).await;
+    let csrf = field(&home, "_csrf");
+    for name in ["Alpha", "Bravo"] {
+        send(&app, post("/do/project.create", &session, format!("_csrf={csrf}&name={name}"))).await;
+    }
+    for (project, title) in [(1, "A1"), (1, "A2"), (1, "A3"), (2, "B1")] {
+        send(&app, post("/do/task.create", &session, format!("_csrf={csrf}&project={project}&title={title}"))).await;
+    }
+    send(&app, post("/do/company_report.save", &session, format!("_csrf={csrf}&name=Tasks&columns%5B%5D=tasks&columns%5B%5D=original&shared=true")))
+        .await;
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &session).body(Body::empty()).unwrap();
+
+    // The chart is drawn as bars, columns or a pie; a pie shows each share.
+    let (_, _, bars) = send(&app, get("/reports?report=1&chart=tasks")).await;
+    assert!(bars.contains("one bar per project") && bars.contains("Kind of chart"), "bars are the default");
+    let (_, _, cols) = send(&app, get("/reports?report=1&chart=tasks&kind=columns")).await;
+    assert!(cols.contains("one column per project"), "columns");
+    let (_, _, pie) = send(&app, get("/reports?report=1&chart=tasks&kind=pie")).await;
+    assert!(pie.contains("each project&#39;s share of the total") || pie.contains("each project's share of the total"), "{pie}");
+    assert!(pie.contains("Alpha: 3 (75%)") && pie.contains("Bravo: 1 (25%)"), "the key gives each share");
+    // No project has an original budget, so the figures add up to nothing and a pie says so.
+    let (_, _, none) = send(&app, get("/reports?report=1&chart=original&kind=pie")).await;
+    assert!(none.contains("A pie needs figures that are not negative"), "no figures");
+
+    // Scheduling: the form is on the report's page; saving shows the rhythm.
+    assert!(bars.contains("Email this report") && bars.contains("Not emailed"));
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/do/company_report.schedule",
+            &session,
+            format!("_csrf={csrf}&id=1&rhythm=weekly&weekday=friday&day=1&people%5B%5D=1&_next=%2Freports%3Freport%3D1"),
+        ),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, bars) = send(&app, get("/reports?report=1")).await;
+    assert!(bars.contains("Emailed every Friday to 1 person"), "{bars}");
+
+    // What goes in the email: the table, the totals, a link and the CSV, as that person sees it.
+    let (subject, body, csv) = {
+        let inner = app.lock();
+        let t = inner.tenant.as_ref().unwrap();
+        let req = buildkiosk_web::layout::Req {
+            engine: &t.engine,
+            person: buildkiosk_core::Id::new(1),
+            csrf: "",
+            now: buildkiosk_core::Timestamp::from_millis(super::now_ms()),
+            flash: None,
+        };
+        buildkiosk_web::company_reports::delivery_email(&req, buildkiosk_core::Id::new(1), "https://bk.example.com").unwrap()
+    };
+    assert!(subject.starts_with("Tasks"), "{subject}");
+    assert!(
+        body.contains("Alpha") && body.contains("Bravo") && body.contains("Total") && body.contains("https://bk.example.com/reports?report=1"),
+        "{body}"
+    );
+    assert!(csv.starts_with("Project,Open tasks,Original budget") && csv.contains("Alpha,3"), "{csv}");
+}
+
+#[tokio::test]
 async fn schedule_page_gantt_and_csv() {
     let dir = temp("schedule");
     let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());

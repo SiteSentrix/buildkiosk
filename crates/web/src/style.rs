@@ -141,6 +141,11 @@ fieldset>.options{display:grid;grid-template-columns:repeat(auto-fill,minmax(210
 .chart .bar.bad{fill:var(--danger)}
 .chart .chart-label,.chart .chart-value{font-size:12px;fill:var(--text)}
 .chart .axis{stroke:var(--border);stroke-width:1}
+.chart .slice{stroke:var(--surface);stroke-width:2}
+.chart .s0{fill:var(--primary);background:var(--primary)}.chart .s1{fill:var(--accent);background:var(--accent)}.chart .s2{fill:var(--violet);background:var(--violet)}
+.chart .s3{fill:var(--warn);background:var(--warn)}.chart .s4{fill:var(--ok);background:var(--ok)}.chart .s5{fill:var(--muted);background:var(--muted)}
+.chart.pie{display:flex;flex-wrap:wrap;gap:16px;align-items:center}.chart.pie svg{max-width:220px}
+.chart .key{list-style:none;margin:0;padding:0}.chart .key li{margin:4px 0}.chart .swatch{display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:-1px}
 table.data tr.subtotal td{font-weight:600;border-top:1px solid var(--border)}
 table.data tr.group-row th{text-transform:none;font-size:14px;letter-spacing:0;color:var(--text);background:var(--surface-2);border-top:1px solid var(--border)}
 table.data td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:top}

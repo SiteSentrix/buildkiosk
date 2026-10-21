@@ -7,6 +7,7 @@
 /api/v1/commands/…
 /mcp
 0 switches a rule off. Weeks run Monday to Sunday and hours already paid as daily overtime are not counted again.
+03-300 material
 03-300, 120000, Concrete
 2027-01-01 New Year's Day
 8'-6" above finished floor. The RCP will be revised.
@@ -22,15 +23,18 @@ A file from {}
 A formal record of what was sent, to whom and why
 A line starting with # begins a section; every other line is an item. Assign owners and dates on the plan page. Editing the outline keeps the owner, date, note and done state of items whose wording and section are unchanged.
 A link lets one contact at an invited company read the documents, acknowledge addenda and send or change a bid, with no account. Links are emailed once the package is out for bid. Bids sent this way stay sealed until bidding closes.
+A message for the reviewers (optional)
 A name already used is replaced. The new baseline becomes the one the chart and each task's slip compare against.
 A new version of
+A pie needs figures that are not negative and add up to more than nothing. Use bars or columns for
+A pie needs figures that are not negative and add up to more than nothing. Use bars or columns for {}.
 A project admin has full access to every tool, so overrides have no effect.
 A saved crew
-A seventh to tenth column is optional
+A seventh to eleventh column is optional
 A spreadsheet saved as CSV. Put the column names on the first line
 A takeoff from a drawing
 A token lets a script or an AI agent act as you over the HTTP API (
-A view keeps the columns you want to see and whether cost codes are grouped by division. It changes the table above and the CSV export, nothing else.
+A view keeps the columns you want to see and whether cost codes are grouped (by division, section or cost type). It changes the table above and the CSV export, nothing else.
 A, 2, Addendum 3
 A-101.txt
 API tokens
@@ -176,6 +180,7 @@ Answer a bidder's question by {}
 Answer inspection checklist by {}
 Answer that shows question {}
 Answer the door hardware RFI
+Answer the questions, give your dates, attach your documents and send your record for review.
 Answer type
 Answer type of question {}
 Answered
@@ -188,10 +193,13 @@ Any template
 Any {}
 Anyone
 Anyone with this link can ask to be invited to bid. Nobody gets the bid documents until you approve their request.
+Anyone with this link can change
+Anyone with this link can change {}'s prequalification answers, dates and documents. Send it only to them.
 Anyone with this link can read the contract and sign it for the other party. Send it only to them.
 Anyone with this link can read the package and send or change a bid for
 Anyone with this link can read the package and send or change a bid for {}. Send it only to them.
 Applied
+Apply this plan
 Approval
 Approve
 Approve a request to bid by {}
@@ -238,6 +246,7 @@ Assigned to me
 Assignees
 At least 10 characters.
 Attach a proposal, bond or other document (up to 25 MB each, 10 files).
+Attach document
 Attach file
 Attach file to RFI by {}
 Attach file to a checklist line by {}
@@ -294,6 +303,7 @@ Backups
 Backups kept
 Balance to finish
 Ball in court
+Bars
 Baselines
 Before closing in
 Bid
@@ -349,8 +359,10 @@ Bulletin 1
 Bulletin 1 drawings
 By
 By cost code
+By cost type
 By division
 By person
+By section
 By severity
 CSV file
 CSV text
@@ -358,6 +370,7 @@ Calendar
 Can sign in
 Can sign in (needs an email)
 Cancel
+Cancel a prequalification link by {}
 Cancel bid link by {}
 Cancelled
 Caption
@@ -474,11 +487,16 @@ Committed cost
 Companies
 Company
 Company admin
+Company attaches a file by {}
 Company holiday lists
 Company holiday lists this project takes
 Company in the directory
+Company leaves a message by {}
 Company name
+Company puts its record forward by {}
+Company removes a file it attached by {}
 Company reports
+Company saves its answers by {}
 Company settings
 Compare
 Compare estimates
@@ -503,6 +521,7 @@ Construction
 Consultant
 Contact
 Contact only
+Contact's email
 Contract
 Contract signature
 Coordination
@@ -538,6 +557,7 @@ Cost per unit
 Cost then
 Cost to add if excluded
 Cost to date
+Cost types
 Costs paid without a commitment
 Country
 County inspector
@@ -600,6 +620,7 @@ Dates and times are shown at UTC
 Dates and times are shown at UTC{}. Amounts are in {}. Changing the currency doesn't convert existing amounts.
 Day
 Day and weather
+Day of the month (monthly)
 Days
 Days are working days of the project calendar. Float is the working days a task can slip without moving the last finish.
 Days for a submittal review
@@ -617,6 +638,7 @@ Decline to sign through the link by {}
 Declined
 Delays
 Delays and issues
+Delays tasks that need more of a resource than the limit allows on a working day, and what follows them through their links. Finished work, started work and work pinned to a date stay where they are. Tasks only move later. Look at the plan first
 Delete
 Delete RFI by {}
 Delete a saved baseline by {}
@@ -704,6 +726,7 @@ Distribution list
 Division
 Division {}
 Document
+Document to attach
 Documents
 Documents sent for review before the work goes ahead
 Does not repeat
@@ -718,6 +741,7 @@ Download all
 Download all as zip
 Download original
 Draft
+Draft transmittals
 Drafts
 Drawing
 Drawing log
@@ -732,6 +756,7 @@ Due date
 Due date of action {}
 EMR
 Each has the same title, type, time, place, invitees and agenda topics, on the dates after this one.
+Each person gets the report as they themselves would see it, as a table in the email and a CSV file, from about six in the morning. Outgoing email has to be set up first. The first email is the next time the rhythm comes round.
 Each person once; blank rows are ignored.
 Each ticked person gets their own entry for this day. With nobody ticked, the hours are yours.
 Each type is numbered on its own
@@ -798,9 +823,16 @@ Edit type
 Edit {}
 Electrical
 Email
+Email a report on a schedule by {}
 Email a signing link to
 Email address
 Email me my notifications
+Email this report
+Emailed every
+Emailed every day
+Emailed every {}
+Emailed on day
+Emailed on day {} of every month
 Embeds, sleeves and penetrations are in place and secured
 Enclosures
 Encryption
@@ -816,6 +848,7 @@ Estimate #{}
 Estimated value
 Estimating
 Every
+Every day
 Every form from one template side by side
 Every month
 Every project you can open, with the columns chosen
@@ -838,6 +871,7 @@ Excavate and grade
 Exchange file
 Excluded
 Experience modification rate
+Experience modification rate (such as 0.85)
 Expired
 Expiring soon
 Export CSV
@@ -910,6 +944,7 @@ Form
 Form templates
 Forms
 Forms are clean, braced and match the drawings
+Forms in draft
 Forms report
 Formwork and reinforcement
 Foundations
@@ -921,6 +956,7 @@ Framing lumber package
 Framing walk-through
 Français
 Fri
+Friday
 From
 From (email)
 From (name)
@@ -1060,6 +1096,7 @@ Keys, manuals and warranty papers are ready for handover
 Keystone Properties
 Kickoff meeting notes
 Kind
+Kind of chart
 LTR
 LTR-001, LTR-002… With types set, every item must be one of them.
 Labor
@@ -1093,6 +1130,8 @@ Level 1 corridor
 Level 2
 Level 2 stair hall
 Level on {}
+Level resources
+Level resources by {}
 Leveled
 Leveling
 Licence
@@ -1106,8 +1145,11 @@ Line {} description
 Line {} quantity
 Line {} unit
 Lines
+Link
+Link for the company
 Link not valid
 Link works until
+Link works until (optional)
 Linked RFIs
 Linked documents
 Linked submittals
@@ -1183,6 +1225,8 @@ Merge and remove {}
 Merge duplicate companies by {}
 Merge into another company
 Message
+Message from the company
+Message the reviewers
 Method
 Metres
 Milestone
@@ -1194,6 +1238,7 @@ Minutes east of UTC
 Minutes issued
 Mix, delivery schedule and pump are confirmed with the supplier
 Mon
+Monday
 Month
 Monthly
 More
@@ -1280,6 +1325,7 @@ No cost code
 No days off are listed.
 No direct costs yet
 No documents here
+No documents yet. Attach your insurance certificate, financial statements and the like.
 No drawings yet
 No estimates
 No files attached.
@@ -1298,6 +1344,7 @@ No items
 No items here
 No items listed.
 No lines yet.
+No link has been sent.
 No location
 No log
 No logs here
@@ -1316,6 +1363,7 @@ No recordable cases in
 No recordable cases in {}.
 No records
 No replies yet.
+No resource is over its limit, so nothing needs to move.
 No resources yet
 No responses yet.
 No reviews yet.
@@ -1357,6 +1405,8 @@ Not clear
 Not closed
 Not complete
 Not copied
+Not emailed
+Not emailed. Pick a rhythm and who gets it.
 Not found
 Not in the budget yet
 Not received
@@ -1390,6 +1440,7 @@ Nothing yet
 Notifications
 Notifications, {} unread
 Nov
+Now
 Now compared with “
 Now compared with “{}”
 Number
@@ -1441,11 +1492,19 @@ Open action items
 Open actions
 Open actions from earlier meetings
 Open bid link
+Open change events
+Open commitments
+Open correspondence
 Open floor edge at level 2 stair
 Open in viewer
+Open incidents
+Open inspections
+Open meeting actions
+Open observations
 Open or close the open bid link by {}
 Open punch items
 Open sealed bids by {}
+Open tasks
 Open the standard layout by default
 Open them now
 Open this view by default
@@ -1511,6 +1570,7 @@ Pass
 Passed
 Password
 Past due
+Past its last day
 Past-due RFIs
 Paste an email
 Path
@@ -1548,6 +1608,7 @@ Picture
 Picture {} of {}
 Pictures (JPEG, PNG, GIF or WebP; choose several)
 Pictures of the work, by album
+Pie
 Pin
 Plan
 Plan a meeting to keep its agenda, minutes and action items together.
@@ -1573,11 +1634,16 @@ Preconstruction
 Predecessors (task numbers with an optional kind and lag, e.g. 3, 5+2, 7SS, 4FF-1)
 Prefix
 Prequalification
+Prequalification link
+Prequalification link for
+Prequalification link for {}
 Prequalification questionnaires
 Prequalified
 Present
 Preview
 Preview of {}
+Preview, keeping the finish date
+Preview, letting the finish move
 Previous page
 Previous week
 Price catalogue
@@ -1607,6 +1673,7 @@ Project directory
 Project engineer
 Project file
 Project files in folders, each with its versions
+Project finish
 Project home
 Project id in the file (optional)
 Project management
@@ -1686,6 +1753,7 @@ Record a direct cost
 Record a price
 Record a price for a catalogue item by {}
 Record a purchase, a rental or another cost below.
+Record a warning emailed to a company by {}
 Record addendum acknowledged by {}
 Record as declined
 Record bid
@@ -1705,6 +1773,8 @@ Record questionnaire answers by {}
 Record receipt
 Record signature
 Record signed contract by {}
+Record that a prequalification link was emailed by {}
+Record that a report was emailed by {}
 Record that a signing link was emailed by {}
 Record the signature
 Record the signed contract
@@ -1774,6 +1844,7 @@ Repeats
 Replace baseline with current dates
 Replace cracked ceiling tile
 Replace the link
+Replace this project's working days and days off with the file's calendar (then recalculate)
 Replies
 Reply
 Reply by
@@ -1894,11 +1965,13 @@ Safety
 Safety&#10;Quality&#10;Housekeeping
 Safety, quality and housekeeping findings
 Safety, quality, housekeeping…
+Saturday
 Save
 Save a named baseline by {}
 Save a report
 Save access
 Save amounts
+Save and come back later
 Save and complete
 Save and open
 Save and send for review
@@ -1923,6 +1996,7 @@ Save changes to this view
 Save company holiday list by {}
 Save company report by {}
 Save correspondence type by {}
+Save cost types
 Save crew
 Save crew by {}
 Save criteria
@@ -1950,9 +2024,10 @@ Save snapshot
 Save template
 Save the current dates as
 Save the email from your mail program as a .eml file, open it in a text editor and paste everything here. The subject, date, sender and text are read from it, and people whose email address is on the To or Cc line are told.
-Save the schedule from your planning software as XML. Tasks, dates, percent complete, milestones, outline levels, links with their kind and lag, and start and finish constraints come across; resources, calendars and costs are left behind. Up to 8 MB.
+Save the schedule from your planning software as XML. Tasks, dates, percent complete, milestones, outline levels, links with their kind and lag, and start and finish constraints come across. Tick the boxes below to take more from the file. Costs are left behind. Up to 8 MB.
 Save type
 Saved
+Say what kind of cost each cost code is (labor, material, equipment, subcontract or other) so a budget view can group the budget by cost type. One per line
 Scale
 Schedule
 Schedule a recurring form by {}
@@ -2009,12 +2084,16 @@ Search {}
 Second copy
 Section
 Section number
+Section {}
 Sections
 Sections and items
 Sections of questions, each worth points; the share earned becomes a company's score
 See the project report
 Sees every project tool except financials; changes nothing.
 Send
+Send a company a prequalification link by {}
+Send a link
+Send a prequalification link again by {}
 Send a test email
 Send again
 Send back
@@ -2029,6 +2108,7 @@ Send for signature
 Send from
 Send hours back by {}
 Send incident back by {}
+Send message
 Send notifications
 Send notifications to people's inboxes
 Send observation back by {}
@@ -2044,6 +2124,7 @@ Send submittal for review by {}
 Send task back by {}
 Send transmittal by {}
 Send your bid
+Sending needs every question answered. Once sent, your answers are locked until the reviewers return the record.
 Sends a short message to your own address.
 Sent
 Sent back
@@ -2052,6 +2133,7 @@ Sent to {}
 Sep
 Set
 Set a budget line
+Set a cost code's cost type by {}
 Set bid scoring criteria by {}
 Set budget line by {}
 Set forecast to complete by {}
@@ -2065,8 +2147,10 @@ Set plan approvers by {}
 Set rate
 Set scale
 Set task progress by {}
+Set the cost type of many cost codes by {}
 Set the criteria
 Set the project's working days and holidays by {}
+Set the resource limits from the file's maximum of each resource
 Set the scale
 Set the scale of a sheet page from a stretch of known length by {}
 Set up outgoing email
@@ -2179,6 +2263,7 @@ State
 State or region
 Status
 Steel arrives the week after next.
+Still over a limit
 Stop requiring it
 Stop requiring signatures
 Stopped
@@ -2222,6 +2307,7 @@ Subtotal
 Such as mon-fri, mon-sat, or mon, tue, thu.
 Summit Ridge Builders
 Sun
+Sunday
 Superintendent
 Supplier
 Supplier (if it is their price list)
@@ -2235,6 +2321,7 @@ Tag it to
 Tag photo to an item by {}
 Tagged to
 Take back
+Take the resources assigned to each task (100% is one a day, rounded to whole numbers)
 Taken
 Task
 Task #{}
@@ -2274,6 +2361,8 @@ The most of each resource needed on any one working day in each week, from tasks
 The plan cannot start until every approver has approved. Changing the wording of items clears the answers.
 The project's section list; submittals link to a section by its number
 The questions each kind of form asks. Forms already started keep the questions they were started with.
+The record was put forward by the company through link
+The record was put forward by the company through link {}.
 The reflected ceiling plan shows 9'-0" but the section shows 8'-6". Which governs?
 The section governs
 The sheet log
@@ -2300,6 +2389,7 @@ This project needs a signed contract before this can be approved.
 This sheet can't be shown
 Three-week look-ahead
 Thu
+Thursday
 Time
 Timesheet
 Timesheets
@@ -2309,6 +2399,7 @@ Title (optional)
 To
 To be determined
 To date
+To send a renewed insurance certificate or licence, attach it below and leave a message. The team updates the dates.
 Today's log
 Tool
 Tool access
@@ -2328,6 +2419,7 @@ Transmittals
 Trends
 Trends appear once observations are recorded.
 Tue
+Tuesday
 Turn email off
 Turn off
 Turn on the open link
@@ -2341,6 +2433,7 @@ Types
 Typing your name here is your signature. We record your name, the date and time, and the version of the contract you saw.
 USD
 Unassigned
+Unfinished schedule tasks
 Unit
 Unit cost
 Unit cost of line {}
@@ -2352,6 +2445,7 @@ Unit price of {}
 Unit prices
 Unlock original budget by {}
 Unlock the budget
+Up to 25 MB each.
 Up to 25 MB in one upload.
 Up to 50 files, 25 MB each and 100 MB in all.
 Up to 50 files, 25 MB each and 100 MB in all. Each file becomes a document titled with its file name.
@@ -2399,6 +2493,7 @@ Waiting
 Waiting for approval
 Waiting on me
 Waiting on you
+Waiting to be emailed
 Walkways and access routes are clear
 Warn before approvals lapse by {}
 Warnings sent
@@ -2409,6 +2504,7 @@ Weather and curing plan are confirmed
 Weather notes
 Website
 Wed
+Wednesday
 Week
 Week ends
 Week ends {}.
@@ -2416,6 +2512,7 @@ Week of
 Week of {}
 Week of {} to {}
 Week {}
+Weekday (weekly)
 Weekdays worked
 Weekly
 Weekly coordination
@@ -2444,6 +2541,7 @@ Which companies have been vetted to work for you, and when their approval, insur
 Who
 Who can open it
 Who does action {}
+Who gets it
 Who should see it
 Who signed for the other party
 Who signed for the owner
@@ -2468,6 +2566,8 @@ Workers on site
 Workers wear the protective gear the task needs
 Working calendar
 Working days
+Working days later
+Would be
 Write a letter or notice to keep it on the record.
 Write a plan to track a body of work item by item.
 Write your own below, or add the small starter set and change it to suit.
@@ -2484,10 +2584,14 @@ You have no tokens.
 You have read this
 You'll be told here when something needs you, like a submittal waiting for your review.
 Your bid
+Your details
 Your first name
 Your last name
 Your name
 Your question
+Your record is approved
+Your record was not approved this time. Correct what the reviewers asked for, and send it again.
+Your record was sent and is waiting for review. You can still attach files and leave a message below.
 Your reply
 Your response
 Zoom
@@ -2523,7 +2627,7 @@ leveled
 lines can't be edited, added or imported.
 low {}
 marcus.lee@example.com
-milestone (yes or no), then a constraint (snet, mso or fnlt) and its date.
+milestone (yes or no), then a constraint (snet, mso or fnlt) and its date, then the resources the task needs each working day, such as Carpenter 4, Laborer 2.
 name, unit, unit cost, category (optional), cost code (optional, from the company's standard list). An item with the same name has its price changed.
 name, weight (adding up to 100), then price for the one worked out from the bids
 no file
@@ -2532,6 +2636,7 @@ no project has a figure for {} that you can see.
 none yet
 not required
 nothing
+nothing changes until you apply it.
 number, then title, separated by a comma or a tab. Sections already in the list are skipped.
 number, title, discipline, area, separated by commas or tabs. A header line is skipped, and sheets already in the log are left alone. Add each sheet's file later as a revision.
 only Documents admins see this
@@ -2546,6 +2651,7 @@ sf
 smtp.example.com
 standard on project management, read-only financials.
 submitted {}
+the cost code, then the type, or none to clear it. All lines are applied, or none if one is wrong.
 the date in the picture, else today)
 the file name)
 the old one stops working at once.

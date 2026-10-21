@@ -39,6 +39,16 @@ fn code_options(req: &Req<'_>, project: Id<Project>, selected: Option<Id<buildki
 
 // -- budget
 
+/// The heading of one group of a grouped budget: "Division 03", "Section 03-300", "Labor" or "No cost type".
+pub(crate) fn group_heading(group: BudgetGroup, key: &str) -> String {
+    match group {
+        BudgetGroup::None => String::new(),
+        BudgetGroup::Division => format!("Division {key}"),
+        BudgetGroup::Section => format!("Section {key}"),
+        BudgetGroup::Type => key.to_string(),
+    }
+}
+
 /// The columns and grouping a budget is shown with: the chosen saved view, else the standard layout (which adds
 /// the percent-complete column when the project forecasts by progress).
 pub(crate) fn budget_layout(
@@ -166,21 +176,10 @@ pub fn budget(
             div class="table-wrap" {
                 table class="data" {
                     thead { tr { th { "Cost code" } @for c in &columns { th class="num" { (c.label()) } } @if can_edit { th {} } } }
-                    @let groups: Vec<(Option<String>, Vec<&view::BudgetRow>)> = {
-                        let code_of = |r: &view::BudgetRow| state.cost_codes.get(r.cost_code).map(|c| c.code.clone()).unwrap_or_default();
-                        let mut out: Vec<(Option<String>, Vec<&view::BudgetRow>)> = Vec::new();
-                        for r in &rows {
-                            let key = (group == BudgetGroup::Division).then(|| view::code_division(&code_of(r)).to_string());
-                            match out.last_mut() {
-                                Some((k, list)) if *k == key => list.push(r),
-                                _ => out.push((key, vec![r])),
-                            }
-                        }
-                        out
-                    };
+                    @let groups = view::budget_groups(state, &rows, group);
                     @for (key, list) in &groups {
                         tbody {
-                            @if let Some(k) = key { tr class="group-row" { th colspan=(columns.len() + 1 + usize::from(can_edit)) { "Division " (k) } } }
+                            @if let Some(k) = key { tr class="group-row" { th colspan=(columns.len() + 1 + usize::from(can_edit)) { (group_heading(group, k)) } } }
                             @for r in list {
                                 @let code = state.cost_codes.get(r.cost_code);
                                 tr {
@@ -244,11 +243,11 @@ pub fn budget(
         @if can_views {
             div class="card" {
                 h2 { "Budget views" }
-                p class="muted small" { "A view keeps the columns you want to see and whether cost codes are grouped by division. It changes the table above and the CSV export, nothing else." }
+                p class="muted small" { "A view keeps the columns you want to see and whether cost codes are grouped (by division, section or cost type). It changes the table above and the CSV export, nothing else." }
                 @if !saved_views.is_empty() {
                     ul class="plain" {
                         @for v in &saved_views {
-                            li { a href=(format!("{here}?view={}", v.id)) { strong { (v.name) } } " · " (v.columns.len()) " columns" @if v.group == BudgetGroup::Division { ", by division" } " " (button_form(req, "budget.view_delete", &here, &[("project", id.to_string()), ("id", v.id.to_string())], "Delete", "small danger")) }
+                            li { a href=(format!("{here}?view={}", v.id)) { strong { (v.name) } } " · " (v.columns.len()) " columns" @match v.group { BudgetGroup::Division => { ", by division" } BudgetGroup::Section => { ", by section" } BudgetGroup::Type => { ", by cost type" } BudgetGroup::None => {} } " " (button_form(req, "budget.view_delete", &here, &[("project", id.to_string()), ("id", v.id.to_string())], "Delete", "small danger")) }
                         }
                     }
                 }
@@ -353,6 +352,20 @@ pub fn budget(
                             label class="check" { input type="checkbox" name="add_codes" value="true"; " Add the cost codes this project doesn't have yet (they take their names from the Description column)" }
                         }
                         div class="form-actions" { button type="submit" class="btn primary" { "Import file" } }
+                    }
+                }
+            }
+            @if req.allowed("cost_code.set_types", Some(id)) {
+                @let typed: String = view::project_cost_codes(state, id).iter().filter_map(|c| Some(format!("{} {}\n", c.code, c.cost_type?.key()))).collect();
+                div class="card" {
+                    details class="disclosure" {
+                        summary { "Cost types" }
+                        p class="muted small" { "Say what kind of cost each cost code is (labor, material, equipment, subcontract or other) so a budget view can group the budget by cost type. One per line: the cost code, then the type, or none to clear it. All lines are applied, or none if one is wrong." }
+                        (command_form(req, "cost_code.set_types", &here, &here, html! {
+                            input type="hidden" name="project" value=(id);
+                            (field("Cost types", "cost_types_text", true, true, html! { textarea id="cost_types_text" name="text" rows="8" required placeholder="03-300 material" { (typed) } }))
+                            div class="form-actions" { button type="submit" class="btn primary" { "Save cost types" } }
+                        }))
                     }
                 }
             }
@@ -528,13 +541,15 @@ pub fn commitments(req: &Req<'_>, id: Id<Project>, filter: &CommitmentFilter) ->
         } @else {
             div class="table-wrap" {
                 table class="data" {
-                    thead { tr { th { "#" } th { "Title" } th { "Company" } th { "Type" } th { "Status" } th { "Contract" } th class="num" { "Total" } } }
+                    @let standing = buildkiosk_engine::model::perm::company_level(state, req.person, Tool::Prequalification) >= Level::Read;
+                    thead { tr { th { "#" } th { "Title" } th { "Company" } @if standing { th { "Prequalification" } } th { "Type" } th { "Status" } th { "Contract" } th class="num" { "Total" } } }
                     tbody {
                         @for c in &shown {
                             tr {
                                 td class="nowrap" { (c.number) }
                                 td { a class="row-link" href=(format!("{base}/{}", c.id)) { (c.title) } }
                                 td { @if let Some(v) = c.vendor { (view::vendor_name(state, v)) } }
+                                @if standing { td { @if let Some(v) = c.vendor { a href=(format!("/prequalification/{v}")) { (crate::prequal::standing_pill(buildkiosk_engine::cmd::prequal::vendor_standing(state, v, req.today()))) } } } }
                                 td { (c.kind.label()) }
                                 td { (status_pill(c.status)) }
                                 td { @if c.signature.status != SignatureStatus::NotSent || p.require_signed_contracts { (signature_pill(c.signature.status)) } }

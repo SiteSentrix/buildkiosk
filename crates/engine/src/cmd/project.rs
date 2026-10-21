@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use buildkiosk_core::{Id, text};
 use buildkiosk_model::directory::{Person, Vendor};
 use buildkiosk_model::perm::{PermissionTemplate, ProjectMember, membership};
-use buildkiosk_model::project::{CostCode, Project, ProjectStage};
+use buildkiosk_model::project::{CostCode, CostType, Project, ProjectStage};
 use buildkiosk_model::{Choice, Level, Tool};
 use serde_json::{Value, json};
 
@@ -63,7 +63,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Add cost code",
         Tool::ProjectAdmin,
         Access::Project(Level::Admin),
-        "project: project id; code: text; description: text",
+        "project: project id; code: text; description: text; cost_type?: labor|material|equipment|subcontract|other (the kind of cost, used to group the budget)",
         cost_code_create,
     ),
     CommandSpec::mutate(
@@ -71,8 +71,24 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Import cost codes",
         Tool::ProjectAdmin,
         Access::Project(Level::Admin),
-        "project: project id; text: one code per line, `code<TAB or comma>description`",
+        "project: project id; text: one code per line, `code<TAB or comma>description`; with tabs a third cell may give the cost type (labor, material, equipment, subcontract or other)",
         cost_code_import,
+    ),
+    CommandSpec::mutate(
+        "cost_code.set_type",
+        "Set a cost code's cost type",
+        Tool::ProjectAdmin,
+        Access::Project(Level::Admin),
+        "project: project id; id: cost code id; cost_type: labor|material|equipment|subcontract|other, or empty to clear it",
+        cost_code_set_type,
+    ),
+    CommandSpec::mutate(
+        "cost_code.set_types",
+        "Set the cost type of many cost codes",
+        Tool::ProjectAdmin,
+        Access::Project(Level::Admin),
+        "project: project id; text: one per line, `cost code<space, comma or tab>type` where the type is labor, material, equipment, subcontract, other, or none to clear it; all lines apply or none",
+        cost_code_set_types,
     ),
     CommandSpec::mutate(
         "cost_code.delete",
@@ -214,11 +230,16 @@ fn create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         });
     }
     // Start from the company's standard cost codes.
-    let standard: Vec<(String, String)> =
-        ctx.state.cost_codes.iter().filter(|c| c.project.is_none() && c.deleted.is_none()).map(|c| (c.code.clone(), c.description.clone())).collect();
-    for (code, description) in standard {
+    let standard: Vec<(String, String, Option<CostType>)> = ctx
+        .state
+        .cost_codes
+        .iter()
+        .filter(|c| c.project.is_none() && c.deleted.is_none())
+        .map(|c| (c.code.clone(), c.description.clone(), c.cost_type))
+        .collect();
+    for (code, description, cost_type) in standard {
         let cid = ctx.state.cost_codes.alloc();
-        ctx.state.cost_codes.put(CostCode { id: cid, project: Some(id), code, description, created: stamp, deleted: None });
+        ctx.state.cost_codes.put(CostCode { id: cid, project: Some(id), code, description, cost_type, created: stamp, deleted: None });
     }
     Ok(json!({ "id": id }))
 }
@@ -363,7 +384,7 @@ fn member_list(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
 }
 
 /// Parses `code<TAB or comma>description` lines; blank lines and lines starting with `#` are skipped.
-fn parse_code_lines(p: &Params<'_>) -> Result<Vec<(String, String)>> {
+fn parse_code_lines(p: &Params<'_>) -> Result<Vec<(String, String, Option<CostType>)>> {
     let body = p.req_text("text", 500_000)?;
     let mut out = Vec::new();
     for (n, raw) in body.lines().enumerate() {
@@ -371,10 +392,25 @@ fn parse_code_lines(p: &Params<'_>) -> Result<Vec<(String, String)>> {
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
-        let (code, desc) = line.split_once('\t').or_else(|| line.split_once(',')).unwrap_or((line, ""));
+        // With tabs the cells are code, description and an optional cost type; with commas only code and description
+        // (a description may contain commas).
+        let (code, desc, kind) = if line.contains('\t') {
+            let mut cells = line.splitn(3, '\t');
+            (cells.next().unwrap_or(""), cells.next().unwrap_or(""), cells.next().unwrap_or("").trim())
+        } else {
+            let (c, d) = line.split_once(',').unwrap_or((line, ""));
+            (c, d, "")
+        };
         let code = text::required_line(code, 50).map_err(|e| p.bad("text", format!("line {}: code {e}", n + 1)))?;
-        let desc = text::line(desc.trim_matches('"'), text::SHORT).map_err(|e| p.bad("text", format!("line {}: description {e}", n + 1)))?;
-        out.push((code, desc));
+        let desc = text::line(desc.trim().trim_matches('"'), text::SHORT).map_err(|e| p.bad("text", format!("line {}: description {e}", n + 1)))?;
+        let kind = if kind.is_empty() {
+            None
+        } else {
+            Some(CostType::parse(kind).ok_or_else(|| {
+                p.bad("text", format!("line {}: `{kind}` is not a cost type (labor, material, equipment, subcontract or other)", n + 1))
+            })?)
+        };
+        out.push((code, desc, kind));
         if out.len() > 20_000 {
             return Err(p.bad("text", "has more than 20,000 codes"));
         }
@@ -391,7 +427,8 @@ fn cost_code_create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     }
     let id = ctx.state.cost_codes.alloc();
     let stamp = ctx.stamp();
-    ctx.state.cost_codes.put(CostCode { id, project: Some(project), code, description, created: stamp, deleted: None });
+    let cost_type = p.choice::<CostType>("cost_type")?;
+    ctx.state.cost_codes.put(CostCode { id, project: Some(project), code, description, cost_type, created: stamp, deleted: None });
     Ok(json!({ "id": id }))
 }
 
@@ -400,15 +437,71 @@ fn cost_code_import(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     let lines = parse_code_lines(p)?;
     let stamp = ctx.stamp();
     let mut added = 0usize;
-    for (code, description) in lines {
+    for (code, description, cost_type) in lines {
         if ctx.state.cost_codes.iter().any(|c| c.project == Some(project) && c.deleted.is_none() && c.code == code) {
             continue;
         }
         let id = ctx.state.cost_codes.alloc();
-        ctx.state.cost_codes.put(CostCode { id, project: Some(project), code, description, created: stamp, deleted: None });
+        ctx.state.cost_codes.put(CostCode { id, project: Some(project), code, description, cost_type, created: stamp, deleted: None });
         added += 1;
     }
     Ok(json!({ "added": added }))
+}
+
+/// A cost type from text: empty, `none` or `clear` clear it.
+fn cost_type_of(raw: &str) -> Option<Option<CostType>> {
+    let raw = raw.trim();
+    if raw.is_empty() || raw.eq_ignore_ascii_case("none") || raw.eq_ignore_ascii_case("clear") {
+        return Some(None);
+    }
+    CostType::parse(raw).map(Some)
+}
+
+fn cost_code_set_type(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let id: Id<CostCode> = p.id("id")?;
+    if ctx.state.cost_codes.get(id).is_none_or(|c| c.project != Some(project) || c.deleted.is_some()) {
+        return Err(EngineError::not_found(format!("cost code {id} not found in this project")));
+    }
+    let raw = p.line_or_empty("cost_type", 40)?;
+    let cost_type = cost_type_of(&raw).ok_or_else(|| p.bad("cost_type", "must be labor, material, equipment, subcontract or other"))?;
+    ctx.state.cost_codes.update(id, |c| c.cost_type = cost_type);
+    Ok(json!({ "id": id }))
+}
+
+fn cost_code_set_types(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let body = p.req_text("text", 200_000)?;
+    // Read every line before changing anything.
+    let mut changes: Vec<(Id<CostCode>, Option<CostType>)> = Vec::new();
+    for (n, raw) in body.lines().enumerate() {
+        let line = raw.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let (code, kind) = line
+            .rsplit_once(['\t', ',', ' '])
+            .map(|(c, k)| (c.trim().trim_end_matches(',').trim(), k.trim()))
+            .ok_or_else(|| p.bad("text", format!("line {}: give a cost code and a cost type", n + 1)))?;
+        let cost_type = cost_type_of(kind).ok_or_else(|| {
+            p.bad("text", format!("line {}: `{kind}` is not a cost type (labor, material, equipment, subcontract, other or none)", n + 1))
+        })?;
+        let found = ctx
+            .state
+            .cost_codes
+            .iter()
+            .find(|c| c.project == Some(project) && c.deleted.is_none() && c.code.eq_ignore_ascii_case(code))
+            .map(|c| c.id)
+            .ok_or_else(|| p.bad("text", format!("line {}: the project has no cost code `{code}`", n + 1)))?;
+        changes.push((found, cost_type));
+        if changes.len() > 20_000 {
+            return Err(p.bad("text", "has more than 20,000 lines"));
+        }
+    }
+    for (id, cost_type) in &changes {
+        ctx.state.cost_codes.update(*id, |c| c.cost_type = *cost_type);
+    }
+    Ok(json!({ "changed": changes.len() }))
 }
 
 fn cost_code_delete(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
@@ -439,12 +532,12 @@ fn company_cost_code_import(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> 
         }
     }
     let mut added = 0usize;
-    for (code, description) in lines {
+    for (code, description, cost_type) in lines {
         if ctx.state.cost_codes.iter().any(|c| c.project.is_none() && c.deleted.is_none() && c.code == code) {
             continue;
         }
         let id = ctx.state.cost_codes.alloc();
-        ctx.state.cost_codes.put(CostCode { id, project: None, code, description, created: stamp, deleted: None });
+        ctx.state.cost_codes.put(CostCode { id, project: None, code, description, cost_type, created: stamp, deleted: None });
         added += 1;
     }
     Ok(json!({ "added": added }))

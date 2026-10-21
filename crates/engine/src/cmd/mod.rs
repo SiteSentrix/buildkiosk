@@ -10,6 +10,7 @@ pub mod meta;
 pub mod notification;
 pub mod perm;
 pub mod prequal;
+pub mod prequal_portal;
 pub mod project;
 pub mod report;
 pub mod rfi;
@@ -137,6 +138,7 @@ const MODULES: &[&[CommandSpec]] = &[
     perm::COMMANDS,
     prequal::COMMANDS,
     signing::COMMANDS,
+    prequal_portal::COMMANDS,
     project::COMMANDS,
     report::COMMANDS,
     rfi::COMMANDS,

@@ -426,6 +426,7 @@ Clear prime change order signature status by {}	Effacer le statut de signature d
 Clear prime contract signature status by {}	Effacer le statut de signature du contrat principal par {}
 Clear signature status by {}	Effacer le statut de signature par {}
 Clear the signature	Effacer la signature
+Click each item to count.	Cliquez sur chaque élément à compter.
 Click one corner of the box.	Cliquez sur un coin du rectangle.
 Click the opposite corner.	Cliquez sur le coin opposé.
 Click the picture where the pin goes.	Cliquez sur l'image à l'endroit où placer l'épingle.
@@ -523,6 +524,7 @@ Correspondence #{}	Correspondance #{}
 Correspondence types	Types de correspondance
 Cost	Coût
 Cost code	Code de coût
+Cost code (optional)	Code de coût (facultatif)
 Cost code (to compare with the budget)	Code de coût (à comparer au budget)
 Cost code for hours without one	Code de coût pour les heures sans code
 Cost code for parts without one	Code de coût pour les pièces sans code
@@ -537,6 +539,7 @@ Cost then	Coût à l'époque
 Cost to add if excluded	Coût à ajouter si exclu
 Cost to date	Coût à ce jour
 Costs paid without a commitment	Coûts payés sans engagement
+Count	Comptage
 Country	Pays
 County inspector	Inspecteur du comté
 Covered?	Couvert ?
@@ -1053,6 +1056,7 @@ Kickoff meeting notes	Notes de la réunion de lancement
 Kind	Genre
 LTR	LTR
 LTR-001, LTR-002… With types set, every item must be one of them.	LTR-001, LTR-002… Lorsque des types sont définis, chaque élément doit être l'un d'eux.
+Label	Libellé
 Labor	Main-d'œuvre
 Labour cost	Coût de main-d'œuvre
 Ladders and scaffolds are in good condition and used correctly	Les échelles et échafaudages sont en bon état et utilisés correctement
@@ -1074,6 +1078,7 @@ Leave blank to use the template's name.	Laissez vide pour utiliser le nom du mod
 Leave the markups out	Exclure les annotations
 Leave this empty	Laissez ceci vide
 Length	Longueur
+Lengths along paths add up with straight lengths and outline areas with boxes. Add a line to an estimate from its Takeoff section.	Les longueurs le long de tracés s'additionnent aux longueurs droites et les surfaces de contours à celles des rectangles. Ajoutez une ligne à une estimation depuis sa section de métré.
 Letter	Lettre
 Letter, Notice, Email…	Lettre, avis, e-mail…
 Letters, notices and emails kept on the project record	Lettres, avis et e-mails conservés au dossier du projet
@@ -1147,6 +1152,7 @@ Mark task work done by {}	Marquer les travaux de la tâche comme terminés par {
 Mark up	Annoter
 Mark up a sheet by {}	Annoter un plan par {}
 Mark work done	Marquer les travaux comme terminés
+Marks	Marques
 Markup {} name	Nom de l'annotation {}
 Markup {} percent	Pourcentage de l'annotation {}
 Markups (a percentage of the subtotal)	Majorations (un pourcentage du sous-total)
@@ -1369,6 +1375,7 @@ Nothing has been added yet.	Rien n'a encore été ajouté.
 Nothing here yet	Rien ici pour l'instant
 Nothing in the catalogue	Rien dans le catalogue
 Nothing is approved to invoice yet.	Rien n'est encore approuvé pour facturation.
+Nothing is measured or counted yet	Rien n'a encore été mesuré ni compté
 Nothing matches, or you can't open any project yet.	Aucun résultat, ou vous ne pouvez encore ouvrir aucun projet.
 Nothing recorded yet.	Rien d'enregistré pour l'instant.
 Nothing scheduled.	Rien de planifié.
@@ -1635,6 +1642,7 @@ Put in the budget {}	Mettre au budget {}
 Qty	Qté
 Quality	Qualité
 Quality and safety	Qualité et sécurité
+Quantities	Quantités
 Quantity	Quantité
 Quantity of line {}	Quantité de la ligne {}
 Quantity per unit	Quantité par unité
@@ -2040,6 +2048,7 @@ Sent to {}	Envoyé à {}
 Sep	sept.
 Set	Définir
 Set a budget line	Définir une ligne de budget
+Set a page's scale in the sheet viewer, then draw lengths and areas or click the Count tool on each item.	Réglez l'échelle d'une page dans la visionneuse de feuilles, puis dessinez des longueurs et des surfaces ou utilisez l'outil Comptage sur chaque élément.
 Set bid scoring criteria by {}	Définir les critères de notation des offres par {}
 Set budget line by {}	Définir la ligne de budget par {}
 Set forecast to complete by {}	Définir la prévision à l'achèvement par {}
@@ -2053,6 +2062,7 @@ Set plan approvers by {}	Définir les approbateurs du plan par {}
 Set rate	Définir le taux
 Set scale	Définir l'échelle
 Set task progress by {}	Définir l'avancement de la tâche par {}
+Set the cost code of a measurement or count by {}	Code de coût d'une mesure ou d'un comptage défini par {}
 Set the criteria	Définir les critères
 Set the project's working days and holidays by {}	Définir les jours ouvrés et les jours fériés du projet par {}
 Set the scale	Définir l'échelle
@@ -2407,6 +2417,7 @@ What changed, or what to do about it	Ce qui a changé, ou ce qu'il faut faire
 What each cost code was budgeted, what is committed and what has been spent	Ce qui a été budgété pour chaque code de coût, ce qui est engagé et ce qui a été dépensé
 What happened	Ce qui s'est passé
 What happened on site, day by day	Ce qui s'est passé sur le site, jour par jour
+What is measured and counted on the current revision of each sheet	Ce qui est mesuré et compté sur la révision actuelle de chaque feuille
 What it is for	À quoi cela sert
 What still needs doing	Ce qu'il reste à faire
 What subcontractors and suppliers bill against their commitments	Ce que les sous-traitants et les fournisseurs facturent au titre de leurs engagements

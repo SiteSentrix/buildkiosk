@@ -1410,6 +1410,17 @@ async fn drawings_log_revisions_and_csv() {
     assert_eq!(st, StatusCode::OK);
     assert!(h.get("content-disposition").is_some() && csv.contains("A-101,Plan,Architectural"), "{csv}");
 
+    // Counted items add up on the quantities page and in its CSV.
+    let (_, _, quiet) = send(&app, get("/projects/1/drawings/quantities")).await;
+    assert!(quiet.contains("Nothing is measured or counted yet"), "{quiet}");
+    for x in [100, 200] {
+        send(&app, post("/do/drawing.markup_add", &session, format!("_csrf={csrf}&project=1&id=1&kind=count&x={x}&y=100&text=Footing"))).await;
+    }
+    let (st, _, qty) = send(&app, get("/projects/1/drawings/quantities")).await;
+    assert!(st == StatusCode::OK && qty.contains("Footing") && qty.contains("2.000 ea") && qty.contains("S-201"), "{qty}");
+    let (st, h, qcsv) = send(&app, get("/projects/1/drawings/quantities.csv")).await;
+    assert!(st == StatusCode::OK && h.get("content-disposition").is_some() && qcsv.contains("Count,Footing,2,2.000,ea"), "{qcsv}");
+
     // A set of sheets at once: new numbers become sheets, a known number gets a revision.
     let set = |token: &str, files: &[(&str, &str)]| {
         let mut body = format!(

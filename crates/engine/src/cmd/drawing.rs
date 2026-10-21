@@ -46,10 +46,26 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Mark up a sheet",
         Tool::Drawings,
         Access::Project(Level::Standard),
-        "project: project id; id: drawing id; revision?: label (default the current one); page?: page number from 1 (default 1); kind: pin|rect|arrow|text|dim|area|polyline|polygon; \
+        "project: project id; id: drawing id; revision?: label (default the current one); page?: page number from 1 (default 1); kind: pin|rect|arrow|text|dim|area|polyline|polygon|count (one counted item; text names it); \
          x, y: 0..10000 across and down the page (not needed for polyline and polygon); points?: for polyline (a length along a path, 2 to 200 points) and polygon (the area inside an outline, 3 to 200), `x,y x,y x,y` in order, sides that meet only at corners; x2?, y2?: the far corner of a box or area, the head of an arrow, or the far end of a length (required for those); \
-         text?: the note (required for text). A length (dim, polyline) or area (area, polygon) needs the page's scale (drawing.scale_set) and is worked out from it.",
+         text?: the note (required for text); cost_code?: the cost code a measurement or count is for. A length (dim, polyline) or area (area, polygon) needs the page's scale (drawing.scale_set) and is worked out from it.",
         markup_add,
+    ),
+    CommandSpec::mutate(
+        "drawing.markup_code",
+        "Set the cost code of a measurement or count",
+        Tool::Drawings,
+        Access::Project(Level::Standard),
+        "project, id: ids; revision?: label (default the current one); markup: markup number; cost_code?: cost code id (empty clears it)",
+        markup_code,
+    ),
+    CommandSpec::query(
+        "drawing.quantities",
+        "Quantities measured and counted on sheets",
+        Tool::Drawings,
+        Access::Project(Level::Read),
+        "project: project id; drawing?: one sheet (default every sheet); the current revision of each, added up by cost code, kind and label",
+        quantities,
     ),
     CommandSpec::mutate(
         "drawing.scale_set",
@@ -310,11 +326,62 @@ fn markup_add(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         measure = worked.ok_or_else(|| EngineError::conflict("that is too large to measure"))?;
         unit = Some(scale.unit);
     }
-    rev.markups.push(Markup { id, page, kind, x, y, x2, y2, points, text, resolved: false, measure, unit, by: person, at: now });
+    let cost_code = markup_code_param(ctx, d.project, p)?;
+    let Some(rev) = d.revisions.get_mut(at) else { return Err(EngineError::not_found("revision not found")) };
+    rev.markups.push(Markup { id, page, kind, x, y, x2, y2, points, text, resolved: false, measure, unit, cost_code, by: person, at: now });
     d.updated = ctx.stamp();
     let did = d.id;
     ctx.state.drawings.put(d);
     Ok(json!({ "id": did, "markup": id }))
+}
+
+/// The cost code in `cost_code`, which must be usable on the project.
+fn markup_code_param(ctx: &Ctx<'_>, project: Id<Project>, p: &Params<'_>) -> Result<Option<Id<buildkiosk_model::project::CostCode>>> {
+    if !p.present("cost_code") || p.text_or_empty("cost_code", 40)?.trim().is_empty() {
+        return Ok(None);
+    }
+    let code: Id<buildkiosk_model::project::CostCode> = p.id("cost_code")?;
+    super::budget::usable_code(ctx.state, project, code)?;
+    Ok(Some(code))
+}
+
+fn markup_code(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let mut d = load(ctx, p)?;
+    let at = revision_index(&d, p)?;
+    let number = p.int("markup", 1..=i64::from(u32::MAX))?.and_then(|v| u32::try_from(v).ok()).ok_or_else(|| p.bad("markup", "is required"))?;
+    let code = markup_code_param(ctx, d.project, p)?;
+    let Some(m) = d.revisions.get_mut(at).and_then(|r| r.markups.iter_mut().find(|m| m.id == number)) else {
+        return Err(EngineError::not_found(format!("markup {number} not found")));
+    };
+    if !(m.kind.measures_length()
+        || m.kind.measures_area()
+        || matches!(m.kind, buildkiosk_model::drawing::MarkupKind::Count | buildkiosk_model::drawing::MarkupKind::Pin))
+    {
+        return Err(EngineError::conflict("only measurements, counts and pins have a cost code"));
+    }
+    m.cost_code = code;
+    d.updated = ctx.stamp();
+    let did = d.id;
+    ctx.state.drawings.put(d);
+    Ok(json!({ "id": did }))
+}
+
+/// What was measured and counted, added up by cost code, kind and label, on the current revision of each sheet.
+fn quantities(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let one: Option<Id<Drawing>> = if p.present("drawing") { Some(p.id("drawing")?) } else { None };
+    let rows = super::estimate::quantity_rows(v.state, project, one)?;
+    Ok(Value::Array(
+        rows.iter()
+            .map(|r| {
+                let code = r.cost_code.and_then(|c| v.state.cost_codes.get(c)).map(|c| c.display());
+                json!({
+                    "drawing": r.drawing, "sheet": r.sheet, "kind": r.kind, "label": r.label, "cost_code": r.cost_code, "code": code,
+                    "count": r.count, "quantity": r.quantity, "unit": r.unit,
+                })
+            })
+            .collect(),
+    ))
 }
 
 /// The page number from 1 in `page` (default 1).

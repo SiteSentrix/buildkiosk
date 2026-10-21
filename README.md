@@ -86,7 +86,7 @@ differs; [`docs/gaps.md`](docs/gaps.md) lists what each one still lacks.
 
 | Tool | What you can do |
 | --- | --- |
-| **Drawings** | A sheet log with revisions and sets; an in-browser viewer with pan, zoom, markups and revision compare; set a scale and measure lengths, areas, paths and outlines; send take-offs to an estimate |
+| **Drawings** | A sheet log with revisions and sets; an in-browser viewer with pan, zoom, markups and revision compare; set a scale and measure lengths, areas, paths and outlines and count items; a quantities report by cost code; send take-offs to an estimate |
 | **Specifications** | Sections with links from RFIs and submittals |
 | **Documents** | Folders and versions, files restricted to named people, previews, zip downloads, a recycle bin |
 | **Photos** | Albums and tags, thumbnails that respect camera orientation, a slideshow, side-by-side compare |

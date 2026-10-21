@@ -39,6 +39,8 @@ enum Tool {
     Box,
     Arrow,
     Text,
+    /// One click per item counted.
+    Count,
     /// Two clicks on a stretch of known length set the page's scale.
     Scale,
     Length,
@@ -57,6 +59,7 @@ impl Tool {
             "rect" => Tool::Box,
             "arrow" => Tool::Arrow,
             "text" => Tool::Text,
+            "count" => Tool::Count,
             "scale" => Tool::Scale,
             "dim" => Tool::Length,
             "area" => Tool::Area,
@@ -74,6 +77,7 @@ impl Tool {
             Tool::Box => "rect",
             Tool::Arrow => "arrow",
             Tool::Text => "text",
+            Tool::Count => "count",
             Tool::Length => "dim",
             Tool::Area => "area",
             Tool::Path => "polyline",
@@ -105,6 +109,7 @@ impl Tool {
             (Tool::Move, _) => "Drag to move the sheet. Scroll or pinch to zoom.",
             (Tool::Pin, _) => "Click the sheet where the pin goes.",
             (Tool::Text, _) => "Click where the words go.",
+            (Tool::Count, _) => "Click each item to count; name what you are counting in the note.",
             (Tool::Box, false) => "Click one corner of the box.",
             (Tool::Box, true) => "Click the opposite corner.",
             (Tool::Arrow, false) => "Click where the arrow starts.",

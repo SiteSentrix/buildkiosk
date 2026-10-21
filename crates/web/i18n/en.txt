@@ -426,6 +426,7 @@ Clear prime change order signature status by {}
 Clear prime contract signature status by {}
 Clear signature status by {}
 Clear the signature
+Click each item to count.
 Click one corner of the box.
 Click the opposite corner.
 Click the picture where the pin goes.
@@ -523,6 +524,7 @@ Correspondence #{}
 Correspondence types
 Cost
 Cost code
+Cost code (optional)
 Cost code (to compare with the budget)
 Cost code for hours without one
 Cost code for parts without one
@@ -537,6 +539,7 @@ Cost then
 Cost to add if excluded
 Cost to date
 Costs paid without a commitment
+Count
 Country
 County inspector
 Covered?
@@ -1053,6 +1056,7 @@ Kickoff meeting notes
 Kind
 LTR
 LTR-001, LTR-002… With types set, every item must be one of them.
+Label
 Labor
 Labour cost
 Ladders and scaffolds are in good condition and used correctly
@@ -1074,6 +1078,7 @@ Leave blank to use the template's name.
 Leave the markups out
 Leave this empty
 Length
+Lengths along paths add up with straight lengths and outline areas with boxes. Add a line to an estimate from its Takeoff section.
 Letter
 Letter, Notice, Email…
 Letters, notices and emails kept on the project record
@@ -1147,6 +1152,7 @@ Mark task work done by {}
 Mark up
 Mark up a sheet by {}
 Mark work done
+Marks
 Markup {} name
 Markup {} percent
 Markups (a percentage of the subtotal)
@@ -1369,6 +1375,7 @@ Nothing has been added yet.
 Nothing here yet
 Nothing in the catalogue
 Nothing is approved to invoice yet.
+Nothing is measured or counted yet
 Nothing matches, or you can't open any project yet.
 Nothing recorded yet.
 Nothing scheduled.
@@ -1635,6 +1642,7 @@ Put in the budget {}
 Qty
 Quality
 Quality and safety
+Quantities
 Quantity
 Quantity of line {}
 Quantity per unit
@@ -2040,6 +2048,7 @@ Sent to {}
 Sep
 Set
 Set a budget line
+Set a page's scale in the sheet viewer, then draw lengths and areas or click the Count tool on each item.
 Set bid scoring criteria by {}
 Set budget line by {}
 Set forecast to complete by {}
@@ -2053,6 +2062,7 @@ Set plan approvers by {}
 Set rate
 Set scale
 Set task progress by {}
+Set the cost code of a measurement or count by {}
 Set the criteria
 Set the project's working days and holidays by {}
 Set the scale
@@ -2407,6 +2417,7 @@ What changed, or what to do about it
 What each cost code was budgeted, what is committed and what has been spent
 What happened
 What happened on site, day by day
+What is measured and counted on the current revision of each sheet
 What it is for
 What still needs doing
 What subcontractors and suppliers bill against their commitments

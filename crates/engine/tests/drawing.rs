@@ -290,3 +290,82 @@ fn paths_and_outlines_are_measured_and_taken_off() {
     assert_eq!((find("area", "Slab")["quantity"].as_str(), find("area", "Slab")["unit"].as_str()), (Some("75.000"), Some("sf")));
     w.assert_replay();
 }
+
+#[test]
+fn counts_and_quantities_add_up_by_cost_code() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let reader = w.member(p, "Rae", "Reader", "Read only");
+    let admin = w.admin();
+    let sha = "a".repeat(64);
+    let id = w.ok(
+        pm,
+        "drawing.add",
+        json!({"project": p, "number": "A-101", "title": "Plan", "revision": "A", "sha256": sha, "name": "a.pdf", "size": 10}),
+    )["id"]
+        .as_u64()
+        .unwrap();
+    let concrete = w.engine.state().cost_codes.iter().find(|c| c.code == "03-300").unwrap().id.raw();
+    let add = |w: &mut World, extra: serde_json::Value| {
+        let mut v = json!({"project": p, "id": id});
+        for (k, val) in extra.as_object().unwrap() {
+            v[k] = val.clone();
+        }
+        w.run(pm, "drawing.markup_add", v)
+    };
+    w.ok(
+        pm,
+        "drawing.scale_set",
+        json!({"project": p, "id": id, "x": 2500, "y": 5000, "x2": 7500, "y2": 5000, "aspect": 1000, "length": "10", "unit": "ft"}),
+    );
+
+    // Three counted items (two with a cost code), a length and a path with the same label and code.
+    for (x, code) in [(100, Some(concrete)), (200, Some(concrete)), (300, None)] {
+        let mut v = json!({"kind": "count", "x": x, "y": 100, "text": "Footing"});
+        if let Some(c) = code {
+            v["cost_code"] = json!(c);
+        }
+        add(&mut w, v).unwrap();
+    }
+    add(&mut w, json!({"kind": "dim", "x": 0, "y": 0, "x2": 5000, "y2": 0, "text": "Wall", "cost_code": concrete})).unwrap();
+    add(&mut w, json!({"kind": "polyline", "points": "0,0 5000,0 5000,2500", "text": "Wall", "cost_code": concrete})).unwrap();
+    // A made-up cost code, and one on a note that measures nothing, are refused.
+    assert!(add(&mut w, json!({"kind": "count", "x": 1, "y": 1, "cost_code": 99999})).is_err());
+    let note = add(&mut w, json!({"kind": "text", "x": 1, "y": 1, "text": "hi"})).unwrap()["markup"].as_u64().unwrap();
+    assert!(w.run(pm, "drawing.markup_code", json!({"project": p, "id": id, "markup": note, "cost_code": concrete})).is_err());
+
+    let rows = w.ok(reader, "drawing.quantities", json!({"project": p}));
+    let rows = rows.as_array().unwrap();
+    let find = |kind: &str, label: &str, coded: bool| {
+        rows.iter().find(|r| r["kind"] == kind && r["label"] == label && r["cost_code"].is_null() != coded).unwrap().clone()
+    };
+    assert_eq!((find("count", "Footing", true)["count"].clone(), find("count", "Footing", true)["quantity"].clone()), (json!(2), json!("2.000")));
+    assert_eq!(find("count", "Footing", false)["unit"], "ea");
+    let wall = find("dim", "Wall", true);
+    assert_eq!((wall["count"].clone(), wall["quantity"].clone(), wall["unit"].clone()), (json!(2), json!("25.000"), json!("lf")));
+    assert!(wall["code"].as_str().unwrap().contains("03-300"));
+
+    // Coding the uncoded count moves it into the other group; clearing takes it out again.
+    let uncoded = w.engine.state().drawings.iter().next().unwrap().revisions[0].markups.iter().find(|m| m.x == 300).unwrap().id;
+    w.ok(pm, "drawing.markup_code", json!({"project": p, "id": id, "markup": uncoded, "cost_code": concrete}));
+    let rows = w.ok(reader, "drawing.quantities", json!({"project": p, "drawing": id}));
+    assert_eq!(rows.as_array().unwrap().iter().find(|r| r["kind"] == "count").unwrap()["count"], 3);
+    w.ok(pm, "drawing.markup_code", json!({"project": p, "id": id, "markup": uncoded, "cost_code": ""}));
+    assert_eq!(w.ok(reader, "drawing.quantities", json!({"project": p}))["count"].clone(), serde_json::Value::Null);
+    // A reader can't code a markup; another project's sheet is not found.
+    assert!(w.run(reader, "drawing.markup_code", json!({"project": p, "id": id, "markup": uncoded, "cost_code": concrete})).is_err());
+    let other = w.project("Other");
+    assert!(w.run(admin, "drawing.quantities", json!({"project": other, "drawing": id})).is_err());
+
+    // Counts go into an estimate like pins (a take-off adds up the whole sheet by kind and label).
+    let est = w.ok(pm, "estimate.create", json!({"project": p, "name": "Budget"}))["id"].as_u64().unwrap();
+    w.ok(
+        pm,
+        "estimate.add_from_takeoff",
+        json!({"project": p, "id": est, "drawing": id, "kind": "count", "label": "Footing", "cost_code": concrete, "unit_cost": "450"}),
+    );
+    let e = w.engine.state().estimates.iter().next().unwrap().clone();
+    assert_eq!((e.lines[0].quantity_milli, e.lines[0].unit.as_str()), (3000, "ea"));
+    w.assert_replay();
+}

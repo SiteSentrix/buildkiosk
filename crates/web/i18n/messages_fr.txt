@@ -1,0 +1,46 @@
+# Messages from the engine (errors and notices after a save), fr: `English<TAB>translation`. The values in `{}` can be numbered `{1}`, `{2}`. Values that are wording the pages have are translated too.
+invalid parameters for `{}`	paramètres non valides pour `{}`
+`{}` is required	`{}` est obligatoire
+`{}` must not be negative	`{}` ne doit pas être négatif
+`{}` is in the past	`{}` est dans le passé
+`{}` is not a valid email address	`{}` n'est pas une adresse e-mail valide
+`{}` must be 64 hex digits	`{}` doit comporter 64 chiffres hexadécimaux
+`{}` must be true or false	`{}` doit être vrai ou faux
+`{}` must be a whole number	`{}` doit être un nombre entier
+`{}` runs past the supported dates	`{}` dépasse les dates prises en charge
+`{}` is required on every line	`{}` est obligatoire sur chaque ligne
+`{}` can hold at most 10 files	`{}` accepte 10 fichiers au plus
+`{}` holds more than {} lines	`{1}` contient plus de {2} lignes
+`{}` type your full name	`{}` : saisissez votre nom complet
+`{}` tick the box to say you have read the contract and agree to sign it	`{}` : cochez la case pour indiquer que vous avez lu le contrat et que vous acceptez de le signer
+only admins can see the recycle bin	seuls les administrateurs peuvent voir la corbeille
+only an admin can change an approved record	seul un administrateur peut modifier un enregistrement approuvé
+you don't have access to {}	vous n'avez pas accès à {}
+{} needs {} access to {} (you have {})	{1} nécessite un accès de niveau {2} à {3} (vous avez {4})
+the totals are too large to add up	les totaux sont trop grands pour être additionnés
+the amounts are too large to add up	les montants sont trop grands pour être additionnés
+{} is not in the recycle bin	{} n'est pas dans la corbeille
+{} is already void	{} est déjà annulé
+{} is void	{} est annulé
+you can't edit {}	vous ne pouvez pas modifier {}
+you can't add files to {}	vous ne pouvez pas ajouter de fichiers à {}
+you can't remove files from {}	vous ne pouvez pas supprimer de fichiers de {}
+you can't send {}	vous ne pouvez pas envoyer {}
+that file is not attached	ce fichier n'est pas joint
+this link is not valid	ce lien n'est pas valide
+revision not found	révision introuvable
+project {} not found	projet {} introuvable
+{} {} not found in this project	{1} {2} introuvable dans ce projet
+add at least one line to {} before approving it	ajoutez au moins une ligne à {} avant de l'approuver
+add at least one line to {} before sending it for signature	ajoutez au moins une ligne à {} avant de l'envoyer pour signature
+{} has no lines to sign for	{} n'a aucune ligne à signer
+{} is awarded	{} est attribué
+{} is {}; only drafts can be approved	{1} est {2} ; seuls les brouillons peuvent être approuvés
+the contract was changed after you opened it; read it again before signing	le contrat a été modifié après votre ouverture ; relisez-le avant de signer
+you have already signed this contract	vous avez déjà signé ce contrat
+the people before you have to sign first; you will get an email when it is your turn	les personnes qui vous précèdent doivent signer d'abord ; vous recevrez un e-mail quand ce sera votre tour
+this contract is already signed	ce contrat est déjà signé
+this contract is not out for signature	ce contrat n'est pas soumis à signature
+your account is disabled	votre compte est désactivé
+the change could not be saved	la modification n'a pas pu être enregistrée
+unknown command `{}`	commande inconnue `{}`

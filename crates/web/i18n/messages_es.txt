@@ -1,0 +1,46 @@
+# Messages from the engine (errors and notices after a save), es: `English<TAB>translation`. The values in `{}` can be numbered `{1}`, `{2}`. Values that are wording the pages have are translated too.
+invalid parameters for `{}`	parámetros no válidos para `{}`
+`{}` is required	falta `{}`
+`{}` must not be negative	`{}` no puede ser negativo
+`{}` is in the past	`{}` está en el pasado
+`{}` is not a valid email address	`{}` no es una dirección de correo válida
+`{}` must be 64 hex digits	`{}` debe tener 64 dígitos hexadecimales
+`{}` must be true or false	`{}` debe ser verdadero o falso
+`{}` must be a whole number	`{}` debe ser un número entero
+`{}` runs past the supported dates	`{}` supera las fechas admitidas
+`{}` is required on every line	`{}` es obligatorio en cada línea
+`{}` can hold at most 10 files	`{}` admite como máximo 10 archivos
+`{}` holds more than {} lines	`{1}` contiene más de {2} líneas
+`{}` type your full name	`{}`: escriba su nombre completo
+`{}` tick the box to say you have read the contract and agree to sign it	`{}`: marque la casilla para indicar que ha leído el contrato y acepta firmarlo
+only admins can see the recycle bin	solo los administradores pueden ver la papelera
+only an admin can change an approved record	solo un administrador puede cambiar un registro aprobado
+you don't have access to {}	no tiene acceso a {}
+{} needs {} access to {} (you have {})	{1} requiere acceso de nivel {2} a {3} (usted tiene {4})
+the totals are too large to add up	los totales son demasiado grandes para sumarse
+the amounts are too large to add up	los importes son demasiado grandes para sumarse
+{} is not in the recycle bin	{} no está en la papelera
+{} is already void	{} ya está anulado
+{} is void	{} está anulado
+you can't edit {}	no puede editar {}
+you can't add files to {}	no puede añadir archivos a {}
+you can't remove files from {}	no puede quitar archivos de {}
+you can't send {}	no puede enviar {}
+that file is not attached	ese archivo no está adjunto
+this link is not valid	este enlace no es válido
+revision not found	no se encontró la revisión
+project {} not found	no se encontró el proyecto {}
+{} {} not found in this project	no se encontró {1} {2} en este proyecto
+add at least one line to {} before approving it	añada al menos una línea a {} antes de aprobarlo
+add at least one line to {} before sending it for signature	añada al menos una línea a {} antes de enviarlo a firma
+{} has no lines to sign for	{} no tiene líneas que firmar
+{} is awarded	{} está adjudicado
+{} is {}; only drafts can be approved	{1} está {2}; solo se pueden aprobar los borradores
+the contract was changed after you opened it; read it again before signing	el contrato cambió después de que lo abriera; léalo de nuevo antes de firmar
+you have already signed this contract	ya firmó este contrato
+the people before you have to sign first; you will get an email when it is your turn	las personas anteriores deben firmar primero; recibirá un correo cuando sea su turno
+this contract is already signed	este contrato ya está firmado
+this contract is not out for signature	este contrato no está pendiente de firma
+your account is disabled	su cuenta está desactivada
+the change could not be saved	no se pudo guardar el cambio
+unknown command `{}`	comando desconocido `{}`

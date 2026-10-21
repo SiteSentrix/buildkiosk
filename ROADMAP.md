@@ -27,7 +27,7 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 - 2026-10-16: Container image: the release workflow also builds a multi-architecture (Linux x86_64 and aarch64) image from the same static binaries and pushes it to `ghcr.io/sitesentrix/buildkiosk` on a tag (`contrib/docker/Dockerfile`, `docs/deployment.md`).
 - 2026-10-21: Drawings: a Count markup, cost codes on counts and measurements, and a project quantities report (page and CSV) added up by cost code, kind and label.
 - 2026-10-21: Contract signing: unused signing links get up to three reminder emails, three days apart.
-- 2026-10-21: Languages: PDFs come out in the reader's language, and notification and report emails in the language the person saved.
+- 2026-10-21: Languages: PDFs come out in the reader's language, notification and report emails in the language the person saved, and the commonest messages after a save (about 45) are translated.
 - 2026-10-21: Contract signing: several people can sign one contract, in any order or in turn, each through their own link.
 - 2026-10-21: Contracts: a PDF of each commitment, prime contract and prime change order with its signature record.
 - 2026-10-21: Schedule: exchange (.xer) files can also bring resources, resource limits and the working calendar.

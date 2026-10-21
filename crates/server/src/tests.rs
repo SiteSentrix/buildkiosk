@@ -4045,6 +4045,36 @@ async fn several_people_sign_in_turn_through_their_links() {
 }
 
 #[tokio::test]
+async fn messages_after_a_save_come_out_in_the_language() {
+    let dir = temp("messages");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let (_, _, home) = send(&app, Request::get("/").header("cookie", &ada).body(Body::empty()).unwrap()).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=P"))).await;
+
+    // A form with something missing: the engine's refusal is shown in the reader's language, and in English without one.
+    let (st, h, _) = send(&app, post("/do/rfi.create", &ada, format!("_csrf={csrf}&project=1&_next=/projects/1/rfis/new"))).await;
+    assert_eq!(st, StatusCode::SEE_OTHER);
+    let back = h.get(LOCATION).unwrap().to_str().unwrap().to_string();
+    assert!(back.contains("error="), "{back}");
+    let show = |cookie: String| Request::get(back.clone()).header("cookie", cookie).body(Body::empty()).unwrap();
+    let (_, _, english) = send(&app, show(ada.clone())).await;
+    assert!(english.contains("is required") && english.contains("invalid parameters"), "{english}");
+    let (_, _, spanish) = send(&app, show(format!("{ada}; bk_lang=es"))).await;
+    assert!(spanish.contains("parámetros no válidos") && spanish.contains("falta") && !spanish.contains("is required"), "{spanish}");
+    let (_, _, french) = send(&app, show(format!("{ada}; bk_lang=fr"))).await;
+    assert!(french.contains("paramètres non valides") && french.contains("est obligatoire"), "{french}");
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
 async fn bidders_use_their_links_without_an_account() {
     let dir = temp("portal");
     let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());

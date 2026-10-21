@@ -200,3 +200,81 @@ fn reminders_are_counted_and_stop_at_three() {
 fn link_params(c: u64, g: u64) -> Value {
     link("commitment", c, g, json!({}))
 }
+
+#[test]
+fn several_people_sign_one_contract_in_turn() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let admin = w.admin();
+    let vendor = w.ok(admin, "vendor.create", json!({"name": "Keystone Concrete", "kind": "subcontractor"}))["id"].as_u64().unwrap();
+    let concrete = code(&w, "03-300");
+    let c = w
+        .ok(pm, "commitment.create", json!({"project": p, "title": "Footings", "vendor": vendor, "lines": [{"cost_code": concrete, "description": "Footings", "amount": "30000"}]}))["id"]
+        .as_u64()
+        .unwrap();
+    // More signers need a first one; a bad address, too many and a lone "ordered" are refused.
+    w.err(pm, "commitment.send_for_signature", json!({"project": p, "id": c, "others": "b@keystone.example"}));
+    w.err(pm, "commitment.send_for_signature", json!({"project": p, "id": c, "ordered": true}));
+    w.err(pm, "commitment.send_for_signature", json!({"project": p, "id": c, "email": "a@keystone.example", "others": "nope"}));
+    w.err(pm, "commitment.send_for_signature", json!({"project": p, "id": c, "email": "a@keystone.example", "others": "1@x.example 2@x.example 3@x.example 4@x.example 5@x.example 6@x.example"}));
+    w.ok(
+        pm,
+        "commitment.send_for_signature",
+        json!({"project": p, "id": c, "email": "a@keystone.example", "others": "b@keystone.example\nc@keystone.example", "ordered": true}),
+    );
+    let sig = |w: &World| w.engine.state().commitments.get(Id::new(c)).unwrap().signature.clone();
+    let slots: Vec<(usize, u32, String)> = sig(&w).slots().iter().map(|s| (s.index, s.link.generation, s.link.email.clone())).collect();
+    assert_eq!(slots.len(), 3);
+    assert!(slots.windows(2).all(|x| x[0].1 != x[1].1), "every link has its own generation");
+    let [(_, ga, _), (_, gb, _), (_, gc, _)] = [slots[0].clone(), slots[1].clone(), slots[2].clone()];
+    let (ga, gb, gc) = (u64::from(ga), u64::from(gb), u64::from(gc));
+    // Each link shows its own page; everyone sees who has signed.
+    let view_b = w.ok(Actor::System, "contract.portal_view", link_params(c, gb));
+    assert_eq!(
+        (view_b["email"].clone(), view_b["ordered"].clone(), view_b["your_turn"].clone()),
+        (json!("b@keystone.example"), json!(true), json!(false))
+    );
+    assert_eq!(view_b["signers"].as_array().unwrap().len(), 3);
+    let terms = view_b["terms"].as_i64().unwrap();
+    let sign = |g: u64, name: &str| link("commitment", c, g, json!({"name": name, "agree": true, "terms": terms}));
+    // Out of turn is refused; the first signs, the contract stays out; the second signs; the third completes it.
+    w.err(Actor::System, "contract.portal_sign", sign(gb, "Bea Second"));
+    w.err(Actor::System, "contract.portal_sign", sign(gc, "Cal Third"));
+    let out = w.ok(Actor::System, "contract.portal_sign", sign(ga, "Amy First"));
+    assert_eq!((out["complete"].clone(), out["signed"].clone(), out["of"].clone()), (json!(false), json!(1), json!(3)));
+    assert_eq!(sig(&w).status, SignatureStatus::Sent);
+    w.err(Actor::System, "contract.portal_sign", sign(ga, "Amy Again"));
+    assert_eq!(w.ok(Actor::System, "contract.portal_view", link_params(c, gb))["your_turn"], json!(true));
+    w.ok(Actor::System, "contract.portal_sign", sign(gb, "Bea Second"));
+    w.err(Actor::System, "contract.portal_sign", sign(gb, "Bea Again"));
+    assert_eq!(sig(&w).status, SignatureStatus::Sent);
+    let out = w.ok(Actor::System, "contract.portal_sign", sign(gc, "Cal Third"));
+    assert_eq!(out["complete"], json!(true));
+    let done = sig(&w);
+    assert_eq!(done.status, SignatureStatus::Signed);
+    assert_eq!((done.signer.as_str(), done.others[0].name.as_str(), done.others[1].name.as_str()), ("Amy First", "Bea Second", "Cal Third"));
+    assert!(done.all_signed());
+    // The team was told at each step.
+    let told: Vec<String> = w.engine.state().notifications.iter().map(|n| n.text.clone()).collect();
+    assert!(told.iter().any(|t| t.contains("Amy First signed (1 of 3)")) && told.iter().any(|t| t.contains("all 3 people have signed")), "{told:?}");
+    w.assert_replay();
+
+    // In any order: the third can sign first; one declining stops it for everyone.
+    let d = w.ok(
+        pm,
+        "commitment.create",
+        json!({"project": p, "title": "Slab", "vendor": vendor, "lines": [{"cost_code": concrete, "description": "Slab", "amount": "9000"}]}),
+    )["id"]
+        .as_u64()
+        .unwrap();
+    w.ok(pm, "commitment.send_for_signature", json!({"project": p, "id": d, "email": "a@keystone.example", "others": "b@keystone.example"}));
+    let gens: Vec<u64> =
+        w.engine.state().commitments.get(Id::new(d)).unwrap().signature.slots().iter().map(|s| u64::from(s.link.generation)).collect();
+    let terms_d = w.ok(Actor::System, "contract.portal_view", link("commitment", d, gens[1], json!({})))["terms"].as_i64().unwrap();
+    w.ok(Actor::System, "contract.portal_sign", link("commitment", d, gens[1], json!({"name": "Bea Second", "agree": true, "terms": terms_d})));
+    assert_eq!(w.engine.state().commitments.get(Id::new(d)).unwrap().signature.status, SignatureStatus::Sent);
+    w.ok(Actor::System, "contract.portal_decline", link("commitment", d, gens[0], json!({"note": "Wrong amount"})));
+    assert_eq!(w.engine.state().commitments.get(Id::new(d)).unwrap().signature.status, SignatureStatus::Declined);
+    w.assert_replay();
+}

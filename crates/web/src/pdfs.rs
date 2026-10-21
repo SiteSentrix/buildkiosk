@@ -1087,28 +1087,50 @@ pub fn contract(req: &Req<'_>, id: Id<Project>, kind: buildkiosk_engine::cmd::si
     if let Some(d) = sig.sent_on {
         sign.push(("Sent".into(), format!("{}{}", d.pretty(), if sig.sent_to.is_empty() { String::new() } else { format!(" to {}", sig.sent_to) })));
     }
-    match sig.status {
-        SignatureStatus::Signed => {
-            sign.push(("Signed by".into(), dash(&sig.signer)));
-            if let Some(d) = sig.signed_on {
-                sign.push(("Signed on".into(), d.pretty()));
-            }
-            if let Some(at) = sig.signed_at {
-                sign.push(("Signed through".into(), format!("the signing link, {}", req.when(at.at))));
-                // What the signer saw: the contract as it stood at the moment they signed.
-                let same = sig.signed_terms.is_some_and(|t| t.at == updated.at);
-                sign.push((
-                    "Terms signed".into(),
-                    if same { "The contract as shown here".into() } else { "An earlier version of the contract".into() },
-                ));
-            }
+    let slots = sig.slots();
+    if slots.len() > 1 {
+        // Several people sign through links: each one's name, address and moment.
+        if sig.ordered {
+            sign.push(("Order".into(), "One after the other, as listed".into()));
         }
-        SignatureStatus::Declined if !sig.note.is_empty() => sign.push(("Note".into(), sig.note.clone())),
-        SignatureStatus::Sent | SignatureStatus::NotSent => {
-            sign.push(("Signed by".into(), "______________________________".into()));
-            sign.push(("Date".into(), "______________________________".into()));
+        for slot in &slots {
+            let text = if slot.signed {
+                format!("{} ({}), {}", slot.name, slot.link.email, slot.signed_at.map(|at| req.when(at.at)).unwrap_or_default())
+            } else {
+                format!("{} (not yet signed)", slot.link.email)
+            };
+            sign.push((format!("Signer {}", slot.index + 1), text));
         }
-        SignatureStatus::Declined => {}
+        if let (SignatureStatus::Signed, Some(d)) = (sig.status, sig.signed_on) {
+            sign.push(("Signed on".into(), d.pretty()));
+        }
+        if sig.status == SignatureStatus::Declined && !sig.note.is_empty() {
+            sign.push(("Note".into(), sig.note.clone()));
+        }
+    } else {
+        match sig.status {
+            SignatureStatus::Signed => {
+                sign.push(("Signed by".into(), dash(&sig.signer)));
+                if let Some(d) = sig.signed_on {
+                    sign.push(("Signed on".into(), d.pretty()));
+                }
+                if let Some(at) = sig.signed_at {
+                    sign.push(("Signed through".into(), format!("the signing link, {}", req.when(at.at))));
+                    // What the signer saw: the contract as it stood at the moment they signed.
+                    let same = sig.signed_terms.is_some_and(|t| t.at == updated.at);
+                    sign.push((
+                        "Terms signed".into(),
+                        if same { "The contract as shown here".into() } else { "An earlier version of the contract".into() },
+                    ));
+                }
+            }
+            SignatureStatus::Declined if !sig.note.is_empty() => sign.push(("Note".into(), sig.note.clone())),
+            SignatureStatus::Sent | SignatureStatus::NotSent => {
+                sign.push(("Signed by".into(), "______________________________".into()));
+                sign.push(("Date".into(), "______________________________".into()));
+            }
+            SignatureStatus::Declined => {}
+        }
     }
     doc.blocks.push(Block::Facts(sign));
     Some((file_name(&label), render(&doc)))

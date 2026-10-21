@@ -3912,6 +3912,128 @@ async fn companies_fill_in_their_prequalification_through_a_link() {
 }
 
 #[tokio::test]
+async fn several_people_sign_in_turn_through_their_links() {
+    let dir = temp("cosign");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let bare = |uri: &str| Request::get(uri.to_string()).body(Body::empty()).unwrap();
+    let post_bare = |uri: &str, body: String| {
+        Request::post(uri.to_string()).header("content-type", "application/x-www-form-urlencoded").body(Body::from(body)).unwrap()
+    };
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=P"))).await;
+    send(&app, post("/do/vendor.create", &ada, format!("_csrf={csrf}&name=Keystone+Concrete&kind=subcontractor"))).await;
+    let code = app.lock().tenant.as_ref().unwrap().engine.state().cost_codes.iter().next().unwrap().id.raw();
+    let lines = format!("lines.0.cost_code={code}&lines.0.description=Footings&lines.0.amount=30000");
+    send(&app, post("/do/commitment.create", &ada, format!("_csrf={csrf}&project=1&title=Footings&vendor=1&{lines}"))).await;
+    let (_, _, card) = send(&app, get("/projects/1/commitments/1")).await;
+    assert!(card.contains("More people who sign") && card.contains("one after the other"), "{card}");
+    send(
+        &app,
+        post(
+            "/do/commitment.send_for_signature",
+            &ada,
+            format!("_csrf={csrf}&project=1&id=1&email=amy%40keystone.example&others=bea%40keystone.example%0Acal%40keystone.example&ordered=true"),
+        ),
+    )
+    .await;
+    let generations: Vec<u32> = app
+        .lock()
+        .tenant
+        .as_ref()
+        .unwrap()
+        .engine
+        .state()
+        .commitments
+        .iter()
+        .next()
+        .unwrap()
+        .signature
+        .slots()
+        .iter()
+        .map(|s| s.link.generation)
+        .collect();
+    let slug = app.lock().tenant.as_ref().unwrap().slug.clone();
+    let tok = |g: u32| sign_portal::token(app.secret(), &slug, buildkiosk_engine::cmd::signing::Kind::Commitment, 1, g);
+    let links: Vec<String> = generations.iter().map(|g| tok(*g)).collect();
+    app.lock().creds.smtp = Some(buildkiosk_store::creds::SmtpSettings {
+        host: "mail.example".into(),
+        port: 25,
+        security: "none".into(),
+        from: "contracts@example.com".into(),
+        base_url: "https://sign.example".into(),
+        ..Default::default()
+    });
+    let done = |g: u32| {
+        app.lock().run(buildkiosk_engine::Actor::System, "contract.link_sent", &json!({"kind": "commitment", "id": 1, "generation": g})).unwrap()
+    };
+
+    // Only the first is emailed at first; the others wait for their turn.
+    let (_, out) = sign_portal::pending(&app).unwrap();
+    assert_eq!(out.len(), 1);
+    assert_eq!(out[0].mail.to, "amy@keystone.example");
+    assert!(out[0].mail.body.contains("signer 1 of 3"), "{}", out[0].mail.body);
+    done(generations[0]);
+    assert!(sign_portal::pending(&app).unwrap().1.is_empty());
+
+    // The team page shows all three; a later signer's page says to wait and offers no form.
+    let (_, _, card) = send(&app, get("/projects/1/commitments/1")).await;
+    assert!(card.contains("Signer 1") && card.contains("Signer 3") && card.contains("waiting for the signers before"), "{card}");
+    let (st, _, shown) = send(&app, get("/projects/1/sign-link/commitment/1?signer=1")).await;
+    assert!(st == StatusCode::OK && shown.contains(&format!("/sign/{}", links[1])) && shown.contains("bea@keystone.example"), "{shown}");
+    let (_, _, bea_page) = send(&app, bare(&format!("/sign/{}", links[1]))).await;
+    assert!(bea_page.contains("sign first") && bea_page.contains("Who signs") && !bea_page.contains("Type your full name"), "{bea_page}");
+
+    // Amy signs; then Bea is emailed, and Cal still waits.
+    let (_, _, amy_page) = send(&app, bare(&format!("/sign/{}", links[0]))).await;
+    let (form, terms) = (field(&amy_page, "_csrf"), field(&amy_page, "terms"));
+    let (st, h, _) =
+        send(&app, post_bare(&format!("/sign/{}/sign", links[0]), format!("_csrf={form}&name=Amy+First&agree=true&terms={terms}"))).await;
+    assert_eq!(st, StatusCode::SEE_OTHER);
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, amy_again) = send(&app, bare(&format!("/sign/{}", links[0]))).await;
+    assert!(amy_again.contains("You have signed") && !amy_again.contains("Type your full name"), "{amy_again}");
+    let (_, out) = sign_portal::pending(&app).unwrap();
+    assert_eq!(out.len(), 1);
+    assert_eq!(out[0].mail.to, "bea@keystone.example");
+    done(generations[1]);
+
+    // Cal's link is refused until Bea has signed; the last signature completes the contract.
+    let early = auth::csrf_token(app.secret(), &format!("sign:{}", links[2]));
+    let (_, h, _) = send(&app, post_bare(&format!("/sign/{}/sign", links[2]), format!("_csrf={early}&name=Cal+Third&agree=true&terms=1"))).await;
+    let to = h.get(LOCATION).unwrap().to_str().unwrap().to_string();
+    assert!(to.contains("error=") && to.contains("sign%20first"), "{to}");
+    let (_, _, bea_page) = send(&app, bare(&format!("/sign/{}", links[1]))).await;
+    let (bform, bterms) = (field(&bea_page, "_csrf"), field(&bea_page, "terms"));
+    send(&app, post_bare(&format!("/sign/{}/sign", links[1]), format!("_csrf={bform}&name=Bea+Second&agree=true&terms={bterms}"))).await;
+    let (_, out) = sign_portal::pending(&app).unwrap();
+    assert_eq!(out[0].mail.to, "cal@keystone.example");
+    done(generations[2]);
+    let (_, _, cal_page) = send(&app, bare(&format!("/sign/{}", links[2]))).await;
+    let (cform, cterms) = (field(&cal_page, "_csrf"), field(&cal_page, "terms"));
+    send(&app, post_bare(&format!("/sign/{}/sign", links[2]), format!("_csrf={cform}&name=Cal+Third&agree=true&terms={cterms}"))).await;
+    let (_, _, finished) = send(&app, bare(&format!("/sign/{}", links[0]))).await;
+    assert!(
+        finished.contains("Signed by") && finished.contains("Cal Third") && finished.contains("Amy First") && finished.contains("Bea Second"),
+        "{finished}"
+    );
+    let (_, _, card) = send(&app, get("/projects/1/commitments/1")).await;
+    assert!(card.contains("signed by Cal Third") && card.contains("signed by Amy First"), "{card}");
+    assert!(sign_portal::pending(&app).unwrap().1.is_empty());
+    let (st, _, pdf) = send(&app, get("/projects/1/commitments/1/pdf")).await;
+    assert!(st == StatusCode::OK && pdf.starts_with("%PDF"));
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
 async fn bidders_use_their_links_without_an_account() {
     let dir = temp("portal");
     let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());

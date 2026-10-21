@@ -1251,6 +1251,7 @@ Monday
 Month
 Monthly
 More
+More people who sign (an email on each line)
 Move
 Move or resize a task by {}
 Move tasks that start too early
@@ -1470,6 +1471,7 @@ Oldest open RFI (days)
 On hold
 On the critical path
 Once there is something approved to invoice, start the first invoice below.
+One after the other, as listed
 One category per line. When there are some, new observations pick from them; leave it empty to type any category.
 One item per line
 One line per cost code
@@ -2220,6 +2222,8 @@ Signed off by {} on {}.
 Signed on
 Signed through
 Signed through the link
+Signer
+Signer {}
 Signing link
 Signing link for
 Signing link for {}
@@ -2241,6 +2245,7 @@ Slideshow
 Small items to fix or finish before closeout
 Snapshots
 Snow
+Someone else
 Sort by
 Spec
 Spec section
@@ -2379,6 +2384,7 @@ The level this template gives on each tool. People with it get these levels on t
 The link may have been replaced by a newer one, cancelled, or passed its last day. Ask the person who invited you to send it again.
 The log lists every submittal once there are some.
 The most of each resource needed on any one working day in each week, from tasks that aren't finished. Red is over the limit you set.
+The people before you sign first. You will get an email when it is your turn.
 The plan cannot start until every approver has approved. Changing the wording of items clears the answers.
 The project's section list; submittals link to a section by its number
 The questions each kind of form asks. Forms already started keep the questions they were started with.
@@ -2394,6 +2400,8 @@ There are no lines on this contract yet.
 There are no tasks in your projects.
 There is nothing to show.
 These answers are to version
+They sign one after the other, in the order given (each is emailed when the one before has signed)
+They sign one after the other, in this order.
 Things to get done, with an owner and a due date
 This contract can't be signed now. Ask the team.
 This contract is not out for signature. Ask the team.
@@ -2567,6 +2575,7 @@ Who gets it
 Who should see it
 Who signed for the other party
 Who signed for the owner
+Who signs
 Why
 Why (optional)
 Windy
@@ -2600,10 +2609,12 @@ Yes or no
 Yes, a single day
 Yes, enter it on the injury log
 Yes, only the people below, the manager and the tool's admins
+You
 You can change your bid below until the due date.
 You declined to sign this contract.
 You have no tokens.
 You have read this
+You have signed. The contract is complete when everyone has.
 You'll be told here when something needs you, like a submittal waiting for your review.
 Your bid
 Your details

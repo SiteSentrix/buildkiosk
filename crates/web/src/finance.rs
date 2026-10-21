@@ -641,7 +641,9 @@ pub fn commitment(req: &Req<'_>, id: Id<Project>, cid: Id<Commitment>, history: 
                                     (field("Date sent", "sig_on", false, false, html! { input type="date" id="sig_on" name="on"; }))
                                     (field("Email a signing link to", "sig_email", false, false, html! { input type="email" id="sig_email" name="email" placeholder="Leave empty to sign on paper"; }))
                                     (field("Link works until", "sig_until", false, false, html! { input type="date" id="sig_until" name="expires"; }))
+                                    (field("More people who sign (an email on each line)", "sig_others", false, true, html! { textarea id="sig_others" name="others" class="short" {} }))
                                 }
+                                label class="check" { input type="checkbox" name="ordered" value="true"; " They sign one after the other, in the order given (each is emailed when the one before has signed)" }
                                 div class="form-actions" { button type="submit" class="btn" { "Send for signature" } }
                             }))
                         }
@@ -886,20 +888,44 @@ fn signing_link_facts(
     doc: u64,
     can_see: bool,
 ) -> Markup {
-    let Some(link) = sig.link.as_ref() else { return html! {} };
-    let live = link.active(req.today());
+    let slots = sig.slots();
+    let Some(first) = slots.first() else { return html! {} };
+    let many = slots.len() > 1;
+    let show = |index: usize| format!("/projects/{project}/sign-link/{kind}/{doc}?signer={index}");
     html! {
         dl class="facts" {
-            dt { "Signing link" }
-            dd {
-                (link.email)
-                @if !live { " · " span class="muted" { "expired" } }
-                @else if link.sent.is_some() { " · emailed" }
-                @else { " · waiting to be emailed" }
-                @if let Some(d) = link.expires { " · works until " (d.pretty()) }
-                @if live && can_see { " · " a href=(format!("/projects/{project}/sign-link/{kind}/{doc}")) { "Show link" } }
+            @if !many {
+                @let link = first.link;
+                @let live = link.active(req.today());
+                dt { "Signing link" }
+                dd {
+                    (link.email)
+                    @if !live { " · " span class="muted" { "expired" } }
+                    @else if link.sent.is_some() { " · emailed" }
+                    @else { " · waiting to be emailed" }
+                    @if let Some(d) = link.expires { " · works until " (d.pretty()) }
+                    @if live && can_see { " · " a href=(show(0)) { "Show link" } }
+                }
+                @if let Some(at) = sig.signed_at { dt { "Signed through the link" } dd { (req.when(at.at)) } }
+            } @else {
+                @if sig.ordered { dt { "Order" } dd { "One after the other, as listed" } }
+                @for slot in &slots {
+                    @let live = slot.link.active(req.today());
+                    dt { "Signer " (slot.index + 1) }
+                    dd {
+                        (slot.link.email)
+                        " · "
+                        @if slot.signed {
+                            "signed by " (slot.name)
+                            @if let Some(at) = slot.signed_at { ", " (req.when(at.at)) }
+                        } @else if !live { span class="muted" { "expired" } }
+                        @else if !sig.turn(slot.index) { span class="muted" { "waiting for the signers before" } }
+                        @else if slot.link.sent.is_some() { "emailed" }
+                        @else { "waiting to be emailed" }
+                        @if live && can_see && !slot.signed { " · " a href=(show(slot.index)) { "Show link" } }
+                    }
+                }
             }
-            @if let Some(at) = sig.signed_at { dt { "Signed through the link" } dd { (req.when(at.at)) } }
         }
     }
 }
@@ -946,7 +972,9 @@ pub(crate) fn signature_card(
                                     (field("Date sent", "sig_on", false, false, html! { input type="date" id="sig_on" name="on"; }))
                                     (field("Email a signing link to", "sig_email", false, false, html! { input type="email" id="sig_email" name="email" placeholder="Leave empty to sign on paper"; }))
                                     (field("Link works until", "sig_until", false, false, html! { input type="date" id="sig_until" name="expires"; }))
+                                    (field("More people who sign (an email on each line)", "sig_others", false, true, html! { textarea id="sig_others" name="others" class="short" {} }))
                                 }
+                                label class="check" { input type="checkbox" name="ordered" value="true"; " They sign one after the other, in the order given (each is emailed when the one before has signed)" }
                                 div class="form-actions" { button type="submit" class="btn" { "Send for signature" } }
                             }))
                         }

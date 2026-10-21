@@ -2913,6 +2913,7 @@ async fn bid_link_page(State(app): State<Shared>, headers: HeaderMap, Path((id, 
 /// Shows one contract's signing link so the team can copy it. Needs the contract's tool at standard level.
 async fn sign_link_page(State(app): State<Shared>, headers: HeaderMap, Path((id, kind, rid)): Path<(u64, String, u64)>, Query(q): Q) -> Response {
     use buildkiosk_engine::cmd::signing::{Kind, live_link};
+    let signer = q.get("signer").and_then(|v| v.parse::<usize>().ok()).unwrap_or(0).min(16);
     let Some(kind) = Kind::parse(&kind) else { return not_found(State(app), headers).await };
     let found = {
         let inner = app.lock();
@@ -2926,7 +2927,7 @@ async fn sign_link_page(State(app): State<Shared>, headers: HeaderMap, Path((id,
             Kind::PrimeContract => state.prime_contracts.get(Id::new(rid)).is_some_and(|c| c.project.raw() == id),
             Kind::PrimeChange => state.prime_changes.get(Id::new(rid)).is_some_and(|c| c.project.raw() == id),
         };
-        let link = if allowed && in_project { live_link(state, kind, rid, today) } else { None };
+        let link = if allowed && in_project { live_link(state, kind, rid, signer, today) } else { None };
         link.map(|l| (l, t.slug.clone()))
     };
     let Some((link, slug)) = found else { return not_found(State(app), headers).await };

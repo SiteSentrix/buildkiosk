@@ -177,3 +177,135 @@ fn rfi_ageing_columns_count_days_open_and_past_due() {
     assert!(blind["rows"][0]["cells"][0].is_null() && blind["rows"][0]["cells"][1].is_null(), "{blind}");
     w.assert_replay();
 }
+
+#[test]
+fn delivery_days_follow_the_rhythm() {
+    use buildkiosk_core::{Date, Id};
+    use buildkiosk_model::saved_report::{DeliveryRhythm, ReportDelivery};
+    let d = |s: &str| Date::parse(s).unwrap();
+    let make = |rhythm, weekday, day, last: Option<&str>| ReportDelivery {
+        rhythm,
+        weekday,
+        day,
+        recipients: vec![Id::new(2)],
+        last_sent: last.map(|l| Date::parse(l).unwrap()),
+    };
+    // Weekly on Wednesday (2): the latest Wednesday on or before today.
+    let weekly = make(DeliveryRhythm::Weekly, 2, 1, None);
+    assert_eq!(weekly.scheduled_on(d("2026-10-14")), Some(d("2026-10-14")), "a Wednesday is its own day");
+    assert_eq!(weekly.scheduled_on(d("2026-10-16")), Some(d("2026-10-14")));
+    assert_eq!(weekly.scheduled_on(d("2026-10-13")), Some(d("2026-10-07")));
+    // Monthly on the 15th: this month's from the 15th on, last month's before it (across a year end too).
+    let monthly = make(DeliveryRhythm::Monthly, 0, 15, None);
+    assert_eq!(monthly.scheduled_on(d("2026-10-15")), Some(d("2026-10-15")));
+    assert_eq!(monthly.scheduled_on(d("2026-10-31")), Some(d("2026-10-15")));
+    assert_eq!(monthly.scheduled_on(d("2027-01-03")), Some(d("2026-12-15")));
+    assert_eq!(make(DeliveryRhythm::Daily, 0, 1, None).scheduled_on(d("2026-10-12")), Some(d("2026-10-12")));
+    // Due means the latest scheduled day is after the last send; a send on the day settles it, and a late pass still sends.
+    assert!(make(DeliveryRhythm::Weekly, 2, 1, Some("2026-10-07")).due(d("2026-10-14")));
+    assert!(!make(DeliveryRhythm::Weekly, 2, 1, Some("2026-10-14")).due(d("2026-10-16")));
+    assert!(make(DeliveryRhythm::Weekly, 2, 1, Some("2026-10-14")).due(d("2026-10-21")));
+    assert!(make(DeliveryRhythm::Monthly, 0, 15, Some("2026-09-15")).due(d("2026-10-20")), "caught up late");
+    assert!(!make(DeliveryRhythm::Monthly, 0, 15, Some("2026-10-15")).due(d("2026-10-20")));
+    assert!(make(DeliveryRhythm::Daily, 0, 1, Some("2026-10-11")).due(d("2026-10-12")));
+    // With no one to send it to, nothing is due.
+    let mut nobody = make(DeliveryRhythm::Daily, 0, 1, None);
+    nobody.recipients.clear();
+    assert!(!nobody.due(d("2026-10-12")));
+}
+
+#[test]
+fn emailing_a_saved_report_on_a_schedule() {
+    use buildkiosk_engine::Actor;
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let sam = w.member(p, "Sam", "Sub", "Subcontractor");
+    let admin = w.admin();
+    let private = w.ok(pm, "company_report.save", json!({"name": "My open items", "columns": ["open", "tasks"]}))["id"].as_u64().unwrap();
+    let shared = w.ok(pm, "company_report.save", json!({"name": "Everyone", "columns": ["open"], "shared": true}))["id"].as_u64().unwrap();
+
+    // Only the owner or a company admin schedules; recipients are active users with an email; a private report goes to its owner and company admins only.
+    w.err(sam, "company_report.schedule", json!({"id": shared, "rhythm": "daily", "people": [sam.raw()]}));
+    w.err(pm, "company_report.schedule", json!({"id": shared, "rhythm": "hourly", "people": [sam.raw()]}));
+    w.err(pm, "company_report.schedule", json!({"id": shared, "rhythm": "daily", "people": []}));
+    w.err(pm, "company_report.schedule", json!({"id": shared, "rhythm": "daily"}));
+    w.err(pm, "company_report.schedule", json!({"id": shared, "rhythm": "weekly", "weekday": "someday", "people": [sam.raw()]}));
+    w.err(pm, "company_report.schedule", json!({"id": shared, "rhythm": "monthly", "day": 31, "people": [sam.raw()]}));
+    w.err(pm, "company_report.schedule", json!({"id": shared, "rhythm": "daily", "people": [9999]}));
+    w.err(pm, "company_report.schedule", json!({"id": private, "rhythm": "daily", "people": [sam.raw()]}));
+    w.ok(pm, "company_report.schedule", json!({"id": private, "rhythm": "daily", "people": [pm.raw()]}));
+    // A company admin may schedule anyone's report.
+    w.ok(admin, "company_report.schedule", json!({"id": private, "rhythm": "off"}));
+    w.ok(pm, "company_report.schedule", json!({"id": shared, "rhythm": "weekly", "weekday": "Monday", "people": [sam.raw(), pm.raw(), sam.raw()]}));
+    let list = w.ok(pm, "company_report.list", json!({}));
+    let report = list.as_array().unwrap().iter().find(|r| r["name"] == "Everyone").unwrap();
+    assert_eq!(report["delivery"]["recipients"].as_array().unwrap().len(), 2, "a person named twice is one");
+
+    // Nothing is due on the day it is set (the first email is the next Monday), and only the system asks.
+    w.err(pm, "company_report.due", json!({}));
+    assert_eq!(w.ok(Actor::System, "company_report.due", json!({})), json!([]));
+    w.advance_days(7);
+    let due = w.ok(Actor::System, "company_report.due", json!({}));
+    assert_eq!(due.as_array().unwrap().len(), 1);
+    assert_eq!((due[0]["name"].clone(), due[0]["recipients"].as_array().unwrap().len()), (json!("Everyone"), 2));
+    assert!(due[0]["recipients"][0]["email"].as_str().unwrap().contains('@'));
+    // Recording the send settles it until the next Monday; a person who left isn't emailed.
+    w.err(pm, "company_report.mark_sent", json!({"id": shared}));
+    w.err(Actor::System, "company_report.mark_sent", json!({"id": private}));
+    w.ok(Actor::System, "company_report.mark_sent", json!({"id": shared}));
+    assert_eq!(w.ok(Actor::System, "company_report.due", json!({})), json!([]));
+    w.advance_days(7);
+    w.ok(admin, "person.update", json!({"id": sam.raw(), "active": false}));
+    let due = w.ok(Actor::System, "company_report.due", json!({}));
+    assert_eq!(due[0]["recipients"].as_array().unwrap().len(), 1);
+    // Editing the report keeps its schedule; turning it off clears it; a deleted report is not due.
+    w.ok(pm, "company_report.save", json!({"id": shared, "name": "Everyone", "columns": ["open", "overdue"], "shared": true}));
+    assert_eq!(w.ok(Actor::System, "company_report.due", json!({})).as_array().unwrap().len(), 1);
+    w.ok(pm, "company_report.delete", json!({"id": shared}));
+    assert_eq!(w.ok(Actor::System, "company_report.due", json!({})), json!([]));
+    w.assert_replay();
+}
+
+#[test]
+fn company_reports_cover_more_tools() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let sub = w.member(p, "Sam", "Sub", "Subcontractor");
+    w.ok(pm, "task.create", json!({"project": p, "title": "Order hardware"}));
+    w.ok(pm, "task.create", json!({"project": p, "title": "File permit"}));
+    w.ok(pm, "budget.import", json!({"project": p, "text": "03-300, 5000"}));
+    let all = [
+        "tasks",
+        "observations",
+        "inspections",
+        "incidents",
+        "meeting_actions",
+        "correspondence",
+        "transmittals",
+        "forms",
+        "schedule_open",
+        "commitments",
+        "change_events",
+        "hours_waiting",
+        "original",
+    ];
+    let run = w.ok(pm, "company_report.run", json!({"columns": all}));
+    let labels: Vec<&str> = run["columns"].as_array().unwrap().iter().map(|c| c["label"].as_str().unwrap()).collect();
+    assert_eq!(labels.len(), all.len(), "{labels:?}");
+    let row = run["rows"].as_array().unwrap().iter().find(|r| r["name"] == "Riverside Clinic").unwrap();
+    let cells = row["cells"].as_array().unwrap();
+    let at = |key: &str| {
+        let i = run["columns"].as_array().unwrap().iter().position(|c| c["key"] == key).unwrap();
+        cells[i].clone()
+    };
+    assert_eq!(at("tasks"), json!(2));
+    assert_eq!(at("original"), json!("5000.00"));
+    // A subcontractor has no financial tools, so those columns are blank for them; counts of the tools they read still show.
+    let theirs = w.ok(sub, "company_report.run", json!({"columns": ["tasks", "original", "commitments"]}));
+    let row = theirs["rows"].as_array().unwrap().iter().find(|r| r["name"] == "Riverside Clinic").unwrap();
+    assert_eq!(row["cells"][0], json!(2));
+    assert_eq!((row["cells"][1].clone(), row["cells"][2].clone()), (json!(null), json!(null)));
+    w.assert_replay();
+}

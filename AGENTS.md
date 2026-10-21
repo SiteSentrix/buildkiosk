@@ -140,19 +140,13 @@ time, finished end to end (engine, tests, pages) before the next.
   you finish.
 
 ## Roadmap and progress docs
-- [`ROADMAP.md`](ROADMAP.md): stage, headline numbers, dimensions, tools, upcoming, progress log.
-- [`docs/target-app-parity.md`](docs/target-app-parity.md): the authoritative parity assessment (tool-by-tool table,
-  weights, methodology, evidence of what ships).
-- [`docs/gaps.md`](docs/gaps.md): every known shortfall, ranked; the work list. [`docs/roadmap.md`](docs/roadmap.md):
-  milestones and current focus.
+- [`ROADMAP.md`](ROADMAP.md): stage, what exists by area, upcoming, progress log.
+- [`docs/gaps.md`](docs/gaps.md): every known shortfall, ranked; the work list.
 - [`docs/architecture.md`](docs/architecture.md), [`docs/development.md`](docs/development.md),
   [`docs/api.md`](docs/api.md), [`docs/deployment.md`](docs/deployment.md),
-  [`docs/data-migration.md`](docs/data-migration.md), [`docs/ui-parity.md`](docs/ui-parity.md).
+  [`docs/bidder-portal.md`](docs/bidder-portal.md).
 
-When a task lands, update in the same commit: the tool's row in `docs/target-app-parity.md` (score, missing items,
-hours) and its evidence, the gap entry in `docs/gaps.md` if it closed or shrank, the milestone row in
-`docs/roadmap.md`, and the ROADMAP's tables and progress log when a headline number moves. Update each touched doc's
-status line.
-- Grade by behaviour against the public documentation, not by whether a page exists. Scores are self-assessed, so
-  err low; mark each number measured or estimated.
+When a task lands, update in the same commit: the gap entry in `docs/gaps.md` if it closed or shrank, and the
+ROADMAP's "Where we are" table, "Upcoming" list and progress log. Update each touched doc's status line.
+- Say what was measured and what is estimated; never claim a number you did not measure.
 - Keep the README's pre-release note and its tool tables in step with the ROADMAP headline and what ships (a tool or a major capability that lands gets a line in the README's tables).

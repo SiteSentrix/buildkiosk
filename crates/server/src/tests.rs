@@ -871,6 +871,36 @@ async fn budget_commitments_and_direct_costs_in_the_browser_flow() {
     let (st, _, _) = send(&app, upload(&[("_csrf", "wrong")], sheet)).await;
     assert_eq!(st, StatusCode::FORBIDDEN);
 
+    // The same file as an Excel workbook (its first sheet is read as the CSV would be); a broken one is refused.
+    let workbook = |bytes: Vec<u8>| {
+        let mut body = format!("--B\r\nContent-Disposition: form-data; name=\"_csrf\"\r\n\r\n{csrf}\r\n").into_bytes();
+        body.extend_from_slice(
+            b"--B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"budget.xlsx\"\r\nContent-Type: application/octet-stream\r\n\r\n",
+        );
+        body.extend_from_slice(&bytes);
+        body.extend_from_slice(b"\r\n--B--\r\n");
+        Request::post("/projects/1/budget/import-file")
+            .header("cookie", &ada)
+            .header("content-type", "multipart/form-data; boundary=B")
+            .body(Body::from(body))
+            .unwrap()
+    };
+    let sheet_xml = r#"<worksheet><sheetData>
+        <row r="1"><c r="A1" t="inlineStr"><is><t>Cost code</t></is></c><c r="B1" t="inlineStr"><is><t>Description</t></is></c><c r="C1" t="inlineStr"><is><t>Amount</t></is></c></row>
+        <row r="2"><c r="A2" t="inlineStr"><is><t>03-300</t></is></c><c r="C2"><v>130000</v></c></row></sheetData></worksheet>"#;
+    let book = crate::xlsx::tests::zip(&[
+        ("xl/workbook.xml", crate::xlsx::tests::WORKBOOK),
+        ("xl/_rels/workbook.xml.rels", crate::xlsx::tests::RELS),
+        ("xl/worksheets/sheet1.xml", sheet_xml),
+    ]);
+    let (_, h, _) = send(&app, workbook(book)).await;
+    let to = h.get(LOCATION).unwrap().to_str().unwrap().to_string();
+    assert!(to.contains("ok=Imported%201%20budget%20line"), "{to}");
+    let (_, _, csv) = send(&app, get("/projects/1/budget.csv")).await;
+    assert!(csv.contains("03-300,Cast-in-place concrete,130000.00"), "{csv}");
+    let (_, h, _) = send(&app, workbook(b"PK\x03\x04 broken".to_vec())).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("error=That%20isn"), "{h:?}");
+
     // Signed contracts: a project can require one before approval; the card on the commitment records it.
     let (_, _, detail) = send(&app, get("/projects/1/commitments/1")).await;
     assert!(detail.contains("Contract signature"), "{detail}");

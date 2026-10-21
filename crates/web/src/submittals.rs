@@ -133,7 +133,7 @@ pub fn list(req: &Req<'_>, id: Id<Project>, filter: &Filter) -> Markup {
                     p class="muted small" { "One submittal per line: title, spec section, type, due date (YYYY-MM-DD). A header line is skipped. Each row becomes a draft." }
                     form method="post" action=(format!("{base}/import")) enctype="multipart/form-data" class="stack" {
                         input type="hidden" name="_csrf" value=(req.csrf);
-                        (field("CSV file", "import_file", true, true, html! { input type="file" id="import_file" name="file" accept=".csv,text/csv,text/plain" required; }))
+                        (field("CSV file", "import_file", true, true, html! { input type="file" id="import_file" name="file" accept=".csv,.xlsx,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required; }))
                         div class="form-actions" { button type="submit" class="btn primary" { "Import file" } }
                     }
                     p class="muted small" { "Or paste the lines:" }

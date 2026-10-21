@@ -173,6 +173,7 @@ Amount due this invoice
 Amount for {}
 Amount to add for {}
 Amount, line {}
+An Excel workbook (.xlsx) works too, and its first sheet is read.
 An assembly
 Another day
 Answer

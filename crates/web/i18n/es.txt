@@ -173,6 +173,7 @@ Amount due this invoice	Monto a pagar de esta factura
 Amount for {}	Monto de {}
 Amount to add for {}	Monto a añadir por {}
 Amount, line {}	Monto, línea {}
+An Excel workbook (.xlsx) works too, and its first sheet is read.	También sirve un libro de Excel (.xlsx), y se lee su primera hoja.
 An assembly	Un ensamble
 Another day	Otro día
 Answer	Respuesta

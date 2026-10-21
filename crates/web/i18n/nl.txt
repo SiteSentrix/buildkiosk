@@ -173,6 +173,7 @@ Amount due this invoice	Verschuldigd bedrag voor deze factuur
 Amount for {}	Bedrag voor {}
 Amount to add for {}	Bij te tellen bedrag voor {}
 Amount, line {}	Bedrag, regel {}
+An Excel workbook (.xlsx) works too, and its first sheet is read.	Een Excel-werkmap (.xlsx) kan ook, en het eerste blad wordt gelezen.
 An assembly	Een samenstelling
 Another day	Een andere dag
 Answer	Antwoord

@@ -11,6 +11,7 @@ repository.workspace = true
 buildkiosk-core = { workspace = true }
 buildkiosk-engine = { workspace = true }
 buildkiosk-mcp = { workspace = true }
+roxmltree = { workspace = true }
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 futures-util = { version = "0.3", default-features = false }
 hayro = "0.8"
@@ -31,6 +32,7 @@ hmac = { workspace = true }
 base64 = { workspace = true }
 
 [build-dependencies]
+roxmltree = { workspace = true }
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 
 [dev-dependencies]

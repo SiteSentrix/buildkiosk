@@ -175,6 +175,7 @@ Amount to add for {}
 Amount, line {}
 An Excel workbook (.xlsx) works too, and its first sheet is read.
 An assembly
+An earlier version of the contract
 Another day
 Answer
 Answer a bidder's question by {}
@@ -1534,6 +1535,7 @@ Other hours worked in
 Other hours worked in {}
 Other minutes
 Other notes
+Other party
 Our company
 Out for bid
 Out for signature
@@ -1662,8 +1664,10 @@ Priced apart from the base estimate. Accepted ones are added to the subtotal, an
 Prices are from
 Prices for
 Prices for {}
+Prime change order #{}
 Prime change orders
 Prime contract
+Prime contract #{}
 Print as letter
 Print view
 Printable checklist
@@ -2213,6 +2217,8 @@ Signed by
 Signed contracts
 Signed off
 Signed off by {} on {}.
+Signed on
+Signed through
 Signed through the link
 Signing link
 Signing link for
@@ -2354,12 +2360,14 @@ Template
 Template gives
 Template name
 Templates
+Terms signed
 Test it
 Text
 That page doesn't exist, or you don't have access to it.
 The address of this server is used for the links in messages.
 The catalogue is empty.
 The contract
+The contract as shown here
 The dashed line is today. Red bars are on the critical path. Grey columns are days off. Float is the working days a task can slip without moving the last finish.
 The days work is done on. Task dates and durations are counted in these days.
 The due date for this package has passed, so it is no longer taking bids. Ask the team if you need more time.

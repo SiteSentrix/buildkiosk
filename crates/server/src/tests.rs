@@ -1148,6 +1148,8 @@ async fn prime_contract_and_owner_invoicing_in_the_browser_flow() {
     }
     // Signing the contract with the owner is tracked on the contract's page.
     assert!(contract.contains("Send for signature") && contract.contains("Record the signature"), "{contract}");
+    let (st, h, pdf) = send(&app, get("/projects/1/prime-contracts/1/pdf")).await;
+    assert!(st == StatusCode::OK && h.get(CONTENT_TYPE).unwrap() == "application/pdf" && pdf.starts_with("%PDF"), "{st}");
     send(&app, post("/do/prime_contract.record_signature", &ada, format!("_csrf={csrf}&project=1&id=1&signer=Olga+Owner&on=2026-10-01"))).await;
     let (_, _, contract) = send(&app, get("/projects/1/prime-contracts/1")).await;
     assert!(contract.contains("Olga Owner") && contract.contains("Clear the signature"), "{contract}");
@@ -4411,6 +4413,12 @@ async fn the_other_party_signs_a_contract_through_its_link() {
     assert!(card.contains("Sam Sub") && card.contains("Signed through the link"), "{card}");
     let (_, out) = sign_portal::pending(&app).unwrap();
     assert!(out.is_empty(), "a signed contract is not emailed again");
+
+    // The printable contract carries the signature record; it is for people who can see the contract.
+    let (st, h, pdf) = send(&app, get("/projects/1/commitments/1/pdf")).await;
+    assert!(st == StatusCode::OK && h.get(CONTENT_TYPE).unwrap() == "application/pdf" && pdf.starts_with("%PDF"), "{st} {h:?}");
+    assert_eq!(send(&app, get("/projects/1/commitments/9/pdf")).await.0, StatusCode::NOT_FOUND);
+    assert_eq!(send(&app, bare("/projects/1/commitments/1/pdf")).await.0, StatusCode::SEE_OTHER, "sign-in is needed");
     // A second try is refused.
     let (_, h, _) = send(&app, post_bare(&format!("/sign/{link}/sign"), format!("_csrf={form}&name=Eve+Eve&agree=true&terms={terms}"))).await;
     assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("err"));

@@ -503,7 +503,18 @@ pub fn router(app: Shared) -> Router {
         .route(
             "/projects/{id}/schedule/import-xer",
             post(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, m: Multipart| async move {
-                import_file(s.0, h, id, "schedule", "schedule.import_xer", "task", ("8 MB", "exchange (.xer) file"), &["proj_id"], m).await
+                import_file(
+                    s.0,
+                    h,
+                    id,
+                    "schedule",
+                    "schedule.import_xer",
+                    "task",
+                    ("8 MB", "exchange (.xer) file"),
+                    &["proj_id", "resources", "limits", "calendar"],
+                    m,
+                )
+                .await
             })
             .layer(DefaultBodyLimit::max(8 * 1024 * 1024 + 64 * 1024)),
         )

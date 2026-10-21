@@ -4253,7 +4253,7 @@ async fn company_report_chart_kinds_and_email_schedule() {
     assert!(csv.starts_with("Project,Open tasks,Original budget") && csv.contains("Alpha,3"), "{csv}");
 }
 
-    assert!(contract.contains("Send for signature") && contract.contains("Record the signature"), "{contract}");
+assert!(contract.contains("Send for signature") && contract.contains("Record the signature"), "{contract}");
 #[tokio::test]
 async fn the_other_party_signs_a_contract_through_its_link() {
     let dir = temp("signing");
@@ -4346,4 +4346,3 @@ async fn the_other_party_signs_a_contract_through_its_link() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
-

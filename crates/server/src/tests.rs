@@ -4418,6 +4418,11 @@ async fn the_other_party_signs_a_contract_through_its_link() {
     let (st, h, pdf) = send(&app, get("/projects/1/commitments/1/pdf")).await;
     assert!(st == StatusCode::OK && h.get(CONTENT_TYPE).unwrap() == "application/pdf" && pdf.starts_with("%PDF"), "{st} {h:?}");
     assert_eq!(send(&app, get("/projects/1/commitments/9/pdf")).await.0, StatusCode::NOT_FOUND);
+    // The printed contract comes out in the reader's language, like the pages.
+    let spanish = Request::get("/projects/1/commitments/1/pdf").header("cookie", format!("{ada}; bk_lang=es")).body(Body::empty()).unwrap();
+    let (st, _, pdf_es) = send(&app, spanish).await;
+    assert!(st == StatusCode::OK && pdf_es.contains("Otra parte") && !pdf_es.contains("Other party"), "{pdf_es}");
+    assert!(pdf.contains("Other party"));
     assert_eq!(send(&app, bare("/projects/1/commitments/1/pdf")).await.0, StatusCode::SEE_OTHER, "sign-in is needed");
     // A second try is refused.
     let (_, h, _) = send(&app, post_bare(&format!("/sign/{link}/sign"), format!("_csrf={form}&name=Eve+Eve&agree=true&terms={terms}"))).await;

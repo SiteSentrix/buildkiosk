@@ -53,7 +53,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Send contract for signature",
         Tool::Commitments,
         Access::Project(Level::Standard),
-        "project, id: ids; to?: who the contract went to (a name or email); on?: date sent (default today); email?: also gives the other party a link to read the contract and sign it here, emailed by the server (a new link each time, the earlier one stops working); expires?: YYYY-MM-DD, the link's last day. The commitment needs a line and can't be complete or void",
+        "project, id: ids; to?: who the contract went to (a name or email); on?: date sent (default today); email?: also gives the other party a link to read the contract and sign it here, emailed by the server (a new link each time, the earlier one stops working); expires?: YYYY-MM-DD, the link's last day; others?: more people to sign through links of their own (email addresses, one a line; the contract is signed when all have); ordered?: bool (they sign in turn, each emailed when the one before has signed). The commitment needs a line and can't be complete or void",
         send_for_signature,
     ),
     CommandSpec::mutate(
@@ -308,11 +308,14 @@ fn send_for_signature(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     if c.signature.status == SignatureStatus::Signed {
         return Err(EngineError::conflict(format!("the contract for {} is already signed", c.label())));
     }
+    let (link, others, ordered) = super::signing::new_signing(ctx, p)?;
     let sig = buildkiosk_model::finance::ContractSignature {
         status: SignatureStatus::Sent,
         sent_to: p.line_or_empty("to", text::SHORT)?,
         sent_on: Some(p.date("on")?.unwrap_or_else(|| ctx.today())),
-        link: super::signing::new_link(ctx, p)?,
+        link,
+        others,
+        ordered,
         ..Default::default()
     };
     Ok(set_signature(ctx, c, sig))

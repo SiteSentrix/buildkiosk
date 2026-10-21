@@ -160,7 +160,10 @@ fn receipt(inner: &super::Inner, l: &Link, page_path: &str) -> Option<(buildkios
     let smtp = inner.creds.smtp.clone()?;
     let state = inner.tenant.as_ref()?.engine.state();
     let (label, title, sig) = doc_facts(state, l.kind, l.id)?;
-    let to = sig.link.as_ref()?.email.clone();
+    let slots = sig.slots();
+    let mine = slots.iter().find(|x| x.link.generation == l.generation)?;
+    let to = mine.link.email.clone();
+    let when = mine.signed_at.map(|at| format!(" on {}", at.at.pretty_at(state.utc_offset()))).unwrap_or_default();
     let page = if smtp.base_url.is_empty() { String::new() } else { format!("\nThe contract: {}{page_path}\n", smtp.base_url) };
     Some((
         smtp,
@@ -168,11 +171,7 @@ fn receipt(inner: &super::Inner, l: &Link, page_path: &str) -> Option<(buildkios
             id: 0,
             to,
             subject: format!("Signed: {label}").chars().filter(|c| !c.is_control()).take(120).collect(),
-            body: format!(
-                "We recorded the signature of {} on {label}, \"{title}\"{}.\n{page}\nKeep this email for your records.\n",
-                sig.signer,
-                sig.signed_on.map(|d| format!(" on {}", d.pretty())).unwrap_or_default()
-            ),
+            body: format!("We recorded the signature of {} on {label}, \"{title}\"{}.\n{page}\nKeep this email for your records.\n", mine.name, when),
         },
     ))
 }
@@ -230,41 +229,59 @@ pub(crate) fn pending_at(app: &App, now: i64) -> Option<(buildkiosk_store::creds
     let own = state.company().map(|c| c.name.clone()).unwrap_or_default();
     let mut out = Vec::new();
     let mut add = |kind: Kind, id: u64, label: String, title: String, sig: &buildkiosk_engine::model::finance::ContractSignature| {
-        let Some(link) = sig.link.as_ref().filter(|l| l.active(today) && sig.status == SignatureStatus::Sent) else { return };
-        let reminder = link.sent.is_some();
-        if reminder {
-            let last = link.reminded.or(link.sent).map(|s| s.at.millis()).unwrap_or(now);
-            if link.reminders >= MAX_REMINDERS || now.saturating_sub(last) < REMINDER_AFTER_MS {
-                return;
-            }
-        }
-        if out.len() >= 50 {
+        if sig.status != SignatureStatus::Sent {
             return;
         }
-        let url = format!("{}/sign/{}", smtp.base_url, token(app.secret(), &t.slug, kind, id, link.generation));
-        let by = if own.is_empty() { String::new() } else { format!(" from {own}") };
-        let until = link.expires.map(|d| format!("\nThe link works until {}.", d.pretty())).unwrap_or_default();
-        out.push(Outgoing {
-            kind,
-            id,
-            generation: link.generation,
-            reminder,
-            mail: mail::Mail {
-                id: id ^ (u64::from(link.generation) << 20) ^ (u64::from(link.reminders) << 56),
-                to: link.email.clone(),
-                subject: format!("{}: {label}", if reminder { "Reminder, for your signature" } else { "For your signature" })
-                    .chars()
-                    .filter(|c| !c.is_control())
-                    .take(120)
-                    .collect(),
-                body: format!(
-                    "{}{label}, \"{title}\"{by} is {}ready for your signature.{until}\n\nRead it and sign it here:\n{url}\n\n\
-                     This link is meant for you alone. Please don't forward it: anyone who has it can sign for you.\n",
-                    if reminder { "A reminder: " } else { "" },
-                    if reminder { "still " } else { "" }
-                ),
-            },
-        });
+        let slots = sig.slots();
+        let people = slots.len();
+        for slot in slots {
+            let link = slot.link;
+            // Someone who has signed, whose link ran out, or whose turn hasn't come hears nothing.
+            if slot.signed || !link.active(today) || !sig.turn(slot.index) {
+                continue;
+            }
+            let reminder = link.sent.is_some();
+            if reminder {
+                let last = link.reminded.or(link.sent).map(|s| s.at.millis()).unwrap_or(now);
+                if link.reminders >= MAX_REMINDERS || now.saturating_sub(last) < REMINDER_AFTER_MS {
+                    continue;
+                }
+            }
+            if out.len() >= 50 {
+                continue;
+            }
+            let url = format!("{}/sign/{}", smtp.base_url, token(app.secret(), &t.slug, kind, id, link.generation));
+            let by = if own.is_empty() { String::new() } else { format!(" from {own}") };
+            let until = link.expires.map(|d| format!("\nThe link works until {}.", d.pretty())).unwrap_or_default();
+            let turn = if people > 1 && sig.ordered {
+                format!(" You are signer {} of {people}, and the people before you have signed.", slot.index + 1)
+            } else if people > 1 {
+                format!(" {people} people sign this contract.")
+            } else {
+                String::new()
+            };
+            out.push(Outgoing {
+                kind,
+                id,
+                generation: link.generation,
+                reminder,
+                mail: mail::Mail {
+                    id: id ^ (u64::from(link.generation) << 20) ^ (u64::from(link.reminders) << 56),
+                    to: link.email.clone(),
+                    subject: format!("{}: {label}", if reminder { "Reminder, for your signature" } else { "For your signature" })
+                        .chars()
+                        .filter(|c| !c.is_control())
+                        .take(120)
+                        .collect(),
+                    body: format!(
+                        "{}{label}, \"{title}\"{by} is {}ready for your signature.{turn}{until}\n\nRead it and sign it here:\n{url}\n\n\
+                         This link is meant for you alone. Please don't forward it: anyone who has it can sign for you.\n",
+                        if reminder { "A reminder: " } else { "" },
+                        if reminder { "still " } else { "" }
+                    ),
+                },
+            });
+        }
     };
     for c in state.commitments.iter().filter(|c| c.deleted.is_none()) {
         add(Kind::Commitment, c.id.raw(), c.label(), c.title.clone(), &c.signature);

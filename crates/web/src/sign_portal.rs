@@ -44,7 +44,11 @@ pub fn page(view: &Value, base: &str, csrf: &str, flash: Option<&Flash>) -> Mark
     let open = view.get("open").and_then(Value::as_bool).unwrap_or(false);
     let lines = view.get("lines").and_then(Value::as_array).cloned().unwrap_or_default();
     let terms = view.get("terms").and_then(Value::as_i64).unwrap_or(0);
-    let can_sign = open && status == "sent" && !lines.is_empty();
+    let signers = view.get("signers").and_then(Value::as_array).cloned().unwrap_or_default();
+    let ordered = view.get("ordered").and_then(Value::as_bool).unwrap_or(false);
+    let you_signed = view.get("you_signed").and_then(Value::as_bool).unwrap_or(false);
+    let your_turn = view.get("your_turn").and_then(Value::as_bool).unwrap_or(true);
+    let can_sign = open && status == "sent" && !lines.is_empty() && !you_signed && your_turn;
     shell(
         &title,
         flash,
@@ -66,8 +70,22 @@ pub fn page(view: &Value, base: &str, csrf: &str, flash: Option<&Flash>) -> Mark
                     }
                     "sent" => {
                         @if !open { div class="flash info" { "This contract can't be signed now. Ask the team." } }
+                        @else if you_signed { div class="flash ok" { "You have signed. The contract is complete when everyone has." } }
+                        @else if !your_turn { div class="flash info" { "The people before you sign first. You will get an email when it is your turn." } }
                     }
                     _ => { div class="flash info" { "This contract is not out for signature. Ask the team." } }
+                }
+            }
+            @if signers.len() > 1 {
+                div class="card" {
+                    h2 { "Who signs" }
+                    @if ordered { p class="muted small" { "They sign one after the other, in this order." } }
+                    ul class="plain" { @for (i, who) in signers.iter().enumerate() { li {
+                        (i + 1) ". "
+                        @if who.get("you").and_then(Value::as_bool).unwrap_or(false) { strong { "You" } } @else if !text(who, "name").is_empty() { (text(who, "name")) } @else { "Someone else" }
+                        " · "
+                        @if who.get("signed").and_then(Value::as_bool).unwrap_or(false) { span class="pill green" { "Signed" } } @else { span class="pill" { "Not yet" } }
+                    } } }
                 }
             }
             div class="card" {

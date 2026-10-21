@@ -882,7 +882,7 @@ Expiring soon
 Export CSV
 Export project file (XML)
 Export register
-Export the schedule from your planning software as an exchange (.xer) file. The work breakdown becomes summary tasks, and tasks, dates (actual, else scheduled, else planned), percent complete, milestones, links with their kind and lag, and date constraints come across; resources, calendars and costs are left behind. If the file holds more than one project, give the id of the one you want (the first is used otherwise). Up to 8 MB.
+Export the schedule from your planning software as an exchange (.xer) file. The work breakdown becomes summary tasks, and tasks, dates (actual, else scheduled, else planned), percent complete, milestones, links with their kind and lag, and date constraints come across; costs are left behind. Tick the boxes below to take the resources and the calendar too. If the file holds more than one project, give the id of the one you want (the first is used otherwise). Up to 8 MB.
 Exterior sealant colour
 Fabricate and erect
 Fail

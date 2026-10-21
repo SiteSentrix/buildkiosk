@@ -878,3 +878,84 @@ fn importing_resources_limits_and_calendar_from_a_project_file() {
     w.err(pm, "schedule.import", json!({"project": p, "text": "11\tBad\t2026-11-02\t2026-11-03\t0\t\t\tno\t\t\tMason 0\n"}));
     w.assert_replay();
 }
+
+#[test]
+fn exchange_file_resources_limits_and_calendar() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let eng = w.member(p, "Eli", "Engineer", "Project engineer");
+    let admin = w.admin();
+    // Monday to Friday worked (1 is Sunday, 7 Saturday), 26 November off, 27 November worked a half day.
+    let week: String =
+        (1..=7).map(|d| if (2..=6).contains(&d) { format!("(0||{d}()( (0||0(s|08:00|f|17:00)()))) ") } else { format!("(0||{d}()()) ") }).collect();
+    let data = format!(
+        "(0||CalendarData()( (0||DaysOfWeek()( {week}) (0||VIEW(ShowTotal|Y)()) (0||Exceptions()( (0||0(d|46352)()) (0||1(d|46353)( (0||0(s|08:00|f|12:00)()))) ))))"
+    );
+    let xer = [
+        "ERMHDR\t19.12\t2026-10-12\tProject\tadmin\tdemo\tdbname\tProject Management\tUSD".to_string(),
+        "%T\tPROJECT".into(),
+        "%F\tproj_id\tproj_short_name\tclndr_id".into(),
+        "%R\t100\tCLINIC\t7".into(),
+        "%T\tCALENDAR".into(),
+        "%F\tclndr_id\tdefault_flag\tclndr_data".into(),
+        "%R\t3\tY\t(0||CalendarData()( (0||DaysOfWeek()( (0||1()()) (0||2()()) )))".into(),
+        format!("%R\t7\tN\t{data}"),
+        "%T\tPROJWBS".into(),
+        "%F\twbs_id\tproj_id\tparent_wbs_id\twbs_short_name\twbs_name\tproj_node_flag".into(),
+        "%R\t1\t100\t\tCLINIC\tRiverside Clinic\tY".into(),
+        "%T\tTASK".into(),
+        "%F\ttask_id\tproj_id\twbs_id\ttask_name\ttask_type\tstatus_code\ttarget_start_date\ttarget_end_date".into(),
+        "%R\t11\t100\t1\tFraming\tTT_Task\tTK_NotStart\t2026-10-12 08:00\t2026-10-14 17:00".into(),
+        "%R\t12\t100\t1\tBlocking\tTT_Task\tTK_NotStart\t2026-10-13 08:00\t2026-10-14 17:00".into(),
+        "%T\tRSRC".into(),
+        "%F\trsrc_id\trsrc_name\trsrc_short_name".into(),
+        "%R\t5\tCarpenter\tCARP".into(),
+        "%R\t6\tElectrician, senior\tELEC".into(),
+        "%R\t7\tUnused\tUNUS".into(),
+        "%T\tTASKRSRC".into(),
+        "%F\ttask_id\trsrc_id\tproj_id\ttarget_qty_per_hr".into(),
+        "%R\t11\t5\t100\t0.5".into(),
+        "%R\t12\t5\t100\t0.375".into(),
+        "%R\t12\t6\t100\t0.25".into(),
+        "%T\tRSRCRATE".into(),
+        "%F\trsrc_id\tmax_qty_per_hr".into(),
+        "%R\t5\t0.75".into(),
+        "%R\t7\t1".into(),
+        "%E".into(),
+    ]
+    .join("\r\n");
+    // Without the options only tasks come across.
+    let plain = w.project("Plain");
+    let template = buildkiosk_engine::cmd::company::template_named(w.engine.state(), "Project manager").unwrap();
+    w.ok(admin, "member.add", json!({"project": plain, "person": pm, "template": template}));
+    w.ok(pm, "schedule.import_xer", json!({"project": plain, "text": xer}));
+    let plain_list = w.ok(pm, "schedule.list", json!({"project": plain}));
+    let first = plain_list.as_array().unwrap()[0]["id"].as_u64().unwrap();
+    assert_eq!(w.ok(pm, "schedule.get", json!({"project": plain, "id": first}))["resources"], serde_json::Value::Null);
+
+    // The limits and the calendar take a project admin.
+    w.ok(admin, "member.update", json!({"project": p, "person": eng, "overrides": {"schedule": "standard"}}));
+    w.err(eng, "schedule.import_xer", json!({"project": p, "text": xer, "limits": true}));
+    w.err(eng, "schedule.import_xer", json!({"project": p, "text": xer, "calendar": true}));
+    let out = w.ok(admin, "schedule.import_xer", json!({"project": p, "text": xer, "resources": true, "limits": true, "calendar": true}));
+    assert_eq!(
+        (out["added"].as_u64(), out["limits"].as_u64(), out["calendar"].as_bool(), out["calendar_left_out"].as_u64()),
+        (Some(2), Some(1), Some(true), Some(1))
+    );
+
+    let list = w.ok(pm, "schedule.list", json!({"project": p}));
+    let task = |n: &str| list.as_array().unwrap().iter().find(|r| r["name"] == n).unwrap().clone();
+    let mut resources = |n: &str| w.ok(pm, "schedule.get", json!({"project": p, "id": task(n)["id"].as_u64().unwrap()}))["resources"].clone();
+    assert_eq!(resources("Framing"), json!([{"name": "Carpenter", "units": 4}]));
+    assert_eq!(resources("Blocking"), json!([{"name": "Carpenter", "units": 3}, {"name": "Electrician senior", "units": 2}]));
+    // The limit is the largest an hour (0.75) times eight, for resources used in the project only.
+    let proj = w.engine.state().projects.get(p).unwrap();
+    assert_eq!(proj.resource_limits.len(), 1);
+    assert_eq!((proj.resource_limits[0].name.as_str(), proj.resource_limits[0].units), ("Carpenter", 6));
+    // The calendar: Monday to Friday, 26 November off; the working half day on the 27th is left out.
+    assert_eq!(proj.calendar.days, [true, true, true, true, true, false, false]);
+    assert_eq!(proj.calendar.holidays.len(), 1);
+    assert_eq!(proj.calendar.holidays[0].date.to_string(), "2026-11-26");
+    w.assert_replay();
+}

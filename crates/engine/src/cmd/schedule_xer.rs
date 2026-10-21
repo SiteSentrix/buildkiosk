@@ -3,8 +3,9 @@
 //! Like the project-file import, the file is turned into the lines the text import reads, so the same checks
 //! apply. What is read: the work breakdown (which becomes summary tasks whose dates roll up from the tasks
 //! under them), each task's name, dates (actual, else scheduled, else planned), percent complete, milestone
-//! flag, links with their kind and lag, and the common date constraints. Resources, calendars and costs in
-//! the file are ignored.
+//! flag, links with their kind and lag, and the common date constraints. On request it also reads the resources
+//! assigned to each task (`resources`), what the file says there are of each resource (`limits`) and the project's
+//! working calendar (`calendar`), the same three options as the project-file import. Costs in the file are ignored.
 
 use std::collections::{HashMap, HashSet};
 
@@ -12,6 +13,7 @@ use buildkiosk_core::Date;
 use buildkiosk_model::Level;
 use buildkiosk_model::Tool;
 use buildkiosk_model::project::Project;
+use buildkiosk_model::schedule::{Assignment, Holiday, MAX_ASSIGNMENTS, MAX_HOLIDAYS, MAX_UNITS, WorkCalendar};
 use serde_json::{Value, json};
 
 use super::{Access, CommandSpec};
@@ -23,7 +25,7 @@ pub const COMMANDS: &[CommandSpec] = &[CommandSpec::mutate(
     "Import a planning-program exchange file",
     Tool::Schedule,
     Access::Project(Level::Standard),
-    "project: project id; text: the contents of an .xer file (up to 8 MB); proj_id?: which project in the file when it holds several (default the first). Tasks, work breakdown (as summary tasks), dates, percent complete, milestones, links (with kind and lag) and date constraints are read; ids are renumbered",
+    "project: project id; text: the contents of an .xer file (up to 8 MB); proj_id?: which project in the file when it holds several (default the first); resources?: bool (also take the resources assigned to each task, as units a day: the file's units an hour times eight); limits?: bool (project admins: also set the project's resource limits from the file's maximum an hour of each resource assigned to a task); calendar?: bool (project admins: also replace the project's working days and days off with the file's project calendar; run schedule.recalculate afterwards). Tasks, work breakdown (as summary tasks), dates, percent complete, milestones, links (with kind and lag) and date constraints are read; ids are renumbered",
     import_xer,
 )];
 
@@ -98,7 +100,7 @@ fn first_date(t: &Table, row: &[String], fields: &[&str]) -> Option<Date> {
 }
 
 /// The lines of the text import for the tasks in `text`, and how many tasks were left out.
-pub fn rows_from_xer(text: &str, which: Option<&str>) -> std::result::Result<(String, usize), String> {
+pub fn rows_from_xer(text: &str, which: Option<&str>, with_resources: bool) -> std::result::Result<(String, usize), String> {
     let tables = read_tables(text)?;
     let empty = Table::default();
     let tasks = tables.get("TASK").ok_or("the file has no tasks")?;
@@ -122,6 +124,7 @@ pub fn rows_from_xer(text: &str, which: Option<&str>) -> std::result::Result<(St
             .unwrap_or_default(),
     };
     let in_project = |t: &Table, r: &[String]| proj_id.is_empty() || t.get(r, "proj_id") == proj_id;
+    let assigned = if with_resources { assignments(&tables, &proj_id) } else { HashMap::new() };
 
     // The work breakdown: every node but the project's root becomes a summary task.
     struct Node {
@@ -272,12 +275,13 @@ pub fn rows_from_xer(text: &str, which: Option<&str>) -> std::result::Result<(St
     for (id, n) in nodes.iter().filter(|(id, _)| live.contains(id.as_str())) {
         let (Some(start), Some(finish)) = (n.start, n.finish) else { continue };
         let parent = if live.contains(n.parent.as_str()) { format!("W{}", n.parent) } else { String::new() };
-        lines.push_str(&format!("W{id}\t{}\t{start}\t{finish}\t0\t\t{parent}\tno\t\t\n", clean(&n.name)));
+        let extra = if with_resources { "\t" } else { "" };
+        lines.push_str(&format!("W{id}\t{}\t{start}\t{finish}\t0\t\t{parent}\tno\t\t{extra}\n", clean(&n.name)));
     }
     for k in &kept {
         let parent = if live.contains(k.wbs.as_str()) { format!("W{}", k.wbs) } else { String::new() };
         lines.push_str(&format!(
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}{}\n",
             k.id,
             clean(&k.name),
             k.start,
@@ -287,18 +291,237 @@ pub fn rows_from_xer(text: &str, which: Option<&str>) -> std::result::Result<(St
             parent,
             if k.milestone { "yes" } else { "no" },
             k.constraint,
-            k.constraint_date
+            k.constraint_date,
+            if with_resources {
+                format!(
+                    "\t{}",
+                    assigned
+                        .get(&k.id)
+                        .map(|a| a.iter().map(|x| format!("{} {}", x.name, x.units)).collect::<Vec<_>>().join(", "))
+                        .unwrap_or_default()
+                )
+            } else {
+                String::new()
+            }
         ));
     }
     Ok((lines, skipped))
+}
+
+/// A resource's name made safe for the text import: no separators, single spaces.
+fn resource_name(raw: &str) -> String {
+    let cleaned: String = raw.chars().map(|c| if matches!(c, ',' | ';' | '\t' | '\n' | '\r') || c.is_control() { ' ' } else { c }).collect();
+    cleaned.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(50).collect::<String>().trim().to_string()
+}
+
+/// Units a day from units an hour (a working day taken as eight hours), at least one.
+fn units_a_day(per_hour: &str) -> u32 {
+    let v = per_hour.trim().parse::<f64>().ok().filter(|v| v.is_finite() && *v > 0.0).unwrap_or(1.0 / DAY_HOURS);
+    (v * DAY_HOURS).round().clamp(1.0, f64::from(MAX_UNITS)) as u32
+}
+
+/// The named resources of the file by id.
+fn resource_names(tables: &HashMap<String, Table>) -> HashMap<String, String> {
+    let mut out = HashMap::new();
+    let Some(t) = tables.get("RSRC") else { return out };
+    for r in t.rows.iter().take(MAX_ROWS) {
+        let name = match t.get(r, "rsrc_name") {
+            "" => t.get(r, "rsrc_short_name"),
+            n => n,
+        };
+        let name = resource_name(name);
+        let id = t.get(r, "rsrc_id");
+        if !id.is_empty() && !name.is_empty() {
+            out.insert(id.to_string(), name);
+        }
+    }
+    out
+}
+
+/// The resources assigned to each task id in the project: the same resource twice adds up, up to the most one task names.
+fn assignments(tables: &HashMap<String, Table>, proj_id: &str) -> HashMap<String, Vec<Assignment>> {
+    let names = resource_names(tables);
+    let mut out: HashMap<String, Vec<Assignment>> = HashMap::new();
+    let Some(t) = tables.get("TASKRSRC") else { return out };
+    for r in t.rows.iter().take(MAX_ROWS).filter(|r| proj_id.is_empty() || t.get(r, "proj_id") == proj_id) {
+        let (task, res) = (t.get(r, "task_id"), t.get(r, "rsrc_id"));
+        let Some(name) = names.get(res) else { continue };
+        let units = units_a_day(t.get(r, "target_qty_per_hr"));
+        let entry = out.entry(task.to_string()).or_default();
+        if let Some(x) = entry.iter_mut().find(|x| x.name.eq_ignore_ascii_case(name)) {
+            x.units = x.units.saturating_add(units).min(MAX_UNITS);
+        } else if entry.len() < MAX_ASSIGNMENTS {
+            entry.push(Assignment { name: name.clone(), units });
+        }
+    }
+    out
+}
+
+/// How many of each resource the file says there are (its largest maximum an hour, times eight), for resources assigned to a task.
+/// Resources the file gives no maximum for are left out.
+pub fn limits_from_xer(text: &str, which: Option<&str>) -> std::result::Result<Vec<Assignment>, String> {
+    let tables = read_tables(text)?;
+    let proj_id = which.map(str::trim).unwrap_or("");
+    let names = resource_names(&tables);
+    let mut used: HashSet<String> = HashSet::new();
+    if let Some(t) = tables.get("TASKRSRC") {
+        for r in t.rows.iter().take(MAX_ROWS).filter(|r| proj_id.is_empty() || t.get(r, "proj_id") == proj_id) {
+            used.insert(t.get(r, "rsrc_id").to_string());
+        }
+    }
+    let mut best: HashMap<String, f64> = HashMap::new();
+    if let Some(t) = tables.get("RSRCRATE") {
+        for r in t.rows.iter().take(MAX_ROWS) {
+            if let Some(v) = t.get(r, "max_qty_per_hr").parse::<f64>().ok().filter(|v| v.is_finite() && *v > 0.0) {
+                let e = best.entry(t.get(r, "rsrc_id").to_string()).or_insert(0.0);
+                *e = e.max(v);
+            }
+        }
+    }
+    let mut out: Vec<Assignment> = Vec::new();
+    for (id, name) in names.iter().filter(|(id, _)| used.contains(*id)) {
+        let Some(v) = best.get(id) else { continue };
+        let units = units_a_day(&v.to_string());
+        if let Some(x) = out.iter_mut().find(|x| x.name.eq_ignore_ascii_case(name)) {
+            x.units = x.units.saturating_add(units).min(MAX_UNITS);
+        } else if out.len() < MAX_ASSIGNMENTS {
+            out.push(Assignment { name: name.clone(), units });
+        }
+    }
+    out.sort_by_key(|a| a.name.to_lowercase());
+    Ok(out)
+}
+
+/// A date from the day number a calendar writes (days since 1899-12-30; 25569 is 1970-01-01).
+fn serial_date(n: i64) -> Option<Date> {
+    Date::parse("1970-01-01")?.add_days(n.checked_sub(25_569)?)
+}
+
+/// The project's working calendar: the weekdays worked and the days off listed as exceptions. The file's calendar for the
+/// project (`clndr_id` on its PROJECT row) is used, else the default one. Days the calendar makes into working days and days off
+/// past the most a calendar keeps are counted as left out in the second value. `None` when the file has no usable calendar.
+pub fn calendar_from_xer(text: &str, which: Option<&str>) -> std::result::Result<Option<(WorkCalendar, usize)>, String> {
+    let tables = read_tables(text)?;
+    let Some(cals) = tables.get("CALENDAR") else { return Ok(None) };
+    let wanted: String = tables
+        .get("PROJECT")
+        .and_then(|p| {
+            let w = which.map(str::trim).filter(|w| !w.is_empty());
+            p.rows.iter().find(|r| w.is_none_or(|w| p.get(r, "proj_id") == w)).map(|r| p.get(r, "clndr_id").to_string())
+        })
+        .unwrap_or_default();
+    let row = cals
+        .rows
+        .iter()
+        .find(|r| !wanted.is_empty() && cals.get(r, "clndr_id") == wanted)
+        .or_else(|| cals.rows.iter().find(|r| cals.get(r, "default_flag") == "Y"))
+        .or_else(|| cals.rows.first());
+    let Some(row) = row else { return Ok(None) };
+    let data = cals.get(row, "clndr_data");
+    Ok(parse_calendar(data))
+}
+
+/// The nested text a calendar is written in: `DaysOfWeek` has an entry `(0||N()(` per weekday (1 is Sunday) holding `(s|08:00|f|17:00)`
+/// work periods when the day is worked, and `Exceptions` has `(0||k(d|N)(` per date (a day number), worked only if it holds periods.
+fn parse_calendar(data: &str) -> Option<(WorkCalendar, usize)> {
+    let section = |name: &str| -> Option<&str> {
+        let at = data.find(&format!("{name}()"))?;
+        data.get(at..)
+    };
+    let mut days = [false; 7];
+    let mut seen = false;
+    if let Some(week) = section("DaysOfWeek") {
+        // The weekday part ends where Exceptions starts, if it does.
+        let week = week.split("Exceptions()").next().unwrap_or(week);
+        let mut parts = week.split("(0||").skip(1).collect::<Vec<_>>();
+        parts.truncate(256);
+        // A weekday is written `N()(` and its work periods `0(s|08:00|f|17:00)()` follow as the next entries.
+        let mut current: Option<usize> = None;
+        for part in parts {
+            let digits: String = part.chars().take_while(char::is_ascii_digit).collect();
+            let rest = part.get(digits.len()..).unwrap_or("");
+            if rest.starts_with("()(") || rest.starts_with("()()") {
+                current = match digits.parse::<usize>() {
+                    // 1 is Sunday in the file; Monday first here.
+                    Ok(1) => Some(6),
+                    Ok(k @ 2..=7) => Some(k - 2),
+                    _ => None,
+                };
+                if let Some(slot) = current.and_then(|at| days.get_mut(at)) {
+                    *slot = false;
+                    seen = true;
+                }
+            } else if part.contains("(s|")
+                && let Some(slot) = current.and_then(|at| days.get_mut(at))
+            {
+                *slot = true;
+            }
+        }
+    }
+    if !seen {
+        days = WorkCalendar::default().days;
+    }
+    let mut holidays: Vec<Holiday> = Vec::new();
+    let mut left_out = 0usize;
+    if let Some(ex) = section("Exceptions") {
+        let mut parts = ex.split("(d|").skip(1).collect::<Vec<_>>();
+        parts.truncate(5_000);
+        for part in parts {
+            let digits: String = part.chars().take_while(char::is_ascii_digit).collect();
+            let Some(date) = digits.parse::<i64>().ok().and_then(serial_date) else { continue };
+            // Work periods listed under the exception make the day a working day.
+            if part.contains("(s|") {
+                left_out += 1;
+                continue;
+            }
+            if holidays.len() >= MAX_HOLIDAYS {
+                left_out += 1;
+                continue;
+            }
+            if holidays.iter().all(|h| h.date != date) {
+                holidays.push(Holiday { date, name: String::new() });
+            }
+        }
+    }
+    holidays.sort_by_key(|h| h.date);
+    let cal = WorkCalendar { days, holidays };
+    cal.is_valid().then_some((cal, left_out))
 }
 
 fn import_xer(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     let project: buildkiosk_core::Id<Project> = p.id("project")?;
     let text = p.req_text("text", MAX_XER)?;
     let which = p.line("proj_id", 40)?;
-    let (lines, skipped) = rows_from_xer(&text, which.as_deref()).map_err(|e| p.bad("text", e))?;
+    let (with_resources, with_limits, with_calendar) = (p.flag_or("resources", false)?, p.flag_or("limits", false)?, p.flag_or("calendar", false)?);
+    // The limits and the calendar belong to the project, so they take a project admin, which adding tasks does not.
+    if (with_limits || with_calendar) && crate::view::level(ctx.state, ctx.actor, project, Tool::Schedule) < Level::Admin {
+        return Err(crate::EngineError::forbidden("only project admins can take the resource limits or the calendar from a file"));
+    }
+    let (lines, skipped) = rows_from_xer(&text, which.as_deref(), with_resources).map_err(|e| p.bad("text", e))?;
+    // Read everything before changing anything.
+    let limits = if with_limits { Some(limits_from_xer(&text, which.as_deref()).map_err(|e| p.bad("text", e))?) } else { None };
+    let calendar = if with_calendar { calendar_from_xer(&text, which.as_deref()).map_err(|e| p.bad("text", e))? } else { None };
     let out = super::schedule::import_body(ctx, project, &lines, p)?;
     let added = out.get("added").and_then(Value::as_u64).unwrap_or(0);
-    Ok(json!({ "added": added, "created": added, "skipped": skipped }))
+    let mut result = serde_json::Map::new();
+    result.insert("added".into(), json!(added));
+    result.insert("created".into(), json!(added));
+    result.insert("skipped".into(), json!(skipped));
+    if let Some(limits) = limits {
+        result.insert("limits".into(), json!(limits.len()));
+        let _ = ctx.state.projects.update(project, |x| x.resource_limits = limits);
+    }
+    if with_calendar {
+        match calendar {
+            Some((cal, left_out)) => {
+                let _ = ctx.state.projects.update(project, |x| x.calendar = cal);
+                result.insert("calendar".into(), json!(true));
+                result.insert("calendar_left_out".into(), json!(left_out));
+            }
+            None => {
+                result.insert("calendar".into(), json!(false));
+            }
+        }
+    }
+    Ok(Value::Object(result))
 }

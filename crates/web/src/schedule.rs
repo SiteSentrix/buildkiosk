@@ -274,11 +274,16 @@ pub fn page(req: &Req<'_>, id: Id<Project>, filter: &str, drag: bool) -> Markup 
             div class="card" {
                 details class="disclosure" {
                     summary { "Import an exchange file (.xer)" }
-                    p class="muted small" { "Export the schedule from your planning software as an exchange (.xer) file. The work breakdown becomes summary tasks, and tasks, dates (actual, else scheduled, else planned), percent complete, milestones, links with their kind and lag, and date constraints come across; resources, calendars and costs are left behind. If the file holds more than one project, give the id of the one you want (the first is used otherwise). Up to 8 MB." }
+                    p class="muted small" { "Export the schedule from your planning software as an exchange (.xer) file. The work breakdown becomes summary tasks, and tasks, dates (actual, else scheduled, else planned), percent complete, milestones, links with their kind and lag, and date constraints come across; costs are left behind. Tick the boxes below to take the resources and the calendar too. If the file holds more than one project, give the id of the one you want (the first is used otherwise). Up to 8 MB." }
                     form method="post" action=(format!("{base}/import-xer")) enctype="multipart/form-data" {
                         input type="hidden" name="_csrf" value=(req.csrf);
                         (field("Exchange file", "sched_xer", true, true, html! { input type="file" id="sched_xer" name="file" accept=".xer,text/plain" required; }))
                         (field("Project id in the file (optional)", "sched_xer_id", false, true, html! { input type="text" id="sched_xer_id" name="proj_id" maxlength="40"; }))
+                        label class="check" { input type="checkbox" name="resources" value="true"; " Take the resources assigned to each task (100% is one a day, rounded to whole numbers)" }
+                        @if lvl == Level::Admin {
+                            label class="check" { input type="checkbox" name="limits" value="true"; " Set the resource limits from the file's maximum of each resource" }
+                            label class="check" { input type="checkbox" name="calendar" value="true"; " Replace this project's working days and days off with the file's calendar (then recalculate)" }
+                        }
                         div class="form-actions" { button type="submit" class="btn primary" { "Import file" } }
                     }
                 }

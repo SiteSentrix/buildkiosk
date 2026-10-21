@@ -4576,11 +4576,13 @@ async fn mcp_close(State(app): State<Shared>, headers: HeaderMap) -> Response {
 
 /// Builds a PDF for the signed-in person with `build` and sends it as a download.
 fn pdf_for(app: &Shared, headers: &HeaderMap, build: impl FnOnce(&Req<'_>) -> Option<(String, Vec<u8>)>) -> Response {
+    // Documents come out in the reader's language, like the pages.
+    let lang = language_of(app, headers);
     let inner = app.lock();
     let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
     let Some(s) = session(app, &inner, headers) else { return redirect("/login") };
     let req = Req { engine: &t.engine, person: s.person, csrf: "", now: Timestamp::from_millis(now_ms()), flash: None };
-    let Some((name, bytes)) = build(&req) else { return plain(StatusCode::NOT_FOUND, "Not found") };
+    let Some((name, bytes)) = buildkiosk_web::pdf::with_language(lang, || build(&req)) else { return plain(StatusCode::NOT_FOUND, "Not found") };
     let mut res = bytes.into_response();
     res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("application/pdf"));
     if let Ok(v) = HeaderValue::from_str(&format!("attachment; filename=\"{}\"", safe_filename(&name))) {

@@ -563,6 +563,14 @@ fn rewrite(html: &str, f: &mut dyn FnMut(&str) -> Option<String>, lang_code: Opt
     out
 }
 
+/// Plain text (a PDF's wording) translated into `lang` with the page catalogs; text with nothing to translate comes back as it is.
+pub fn translate_plain(text: &str, lang: Lang) -> String {
+    if lang == Lang::En {
+        return text.to_string();
+    }
+    translate_text(text, lang).unwrap_or_else(|| text.to_string())
+}
+
 /// A page translated into `lang`. English is returned as it is.
 pub fn translate_html(html: &str, lang: Lang) -> String {
     if lang == Lang::En {

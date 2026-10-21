@@ -14,6 +14,7 @@ pub mod gantt;
 pub mod geom;
 pub mod shapes;
 pub mod sheet;
+pub mod words;
 
 use wasm_bindgen::prelude::*;
 

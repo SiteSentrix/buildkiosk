@@ -191,6 +191,8 @@ struct Viewer {
     cam: Camera,
     ratio: f64,
     can_mark: bool,
+    /// The wording the viewer writes into the page, in the page's language.
+    words: crate::words::Words,
     tool: Tool,
     /// The first corner of a box or arrow, as fractions of the page.
     first: Option<(f64, f64)>,
@@ -334,6 +336,9 @@ async fn run(window: Window, document: Document, root: Element) -> Result<(), St
         cam: Camera::fit(Stage { w: 1.0, h: 1.0 }, aspect),
         ratio: 1.0,
         can_mark: boot.can_mark,
+        words: crate::words::Words::for_language(
+            &document.document_element().map(|e| e.get_attribute("lang").unwrap_or_default()).unwrap_or_default(),
+        ),
         tool: Tool::Move,
         first: None,
         path: Vec::new(),
@@ -614,7 +619,7 @@ fn set_hint(v: &Viewer) {
 
 fn set_status(v: &Viewer, text: &str) {
     if let Ok(Some(hint)) = v.root.query_selector("#wasm-hint") {
-        hint.set_text_content(Some(text));
+        hint.set_text_content(Some(&v.words.t(text)));
     }
 }
 
@@ -671,8 +676,10 @@ fn sync_ui(v: &Viewer) {
     let has_scale = scale_here(v).is_some();
     if let Some(e) = v.document.get_element_by_id("wasm-scale-note") {
         let text = match scale_here(v) {
-            Some(s) => format!("Scale set from a stretch of {}. Lengths and areas drawn on this page use it.", s.unit.length_text(s.length_um)),
-            None => "No scale set on this page. Use the Scale tool to set it, then measure lengths and areas.".to_string(),
+            Some(s) => {
+                v.words.tf("Scale set from a stretch of {}. Lengths and areas drawn on this page use it.", &[&s.unit.length_text(s.length_um)])
+            }
+            None => v.words.t("No scale set on this page. Use the Scale tool to set it, then measure lengths and areas."),
         };
         e.set_text_content(Some(&text));
     }

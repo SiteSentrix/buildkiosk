@@ -1,0 +1,25 @@
+# Hints and notes of the browser viewer, fr: `English<TAB>translation`; `{}` stands for a value.
+Click where the path starts.	Cliquez à l'endroit où le tracé commence.
+Click each bend. Click the last point again, or press Enter, to finish; Backspace undoes a point.	Cliquez sur chaque coude. Cliquez de nouveau sur le dernier point, ou appuyez sur Entrée, pour terminer ; Retour arrière annule un point.
+Click a corner of the outline.	Cliquez sur un angle du contour.
+Click each corner. Click the first corner again, or press Enter, to close it; Backspace undoes a point.	Cliquez sur chaque angle. Cliquez de nouveau sur le premier angle, ou appuyez sur Entrée, pour fermer le contour ; Retour arrière annule un point.
+Drag to move the sheet. Scroll or pinch to zoom.	Faites glisser pour déplacer la feuille. Faites défiler ou pincez pour zoomer.
+Click the sheet where the pin goes.	Cliquez sur la feuille à l'endroit de l'épingle.
+Click where the words go.	Cliquez à l'endroit du texte.
+Click each item to count; name what you are counting in the note.	Cliquez sur chaque élément à compter ; nommez ce que vous comptez dans la note.
+Click one corner of the box.	Cliquez sur un angle du rectangle.
+Click the opposite corner.	Cliquez sur l'angle opposé.
+Click where the arrow starts.	Cliquez à l'endroit où la flèche commence.
+Click where the arrow points.	Cliquez à l'endroit où la flèche pointe.
+Click one end of a stretch whose real length you know.	Cliquez sur une extrémité d'un tronçon dont vous connaissez la longueur réelle.
+Click the other end of the stretch.	Cliquez sur l'autre extrémité du tronçon.
+Click where the length starts.	Cliquez à l'endroit où la longueur commence.
+Click where it ends.	Cliquez à l'endroit où elle se termine.
+Click one corner of the area.	Cliquez sur un angle de la surface.
+That needs more points. Keep clicking, or press Escape to start over.	Il faut plus de points. Continuez à cliquer, ou appuyez sur Échap pour recommencer.
+The sides cross or double back. Backspace removes the last point; draw it so the sides only meet at corners.	Les côtés se croisent ou reviennent en arrière. Retour arrière retire le dernier point ; dessinez de sorte que les côtés ne se touchent qu'aux angles.
+Set this page's scale first: pick Scale, then click both ends of a stretch whose real length you know.	Réglez d'abord l'échelle de cette page : choisissez Échelle, puis cliquez sur les deux extrémités d'un tronçon dont vous connaissez la longueur réelle.
+That is as many points as one path can have; press Enter to finish.	C'est le nombre maximal de points d'un tracé ; appuyez sur Entrée pour terminer.
+Loading…	Chargement…
+Scale set from a stretch of {}. Lengths and areas drawn on this page use it.	Échelle définie à partir d'un tronçon de {}. Les longueurs et surfaces dessinées sur cette page l'utilisent.
+No scale set on this page. Use the Scale tool to set it, then measure lengths and areas.	Aucune échelle n'est définie sur cette page. Utilisez l'outil Échelle pour la définir, puis mesurez longueurs et surfaces.

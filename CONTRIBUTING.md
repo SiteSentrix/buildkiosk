@@ -27,7 +27,7 @@ agents but applies to everyone). The short version:
 2. Read [`docs/development.md`](docs/development.md) (adding a tool, running the demo, taking screenshots).
 3. Make one tool or one fix at a time, finished end to end: engine, tests, pages.
 4. Run `cargo xtask ci` (fmt, clippy, tests, assets, brands, cleanroom, licenses, layers, wasm). It must pass.
-5. Update the progress docs the change touches (`docs/target-app-parity.md`, `docs/gaps.md`, `ROADMAP.md`).
+5. Update the progress docs the change touches (`docs/gaps.md`, `ROADMAP.md`).
 6. Open a pull request and fill in the template. One task id per commit, for example `T4.2: submittal workflow`.
 
 ## Security problems

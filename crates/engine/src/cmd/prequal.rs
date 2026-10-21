@@ -129,7 +129,7 @@ pub const COMMANDS: &[CommandSpec] = &[
     CommandSpec::query("prequal.get", "Show prequalification", Tool::Prequalification, Access::Company(Level::Read), "vendor: company id", get),
 ];
 
-fn live(state: &buildkiosk_model::CompanyState, vendor: Id<Vendor>) -> Option<&Prequalification> {
+pub(super) fn live(state: &buildkiosk_model::CompanyState, vendor: Id<Vendor>) -> Option<&Prequalification> {
     state.prequalifications.iter().find(|r| r.vendor == vendor && r.deleted.is_none())
 }
 
@@ -140,7 +140,7 @@ fn record(ctx: &Ctx<'_>, p: &Params<'_>) -> Result<Prequalification> {
 }
 
 /// "0.85" → 85; between 0 and 9.99.
-fn parse_emr(s: &str) -> Option<u32> {
+pub(super) fn parse_emr(s: &str) -> Option<u32> {
     let s = s.trim();
     let (whole, frac) = s.split_once('.').unwrap_or((s, ""));
     if (whole.is_empty() && frac.is_empty())
@@ -184,6 +184,11 @@ fn save(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
                 answers: Vec::new(),
                 attachments: Vec::new(),
                 reminders: Vec::new(),
+                invitations: Vec::new(),
+                company_reminders: Vec::new(),
+                submitted_via: None,
+                portal_files: Vec::new(),
+                company_message: String::new(),
                 reviewed: None,
                 created: stamp,
                 updated: stamp,
@@ -328,7 +333,7 @@ fn get(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
 const MAX_SECTIONS: usize = 30;
 const MAX_QUESTIONS: usize = 60;
 const MAX_FORMS: usize = 50;
-const MAX_ATTACHMENTS: usize = 50;
+pub(super) const MAX_ATTACHMENTS: usize = 50;
 
 fn parse_form_text(p: &Params<'_>, body: &str) -> Result<Vec<PrequalSection>> {
     let mut sections: Vec<PrequalSection> = Vec::new();
@@ -488,7 +493,7 @@ fn forms(v: &View<'_>, _p: &Params<'_>) -> Result<Value> {
 }
 
 /// A questionnaire cell: section and question numbers that exist on the form.
-fn cell(form: &PrequalForm, row: &Params<'_>) -> Result<(u32, u32)> {
+pub(super) fn cell(form: &PrequalForm, row: &Params<'_>) -> Result<(u32, u32)> {
     let section = row.int("section", 0..=1_000)?.and_then(|v| u32::try_from(v).ok()).ok_or_else(|| row.bad("section", "is required"))?;
     let question = row.int("question", 0..=1_000)?.and_then(|v| u32::try_from(v).ok()).ok_or_else(|| row.bad("question", "is required"))?;
     let exists = form
@@ -502,7 +507,7 @@ fn cell(form: &PrequalForm, row: &Params<'_>) -> Result<(u32, u32)> {
     Ok((section, question))
 }
 
-fn set_answer(r: &mut Prequalification, section: u32, question: u32, f: impl FnOnce(&mut PrequalAnswer)) {
+pub(super) fn set_answer(r: &mut Prequalification, section: u32, question: u32, f: impl FnOnce(&mut PrequalAnswer)) {
     let at = r.answers.iter().position(|a| a.section == section && a.question == question);
     let i = at.unwrap_or_else(|| {
         r.answers.push(PrequalAnswer { section, question, text: String::new(), points: None });
@@ -658,7 +663,7 @@ pub fn check_prequalified(ctx: &Ctx<'_>, vendor: Id<Vendor>) -> Result<()> {
 }
 
 /// The reminder bucket for a date: 60, 30 or 7 days ahead, or 0 once it has lapsed; none while it is further off.
-fn bucket(days_left: i64) -> Option<u32> {
+pub(super) fn bucket(days_left: i64) -> Option<u32> {
     match days_left {
         d if d < 0 => Some(0),
         0..=7 => Some(7),

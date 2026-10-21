@@ -312,6 +312,61 @@ pub fn code_division(code: &str) -> &str {
     code.get(..end).unwrap_or(code)
 }
 
+/// The section of a cost code: its first two parts ("03-300" of "03-300-10", with the separator between), or the
+/// whole code when it has fewer.
+pub fn code_section(code: &str) -> &str {
+    let code = code.trim();
+    let is_sep = |c: char| matches!(c, '-' | '.' | '/' | ' ');
+    let Some(first) = code.find(is_sep).filter(|&i| i > 0) else { return code };
+    let rest = code.get(first + 1..).unwrap_or("");
+    match rest.find(is_sep) {
+        Some(j) if j > 0 => code.get(..first + 1 + j).unwrap_or(code),
+        _ => code,
+    }
+}
+
+/// The order cost types are listed in when a budget is grouped by them; codes with no type come last.
+const TYPE_ORDER: [buildkiosk_model::project::CostType; 5] = {
+    use buildkiosk_model::project::CostType::{Equipment, Labor, Material, Other, Subcontract};
+    [Labor, Material, Equipment, Subcontract, Other]
+};
+
+/// The budget rows in the groups a view asks for, each with its key (`None` for no grouping, one group of everything).
+/// Groups by division and section follow the order of the codes; groups by cost type follow labor, material, equipment,
+/// subcontract, other and then the codes with none, and keep the code order inside each.
+pub fn budget_groups<'a>(
+    state: &CompanyState,
+    rows: &'a [BudgetRow],
+    group: buildkiosk_model::finance::BudgetGroup,
+) -> Vec<(Option<String>, Vec<&'a BudgetRow>)> {
+    use buildkiosk_model::finance::BudgetGroup as G;
+    use buildkiosk_model::project::CostType;
+    let code_of = |r: &BudgetRow| state.cost_codes.get(r.cost_code).map(|c| c.code.as_str()).unwrap_or_default();
+    let type_of = |r: &BudgetRow| state.cost_codes.get(r.cost_code).and_then(|c| c.cost_type);
+    let rank = |t: Option<CostType>| t.and_then(|t| TYPE_ORDER.iter().position(|x| *x == t)).unwrap_or(TYPE_ORDER.len());
+    let key_of = |r: &BudgetRow| -> Option<String> {
+        match group {
+            G::None => None,
+            G::Division => Some(code_division(code_of(r)).to_string()),
+            G::Section => Some(code_section(code_of(r)).to_string()),
+            G::Type => Some(type_of(r).map_or_else(|| "No cost type".to_string(), |t| buildkiosk_model::Choice::label(t).to_string())),
+        }
+    };
+    let mut ordered: Vec<&BudgetRow> = rows.iter().collect();
+    if group == G::Type {
+        ordered.sort_by_key(|r| rank(type_of(r)));
+    }
+    let mut out: Vec<(Option<String>, Vec<&BudgetRow>)> = Vec::new();
+    for r in ordered {
+        let key = key_of(r);
+        match out.last_mut() {
+            Some((k, list)) if *k == key => list.push(r),
+            _ => out.push((key, vec![r])),
+        }
+    }
+    out
+}
+
 /// The amount a budget column shows for a row (`None` where a column has no figure, such as no forecast).
 pub fn column_amount(row: &BudgetRow, column: buildkiosk_model::finance::BudgetColumn) -> Option<Money> {
     use buildkiosk_model::finance::BudgetColumn as C;

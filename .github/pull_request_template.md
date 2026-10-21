@@ -15,4 +15,4 @@
 - [ ] Clean-room: nothing copied from Procore or other vendors (text, templates, layouts, icons, data) or from
       GPL/AGPL code ([AGENTS.md](../AGENTS.md)).
 - [ ] Every new asset has a row in `ASSETS.md`.
-- [ ] Progress docs updated (docs/target-app-parity.md, docs/gaps.md, ROADMAP.md) if a score moved.
+- [ ] Progress docs updated (docs/gaps.md, ROADMAP.md) if a gap closed or shrank or something new ships.

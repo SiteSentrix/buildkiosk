@@ -346,6 +346,44 @@ pub fn detail(req: &Req<'_>, vendor: Id<Vendor>) -> Markup {
                 }
             }
         }
+        @if !r.company_message.is_empty() {
+            div class="card" {
+                h2 { "Message from the company" }
+                p class="prose" { (r.company_message) }
+                @if let Some(n) = r.submitted_via { p class="muted small" { "The record was put forward by the company through link " (n) "." } }
+            }
+        }
+        @if lvl >= Level::Standard {
+            div class="card" {
+                h2 { "Link for the company" }
+                p class="muted small" { "Gives a contact at the company a page where they answer the questionnaire, give their dates and attach documents themselves, without an account. They can't see your notes or score, or any other company. The server emails the link when outgoing email and its public address are set up; you can also copy it." }
+                @if r.invitations.is_empty() { p class="muted" { "No link has been sent." } } @else {
+                    div class="table-wrap" { table class="data" {
+                        thead { tr { th { "Sent to" } th { "State" } th {} } }
+                        tbody { @for i in &r.invitations {
+                            @let live = i.active(today);
+                            tr {
+                                td { (i.email) }
+                                td { @if i.revoked.is_some() { "Cancelled" } @else if !live { "Past its last day" } @else if i.sent.is_none() { "Waiting to be emailed" } @else { "Sent" } @if let Some(d) = i.expires { " · until " (d.pretty()) } }
+                                td class="right" {
+                                    @if live { a class="btn small" href=(format!("{here}/links/{}", i.number)) { "Show link" } " "
+                                        (button_form(req, "prequal.resend_invite", &here, &[v.clone(), ("number", i.number.to_string())], "Send again", "small")) " "
+                                        (button_form(req, "prequal.revoke_invite", &here, &[v.clone(), ("number", i.number.to_string())], "Cancel", "small danger")) }
+                                }
+                            }
+                        } }
+                    } }
+                }
+                (command_form(req, "prequal.invite", &here, &here, html! {
+                    input type="hidden" name="vendor" value=(vendor);
+                    div class="form-grid" {
+                        (field("Contact's email", "pq_email", true, false, html! { input type="email" id="pq_email" name="email" required; }))
+                        (field("Link works until (optional)", "pq_expires", false, false, html! { input type="date" id="pq_expires" name="expires"; }))
+                    }
+                    div class="form-actions" { button type="submit" class="btn primary" { "Send a link" } }
+                }))
+            }
+        }
         @if !r.reminders.is_empty() {
             div class="card" {
                 h2 { "Warnings sent" }
@@ -354,4 +392,23 @@ pub fn detail(req: &Req<'_>, vendor: Id<Vendor>) -> Markup {
         }
     };
     layout::app(req, &name, Nav::Prequalification, &[("Prequalification", Some("/prequalification".into())), (&name, None)], body)
+}
+
+/// The page that shows one link so the team can copy it.
+pub fn link_page(req: &Req<'_>, vendor: Id<Vendor>, company: &str, email: &str, url: &str) -> Markup {
+    let here = format!("/prequalification/{vendor}");
+    layout::app(
+        req,
+        "Prequalification link",
+        Nav::Prequalification,
+        &[("Prequalification", Some("/prequalification".into())), (company, Some(here.clone())), ("Link", None)],
+        html! {
+            div class="page-head" { div { h1 { "Prequalification link for " (company) } div class="sub" { "Sent to " (email) } } div class="actions" { a class="btn" href=(here) { "Back" } } }
+            div class="card" {
+                p { "Anyone with this link can change " (company) "'s prequalification answers, dates and documents. Send it only to them." }
+                p { input type="text" readonly value=(url) size="80" aria-label="Prequalification link"; }
+                @if !url.starts_with("http") { p class="muted small" { "Add the server's public address under Email settings to get a full link; until then, put your site's address in front of the path above." } }
+            }
+        },
+    )
 }

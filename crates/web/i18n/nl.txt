@@ -7,6 +7,7 @@
 /api/v1/commands/…	/api/v1/commands/…
 /mcp	/mcp
 0 switches a rule off. Weeks run Monday to Sunday and hours already paid as daily overtime are not counted again.	0 schakelt een regel uit. Weken lopen van maandag tot en met zondag en uren die al als dagelijkse overuren zijn betaald, worden niet opnieuw meegeteld.
+03-300 material	03-300 material
 03-300, 120000, Concrete	03-300, 120000, Beton
 2027-01-01 New Year's Day	2027-01-01 Nieuwjaarsdag
 8'-6" above finished floor. The RCP will be revised.	8'-6" boven afgewerkte vloer. De RCP wordt herzien.
@@ -22,15 +23,18 @@ A file from {}	Een bestand van {}
 A formal record of what was sent, to whom and why	Een formeel verslag van wat is verzonden, naar wie en waarom
 A line starting with # begins a section; every other line is an item. Assign owners and dates on the plan page. Editing the outline keeps the owner, date, note and done state of items whose wording and section are unchanged.	Een regel die met # begint, start een sectie; elke andere regel is een onderdeel. Wijs eigenaren en datums toe op de actieplanpagina. Als je de opzet bewerkt, blijven eigenaar, datum, notitie en gereedstatus behouden van onderdelen waarvan de tekst en sectie ongewijzigd zijn.
 A link lets one contact at an invited company read the documents, acknowledge addenda and send or change a bid, with no account. Links are emailed once the package is out for bid. Bids sent this way stay sealed until bidding closes.	Met een link kan één contactpersoon van een uitgenodigd bedrijf de documenten lezen, addenda bevestigen en een bieding versturen of wijzigen, zonder account. Links worden per e-mail verstuurd zodra het pakket in aanbesteding gaat. Zo ingestuurde biedingen blijven verzegeld tot de aanbesteding sluit.
+A message for the reviewers (optional)	Een bericht voor de beoordelaars (optioneel)
 A name already used is replaced. The new baseline becomes the one the chart and each task's slip compare against.	Een al gebruikte naam wordt vervangen. De nieuwe basisplanning wordt die waarmee de grafiek en de afwijking van elke taak worden vergeleken.
 A new version of	Een nieuwe versie van
+A pie needs figures that are not negative and add up to more than nothing. Use bars or columns for	Een taartdiagram heeft cijfers nodig die niet negatief zijn en samen meer dan nul zijn. Gebruik balken of kolommen voor
+A pie needs figures that are not negative and add up to more than nothing. Use bars or columns for {}.	Een taartdiagram heeft cijfers nodig die niet negatief zijn en samen meer dan nul zijn. Gebruik balken of kolommen voor {}.
 A project admin has full access to every tool, so overrides have no effect.	Een projectbeheerder heeft volledige toegang tot alle tools, dus overschrijvingen hebben geen effect.
 A saved crew	Een opgeslagen ploeg
-A seventh to tenth column is optional	Een zevende tot tiende kolom is optioneel
+A seventh to eleventh column is optional	Een zevende tot elfde kolom is optioneel
 A spreadsheet saved as CSV. Put the column names on the first line	Een spreadsheet opgeslagen als CSV. Zet de kolomnamen op de eerste regel
 A takeoff from a drawing	Een opmeting van een tekening
 A token lets a script or an AI agent act as you over the HTTP API (	Met een token kan een script of een AI-agent via de HTTP-API namens jou handelen (
-A view keeps the columns you want to see and whether cost codes are grouped by division. It changes the table above and the CSV export, nothing else.	Een weergave bewaart de kolommen die je wilt zien en of kostencodes per divisie worden gegroepeerd. Dit verandert de tabel hierboven en de CSV-export, niets anders.
+A view keeps the columns you want to see and whether cost codes are grouped (by division, section or cost type). It changes the table above and the CSV export, nothing else.	Een weergave bewaart de kolommen die u wilt zien en of kostencodes worden gegroepeerd (per afdeling, sectie of kostensoort). Ze verandert de tabel hierboven en de CSV-export, niets anders.
 A, 2, Addendum 3	A, 2, Addendum 3
 A-101.txt	A-101.txt
 API tokens	API-tokens
@@ -176,6 +180,7 @@ Answer a bidder's question by {}	Vraag van een bieder beantwoorden door {}
 Answer inspection checklist by {}	Inspectiechecklist beantwoorden door {}
 Answer that shows question {}	Antwoord dat vraag {} toont
 Answer the door hardware RFI	Beantwoord de RFI over deurbeslag
+Answer the questions, give your dates, attach your documents and send your record for review.	Beantwoord de vragen, geef uw data op, voeg uw documenten toe en stuur uw dossier ter beoordeling.
 Answer type	Antwoordtype
 Answer type of question {}	Antwoordtype van vraag {}
 Answered	Beantwoord
@@ -188,9 +193,13 @@ Any template	Elk sjabloon
 Any {}	Elke {}
 Anyone	Iedereen
 Anyone with this link can ask to be invited to bid. Nobody gets the bid documents until you approve their request.	Iedereen met deze link kan vragen om uitgenodigd te worden om te bieden. Niemand krijgt de aanbestedingsdocumenten voordat u het verzoek goedkeurt.
+Anyone with this link can change	Iedereen met deze link kan wijzigen
+Anyone with this link can change {}'s prequalification answers, dates and documents. Send it only to them.	Iedereen met deze link kan de antwoorden, data en documenten voor de prekwalificatie van {} wijzigen. Stuur hem alleen naar dat bedrijf.
+Anyone with this link can read the contract and sign it for the other party. Send it only to them.	Iedereen met deze link kan het contract lezen en namens de andere partij ondertekenen. Stuur hem alleen naar hen.
 Anyone with this link can read the package and send or change a bid for	Iedereen met deze link kan het pakket lezen en een bieding versturen of wijzigen voor
 Anyone with this link can read the package and send or change a bid for {}. Send it only to them.	Iedereen met deze link kan het pakket lezen en een bieding versturen of wijzigen voor {}. Stuur hem alleen naar hen.
 Applied	Toegepast
+Apply this plan	Dit plan toepassen
 Approval	Goedkeuring
 Approve	Goedkeuren
 Approve a request to bid by {}	Een verzoek om te bieden goedkeuren door {}
@@ -225,6 +234,7 @@ As late as possible	Zo laat mogelijk
 As requested	Zoals gevraagd
 As soon as possible	Zo snel mogelijk
 Ask the team a question	Stel het team een vraag
+Ask the team if you want to look at it again.	Vraag het team of u het opnieuw wilt bekijken.
 Ask to bid	Vraag om mee te bieden
 Asked	Gevraagd
 Assemblies	Samenstellingen
@@ -236,6 +246,7 @@ Assigned to me	Aan mij toegewezen
 Assignees	Toegewezenen
 At least 10 characters.	Minstens 10 tekens.
 Attach a proposal, bond or other document (up to 25 MB each, 10 files).	Voeg een voorstel, garantie of ander document toe (tot 25 MB per bestand, 10 bestanden).
+Attach document	Document toevoegen
 Attach file	Bestand bijvoegen
 Attach file to RFI by {}	Bestand aan RFI bijvoegen door {}
 Attach file to a checklist line by {}	Bestand aan een checklistregel bijvoegen door {}
@@ -292,6 +303,7 @@ Backups	Back-ups
 Backups kept	Bewaarde back-ups
 Balance to finish	Saldo tot oplevering
 Ball in court	Aan zet
+Bars	Balken
 Baselines	Basisplanningen
 Before closing in	Voor het dichten
 Bid	Inschrijving
@@ -347,8 +359,10 @@ Bulletin 1	Bulletin 1
 Bulletin 1 drawings	Tekeningen bulletin 1
 By	Door
 By cost code	Per kostencode
+By cost type	Per kostensoort
 By division	Per divisie
 By person	Per persoon
+By section	Per sectie
 By severity	Per ernst
 CSV file	CSV-bestand
 CSV text	CSV-tekst
@@ -356,6 +370,7 @@ Calendar	Kalender
 Can sign in	Kan inloggen
 Can sign in (needs an email)	Kan inloggen (e-mailadres nodig)
 Cancel	Annuleren
+Cancel a prequalification link by {}	Prekwalificatielink geannuleerd door {}
 Cancel bid link by {}	Biedlink annuleren door {}
 Cancelled	Geannuleerd
 Caption	Bijschrift
@@ -427,6 +442,7 @@ Clear prime change order signature status by {}	Ondertekeningsstatus van wijzigi
 Clear prime contract signature status by {}	Ondertekeningsstatus van hoofdcontract wissen door {}
 Clear signature status by {}	Ondertekeningsstatus wissen door {}
 Clear the signature	De handtekening wissen
+Click each item to count.	Klik op elk te tellen item.
 Click one corner of the box.	Klik op één hoek van het vak.
 Click the opposite corner.	Klik op de tegenoverliggende hoek.
 Click the picture where the pin goes.	Klik op de afbeelding waar de pin moet komen.
@@ -473,11 +489,16 @@ Committed cost	Vastgelegde kosten
 Companies	Bedrijven
 Company	Bedrijf
 Company admin	Bedrijfsbeheerder
+Company attaches a file by {}	Bestand toegevoegd door het bedrijf {}
 Company holiday lists	Feestdaglijsten van het bedrijf
 Company holiday lists this project takes	Feestdaglijsten van het bedrijf die dit project gebruikt
 Company in the directory	Bedrijf in het adresboek
+Company leaves a message by {}	Bericht achtergelaten door het bedrijf {}
 Company name	Bedrijfsnaam
+Company puts its record forward by {}	Dossier ingediend door het bedrijf {}
+Company removes a file it attached by {}	Bestand verwijderd door het bedrijf {}
 Company reports	Bedrijfsrapporten
+Company saves its answers by {}	Antwoorden opgeslagen door het bedrijf {}
 Company settings	Bedrijfsinstellingen
 Compare	Vergelijken
 Compare estimates	Ramingen vergelijken
@@ -502,6 +523,7 @@ Construction	Bouw
 Consultant	Adviseur
 Contact	Contactpersoon
 Contact only	Alleen contactpersoon
+Contact's email	E-mailadres van de contactpersoon
 Contract	Contract
 Contract signature	Contractondertekening
 Coordination	Coördinatie
@@ -524,6 +546,7 @@ Correspondence #{}	Correspondentie #{}
 Correspondence types	Correspondentietypen
 Cost	Kosten
 Cost code	Kostencode
+Cost code (optional)	Kostencode (optioneel)
 Cost code (to compare with the budget)	Kostencode (om met het budget te vergelijken)
 Cost code for hours without one	Kostencode voor uren zonder kostencode
 Cost code for parts without one	Kostencode voor onderdelen zonder kostencode
@@ -537,7 +560,9 @@ Cost per unit	Kosten per eenheid
 Cost then	Kosten toen
 Cost to add if excluded	Extra kosten indien uitgesloten
 Cost to date	Kosten tot nu toe
+Cost types	Kostensoorten
 Costs paid without a commitment	Kosten betaald zonder verplichting
+Count	Telling
 Country	Land
 County inspector	Inspecteur van de gemeente
 Covered?	Gedekt?
@@ -599,6 +624,7 @@ Dates and times are shown at UTC	Datums en tijden worden getoond in UTC
 Dates and times are shown at UTC{}. Amounts are in {}. Changing the currency doesn't convert existing amounts.	Datums en tijden worden getoond in UTC{}. Bedragen zijn in {}. Als je de valuta wijzigt, worden bestaande bedragen niet omgerekend.
 Day	Dag
 Day and weather	Dag en weer
+Day of the month (monthly)	Dag van de maand (maandelijks)
 Days	Dagen
 Days are working days of the project calendar. Float is the working days a task can slip without moving the last finish.	Dagen zijn werkdagen van de projectkalender. Speling is het aantal werkdagen dat een taak mag uitlopen zonder de laatste einddatum te verschuiven.
 Days for a submittal review	Dagen voor een submittalbeoordeling
@@ -611,9 +637,12 @@ Dec	Dec
 Decision	Beslissing
 Decline	Afwijzen
 Decline a request to bid by {}	Een verzoek om te bieden afwijzen door {}
+Decline to sign	Weigeren te ondertekenen
+Decline to sign through the link by {}	Weigering van ondertekening via de link door {}
 Declined	Afgewezen
 Delays	Vertragingen
 Delays and issues	Vertragingen en problemen
+Delays tasks that need more of a resource than the limit allows on a working day, and what follows them through their links. Finished work, started work and work pinned to a date stay where they are. Tasks only move later. Look at the plan first	Schuift taken op die op een werkdag meer van een middel nodig hebben dan de limiet toestaat, en wat erop volgt via de koppelingen. Afgerond werk, gestart werk en werk dat aan een datum is vastgezet blijft staan. Taken schuiven alleen later. Bekijk eerst het plan
 Delete	Verwijderen
 Delete RFI by {}	RFI verwijderen door {}
 Delete a saved baseline by {}	Een opgeslagen basisplanning verwijderen door {}
@@ -701,6 +730,7 @@ Distribution list	Distributielijst
 Division	Divisie
 Division {}	Divisie {}
 Document	Document
+Document to attach	Toe te voegen document
 Documents	Documenten
 Documents sent for review before the work goes ahead	Documenten die ter beoordeling worden verstuurd voordat het werk doorgaat
 Does not repeat	Herhaalt niet
@@ -715,6 +745,7 @@ Download all	Alles downloaden
 Download all as zip	Alles downloaden als zip
 Download original	Origineel downloaden
 Draft	Concept
+Draft transmittals	Verzendingen in concept
 Drafts	Concepten
 Drawing	Tekening
 Drawing log	Tekeninglogboek
@@ -729,6 +760,7 @@ Due date	Vervaldatum
 Due date of action {}	Vervaldatum van actie {}
 EMR	EMR
 Each has the same title, type, time, place, invitees and agenda topics, on the dates after this one.	Elk heeft dezelfde titel, hetzelfde type, dezelfde tijd, plaats, genodigden en agendapunten, op de datums na deze.
+Each person gets the report as they themselves would see it, as a table in the email and a CSV file, from about six in the morning. Outgoing email has to be set up first. The first email is the next time the rhythm comes round.	Elke persoon krijgt het rapport zoals die het zelf zou zien, als tabel in de e-mail en als CSV-bestand, vanaf ongeveer zes uur 's ochtends. Uitgaande e-mail moet eerst zijn ingesteld. De eerste e-mail volgt de eerstvolgende keer dat het ritme aan de beurt is.
 Each person once; blank rows are ignored.	Elke persoon één keer; lege rijen worden genegeerd.
 Each ticked person gets their own entry for this day. With nobody ticked, the hours are yours.	Elke aangevinkte persoon krijgt een eigen registratie voor deze dag. Als niemand is aangevinkt, zijn de uren van jou.
 Each type is numbered on its own	Elk type wordt apart genummerd
@@ -795,8 +827,16 @@ Edit type	Type bewerken
 Edit {}	{} bewerken
 Electrical	Elektra
 Email	E-mail
+Email a report on a schedule by {}	Rapport volgens schema per e-mail verzonden door {}
+Email a signing link to	Ondertekeningslink mailen naar
 Email address	E-mailadres
 Email me my notifications	Mijn meldingen e-mailen
+Email this report	Dit rapport per e-mail versturen
+Emailed every	Verstuurd elke
+Emailed every day	Elke dag verstuurd
+Emailed every {}	Verstuurd elke {}
+Emailed on day	Verstuurd op dag
+Emailed on day {} of every month	Verstuurd op dag {} van elke maand
 Embeds, sleeves and penetrations are in place and secured	Inbouwdelen, hulzen en doorvoeren zijn aangebracht en vastgezet
 Enclosures	Bijlagen
 Encryption	Versleuteling
@@ -812,6 +852,7 @@ Estimate #{}	Raming #{}
 Estimated value	Geraamde waarde
 Estimating	Calculatie
 Every	Elke
+Every day	Elke dag
 Every form from one template side by side	Elk formulier van één sjabloon naast elkaar
 Every month	Elke maand
 Every project you can open, with the columns chosen	Elk project dat je kunt openen, met de gekozen kolommen
@@ -834,6 +875,7 @@ Excavate and grade	Ontgraven en afwerken van het terrein
 Exchange file	Uitwisselbestand
 Excluded	Uitgesloten
 Experience modification rate	Experience modification rate
+Experience modification rate (such as 0.85)	Ervaringsmodificatiefactor (zoals 0.85)
 Expired	Verlopen
 Expiring soon	Verloopt binnenkort
 Export CSV	CSV exporteren
@@ -893,6 +935,7 @@ Folder settings	Mapinstellingen
 Folders	Mappen
 Followed by	Gevolgd door
 Follows	Volgt op
+For	Voor
 For approval	Ter goedkeuring
 For construction	Voor uitvoering
 For information	Ter informatie
@@ -905,6 +948,7 @@ Form	Formulier
 Form templates	Formuliersjablonen
 Forms	Formulieren
 Forms are clean, braced and match the drawings	Bekisting is schoon, geschoord en komt overeen met de tekeningen
+Forms in draft	Formulieren in concept
 Forms report	Formulierenrapport
 Formwork and reinforcement	Bekisting en wapening
 Foundations	Funderingen
@@ -916,6 +960,7 @@ Framing lumber package	Pakket constructiehout
 Framing walk-through	Rondgang regelwerk
 Français	Français
 Fri	Vr
+Friday	Vrijdag
 From	Van
 From (email)	Van (e-mail)
 From (name)	Van (naam)
@@ -954,7 +999,10 @@ How many of each resource you can have working on one day, one per line, such as
 How many units	Hoeveel eenheden
 How much of a code's work is done. Leave blank to remove it.	Hoeveel werk van een code is gereed. Laat leeg om het te verwijderen.
 How often	Hoe vaak
+I can't sign this	Ik kan dit niet ondertekenen
 I have read this addendum	Ik heb dit addendum gelezen
+I have read this contract and agree to it, and I am authorised to sign for	Ik heb dit contract gelezen, ga ermee akkoord en ben bevoegd om te tekenen namens
+I have read this contract and agree to it, and I am authorised to sign for {}.	Ik heb dit contract gelezen, ga ermee akkoord en ben bevoegd om te tekenen namens {}.
 If the link ends up somewhere you don't want it, use Replace the link	Als de link ergens terechtkomt waar u hem niet wilt, gebruik dan Link vervangen
 If this company was entered twice, merge it into the one to keep. RFIs, commitments, bids, people and other records that name	Als dit bedrijf twee keer is ingevoerd, voeg het dan samen met het bedrijf dat je wilt behouden. RFI's, verplichtingen, inschrijvingen, personen en andere records die verwijzen naar
 If this company was entered twice, merge it into the one to keep. RFIs, commitments, bids, people and other records that name {} will name the kept company instead, and {} is removed from the directory. Blank details of the kept company are filled in from this one.	Als dit bedrijf twee keer is ingevoerd, voeg het dan samen met het bedrijf dat je wilt behouden. RFI's, verplichtingen, inschrijvingen, personen en andere records die verwijzen naar {} verwijzen daarna naar het behouden bedrijf, en {} wordt uit het adresboek verwijderd. Lege gegevens van het behouden bedrijf worden aangevuld vanuit dit bedrijf.
@@ -1052,8 +1100,10 @@ Keys, manuals and warranty papers are ready for handover	Sleutels, handleidingen
 Keystone Properties	Keystone Properties
 Kickoff meeting notes	Notities van de startvergadering
 Kind	Soort
+Kind of chart	Soort grafiek
 LTR	LTR
 LTR-001, LTR-002… With types set, every item must be one of them.	LTR-001, LTR-002… Als er typen zijn ingesteld, moet elk item een van deze typen zijn.
+Label	Label
 Labor	Arbeid
 Labour cost	Arbeidskosten
 Ladders and scaffolds are in good condition and used correctly	Ladders en steigers zijn in goede staat en worden correct gebruikt
@@ -1072,9 +1122,11 @@ Late schedule tasks	Te late planningstaken
 Laydown yard	Opslagterrein
 Leave To empty to post the seven days from From.	Laat Tot leeg om de zeven dagen vanaf Van te boeken.
 Leave blank to use the template's name.	Laat leeg om de naam van het sjabloon te gebruiken.
+Leave empty to sign on paper	Leeg laten om op papier te ondertekenen
 Leave the markups out	De markeringen weglaten
 Leave this empty	Laat dit leeg
 Length	Lengte
+Lengths along paths add up with straight lengths and outline areas with boxes. Add a line to an estimate from its Takeoff section.	Lengtes langs paden worden bij rechte lengtes opgeteld en oppervlakten van omtrekken bij die van kaders. Voeg een regel toe aan een raming vanuit het onderdeel Opmeting.
 Letter	Brief
 Letter, Notice, Email…	Brief, bericht, e-mail…
 Letters, notices and emails kept on the project record	Brieven, berichten en e-mails die in het projectdossier zijn bewaard
@@ -1084,6 +1136,8 @@ Level 1 corridor	Gang niveau 1
 Level 2	Niveau 2
 Level 2 stair hall	Trappenhal niveau 2
 Level on {}	Niveau op {}
+Level resources	Middelen nivelleren
+Level resources by {}	Middelen genivelleerd door {}
 Leveled	Genivelleerd
 Leveling	Nivelleren
 Licence	Licentie
@@ -1097,7 +1151,11 @@ Line {} description	Omschrijving van regel {}
 Line {} quantity	Hoeveelheid van regel {}
 Line {} unit	Eenheid van regel {}
 Lines	Regels
+Link	Link
+Link for the company	Link voor het bedrijf
 Link not valid	Link niet geldig
+Link works until	Link werkt tot
+Link works until (optional)	Link werkt tot (optioneel)
 Linked RFIs	Gekoppelde RFI's
 Linked documents	Gekoppelde documenten
 Linked submittals	Gekoppelde submittals
@@ -1136,7 +1194,6 @@ Mar	Mrt
 Mark action done by {}	Actie als gereed markeren door {}
 Mark all as read	Alles als gelezen markeren
 Mark as official	Als officieel markeren
-Mark as sent for signature	Als verzonden ter ondertekening markeren
 Mark complete	Als voltooid markeren
 Mark done	Als gereed markeren
 Mark incident work done by {}	Incidentwerk als gereed markeren door {}
@@ -1148,6 +1205,7 @@ Mark task work done by {}	Werk aan taak als gereed markeren door {}
 Mark up	Markeren
 Mark up a sheet by {}	Een tekening markeren door {}
 Mark work done	Werk als gereed markeren
+Marks	Markeringen
 Markup {} name	Naam van opslag {}
 Markup {} percent	Percentage van opslag {}
 Markups (a percentage of the subtotal)	Opslagen (een percentage van het subtotaal)
@@ -1174,6 +1232,8 @@ Merge and remove {}	{} samenvoegen en verwijderen
 Merge duplicate companies by {}	Dubbele bedrijven samenvoegen door {}
 Merge into another company	Samenvoegen met een ander bedrijf
 Message	Bericht
+Message from the company	Bericht van het bedrijf
+Message the reviewers	Bericht aan de beoordelaars
 Method	Methode
 Metres	Meter
 Milestone	Mijlpaal
@@ -1185,6 +1245,7 @@ Minutes east of UTC	Minuten ten oosten van UTC
 Minutes issued	Notulen uitgegeven
 Mix, delivery schedule and pump are confirmed with the supplier	Mengsel, leveringsschema en pomp zijn bevestigd met de leverancier
 Mon	Ma
+Monday	Maandag
 Month	Maand
 Monthly	Maandelijks
 More	Meer
@@ -1271,6 +1332,7 @@ No cost code	Geen kostencode
 No days off are listed.	Er zijn geen vrije dagen opgegeven.
 No direct costs yet	Nog geen directe kosten
 No documents here	Hier zijn geen documenten
+No documents yet. Attach your insurance certificate, financial statements and the like.	Nog geen documenten. Voeg uw verzekeringsbewijs, jaarrekeningen en dergelijke toe.
 No drawings yet	Nog geen tekeningen
 No estimates	Geen ramingen
 No files attached.	Geen bestanden bijgevoegd.
@@ -1289,6 +1351,7 @@ No items	Geen items
 No items here	Hier zijn geen items
 No items listed.	Geen items vermeld.
 No lines yet.	Nog geen regels.
+No link has been sent.	Er is nog geen link verstuurd.
 No location	Geen locatie
 No log	Geen logboek
 No logs here	Hier zijn geen logboeken
@@ -1307,6 +1370,7 @@ No recordable cases in	Geen registratieplichtige gevallen in
 No recordable cases in {}.	Geen registratieplichtige gevallen in {}.
 No records	Geen records
 No replies yet.	Nog geen reacties.
+No resource is over its limit, so nothing needs to move.	Geen middel overschrijdt zijn limiet, dus er hoeft niets te verschuiven.
 No resources yet	Nog geen resources
 No responses yet.	Nog geen antwoorden.
 No reviews yet.	Nog geen beoordelingen.
@@ -1348,6 +1412,8 @@ Not clear	Niet duidelijk
 Not closed	Niet gesloten
 Not complete	Niet voltooid
 Not copied	Niet gekopieerd
+Not emailed	Niet per e-mail verstuurd
+Not emailed. Pick a rhythm and who gets it.	Niet per e-mail verstuurd. Kies het ritme en wie het krijgt.
 Not found	Niet gevonden
 Not in the budget yet	Nog niet in het budget
 Not received	Niet ontvangen
@@ -1370,6 +1436,7 @@ Nothing has been added yet.	Er is nog niets toegevoegd.
 Nothing here yet	Hier is nog niets
 Nothing in the catalogue	Niets in de catalogus
 Nothing is approved to invoice yet.	Er is nog niets goedgekeurd om te factureren.
+Nothing is measured or counted yet	Er is nog niets gemeten of geteld
 Nothing matches, or you can't open any project yet.	Niets gevonden, of je kunt nog geen project openen.
 Nothing recorded yet.	Nog niets vastgelegd.
 Nothing scheduled.	Niets gepland.
@@ -1381,6 +1448,7 @@ Nothing yet	Nog niets
 Notifications	Meldingen
 Notifications, {} unread	Meldingen, {} ongelezen
 Nov	nov
+Now	Nu
 Now compared with “	Nu vergeleken met “
 Now compared with “{}”	Nu vergeleken met “{}”
 Number	Nummer
@@ -1432,11 +1500,19 @@ Open action items	Open actiepunten
 Open actions	Open acties
 Open actions from earlier meetings	Open acties uit eerdere vergaderingen
 Open bid link	Open biedlink
+Open change events	Open wijzigingsgebeurtenissen
+Open commitments	Open verplichtingen
+Open correspondence	Open correspondentie
 Open floor edge at level 2 stair	Open vloerrand bij trap op niveau 2
 Open in viewer	Openen in viewer
+Open incidents	Open incidenten
+Open inspections	Open inspecties
+Open meeting actions	Open vergaderacties
+Open observations	Open waarnemingen
 Open or close the open bid link by {}	De open biedlink openen of sluiten door {}
 Open punch items	Open opleverpunten
 Open sealed bids by {}	Verzegelde biedingen openen door {}
+Open tasks	Open taken
 Open the standard layout by default	Open de standaardindeling als standaard
 Open them now	Nu openen
 Open this view by default	Open deze weergave als standaard
@@ -1502,6 +1578,7 @@ Pass	Geslaagd
 Passed	Geslaagd
 Password	Wachtwoord
 Past due	Verlopen
+Past its last day	Laatste dag verstreken
 Past-due RFIs	Te late RFI's
 Paste an email	Plak een e-mail
 Path	Pad
@@ -1539,6 +1616,7 @@ Picture	Afbeelding
 Picture {} of {}	Afbeelding {} van {}
 Pictures (JPEG, PNG, GIF or WebP; choose several)	Afbeeldingen (JPEG, PNG, GIF of WebP; kies er meerdere)
 Pictures of the work, by album	Foto's van het werk, per album
+Pie	Taart
 Pin	Vastzetten
 Plan	Plan
 Plan a meeting to keep its agenda, minutes and action items together.	Plan een vergadering om de agenda, notulen en actiepunten bij elkaar te houden.
@@ -1564,11 +1642,16 @@ Preconstruction	Voorbereiding
 Predecessors (task numbers with an optional kind and lag, e.g. 3, 5+2, 7SS, 4FF-1)	Voorgangers (taaknummers met optioneel een soort en wachttijd, bijv. 3, 5+2, 7SS, 4FF-1)
 Prefix	Voorvoegsel
 Prequalification	Voorkwalificatie
+Prequalification link	Prekwalificatielink
+Prequalification link for	Prekwalificatielink voor
+Prequalification link for {}	Prekwalificatielink voor {}
 Prequalification questionnaires	Vragenlijsten voor voorkwalificatie
 Prequalified	Voorgekwalificeerd
 Present	Aanwezig
 Preview	Voorbeeld
 Preview of {}	Voorbeeld van {}
+Preview, keeping the finish date	Voorbeeld, met behoud van de einddatum
+Preview, letting the finish move	Voorbeeld, waarbij het einde mag verschuiven
 Previous page	Vorige pagina
 Previous week	Vorige week
 Price catalogue	Prijscatalogus
@@ -1598,6 +1681,7 @@ Project directory	Projectadresboek
 Project engineer	Projectingenieur
 Project file	Projectbestand
 Project files in folders, each with its versions	Projectbestanden in mappen, elk met zijn versies
+Project finish	Einde van het project
 Project home	Projectstartpagina
 Project id in the file (optional)	Project-id in het bestand (optioneel)
 Project management	Projectbeheer
@@ -1636,6 +1720,7 @@ Put in the budget {}	In het budget zetten {}
 Qty	Aantal
 Quality	Kwaliteit
 Quality and safety	Kwaliteit en veiligheid
+Quantities	Hoeveelheden
 Quantity	Hoeveelheid
 Quantity of line {}	Hoeveelheid van regel {}
 Quantity per unit	Hoeveelheid per eenheid
@@ -1677,6 +1762,7 @@ Record a direct cost	Directe kosten vastleggen
 Record a price	Prijs vastleggen
 Record a price for a catalogue item by {}	Prijs vastleggen voor een catalogusitem door {}
 Record a purchase, a rental or another cost below.	Leg hieronder een aankoop, een huur of andere kosten vast.
+Record a warning emailed to a company by {}	Waarschuwing per e-mail aan een bedrijf vastgelegd door {}
 Record addendum acknowledged by {}	Bevestiging van addendum vastleggen door {}
 Record as declined	Vastleggen als afgewezen
 Record bid	Inschrijving vastleggen
@@ -1696,6 +1782,9 @@ Record questionnaire answers by {}	Antwoorden op vragenlijst vastleggen door {}
 Record receipt	Ontvangst vastleggen
 Record signature	Handtekening vastleggen
 Record signed contract by {}	Ondertekend contract vastleggen door {}
+Record that a prequalification link was emailed by {}	Verzending per e-mail van een prekwalificatielink vastgelegd door {}
+Record that a report was emailed by {}	Verzending van een rapport per e-mail vastgelegd door {}
+Record that a signing link was emailed by {}	Registratie dat een ondertekeningslink is gemaild door {}
 Record the signature	De handtekening vastleggen
 Record the signed contract	Het ondertekende contract vastleggen
 Recordable	Registreerbaar
@@ -1764,6 +1853,7 @@ Repeats	Herhaalt
 Replace baseline with current dates	Basisplanning vervangen door huidige data
 Replace cracked ceiling tile	Gescheurde plafondplaat vervangen
 Replace the link	Link vervangen
+Replace this project's working days and days off with the file's calendar (then recalculate)	De werkdagen en vrije dagen van dit project vervangen door de kalender uit het bestand (daarna herberekenen)
 Replies	Reacties
 Reply	Reageren
 Reply by	Antwoorden voor
@@ -1884,11 +1974,13 @@ Safety	Veiligheid
 Safety&#10;Quality&#10;Housekeeping	Veiligheid&#10;Kwaliteit&#10;Opruimen
 Safety, quality and housekeeping findings	Bevindingen over veiligheid, kwaliteit en orde en netheid
 Safety, quality, housekeeping…	Veiligheid, kwaliteit, orde en netheid…
+Saturday	Zaterdag
 Save	Opslaan
 Save a named baseline by {}	Een benoemde basisplanning opslaan door {}
 Save a report	Een rapport opslaan
 Save access	Toegang opslaan
 Save amounts	Bedragen opslaan
+Save and come back later	Opslaan en later terugkomen
 Save and complete	Opslaan en voltooien
 Save and open	Opslaan en openen
 Save and send for review	Opslaan en ter beoordeling versturen
@@ -1913,6 +2005,7 @@ Save changes to this view	Wijzigingen in deze weergave opslaan
 Save company holiday list by {}	Feestdagenlijst van het bedrijf opslaan door {}
 Save company report by {}	Bedrijfsrapport opslaan door {}
 Save correspondence type by {}	Correspondentietype opslaan door {}
+Save cost types	Kostensoorten opslaan
 Save crew	Ploeg opslaan
 Save crew by {}	Ploeg opslaan door {}
 Save criteria	Criteria opslaan
@@ -1940,9 +2033,10 @@ Save snapshot	Momentopname opslaan
 Save template	Sjabloon opslaan
 Save the current dates as	De huidige data opslaan als
 Save the email from your mail program as a .eml file, open it in a text editor and paste everything here. The subject, date, sender and text are read from it, and people whose email address is on the To or Cc line are told.	Sla de e-mail uit je mailprogramma op als .eml-bestand, open het in een teksteditor en plak alles hier. Het onderwerp, de datum, de afzender en de tekst worden eruit gelezen, en mensen wier e-mailadres op de Aan- of Cc-regel staat, krijgen een melding.
-Save the schedule from your planning software as XML. Tasks, dates, percent complete, milestones, outline levels, links with their kind and lag, and start and finish constraints come across; resources, calendars and costs are left behind. Up to 8 MB.	Sla de planning uit je planningssoftware op als XML. Taken, data, percentage gereed, mijlpalen, overzichtsniveaus, koppelingen met hun soort en wachttijd, en begin- en eindbeperkingen worden overgenomen; middelen, kalenders en kosten blijven achter. Maximaal 8 MB.
+Save the schedule from your planning software as XML. Tasks, dates, percent complete, milestones, outline levels, links with their kind and lag, and start and finish constraints come across. Tick the boxes below to take more from the file. Costs are left behind. Up to 8 MB.	Sla de planning vanuit uw planningsprogramma op als XML. Taken, data, het voltooiingspercentage, mijlpalen, de niveaus van de structuur, koppelingen met hun soort en vertraging, en begin- en eindbeperkingen komen mee. Vink hieronder de vakjes aan om meer uit het bestand over te nemen. Kosten blijven achter. Maximaal 8 MB.
 Save type	Type opslaan
 Saved	Opgeslagen
+Say what kind of cost each cost code is (labor, material, equipment, subcontract or other) so a budget view can group the budget by cost type. One per line	Geef aan welke soort kosten elke kostencode is (labor, material, equipment, subcontract of other) zodat een budgetweergave het per kostensoort kan groeperen. Eén per regel
 Scale	Schaal
 Schedule	Planning
 Schedule a recurring form by {}	Een terugkerend formulier plannen door {}
@@ -1999,12 +2093,16 @@ Search {}	{} zoeken
 Second copy	Tweede kopie
 Section	Sectie
 Section number	Sectienummer
+Section {}	Sectie {}
 Sections	Secties
 Sections and items	Secties en onderdelen
 Sections of questions, each worth points; the share earned becomes a company's score	Secties met vragen, elk met punten; het verdiende aandeel wordt de score van een bedrijf
 See the project report	Bekijk het projectrapport
 Sees every project tool except financials; changes nothing.	Ziet alle projecttools behalve financiën; wijzigt niets.
 Send	Verzenden
+Send a company a prequalification link by {}	Prekwalificatielink naar een bedrijf gestuurd door {}
+Send a link	Een link sturen
+Send a prequalification link again by {}	Prekwalificatielink opnieuw gestuurd door {}
 Send a test email	Testmail verzenden
 Send again	Opnieuw versturen
 Send back	Terugsturen
@@ -2015,9 +2113,11 @@ Send commitment invoice back to draft by {}	Verplichtingsfactuur terug naar conc
 Send contract for signature by {}	Contract ter ondertekening verzenden door {}
 Send correspondence by {}	Correspondentie verzenden door {}
 Send for review	Ter beoordeling verzenden
+Send for signature	Ter ondertekening versturen
 Send from	Verzenden vanaf
 Send hours back by {}	Uren terugsturen door {}
 Send incident back by {}	Incident terugsturen door {}
+Send message	Bericht versturen
 Send notifications	Meldingen verzenden
 Send notifications to people's inboxes	Meldingen naar de inbox van mensen sturen
 Send observation back by {}	Waarneming terugsturen door {}
@@ -2033,6 +2133,7 @@ Send submittal for review by {}	Submittal ter beoordeling verzenden door {}
 Send task back by {}	Taak terugsturen door {}
 Send transmittal by {}	Verzendbrief verzenden door {}
 Send your bid	Verstuur uw bieding
+Sending needs every question answered. Once sent, your answers are locked until the reviewers return the record.	Verzenden kan pas als alle vragen zijn beantwoord. Eenmaal verzonden zijn uw antwoorden vergrendeld totdat de beoordelaars het dossier terugsturen.
 Sends a short message to your own address.	Stuurt een kort bericht naar je eigen adres.
 Sent	Verzonden
 Sent back	Teruggestuurd
@@ -2041,6 +2142,8 @@ Sent to {}	Verstuurd naar {}
 Sep	Sep
 Set	Instellen
 Set a budget line	Een budgetregel instellen
+Set a cost code's cost type by {}	Kostensoort van een kostencode ingesteld door {}
+Set a page's scale in the sheet viewer, then draw lengths and areas or click the Count tool on each item.	Stel de schaal van een pagina in de tekeningviewer in en teken dan lengtes en oppervlakten, of gebruik het hulpmiddel Telling op elk item.
 Set bid scoring criteria by {}	Beoordelingscriteria voor inschrijvingen instellen door {}
 Set budget line by {}	Budgetregel instellen door {}
 Set forecast to complete by {}	Prognose tot oplevering instellen door {}
@@ -2054,8 +2157,11 @@ Set plan approvers by {}	Goedkeurders van het plan instellen door {}
 Set rate	Tarief instellen
 Set scale	Schaal instellen
 Set task progress by {}	Voortgang van taak instellen door {}
+Set the cost code of a measurement or count by {}	Kostencode van een meting of telling ingesteld door {}
+Set the cost type of many cost codes by {}	Kostensoorten van meerdere kostencodes ingesteld door {}
 Set the criteria	Stel de criteria in
 Set the project's working days and holidays by {}	Werkdagen en feestdagen van het project instellen door {}
+Set the resource limits from the file's maximum of each resource	De limieten voor middelen instellen op het maximum van elk middel in het bestand
 Set the scale	Stel de schaal in
 Set the scale of a sheet page from a stretch of known length by {}	Schaal van een tekeningpagina instellen aan de hand van een stuk met bekende lengte door {}
 Set up outgoing email	Uitgaande e-mail instellen
@@ -2090,6 +2196,7 @@ Show the link	De link tonen
 Show them	Toon ze
 Side by side	Naast elkaar
 Sign	Ondertekenen
+Sign a contract through its link by {}	Ondertekening van een contract via de link door {}
 Sign as	Ondertekenen als
 Sign form by {}	Formulier ondertekenen door {}
 Sign in	Inloggen
@@ -2104,6 +2211,10 @@ Signed by	Ondertekend door
 Signed contracts	Ondertekende contracten
 Signed off	Afgetekend
 Signed off by {} on {}.	Afgetekend door {} op {}.
+Signed through the link	Ondertekend via de link
+Signing link	Ondertekeningslink
+Signing link for	Ondertekeningslink voor
+Signing link for {}	Ondertekeningslink voor {}
 Signing opens once the form is submitted.	Ondertekenen kan zodra het formulier is ingediend.
 Signing roles (separated by commas)	Ondertekenrollen (gescheiden door komma's)
 Sincerely,	Met vriendelijke groet,
@@ -2163,6 +2274,7 @@ State	Status
 State or region	Provincie of regio
 Status	Status
 Steel arrives the week after next.	Het staal komt de week na volgende week aan.
+Still over a limit	Nog steeds boven een limiet
 Stop requiring it	Niet meer verplicht stellen
 Stop requiring signatures	Handtekeningen niet meer verplicht stellen
 Stopped	Gestopt
@@ -2206,6 +2318,7 @@ Subtotal	Subtotaal
 Such as mon-fri, mon-sat, or mon, tue, thu.	Bijvoorbeeld ma-vr, ma-za of ma, di, do.
 Summit Ridge Builders	Summit Ridge Builders
 Sun	Zon
+Sunday	Zondag
 Superintendent	Uitvoerder
 Supplier	Leverancier
 Supplier (if it is their price list)	Leverancier (als het hun prijslijst is)
@@ -2219,6 +2332,7 @@ Tag it to	Label toekennen aan
 Tag photo to an item by {}	Foto aan een onderdeel koppelen door {}
 Tagged to	Gekoppeld aan
 Take back	Terugnemen
+Take the resources assigned to each task (100% is one a day, rounded to whole numbers)	De aan elke taak toegewezen middelen overnemen (100% is er één per dag, afgerond op hele getallen)
 Taken	Genomen
 Task	Taak
 Task #{}	Taak #{}
@@ -2243,6 +2357,7 @@ Text	Tekst
 That page doesn't exist, or you don't have access to it.	Die pagina bestaat niet, of je hebt er geen toegang toe.
 The address of this server is used for the links in messages.	Het adres van deze server wordt gebruikt voor de links in berichten.
 The catalogue is empty.	De catalogus is leeg.
+The contract	Het contract
 The dashed line is today. Red bars are on the critical path. Grey columns are days off. Float is the working days a task can slip without moving the last finish.	De stippellijn is vandaag. Rode balken liggen op het kritieke pad. Grijze kolommen zijn vrije dagen. Speling is het aantal werkdagen dat een taak kan opschuiven zonder de laatste einddatum te verplaatsen.
 The days work is done on. Task dates and durations are counted in these days.	De dagen waarop wordt gewerkt. Taakdatums en duur worden in deze dagen geteld.
 The due date for this package has passed, so it is no longer taking bids. Ask the team if you need more time.	De uiterste datum voor dit pakket is verstreken, dus het neemt geen biedingen meer aan. Vraag het team om meer tijd.
@@ -2257,16 +2372,21 @@ The most of each resource needed on any one working day in each week, from tasks
 The plan cannot start until every approver has approved. Changing the wording of items clears the answers.	Het plan kan pas starten als elke goedkeurder heeft goedgekeurd. Als je de formulering van onderdelen wijzigt, worden de antwoorden gewist.
 The project's section list; submittals link to a section by its number	De hoofdstuklijst van het project; submittals verwijzen naar een hoofdstuk via het nummer
 The questions each kind of form asks. Forms already started keep the questions they were started with.	De vragen die elk soort formulier stelt. Formulieren die al zijn gestart behouden de vragen waarmee ze zijn gestart.
+The record was put forward by the company through link	Het dossier is door het bedrijf ingediend via link
+The record was put forward by the company through link {}.	Het dossier is door het bedrijf ingediend via link {}.
 The reflected ceiling plan shows 9'-0" but the section shows 8'-6". Which governs?	Het plafondspiegelplan toont 2,75 m, maar de doorsnede toont 2,60 m. Welke geldt?
 The section governs	Het hoofdstuk geldt
 The sheet log	De tekeninglog
 The team answers you here. They may share a question and its answer with the other bidders, without your name.	Het team antwoordt u hier. Het kan een vraag en het antwoord delen met de andere bieders, zonder uw naam.
 The template	Het sjabloon
 The thin bar under a task is its baseline.	De dunne balk onder een taak is de basisplanning.
+There are no lines on this contract yet.	Dit contract heeft nog geen regels.
 There are no tasks in your projects.	Er zijn geen taken in je projecten.
 There is nothing to show.	Er is niets om te tonen.
 These answers are to version	Deze antwoorden zijn voor versie
 Things to get done, with an owner and a due date	Dingen die gedaan moeten worden, met een eigenaar en een vervaldatum
+This contract can't be signed now. Ask the team.	Dit contract kan nu niet worden ondertekend. Vraag het team.
+This contract is not out for signature. Ask the team.	Dit contract staat niet open voor ondertekening. Vraag het team.
 This is the view you open by default.	Dit is de weergave die je standaard opent.
 This link doesn't work	Deze link werkt niet
 This month	Deze maand
@@ -2280,6 +2400,7 @@ This project needs a signed contract before this can be approved.	Dit project he
 This sheet can't be shown	Deze tekening kan niet worden getoond
 Three-week look-ahead	Driewekenvooruitblik
 Thu	Do
+Thursday	Donderdag
 Time	Tijd
 Timesheet	Urenstaat
 Timesheets	Urenstaten
@@ -2289,6 +2410,7 @@ Title (optional)	Titel (optioneel)
 To	Aan
 To be determined	Nader te bepalen
 To date	Tot nu toe
+To send a renewed insurance certificate or licence, attach it below and leave a message. The team updates the dates.	Om een vernieuwd verzekeringsbewijs of een vernieuwde vergunning te sturen, voegt u het hieronder toe en laat u een bericht achter. Het team werkt de data bij.
 Today's log	Log van vandaag
 Tool	Tool
 Tool access	Toegang tot tool
@@ -2308,6 +2430,7 @@ Transmittals	Verzendbrieven
 Trends	Trends
 Trends appear once observations are recorded.	Trends verschijnen zodra er waarnemingen zijn vastgelegd.
 Tue	Di
+Tuesday	Dinsdag
 Turn email off	E-mail uitschakelen
 Turn off	Uitzetten
 Turn on the open link	De open link aanzetten
@@ -2318,8 +2441,10 @@ Type it in	Zelf typen
 Type the real length of the stretch you just drew, from a dimension printed on the sheet or a known size. Anything else on this page is measured against it.	Typ de werkelijke lengte van het stuk dat je zojuist hebt getekend, uit een maat die op de tekening staat of een bekende afmeting. Al het andere op deze pagina wordt ermee vergeleken.
 Type your full name	Typ je volledige naam
 Types	Typen
+Typing your name here is your signature. We record your name, the date and time, and the version of the contract you saw.	Uw naam hier typen is uw handtekening. We leggen uw naam, de datum en tijd en de versie van het contract vast die u zag.
 USD	USD
 Unassigned	Niet toegewezen
+Unfinished schedule tasks	Onafgeronde planningstaken
 Unit	Eenheid
 Unit cost	Eenheidsprijs
 Unit cost of line {}	Eenheidsprijs van regel {}
@@ -2331,6 +2456,7 @@ Unit price of {}	Eenheidsprijs van {}
 Unit prices	Eenheidsprijzen
 Unlock original budget by {}	Oorspronkelijk budget ontgrendelen door {}
 Unlock the budget	Het budget ontgrendelen
+Up to 25 MB each.	Maximaal 25 MB per bestand.
 Up to 25 MB in one upload.	Maximaal 25 MB per upload.
 Up to 50 files, 25 MB each and 100 MB in all.	Maximaal 50 bestanden, 25 MB per bestand en 100 MB in totaal.
 Up to 50 files, 25 MB each and 100 MB in all. Each file becomes a document titled with its file name.	Maximaal 50 bestanden, 25 MB per bestand en 100 MB in totaal. Elk bestand wordt een document met zijn bestandsnaam als titel.
@@ -2378,6 +2504,7 @@ Waiting	In afwachting
 Waiting for approval	Wacht op goedkeuring
 Waiting on me	Wacht op mij
 Waiting on you	Wacht op jou
+Waiting to be emailed	Wacht op verzending per e-mail
 Walkways and access routes are clear	Looppaden en toegangsroutes zijn vrij
 Warn before approvals lapse by {}	Waarschuwen voordat goedkeuringen verlopen door {}
 Warnings sent	Waarschuwingen verzonden
@@ -2388,6 +2515,7 @@ Weather and curing plan are confirmed	Weer- en uithardingsplan zijn bevestigd
 Weather notes	Weernotities
 Website	Website
 Wed	Wo
+Wednesday	Woensdag
 Week	Week
 Week ends	Week eindigt
 Week ends {}.	Week eindigt {}.
@@ -2395,6 +2523,7 @@ Week of	Week van
 Week of {}	Week van {}
 Week of {} to {}	Week van {} tot {}
 Week {}	Week {}
+Weekday (weekly)	Weekdag (wekelijks)
 Weekdays worked	Gewerkte weekdagen
 Weekly	Wekelijks
 Weekly coordination	Wekelijkse coördinatie
@@ -2408,6 +2537,7 @@ What changed, or what to do about it	Wat er veranderd is, of wat eraan te doen i
 What each cost code was budgeted, what is committed and what has been spent	Wat per kostencode is begroot, wat is verplicht en wat is uitgegeven
 What happened	Wat er gebeurd is
 What happened on site, day by day	Wat er op de bouwplaats is gebeurd, dag voor dag
+What is measured and counted on the current revision of each sheet	Wat er is gemeten en geteld op de huidige revisie van elk blad
 What it is for	Waar het voor dient
 What still needs doing	Wat nog moet gebeuren
 What subcontractors and suppliers bill against their commitments	Wat onderaannemers en leveranciers factureren op hun verplichtingen
@@ -2423,10 +2553,12 @@ Which companies have been vetted to work for you, and when their approval, insur
 Who	Wie
 Who can open it	Wie het kan openen
 Who does action {}	Wie actie {} uitvoert
+Who gets it	Wie het krijgt
 Who should see it	Wie het moet zien
 Who signed for the other party	Wie tekende namens de andere partij
 Who signed for the owner	Wie tekende namens de opdrachtgever
 Why	Waarom
+Why (optional)	Reden (optioneel)
 Windy	Winderig
 With a forecast, the projected cost is the cost to date plus the forecast. Leave the amount blank to remove a forecast. A code with no forecast is projected by the project's method	Met een prognose zijn de verwachte kosten de kosten tot nu toe plus de prognose. Laat het bedrag leeg om een prognose te verwijderen. Een code zonder prognose wordt berekend volgens de methode van het project
 Withdraw	Intrekken
@@ -2446,6 +2578,8 @@ Workers on site	Werkers op de bouwplaats
 Workers wear the protective gear the task needs	Werkers dragen de beschermingsmiddelen die de taak vereist
 Working calendar	Werkkalender
 Working days	Werkdagen
+Working days later	Werkdagen later
+Would be	Wordt
 Write a letter or notice to keep it on the record.	Schrijf een brief of mededeling om die vast te leggen in het dossier.
 Write a plan to track a body of work item by item.	Schrijf een plan om een geheel aan werk onderdeel voor onderdeel te volgen.
 Write your own below, or add the small starter set and change it to suit.	Schrijf hieronder je eigen lijst, of voeg de kleine startset toe en pas die aan.
@@ -2457,14 +2591,19 @@ Yes, a single day	Ja, één dag
 Yes, enter it on the injury log	Ja, op het letselregister invoeren
 Yes, only the people below, the manager and the tool's admins	Ja, alleen de mensen hieronder, de manager en de beheerders van de tool
 You can change your bid below until the due date.	U kunt uw bieding hieronder wijzigen tot de uiterste datum.
+You declined to sign this contract.	U hebt geweigerd dit contract te ondertekenen.
 You have no tokens.	Je hebt geen tokens.
 You have read this	U heeft dit gelezen
 You'll be told here when something needs you, like a submittal waiting for your review.	Hier krijg je een melding wanneer iets jouw aandacht nodig heeft, zoals een submittal die op jouw beoordeling wacht.
 Your bid	Uw bieding
+Your details	Uw gegevens
 Your first name	Je voornaam
 Your last name	Je achternaam
 Your name	Uw naam
 Your question	Uw vraag
+Your record is approved	Uw dossier is goedgekeurd
+Your record was not approved this time. Correct what the reviewers asked for, and send it again.	Uw dossier is deze keer niet goedgekeurd. Verbeter wat de beoordelaars vroegen en stuur het opnieuw.
+Your record was sent and is waiting for review. You can still attach files and leave a message below.	Uw dossier is verzonden en wacht op beoordeling. U kunt nog bestanden toevoegen en hieronder een bericht achterlaten.
 Your reply	Jouw antwoord
 Your response	Jouw reactie
 Zoom	Zoomen
@@ -2500,7 +2639,7 @@ leveled	genivelleerd
 lines can't be edited, added or imported.	regels kunnen niet worden bewerkt, toegevoegd of geïmporteerd.
 low {}	laag {}
 marcus.lee@example.com	marcus.lee@example.com
-milestone (yes or no), then a constraint (snet, mso or fnlt) and its date.	mijlpaal (yes of no), daarna een beperking (snet, mso of fnlt) en de datum ervan.
+milestone (yes or no), then a constraint (snet, mso or fnlt) and its date, then the resources the task needs each working day, such as Carpenter 4, Laborer 2.	mijlpaal (ja of nee), dan een beperking (snet, mso of fnlt) en de datum ervan, dan de middelen die de taak elke werkdag nodig heeft, zoals Carpenter 4, Laborer 2.
 name, unit, unit cost, category (optional), cost code (optional, from the company's standard list). An item with the same name has its price changed.	naam, eenheid, eenheidsprijs, categorie (optioneel), kostencode (optioneel, uit de standaardlijst van het bedrijf). Een onderdeel met dezelfde naam krijgt een gewijzigde prijs.
 name, weight (adding up to 100), then price for the one worked out from the bids	naam, gewicht (samen 100), daarna prijs voor degene die uit de inschrijvingen wordt berekend
 no file	geen bestand
@@ -2509,6 +2648,7 @@ no project has a figure for {} that you can see.	geen enkel project heeft een ci
 none yet	nog geen
 not required	niet vereist
 nothing	niets
+nothing changes until you apply it.	er verandert niets totdat u het toepast.
 number, then title, separated by a comma or a tab. Sections already in the list are skipped.	nummer, daarna titel, gescheiden door een komma of een tab. Hoofdstukken die al in de lijst staan worden overgeslagen.
 number, title, discipline, area, separated by commas or tabs. A header line is skipped, and sheets already in the log are left alone. Add each sheet's file later as a revision.	nummer, titel, discipline, zone, gescheiden door komma's of tabs. Een kopregel wordt overgeslagen en tekeningen die al in de log staan blijven ongemoeid. Voeg het bestand van elke tekening later toe als revisie.
 only Documents admins see this	alleen Documenten-beheerders zien dit
@@ -2523,6 +2663,7 @@ sf	sf
 smtp.example.com	smtp.example.com
 standard on project management, read-only financials.	standaard op projectmanagement, alleen-lezen financiën.
 submitted {}	ingediend {}
+the cost code, then the type, or none to clear it. All lines are applied, or none if one is wrong.	de kostencode, dan de soort, of none om te wissen. Alle regels worden toegepast, of geen als er één fout is.
 the date in the picture, else today)	de datum op de foto, anders vandaag)
 the file name)	de bestandsnaam)
 the old one stops working at once.	de oude werkt meteen niet meer.

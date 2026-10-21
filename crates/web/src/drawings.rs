@@ -47,7 +47,7 @@ pub fn page(req: &Req<'_>, id: Id<Project>, q: &HashMap<String, String>) -> Mark
     let body = html! {
         div class="page-head" {
             div { h1 { "Drawings" } div class="sub" { "The sheet log: each sheet with its revisions; the newest revision is current" } }
-            div class="actions" { a class="btn" href=(format!("{base}.pdf")) { "PDF" } a class="btn" href=(format!("{base}.csv")) { "Export CSV" } }
+            div class="actions" { a class="btn" href=(format!("{base}/quantities")) { "Quantities" } a class="btn" href=(format!("{base}.pdf")) { "PDF" } a class="btn" href=(format!("{base}.csv")) { "Export CSV" } }
         }
         form method="get" action=(base) class="filters" {
             input type="search" name="q" value=(text) placeholder="Search sheet number or title" aria-label="Search drawings";
@@ -414,7 +414,7 @@ pub fn viewer(req: &Req<'_>, id: Id<Project>, did: Id<Drawing>, v: &View, shape:
                     span class="muted" { "Mark up" }
                     a class=(if v.tool.is_empty() { "chip active" } else { "chip" }) href=(link(&|n| { n.tool = String::new(); n.first = None; })) { "View only" }
                     @if can_mark && v.compare.is_empty() {
-                        @for (key, label) in [("pin", "Pin"), ("rect", "Box"), ("arrow", "Arrow"), ("text", "Text")] {
+                        @for (key, label) in [("pin", "Pin"), ("rect", "Box"), ("arrow", "Arrow"), ("text", "Text"), ("count", "Count")] {
                             a class=(if v.tool == key { "chip active" } else { "chip" }) href=(link(&|n| { n.tool = key.to_string(); n.first = None; })) { (label) }
                         }
                     }
@@ -463,7 +463,7 @@ pub fn viewer(req: &Req<'_>, id: Id<Project>, did: Id<Drawing>, v: &View, shape:
                             @if can_mark {
                                 span class="muted" { "Tool" }
                                 button type="button" class="chip tool-btn active" data-tool="move" { "Move" }
-                                @for (key, label) in [("pin", "Pin"), ("rect", "Box"), ("arrow", "Arrow"), ("text", "Text")] {
+                                @for (key, label) in [("pin", "Pin"), ("rect", "Box"), ("arrow", "Arrow"), ("text", "Text"), ("count", "Count")] {
                                     button type="button" class="chip tool-btn" data-tool=(key) { (label) }
                                 }
                                 span class="muted" { "Measure" }
@@ -536,6 +536,7 @@ pub fn viewer(req: &Req<'_>, id: Id<Project>, did: Id<Drawing>, v: &View, shape:
                                     input type="hidden" id="mk-y2" name="y2" value="0" disabled;
                                     input type="hidden" id="mk-points" name="points" value="" disabled;
                                     (field("Words or note (words are needed for text)", "mk-text", false, true, html! { input type="text" id="mk-text" name="text" maxlength="1000"; }))
+                                    (cost_code_field(req, id))
                                     div class="form-actions" {
                                         button type="button" class="btn" data-action="cancel" { "Cancel" }
                                         button type="submit" class="btn primary" { "Save markup" }
@@ -548,6 +549,7 @@ pub fn viewer(req: &Req<'_>, id: Id<Project>, did: Id<Drawing>, v: &View, shape:
                 div class="classic-only" {
                 @let tool_hint = match (v.tool.as_str(), v.first) {
                     ("pin", _) => "Click the picture where the pin goes.",
+                    ("count", _) => "Click each item to count.",
                     ("text", _) => "Click where the words go.",
                     ("rect", None) => "Click one corner of the box.",
                     ("rect", Some(_)) => "Click the opposite corner.",
@@ -566,6 +568,7 @@ pub fn viewer(req: &Req<'_>, id: Id<Project>, did: Id<Drawing>, v: &View, shape:
                             @let color = if m.resolved { "#7b8794" } else { "#c62828" };
                             @match m.kind {
                                 MarkupKind::Pin => { circle cx=(x) cy=(y) r="11" fill="white" stroke=(color) stroke-width="2" {} text x=(x) y=(y + 4.0) text-anchor="middle" font-size="12" font-weight="700" fill=(color) { (m.id) } }
+                                MarkupKind::Count => { rect x=(x - 7.0) y=(y - 7.0) width="14" height="14" fill="white" stroke=(color) stroke-width="2" {} text x=(x + 10.0) y=(y + 4.0) font-size="12" font-weight="700" fill=(color) { (m.id) @if !m.text.is_empty() { " " (m.text) } } }
                                 MarkupKind::Rectangle => { rect x=(x.min(x2)) y=(y.min(y2)) width=((x - x2).abs()) height=((y - y2).abs()) fill="none" stroke=(color) stroke-width="2" {} text x=(x.min(x2) + 3.0) y=(y.min(y2) - 4.0) font-size="12" font-weight="700" fill=(color) { (m.id) } }
                                 MarkupKind::Arrow => { line x1=(x) y1=(y) x2=(x2) y2=(y2) stroke=(color) stroke-width="2" marker-end="url(#head)" {} text x=(x + 4.0) y=(y - 4.0) font-size="12" font-weight="700" fill=(color) { (m.id) } }
                                 MarkupKind::Text => { text x=(x) y=(y) font-size="16" font-weight="600" fill=(color) { (m.id) ". " (m.text) } }
@@ -602,7 +605,7 @@ pub fn viewer(req: &Req<'_>, id: Id<Project>, did: Id<Drawing>, v: &View, shape:
                 @if let Some((cx, cy)) = v.click {
                     @let two = matches!(v.tool.as_str(), "rect" | "arrow");
                     div class="card" {
-                        h2 { "Add " (match v.tool.as_str() { "pin" => "a pin", "rect" => "a box", "arrow" => "an arrow", _ => "text" }) }
+                        h2 { "Add " (match v.tool.as_str() { "pin" => "a pin", "rect" => "a box", "arrow" => "an arrow", "count" => "a counted item", _ => "text" }) }
                         (command_form(req, "drawing.markup_add", &format!("{here}?{}", { let mut n = v.clone(); n.first = None; n.query() }), &format!("{here}?{}", v.query()), html! {
                             input type="hidden" name="project" value=(id);
                             input type="hidden" name="id" value=(did);
@@ -617,6 +620,7 @@ pub fn viewer(req: &Req<'_>, id: Id<Project>, did: Id<Drawing>, v: &View, shape:
                                 input type="hidden" name="x" value=(cx); input type="hidden" name="y" value=(cy);
                             }
                             (field(if v.tool == "text" { "Words" } else { "Note (optional)" }, "markup_text", v.tool == "text", true, html! { input type="text" id="markup_text" name="text" maxlength="1000" required[v.tool == "text"]; }))
+                            @if v.tool == "count" { (cost_code_field(req, id)) }
                             div class="form-actions" {
                                 a class="btn" href=(link(&|n| { n.first = None; })) { "Cancel" }
                                 button type="submit" class="btn primary" { "Save markup" }
@@ -680,4 +684,77 @@ pub fn viewer(req: &Req<'_>, id: Id<Project>, did: Id<Drawing>, v: &View, shape:
         ],
         body,
     )
+}
+
+/// The cost code a count or measurement is for (optional).
+fn cost_code_field(req: &Req<'_>, project: Id<Project>) -> Markup {
+    let codes = view::project_cost_codes(req.engine.state(), project);
+    field(
+        "Cost code (optional)",
+        "mk-cost-code",
+        false,
+        true,
+        html! {
+            select id="mk-cost-code" name="cost_code" { option value="" { "—" } @for c in &codes { option value=(c.id) { (c.code) " " (c.description) } } }
+        },
+    )
+}
+
+/// The quantities measured and counted on the project's sheets, by cost code, then sheet.
+fn quantity_lines(req: &Req<'_>, id: Id<Project>) -> Option<Vec<(String, buildkiosk_engine::cmd::estimate::QuantityRow)>> {
+    project_for(req, id)?;
+    let state = req.engine.state();
+    if view::level(state, req.actor(), id, Tool::Drawings) < Level::Read {
+        return None;
+    }
+    let rows = buildkiosk_engine::cmd::estimate::quantity_rows(state, id, None).ok()?;
+    let mut out: Vec<(String, _)> =
+        rows.into_iter().map(|r| (r.cost_code.and_then(|c| state.cost_codes.get(c)).map(|c| c.display()).unwrap_or_default(), r)).collect();
+    // Coded lines first, in code order; lines with no cost code last.
+    out.sort_by_key(|a| (a.0.is_empty(), a.0.to_lowercase()));
+    Some(out)
+}
+
+pub fn quantities(req: &Req<'_>, id: Id<Project>) -> Markup {
+    let Some(p) = project_for(req, id) else { return not_found(req) };
+    let Some(rows) = quantity_lines(req, id) else { return not_found(req) };
+    let base = format!("/projects/{id}/drawings");
+    layout::app(
+        req,
+        "Quantities",
+        Nav::Drawings(id),
+        &[("Projects", Some("/".into())), (&p.name, Some(format!("/projects/{id}"))), ("Drawings", Some(base.clone())), ("Quantities", None)],
+        html! {
+            div class="page-head" {
+                div { h1 { "Quantities" } div class="sub" { "What is measured and counted on the current revision of each sheet" } }
+                div class="actions" { a class="btn" href=(format!("{base}/quantities.csv")) { "Export CSV" } a class="btn" href=(base) { "Back" } }
+            }
+            @if rows.is_empty() { (empty(tool_icon(Tool::Drawings), "Nothing is measured or counted yet", "Set a page's scale in the sheet viewer, then draw lengths and areas or click the Count tool on each item.")) } @else {
+                div class="table-wrap" { table class="data" {
+                    thead { tr { th { "Cost code" } th { "Sheet" } th { "Kind" } th { "Label" } th class="num" { "Marks" } th class="num" { "Quantity" } } }
+                    tbody { @for (code, r) in &rows { tr {
+                        td { @if code.is_empty() { span class="muted" { "No cost code" } } @else { (code) } }
+                        td { a href=(format!("{base}/{}/view", r.drawing)) { (r.sheet) } }
+                        td { (r.kind.label()) }
+                        td { (r.label) }
+                        td class="num" { (r.count) }
+                        td class="num" { @if let Some(q) = &r.quantity { (q) " " (r.unit.clone().unwrap_or_default()) } @else { span class="muted" { "mixed units" } } }
+                    } } }
+                } }
+                p class="muted small" { "Lengths along paths add up with straight lengths and outline areas with boxes. Add a line to an estimate from its Takeoff section." }
+            }
+        },
+    )
+}
+
+pub fn quantities_csv(req: &Req<'_>, id: Id<Project>) -> Option<String> {
+    let rows = quantity_lines(req, id)?;
+    let mut out = String::from("Cost code,Sheet,Kind,Label,Marks,Quantity,Unit\r\n");
+    for (code, r) in rows {
+        let cells =
+            [code, r.sheet, r.kind.label().to_string(), r.label, r.count.to_string(), r.quantity.unwrap_or_default(), r.unit.unwrap_or_default()];
+        out.push_str(&cells.iter().map(|c| csv_cell(c)).collect::<Vec<_>>().join(","));
+        out.push_str("\r\n");
+    }
+    Some(out)
 }

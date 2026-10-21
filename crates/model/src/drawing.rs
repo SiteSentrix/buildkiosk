@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::choice::Choice;
 use crate::common::{FileRef, Stamp};
 use crate::directory::Person;
-use crate::project::Project;
+use crate::project::{CostCode, Project};
 use crate::{choice, record};
 
 choice! {
@@ -47,6 +47,8 @@ choice! {
         Polyline = ("polyline", "Path length"),
         /// The area inside the outline through `points` at the page's scale.
         Polygon = ("polygon", "Outline area"),
+        /// One item counted at (x, y); the note names what is counted.
+        Count = ("count", "Count"),
     }
 }
 
@@ -328,6 +330,9 @@ pub struct Markup {
     /// The unit `measure` is shown in (the page's scale unit).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unit: Option<LengthUnit>,
+    /// The cost code a measurement or count is for, so quantities add up by code.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cost_code: Option<Id<CostCode>>,
     pub by: Option<Id<Person>>,
     pub at: Timestamp,
 }

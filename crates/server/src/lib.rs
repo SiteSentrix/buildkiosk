@@ -9,8 +9,10 @@ mod exif;
 pub mod harvest;
 mod mail;
 mod portal;
+mod prequal_portal;
 mod render;
 pub mod s3;
+mod sign_portal;
 mod zip;
 
 /// The browser sheet viewer, when `cargo xtask viewer` built it before this crate was compiled.
@@ -285,6 +287,7 @@ pub fn router(app: Shared) -> Router {
         .route("/prequalification", get(prequalification_page))
         .route("/prequalification/forms", get(prequal_forms_page))
         .route("/prequalification/{vendor}", get(prequal_detail_page))
+        .route("/prequalification/{vendor}/links/{n}", get(prequal_link_page))
         .route("/prequalification/{vendor}/upload", post(prequal_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
         .route("/prequalification/{vendor}/files/{sha}", get(prequal_download))
         .route("/my-tasks", get(my_tasks_page))
@@ -437,6 +440,7 @@ pub fn router(app: Shared) -> Router {
         .route("/projects/{id}/bidding/{bid}/edit", get(bid_package_edit))
         .route("/projects/{id}/bidding/{bid}/links/{n}", get(bid_link_page))
         .route("/projects/{id}/bidding/{bid}/open-link", get(bid_open_link_page))
+        .route("/projects/{id}/sign-link/{kind}/{rid}", get(sign_link_page))
         .route("/projects/{id}/bidding/{bid}/upload", post(bid_package_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
         .route("/projects/{id}/bidding/{bid}/files/{sha}", get(bid_package_download))
         .route("/projects/{id}/estimating", get(estimating_page))
@@ -468,13 +472,30 @@ pub fn router(app: Shared) -> Router {
             get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, Query(q): Q| async move {
                 let weeks = q.get("weeks").and_then(|w| w.trim().parse::<i64>().ok()).unwrap_or(8);
                 let from = q.get("from").and_then(|f| buildkiosk_core::Date::parse(f.trim()));
-                page(&s.0, &h, &q, |r, _| buildkiosk_web::schedule::resources(r, Id::new(id), weeks, from))
+                // `level=float` or `level=all` asks for a levelling preview (keeping the finish, or letting it move).
+                let level = q.get("level").and_then(|l| match l.trim() {
+                    "float" => Some(true),
+                    "all" => Some(false),
+                    _ => None,
+                });
+                page(&s.0, &h, &q, |r, _| buildkiosk_web::schedule::resources(r, Id::new(id), weeks, from, level))
             }),
         )
         .route(
             "/projects/{id}/schedule/import-xml",
             post(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, m: Multipart| async move {
-                import_file(s.0, h, id, "schedule", "schedule.import_xml", "task", ("8 MB", "Microsoft Project XML file"), &[], m).await
+                import_file(
+                    s.0,
+                    h,
+                    id,
+                    "schedule",
+                    "schedule.import_xml",
+                    "task",
+                    ("8 MB", "Microsoft Project XML file"),
+                    &["resources", "limits", "calendar"],
+                    m,
+                )
+                .await
             })
             .layer(DefaultBodyLimit::max(8 * 1024 * 1024 + 64 * 1024)),
         )
@@ -495,6 +516,8 @@ pub fn router(app: Shared) -> Router {
         .route("/projects/{id}/schedule/{tid}", get(schedule_task_page))
         .route("/projects/{id}/drawings", get(drawings_page))
         .route("/projects/{id}/drawings.csv", get(drawings_csv))
+        .route("/projects/{id}/drawings/quantities", get(drawing_quantities))
+        .route("/projects/{id}/drawings/quantities.csv", get(drawing_quantities_csv))
         .route("/projects/{id}/drawings/upload", post(drawing_upload_new).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
         .route("/projects/{id}/drawings/upload-set", post(drawing_upload_set).layer(DefaultBodyLimit::max(MAX_BULK + 64 * 1024)))
         .route("/projects/{id}/drawings/{did}/view", get(drawing_view))
@@ -697,6 +720,8 @@ pub fn router(app: Shared) -> Router {
     let router = invoice_routes::<OwnerInvoice>(router);
     let router = invoice_routes::<CommitmentInvoice>(router);
     let router = portal::routes(router);
+    let router = sign_portal::routes(router);
+    let router = prequal_portal::routes(router);
     router
         .fallback(not_found)
         .layer(axum::middleware::from_fn_with_state(app.clone(), translate_pages))
@@ -713,6 +738,7 @@ pub async fn serve(app: Shared, bind: SocketAddr) -> Result<(), String> {
     tokio::spawn(mail_loop(app.clone()));
     tokio::spawn(prequal_loop(app.clone()));
     tokio::spawn(form_loop(app.clone()));
+    tokio::spawn(report_loop(app.clone()));
     if app.backups.is_some() {
         tokio::spawn(backup_loop(app.clone()));
     }
@@ -986,7 +1012,9 @@ async fn company_reports_page(State(app): State<Shared>, headers: HeaderMap, Que
     let report = q.get("report").and_then(|r| r.parse::<u64>().ok()).map(Id::new);
     use buildkiosk_engine::model::Choice as _;
     let chart = q.get("chart").and_then(|c| buildkiosk_engine::model::saved_report::ReportColumn::parse(c));
-    page(&app, &headers, &q, |r, _| buildkiosk_web::company_reports::page(r, report, chart))
+    let kind =
+        q.get("kind").and_then(|k| buildkiosk_web::company_reports::ChartKind::parse(k)).unwrap_or(buildkiosk_web::company_reports::ChartKind::Bars);
+    page(&app, &headers, &q, |r, _| buildkiosk_web::company_reports::page(r, report, chart, kind))
 }
 
 async fn company_injury_log_page(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Response {
@@ -1144,6 +1172,109 @@ async fn form_loop(app: Shared) {
         }
         tokio::time::sleep(Duration::from_secs(3600)).await;
     }
+}
+
+/// Emails the saved reports whose schedule has come due: a pass every hour (the engine remembers the day each was
+/// sent, so more passes cost nothing; without outgoing email set up nothing is sent or marked).
+async fn report_loop(app: Shared) {
+    tokio::time::sleep(Duration::from_secs(150)).await;
+    loop {
+        let a = app.clone();
+        match tokio::task::spawn_blocking(move || report_pass(&a)).await {
+            Ok(0) => {}
+            Ok(n) => log::info!("report emails sent: {n}"),
+            Err(e) => log::warn!("the report email pass stopped: {e}"),
+        }
+        tokio::time::sleep(Duration::from_secs(3600)).await;
+    }
+}
+
+/// One report email: whom it is for and what to send.
+struct ReportMail {
+    report: u64,
+    mail: mail::Mail,
+    csv: String,
+}
+
+/// Builds each due report as every recipient sees it (outside the lock, nothing is sent while it is held), sends the
+/// emails and records the reports as sent. Returns how many emails went out.
+fn report_pass(app: &App) -> usize {
+    let (smtp, mails) = {
+        let mut inner = app.lock();
+        let Some(smtp) = inner.creds.smtp.clone() else { return 0 };
+        let due = match inner.run(Actor::System, "company_report.due", &json!({})) {
+            Ok(v) => v,
+            Err(e) => {
+                log::warn!("could not list the reports due: {e}");
+                return 0;
+            }
+        };
+        let Some(t) = inner.tenant.as_ref() else { return 0 };
+        let now = Timestamp::from_millis(now_ms());
+        let mut mails = Vec::new();
+        for r in due.as_array().into_iter().flatten() {
+            let Some(report) = r.get("id").and_then(Value::as_u64) else { continue };
+            let mut any = false;
+            for who in r.get("recipients").and_then(Value::as_array).into_iter().flatten() {
+                let (Some(person), Some(to)) = (who.get("person").and_then(Value::as_u64), who.get("email").and_then(Value::as_str)) else {
+                    continue;
+                };
+                let req = Req { engine: &t.engine, person: Id::new(person), csrf: "", now, flash: None };
+                // A person who can no longer run the report simply gets nothing.
+                let Some((subject, body, csv)) = buildkiosk_web::company_reports::delivery_email(&req, Id::new(report), &smtp.base_url) else {
+                    continue;
+                };
+                mails.push(ReportMail { report, mail: mail::Mail { id: 0, to: to.to_string(), subject, body }, csv });
+                any = true;
+            }
+            if !any {
+                // Nobody to send to today: count the day as done so the pass does not look at it again until the next one is due.
+                mails.push(ReportMail {
+                    report,
+                    mail: mail::Mail { id: 0, to: String::new(), subject: String::new(), body: String::new() },
+                    csv: String::new(),
+                });
+            }
+        }
+        (smtp, mails)
+    };
+    let mut sent = 0;
+    // Per report: how many emails were tried and how many went out. A report is recorded as sent unless every email failed
+    // (the mail server being down), so the next pass tries it again.
+    let mut tally: Vec<(u64, usize, usize)> = Vec::new();
+    for m in &mails {
+        let at = match tally.iter().position(|t| t.0 == m.report) {
+            Some(i) => i,
+            None => {
+                tally.push((m.report, 0, 0));
+                tally.len() - 1
+            }
+        };
+        if m.mail.to.is_empty() {
+            continue;
+        }
+        let result = mail::send_with_file(&smtp, &m.mail, "report.csv", &m.csv);
+        if let Some(t) = tally.get_mut(at) {
+            t.1 += 1;
+            if result.is_ok() {
+                t.2 += 1;
+            }
+        }
+        match result {
+            Ok(()) => sent += 1,
+            Err(e) => log::warn!("could not email a report to {}: {e}", m.mail.to),
+        }
+    }
+    let mut inner = app.lock();
+    for (id, tried, ok) in tally {
+        if tried > 0 && ok == 0 {
+            continue;
+        }
+        if let Err(e) = inner.run(Actor::System, "company_report.mark_sent", &json!({ "id": id })) {
+            log::warn!("could not record that report {id} was emailed: {e}");
+        }
+    }
+    sent
 }
 
 async fn forms_report_params(
@@ -2751,7 +2882,63 @@ async fn bid_link_page(State(app): State<Shared>, headers: HeaderMap, Path((id, 
     page(&app, &headers, &q, |r, _| buildkiosk_web::bidding::link_page(r, Id::new(id), Id::new(bid), &company, &inv.email, &url))
 }
 
+/// Shows one contract's signing link so the team can copy it. Needs the contract's tool at standard level.
+async fn sign_link_page(State(app): State<Shared>, headers: HeaderMap, Path((id, kind, rid)): Path<(u64, String, u64)>, Query(q): Q) -> Response {
+    use buildkiosk_engine::cmd::signing::{Kind, live_link};
+    let Some(kind) = Kind::parse(&kind) else { return not_found(State(app), headers).await };
+    let found = {
+        let inner = app.lock();
+        let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+        let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+        let state = t.engine.state();
+        let allowed = view::level(state, Actor::Person(s.person), Id::new(id), kind.tool()) >= Level::Standard;
+        let today = Timestamp::from_millis(now_ms()).date_at(state.utc_offset());
+        let in_project = match kind {
+            Kind::Commitment => state.commitments.get(Id::new(rid)).is_some_and(|c| c.project.raw() == id),
+            Kind::PrimeContract => state.prime_contracts.get(Id::new(rid)).is_some_and(|c| c.project.raw() == id),
+            Kind::PrimeChange => state.prime_changes.get(Id::new(rid)).is_some_and(|c| c.project.raw() == id),
+        };
+        let link = if allowed && in_project { live_link(state, kind, rid, today) } else { None };
+        link.map(|l| (l, t.slug.clone()))
+    };
+    let Some((link, slug)) = found else { return not_found(State(app), headers).await };
+    let url = sign_portal::team_link(&app, &slug, kind, rid, link.generation);
+    let nav = match kind {
+        Kind::Commitment => buildkiosk_web::layout::Nav::Commitments(Id::new(id)),
+        _ => buildkiosk_web::layout::Nav::PrimeContracts(Id::new(id)),
+    };
+    let tool = match kind {
+        Kind::Commitment => "Commitments",
+        Kind::PrimeContract => "Prime contracts",
+        Kind::PrimeChange => "Prime change orders",
+    };
+    let path = format!("{}/{rid}", kind.path());
+    page(&app, &headers, &q, |r, _| buildkiosk_web::sign_portal::link_page(r, Id::new(id), nav, (tool, &path), tool, &link.email, &url))
+}
+
 /// Shows the package's open bid link so the team can share it.
+/// Shows one prequalification link so the team can copy it. Needs Prequalification at standard level.
+async fn prequal_link_page(State(app): State<Shared>, headers: HeaderMap, Path((vendor, n)): Path<(u64, u32)>, Query(q): Q) -> Response {
+    let found = {
+        let inner = app.lock();
+        let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+        let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+        let state = t.engine.state();
+        let allowed = buildkiosk_engine::model::perm::company_level(state, s.person, Tool::Prequalification) >= Level::Standard;
+        let today = Timestamp::from_millis(now_ms()).date_at(state.utc_offset());
+        state
+            .prequalifications
+            .iter()
+            .find(|r| r.vendor.raw() == vendor && r.deleted.is_none())
+            .filter(|_| allowed)
+            .and_then(|r| r.invitations.iter().find(|i| i.number == n && i.active(today)).cloned())
+            .map(|i| (i, t.slug.clone(), view::vendor_name(state, Id::new(vendor))))
+    };
+    let Some((inv, slug, company)) = found else { return not_found(State(app), headers).await };
+    let url = prequal_portal::team_link(&app, &slug, vendor, inv.number, inv.generation);
+    page(&app, &headers, &q, |r, _| buildkiosk_web::prequal::link_page(r, Id::new(vendor), &company, &inv.email, &url))
+}
+
 async fn bid_open_link_page(State(app): State<Shared>, headers: HeaderMap, Path((id, bid)): Path<(u64, u64)>, Query(q): Q) -> Response {
     let found = {
         let inner = app.lock();
@@ -2881,6 +3068,22 @@ async fn drawings_csv(State(app): State<Shared>, headers: HeaderMap, Path(id): P
     let mut res = csv.into_response();
     res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("text/csv; charset=utf-8"));
     res.headers_mut().insert("content-disposition", HeaderValue::from_static("attachment; filename=\"drawings.csv\""));
+    res
+}
+
+async fn drawing_quantities(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::drawings::quantities(r, Id::new(id)))
+}
+
+async fn drawing_quantities_csv(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>) -> Response {
+    let inner = app.lock();
+    let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    let req = Req { engine: &t.engine, person: s.person, csrf: "", now: Timestamp::from_millis(now_ms()), flash: None };
+    let Some(csv) = buildkiosk_web::drawings::quantities_csv(&req, Id::new(id)) else { return plain(StatusCode::NOT_FOUND, "Not found") };
+    let mut res = csv.into_response();
+    res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("text/csv; charset=utf-8"));
+    res.headers_mut().insert("content-disposition", HeaderValue::from_static("attachment; filename=\"quantities.csv\""));
     res
 }
 
@@ -3057,7 +3260,7 @@ fn view_from_query(q: &HashMap<String, String>) -> buildkiosk_web::drawings::Vie
         rev: text("rev"),
         page: num("page").unwrap_or(1).clamp(1, 2_000),
         width: num("w").unwrap_or(900).clamp(render::MIN_WIDTH, render::MAX_WIDTH),
-        tool: if matches!(tool.as_str(), "pin" | "rect" | "arrow" | "text") { tool } else { String::new() },
+        tool: if matches!(tool.as_str(), "pin" | "rect" | "arrow" | "text" | "count") { tool } else { String::new() },
         first: point("x1", "y1"),
         click: None,
         compare: text("compare"),
@@ -4027,6 +4230,8 @@ async fn mail_loop(app: Shared) {
         if let Err(e) = tokio::task::spawn_blocking(move || {
             mail_pass(&a);
             portal::invite_pass(&a);
+            sign_portal::mail_pass(&a);
+            prequal_portal::mail_pass(&a);
         })
         .await
         {

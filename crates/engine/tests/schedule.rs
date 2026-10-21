@@ -1,9 +1,11 @@
 //! Schedule: tasks, links, critical path, rolling up, baseline, import.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing)]
 
-use buildkiosk_core::Date;
+use buildkiosk_core::{Date, Id};
 use buildkiosk_engine::sched;
 use buildkiosk_model::Choice;
+use buildkiosk_model::directory::Person;
+use buildkiosk_model::project::Project;
 use buildkiosk_testkit::World;
 use serde_json::{Value, json};
 
@@ -679,5 +681,200 @@ fn importing_a_planning_program_exchange_file() {
     let pm2 = pm;
     w.ok(pm2, "schedule.import_xer", json!({"project": other, "text": xer, "proj_id": "200"}));
     assert_eq!(w.ok(pm2, "schedule.list", json!({"project": other})).as_array().unwrap().len(), 1);
+    w.assert_replay();
+}
+
+/// Framing and Blocking both need carpenters on 13 and 14 October; Punch follows Blocking and ends the project.
+fn leveling_world() -> (World, Id<Project>, Id<Person>, Id<Person>) {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let reader = w.member(p, "Rae", "Reader", "Read only");
+    w.ok(pm, "schedule.add", json!({"project": p, "name": "Framing", "start": "2026-10-12", "days": 3, "resources": "Carpenter 4"}));
+    w.ok(pm, "schedule.add", json!({"project": p, "name": "Blocking", "start": "2026-10-13", "days": 2, "resources": "Carpenter 3"}));
+    w.ok(pm, "schedule.add", json!({"project": p, "name": "Punch", "start": "2026-10-15", "days": 10, "predecessors": "2"}));
+    w.ok(pm, "schedule.resource_limits", json!({"project": p, "text": "Carpenter 5"}));
+    (w, p, pm, reader)
+}
+
+#[test]
+fn leveling_resources_delays_work_and_what_follows() {
+    let (mut w, p, pm, reader) = leveling_world();
+    // The plan changes nothing and anyone who can read may ask for it.
+    let plan = w.ok(reader, "schedule.level_plan", json!({"project": p}));
+    assert_eq!(plan["moves"].as_array().unwrap().len(), 2);
+    assert_eq!(plan["unresolved"], json!([]));
+    let blocking = &plan["moves"][0];
+    assert_eq!(
+        (blocking["number"].clone(), blocking["start"].clone(), blocking["finish"].clone()),
+        (json!(2), json!("2026-10-15"), json!("2026-10-16"))
+    );
+    assert_eq!(blocking["days"], 2);
+    let punch = &plan["moves"][1];
+    assert_eq!((punch["number"].clone(), punch["start"].clone(), punch["finish"].clone()), (json!(3), json!("2026-10-19"), json!("2026-10-30")));
+    assert_eq!(
+        (plan["finish_before"].clone(), plan["finish_after"].clone(), plan["finish_slip"].clone()),
+        (json!("2026-10-28"), json!("2026-10-30"), json!(2))
+    );
+    let list = w.ok(reader, "schedule.list", json!({"project": p}));
+    assert_eq!(row(&list, 2)["start"], "2026-10-13", "planning moves nothing");
+
+    // Levelling needs the right to change the schedule.
+    w.err(reader, "schedule.level", json!({"project": p}));
+    let done = w.ok(pm, "schedule.level", json!({"project": p}));
+    assert_eq!(done["moved"], 2);
+    let list = w.ok(reader, "schedule.list", json!({"project": p}));
+    assert_eq!(
+        (row(&list, 1)["start"].clone(), row(&list, 1)["finish"].clone()),
+        (json!("2026-10-12"), json!("2026-10-14")),
+        "the first claim on the carpenters stays"
+    );
+    assert_eq!((row(&list, 2)["start"].clone(), row(&list, 2)["finish"].clone()), (json!("2026-10-15"), json!("2026-10-16")));
+    assert_eq!((row(&list, 3)["start"].clone(), row(&list, 3)["finish"].clone()), (json!("2026-10-19"), json!("2026-10-30")), "the link is kept");
+    // No day is over the limit now, and a second run has nothing to do.
+    let load = w.ok(reader, "schedule.loading", json!({"project": p, "from": "2026-10-12", "weeks": 1}));
+    assert_eq!(load[0]["over"], json!([false]));
+    assert_eq!(w.ok(pm, "schedule.level", json!({"project": p}))["moved"], 0);
+    // Another project's id is not found.
+    w.err(pm, "schedule.level", json!({"project": 9999}));
+    w.assert_replay();
+}
+
+#[test]
+fn leveling_within_float_keeps_the_finish() {
+    let (mut w, p, pm, _reader) = leveling_world();
+    let plan = w.ok(pm, "schedule.level_plan", json!({"project": p, "within_float": true}));
+    assert_eq!(plan["moves"], json!([]), "Blocking has no float, so nothing may move");
+    assert_eq!(plan["unresolved"].as_array().unwrap().len(), 1);
+    assert_eq!(plan["unresolved"][0]["number"], 2);
+    assert!(plan["unresolved"][0]["reason"].as_str().unwrap().contains("float"));
+    assert_eq!(plan["finish_slip"], 0);
+    // With a long closing task behind it, Blocking has float and may give way without moving the finish.
+    w.ok(pm, "schedule.add", json!({"project": p, "name": "Closeout", "start": "2026-10-12", "days": 20}));
+    w.ok(pm, "schedule.update", json!({"project": p, "id": 3, "predecessors": ""}));
+    let plan = w.ok(pm, "schedule.level_plan", json!({"project": p, "within_float": true}));
+    assert_eq!(plan["unresolved"], json!([]));
+    assert_eq!(plan["moves"].as_array().unwrap().len(), 1);
+    assert_eq!((plan["moves"][0]["number"].clone(), plan["moves"][0]["start"].clone()), (json!(2), json!("2026-10-15")));
+    assert_eq!(plan["finish_slip"], 0, "within float the project finish never moves");
+    w.assert_replay();
+}
+
+#[test]
+fn leveling_leaves_finished_started_and_pinned_work_alone() {
+    let (mut w, p, pm, _reader) = leveling_world();
+    // Started work and work pinned to a date hold their place and their carpenters.
+    w.ok(pm, "schedule.add", json!({"project": p, "name": "Started", "start": "2026-10-19", "days": 2, "percent": 40, "resources": "Carpenter 5"}));
+    w.ok(
+        pm,
+        "schedule.add",
+        json!({"project": p, "name": "Pinned", "start": "2026-10-21", "days": 1, "resources": "Carpenter 5", "constraint": "mso", "constraint_date": "2026-10-21"}),
+    );
+    w.ok(pm, "schedule.add", json!({"project": p, "name": "Done", "start": "2026-10-12", "days": 3, "percent": 100, "resources": "Carpenter 5"}));
+    w.ok(pm, "schedule.level", json!({"project": p}));
+    let list = w.ok(pm, "schedule.list", json!({"project": p}));
+    for (number, start) in [(4, "2026-10-19"), (5, "2026-10-21"), (6, "2026-10-12")] {
+        assert_eq!(row(&list, number)["start"], start);
+    }
+    // Finished work used nothing, so Blocking still lands on the 15th; Punch waits for the started and pinned work's days only if it needs the carpenters (it does not).
+    assert_eq!(row(&list, 2)["start"], "2026-10-15");
+    // A task that needs more than the limit by itself is reported, not moved.
+    w.ok(pm, "schedule.add", json!({"project": p, "name": "Too big", "start": "2026-11-02", "days": 1, "resources": "carpenter 9"}));
+    let plan = w.ok(pm, "schedule.level_plan", json!({"project": p}));
+    let big = plan["unresolved"].as_array().unwrap().iter().find(|u| u["name"] == "Too big").unwrap();
+    assert!(big["reason"].as_str().unwrap().contains("more than the limit of 5"));
+    assert!(plan["moves"].as_array().unwrap().iter().all(|m| m["name"] != "Too big"));
+    w.assert_replay();
+}
+
+const PLAN_WITH_RESOURCES: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<Project xmlns="http://schemas.microsoft.com/project">
+  <Name>Clinic</Name>
+  <CalendarUID>2</CalendarUID>
+  <Calendars>
+    <Calendar><UID>1</UID><Name>Standard</Name><IsBaseCalendar>1</IsBaseCalendar></Calendar>
+    <Calendar><UID>2</UID><Name>Six days</Name><IsBaseCalendar>1</IsBaseCalendar>
+      <WeekDays>
+        <WeekDay><DayType>1</DayType><DayWorking>0</DayWorking></WeekDay>
+        <WeekDay><DayType>2</DayType><DayWorking>1</DayWorking></WeekDay>
+        <WeekDay><DayType>3</DayType><DayWorking>1</DayWorking></WeekDay>
+        <WeekDay><DayType>4</DayType><DayWorking>1</DayWorking></WeekDay>
+        <WeekDay><DayType>5</DayType><DayWorking>1</DayWorking></WeekDay>
+        <WeekDay><DayType>6</DayType><DayWorking>1</DayWorking></WeekDay>
+        <WeekDay><DayType>7</DayType><DayWorking>1</DayWorking></WeekDay>
+      </WeekDays>
+      <Exceptions>
+        <Exception><Name>Thanksgiving</Name><TimePeriod><FromDate>2026-11-26T00:00:00</FromDate><ToDate>2026-11-27T23:59:00</ToDate></TimePeriod><DayWorking>0</DayWorking></Exception>
+        <Exception><Name>Make-up day</Name><TimePeriod><FromDate>2026-12-05T00:00:00</FromDate><ToDate>2026-12-05T23:59:00</ToDate></TimePeriod><DayWorking>1</DayWorking></Exception>
+      </Exceptions>
+    </Calendar>
+  </Calendars>
+  <Resources>
+    <Resource><UID>0</UID><Name>Unassigned</Name></Resource>
+    <Resource><UID>1</UID><Name>Carpenter, crew A</Name><MaxUnits>4</MaxUnits></Resource>
+    <Resource><UID>2</UID><Name>Laborer</Name><MaxUnits>1.5</MaxUnits></Resource>
+    <Resource><UID>3</UID><Name>Idle</Name><MaxUnits>9</MaxUnits></Resource>
+  </Resources>
+  <Tasks>
+    <Task><UID>1</UID><Name>Framing</Name><OutlineLevel>1</OutlineLevel><Start>2026-10-12T08:00:00</Start><Finish>2026-10-14T17:00:00</Finish></Task>
+    <Task><UID>2</UID><Name>Cleanup</Name><OutlineLevel>1</OutlineLevel><Start>2026-10-15T08:00:00</Start><Finish>2026-10-15T17:00:00</Finish></Task>
+  </Tasks>
+  <Assignments>
+    <Assignment><TaskUID>1</TaskUID><ResourceUID>1</ResourceUID><Units>3</Units></Assignment>
+    <Assignment><TaskUID>1</TaskUID><ResourceUID>2</ResourceUID><Units>1</Units></Assignment>
+    <Assignment><TaskUID>1</TaskUID><ResourceUID>2</ResourceUID><Units>0.5</Units></Assignment>
+    <Assignment><TaskUID>2</TaskUID><ResourceUID>2</ResourceUID><Units>1</Units></Assignment>
+    <Assignment><TaskUID>2</TaskUID><ResourceUID>0</ResourceUID><Units>1</Units></Assignment>
+    <Assignment><TaskUID>2</TaskUID><ResourceUID>-65535</ResourceUID><Units>1</Units></Assignment>
+  </Assignments>
+</Project>"#;
+
+#[test]
+fn importing_resources_limits_and_calendar_from_a_project_file() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let eng = w.member(p, "Eli", "Engineer", "Project engineer");
+    // Left alone unless asked for, as before: only tasks come across.
+    let q = w.project("Other");
+    let pm_q = w.member(q, "Quinn", "Manager", "Project manager");
+    let out = w.ok(pm_q, "schedule.import_xml", json!({"project": q, "text": PLAN_WITH_RESOURCES}));
+    assert_eq!(out["added"], 2);
+    assert!(w.ok(pm_q, "schedule.get", json!({"project": q, "id": 1}))["resources"].is_null(), "no resources unless asked for");
+    assert_eq!(w.ok(pm_q, "schedule.calendar", json!({"project": q}))["days"], json!([true, true, true, true, true, false, false]));
+
+    // Resources: units round to whole numbers (at least one), a resource named twice adds up, commas in a name become spaces, and the unassigned rows are dropped.
+    let out = w.ok(pm, "schedule.import_xml", json!({"project": p, "text": PLAN_WITH_RESOURCES, "resources": true}));
+    assert_eq!(out["added"], 2);
+    let framing = w.ok(pm, "schedule.get", json!({"project": p, "id": 3}));
+    assert_eq!(framing["resources"], json!([{"name": "Carpenter crew A", "units": 3}, {"name": "Laborer", "units": 2}]));
+    let cleanup = w.ok(pm, "schedule.get", json!({"project": p, "id": 4}));
+    assert_eq!(cleanup["resources"], json!([{"name": "Laborer", "units": 1}]));
+
+    // The limits and the calendar belong to the project, so they take a project admin.
+    w.err(eng, "schedule.import_xml", json!({"project": p, "text": PLAN_WITH_RESOURCES, "limits": true}));
+    w.err(eng, "schedule.import_xml", json!({"project": p, "text": PLAN_WITH_RESOURCES, "calendar": true}));
+    let admin = w.admin();
+    let out = w.ok(admin, "schedule.import_xml", json!({"project": p, "text": PLAN_WITH_RESOURCES, "limits": true, "calendar": true}));
+    assert_eq!((out["limits"].clone(), out["calendar"].clone(), out["calendar_left_out"].clone()), (json!(2), json!(true), json!(1)));
+    let cal = w.ok(pm, "schedule.calendar", json!({"project": p}));
+    assert_eq!(cal["days"], json!([true, true, true, true, true, true, false]), "Monday to Saturday");
+    let off: Vec<&str> = cal["holidays"].as_array().unwrap().iter().map(|h| h["date"].as_str().unwrap()).collect();
+    assert_eq!(off, ["2026-11-26", "2026-11-27"], "the working-day exception can't be kept and is counted");
+    assert_eq!(cal["holidays"][0]["name"], "Thanksgiving");
+    // The limit came from MaxUnits for resources that are used (1.5 rounds to 2); the unused one is left out.
+    let load = w.ok(pm, "schedule.loading", json!({"project": p, "from": "2026-10-12", "weeks": 1}));
+    let limits: Vec<(String, u64)> =
+        load.as_array().unwrap().iter().filter_map(|l| Some((l["name"].as_str()?.to_string(), l["limit"].as_u64()?))).collect();
+    assert_eq!(limits, [("Carpenter crew A".to_string(), 4), ("Laborer".to_string(), 2)]);
+    // A file with no calendar leaves the project's alone, and says so.
+    let bare = r#"<Project xmlns="http://schemas.microsoft.com/project"><Tasks><Task><UID>1</UID><Name>X</Name><Start>2026-10-12T08:00:00</Start><Finish>2026-10-12T17:00:00</Finish></Task></Tasks></Project>"#;
+    let out = w.ok(admin, "schedule.import_xml", json!({"project": p, "text": bare, "calendar": true}));
+    assert_eq!(out["calendar"], false);
+    assert_eq!(w.ok(pm, "schedule.calendar", json!({"project": p}))["days"], json!([true, true, true, true, true, true, false]));
+    // The text import takes an eleventh column of resources too.
+    let out = w.ok(pm, "schedule.import", json!({"project": p, "text": "10\tPour\t2026-11-02\t2026-11-03\t0\t\t\tno\t\t\tMason 2, Laborer\n"}));
+    assert_eq!(out["added"], 1);
+    w.err(pm, "schedule.import", json!({"project": p, "text": "11\tBad\t2026-11-02\t2026-11-03\t0\t\t\tno\t\t\tMason 0\n"}));
     w.assert_replay();
 }

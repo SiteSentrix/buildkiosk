@@ -2,7 +2,8 @@
 //! server. Settings and the "already sent" mark live in the credential store, not the journal.
 
 use buildkiosk_store::creds::SmtpSettings;
-use lettre::message::Mailbox;
+use lettre::message::header::ContentType;
+use lettre::message::{Attachment, Mailbox, MultiPart, SinglePart};
 use lettre::transport::smtp::authentication::Credentials as SmtpCreds;
 use lettre::{Message, SmtpTransport, Transport};
 
@@ -56,5 +57,17 @@ pub fn send(s: &SmtpSettings, mail: &Mail) -> Result<(), String> {
     let from: Mailbox = s.from.parse().map_err(|_| "the sender address is not valid".to_string())?;
     let to: Mailbox = mail.to.parse().map_err(|_| format!("{} is not a valid address", mail.to))?;
     let msg = Message::builder().from(from).to(to).subject(mail.subject.clone()).body(mail.body.clone()).map_err(|e| e.to_string())?;
+    transport(s)?.send(&msg).map(|_| ()).map_err(|e| e.to_string())
+}
+
+/// Sends one message with a text file attached (blocking; call from a blocking thread).
+pub fn send_with_file(s: &SmtpSettings, mail: &Mail, file_name: &str, contents: &str) -> Result<(), String> {
+    let from: Mailbox = s.from.parse().map_err(|_| "the sender address is not valid".to_string())?;
+    let to: Mailbox = mail.to.parse().map_err(|_| format!("{} is not a valid address", mail.to))?;
+    let kind = ContentType::parse("text/csv; charset=utf-8").map_err(|e| e.to_string())?;
+    let parts = MultiPart::mixed()
+        .singlepart(SinglePart::plain(mail.body.clone()))
+        .singlepart(Attachment::new(file_name.to_string()).body(contents.to_string(), kind));
+    let msg = Message::builder().from(from).to(to).subject(mail.subject.clone()).multipart(parts).map_err(|e| e.to_string())?;
     transport(s)?.send(&msg).map(|_| ()).map_err(|e| e.to_string())
 }

@@ -178,4 +178,4 @@ than the interface's four.
 4. **Done 2026-10-14.** Q&A: `portal_ask`, `bid_package.answer_question` (answer privately, or share the
    question and answer without the asker's name, optionally reworded first, optionally issued as an addendum), the
    bidder's "Questions" card and the team's "Questions from bidders" card. At most 50 questions per company.
-5. Docs: README "Not yet" line, `docs/gaps.md`, `docs/target-app-parity.md`, `ROADMAP.md`.
+5. Docs: README "Not yet" line, `docs/gaps.md`, `ROADMAP.md`.

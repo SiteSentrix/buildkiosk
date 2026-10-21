@@ -1786,6 +1786,7 @@ Record signed contract by {}
 Record that a prequalification link was emailed by {}
 Record that a report was emailed by {}
 Record that a signing link was emailed by {}
+Record that a signing reminder was emailed by {}
 Record the signature
 Record the signed contract
 Recordable

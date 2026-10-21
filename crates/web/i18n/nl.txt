@@ -1786,6 +1786,7 @@ Record signed contract by {}	Ondertekend contract vastleggen door {}
 Record that a prequalification link was emailed by {}	Verzending per e-mail van een prekwalificatielink vastgelegd door {}
 Record that a report was emailed by {}	Verzending van een rapport per e-mail vastgelegd door {}
 Record that a signing link was emailed by {}	Registratie dat een ondertekeningslink is gemaild door {}
+Record that a signing reminder was emailed by {}	Registratie dat een herinnering voor ondertekening is gemaild door {}
 Record the signature	De handtekening vastleggen
 Record the signed contract	Het ondertekende contract vastleggen
 Recordable	Registreerbaar

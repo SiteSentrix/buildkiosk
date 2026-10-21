@@ -13,7 +13,7 @@
 
 use buildkiosk_core::{Id, Money, Percent, text};
 use buildkiosk_model::finance::{
-    Commitment, CommitmentStatus, ContractSignature, CostLine, PrimeChange, PrimeContract, SignatureLink, SignatureStatus,
+    Commitment, CommitmentStatus, ContractSignature, CostLine, MAX_REMINDERS, PrimeChange, PrimeContract, SignatureLink, SignatureStatus,
 };
 use buildkiosk_model::project::Project;
 use buildkiosk_model::{Level, Tool, perm};
@@ -30,6 +30,14 @@ pub const COMMANDS: &[CommandSpec] = &[
         Access::System,
         "kind: commitment|prime_contract|prime_change; id: its id; generation: the link's generation that was sent",
         link_sent,
+    ),
+    CommandSpec::mutate(
+        "contract.reminder_sent",
+        "Record that a signing reminder was emailed",
+        Tool::Commitments,
+        Access::System,
+        "kind: commitment|prime_contract|prime_change; id: its id; generation: the link's generation the reminder was for (at most three reminders a link)",
+        reminder_sent,
     ),
     CommandSpec::query(
         "contract.portal_view",
@@ -114,7 +122,7 @@ pub(super) fn new_link(ctx: &Ctx<'_>, p: &Params<'_>) -> Result<Option<Signature
     }
     let stamp = ctx.stamp();
     let generation = u32::try_from((stamp.at.millis() / 1000).rem_euclid(4_000_000_000)).unwrap_or(1);
-    Ok(Some(SignatureLink { email, generation, expires, created: stamp, sent: None }))
+    Ok(Some(SignatureLink { email, generation, expires, created: stamp, sent: None, reminders: 0, reminded: None }))
 }
 
 /// What a signer reads: one contract's terms.
@@ -211,6 +219,29 @@ fn link_sent(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     // A link sent again while the first email was on its way stays unsent, so the newer one goes out.
     if let Some(link) = sig.link.as_mut().filter(|l| l.generation == generation) {
         link.sent = Some(stamp);
+        store_signature_keep(ctx, kind, id, sig);
+    }
+    Ok(json!({ "id": id }))
+}
+
+fn reminder_sent(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let kind = p
+        .req_line("kind", 20)
+        .ok()
+        .and_then(|k| Kind::parse(&k))
+        .ok_or_else(|| p.bad("kind", "must be commitment, prime_contract or prime_change"))?;
+    let id: u64 = p.id::<Commitment>("id")?.raw();
+    let generation: u32 =
+        p.int("generation", 0..=4_000_000_000)?.and_then(|v| u32::try_from(v).ok()).ok_or_else(|| p.bad("generation", "is required"))?;
+    let doc = load_doc(ctx.state, kind, id)?;
+    let mut sig = doc.signature;
+    let stamp = ctx.stamp();
+    // Only for the live link of a contract still out for signature, and never past the most reminders.
+    if sig.status == SignatureStatus::Sent
+        && let Some(link) = sig.link.as_mut().filter(|l| l.generation == generation && l.reminders < MAX_REMINDERS)
+    {
+        link.reminders += 1;
+        link.reminded = Some(stamp);
         store_signature_keep(ctx, kind, id, sig);
     }
     Ok(json!({ "id": id }))

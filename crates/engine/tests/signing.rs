@@ -164,3 +164,39 @@ fn the_owner_signs_a_prime_contract_and_a_change_order() {
     assert!(w.err(Actor::System, "contract.portal_view", link("prime_change", k, 1, json!({}))).to_string().contains("not valid"));
     w.assert_replay();
 }
+
+#[test]
+fn reminders_are_counted_and_stop_at_three() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let admin = w.admin();
+    let vendor = w.ok(admin, "vendor.create", json!({"name": "Keystone Concrete", "kind": "subcontractor"}))["id"].as_u64().unwrap();
+    let concrete = code(&w, "03-300");
+    let c = w
+        .ok(pm, "commitment.create", json!({"project": p, "title": "Footings", "vendor": vendor, "lines": [{"cost_code": concrete, "description": "Footings", "amount": "30000"}]}))["id"]
+        .as_u64()
+        .unwrap();
+    w.ok(pm, "commitment.send_for_signature", json!({"project": p, "id": c, "email": "sam@keystone.example"}));
+    let g = generation(&w, c);
+    let current = |w: &World| w.engine.state().commitments.get(Id::new(c)).unwrap().signature.link.clone().unwrap();
+    w.ok(Actor::System, "contract.link_sent", link_params(c, g));
+    // A person can't record one; a stale generation does nothing; each real one counts, up to three.
+    w.err(pm, "contract.reminder_sent", link_params(c, g));
+    w.ok(Actor::System, "contract.reminder_sent", link_params(c, g + 1));
+    assert_eq!(current(&w).reminders, 0);
+    for n in 1..=5u8 {
+        w.ok(Actor::System, "contract.reminder_sent", link_params(c, g));
+        assert_eq!(current(&w).reminders, n.min(3));
+    }
+    assert!(current(&w).reminded.is_some());
+    // Once signed, reminders stop being recorded.
+    let terms = w.ok(Actor::System, "contract.portal_view", link_params(c, g))["terms"].as_i64().unwrap();
+    w.ok(Actor::System, "contract.portal_sign", link("commitment", c, g, json!({"name": "Sam Sub", "agree": true, "terms": terms})));
+    assert_eq!(w.engine.state().commitments.get(Id::new(c)).unwrap().signature.status, SignatureStatus::Signed);
+    w.assert_replay();
+}
+
+fn link_params(c: u64, g: u64) -> Value {
+    link("commitment", c, g, json!({}))
+}

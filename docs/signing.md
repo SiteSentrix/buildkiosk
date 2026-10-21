@@ -37,8 +37,11 @@ signature service, and BuildKiosk does not claim it meets any particular law's r
 check with your counsel. Digital certificates, witnesses, signing order and several signers per contract are not
 built.
 
+## Reminders
+
+A link that has been emailed and not used is followed by a reminder email three days after it was sent, and again every three days, three reminders at most (`contract.reminder_sent` records each; stopped by signing, declining, taking the contract back, or the link's last day).
+
 ## Left for later
 
 - Several signers, signing in order, and counter-signature by the company on the same page.
 - A signed PDF of the contract with the signature record printed on it.
-- Reminders to the signer when a contract has been out for a while.

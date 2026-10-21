@@ -103,7 +103,7 @@ impl Kind {
         match self {
             Kind::Commitment => "commitments",
             Kind::PrimeContract => "prime-contracts",
-            Kind::PrimeChange => "change-orders",
+            Kind::PrimeChange => "prime-change-orders",
         }
     }
 }

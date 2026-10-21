@@ -630,6 +630,7 @@ pub fn commitment(req: &Req<'_>, id: Id<Project>, cid: Id<Commitment>, history: 
                 }
                 @if sig.status == SignatureStatus::Signed { p class="muted small" { "Attach the signed copy under Files if you haven't." } }
                 (signing_link_facts(req, sig, id, "commitment", c.id.raw(), can_sign))
+                p class="muted small" { a href=(format!("{here}/pdf")) { "PDF" } }
                 @if can_sign {
                     @if sig.status != SignatureStatus::Signed {
                         @if sig.status != SignatureStatus::Sent {
@@ -934,6 +935,7 @@ pub(crate) fn signature_card(
                     }
                 }
                 (signing_link_facts(req, sig, project, prefix, doc, can_sign))
+                p class="muted small" { a href=(format!("{here}/pdf")) { "PDF" } }
                 @if can_sign {
                     @if sig.status != SignatureStatus::Signed {
                         @if sig.status != SignatureStatus::Sent {

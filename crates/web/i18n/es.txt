@@ -175,6 +175,7 @@ Amount to add for {}	Monto a añadir por {}
 Amount, line {}	Monto, línea {}
 An Excel workbook (.xlsx) works too, and its first sheet is read.	También sirve un libro de Excel (.xlsx), y se lee su primera hoja.
 An assembly	Un ensamble
+An earlier version of the contract	Una versión anterior del contrato
 Another day	Otro día
 Answer	Respuesta
 Answer a bidder's question by {}	Responder la pregunta de un licitante por {}
@@ -1534,6 +1535,7 @@ Other hours worked in	Otras horas trabajadas en
 Other hours worked in {}	Otras horas trabajadas en {}
 Other minutes	Otros minutos
 Other notes	Otras notas
+Other party	Otra parte
 Our company	Nuestra empresa
 Out for bid	En licitación
 Out for signature	Pendiente de firma
@@ -1662,8 +1664,10 @@ Priced apart from the base estimate. Accepted ones are added to the subtotal, an
 Prices are from	Los precios son de
 Prices for	Precios de
 Prices for {}	Precios de {}
+Prime change order #{}	Orden de cambio principal n.º {}
 Prime change orders	Órdenes de cambio principales
 Prime contract	Contrato principal
+Prime contract #{}	Contrato principal n.º {}
 Print as letter	Imprimir como carta
 Print view	Vista de impresión
 Printable checklist	Lista de verificación imprimible
@@ -2213,6 +2217,8 @@ Signed by	Firmado por
 Signed contracts	Contratos firmados
 Signed off	Aprobado
 Signed off by {} on {}.	Aprobado por {} el {}.
+Signed on	Firmado el
+Signed through	Firmado mediante
 Signed through the link	Firmado mediante el enlace
 Signing link	Enlace de firma
 Signing link for	Enlace de firma para
@@ -2354,12 +2360,14 @@ Template	Plantilla
 Template gives	La plantilla otorga
 Template name	Nombre de la plantilla
 Templates	Plantillas
+Terms signed	Condiciones firmadas
 Test it	Probarlo
 Text	Texto
 That page doesn't exist, or you don't have access to it.	Esa página no existe, o no tienes acceso a ella.
 The address of this server is used for the links in messages.	La dirección de este servidor se usa para los vínculos en los mensajes.
 The catalogue is empty.	El catálogo está vacío.
 The contract	El contrato
+The contract as shown here	El contrato tal como se muestra aquí
 The dashed line is today. Red bars are on the critical path. Grey columns are days off. Float is the working days a task can slip without moving the last finish.	La línea punteada es hoy. Las barras rojas están en la ruta crítica. Las columnas grises son días libres. La holgura son los días laborables que una tarea puede retrasarse sin mover la última fecha de fin.
 The days work is done on. Task dates and durations are counted in these days.	Los días en que se trabaja. Las fechas y duraciones de las tareas se cuentan en estos días.
 The due date for this package has passed, so it is no longer taking bids. Ask the team if you need more time.	La fecha límite de este paquete ya pasó, por lo que ya no recibe ofertas. Consulte al equipo si necesita más tiempo.

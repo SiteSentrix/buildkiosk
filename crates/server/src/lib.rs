@@ -731,6 +731,7 @@ pub fn router(app: Shared) -> Router {
     let router = doc_routes::<PrimeChange>(router);
     let router = invoice_routes::<OwnerInvoice>(router);
     let router = invoice_routes::<CommitmentInvoice>(router);
+    let router = contract_pdf_routes(router);
     let router = portal::routes(router);
     let router = sign_portal::routes(router);
     let router = prequal_portal::routes(router);
@@ -1609,6 +1610,21 @@ fn doc_save_impl<T: LineDoc>(app: Shared, headers: HeaderMap, project: u64, doc:
 }
 
 /// Registers the pages of a cost document under `/projects/{id}/<path>`.
+/// The printable contract (with its signature record) of a commitment, prime contract and prime change order.
+fn contract_pdf_routes(router: Router<Shared>) -> Router<Shared> {
+    use buildkiosk_engine::cmd::signing::Kind;
+    let mut router = router;
+    for (path, kind) in [("commitments", Kind::Commitment), ("prime-contracts", Kind::PrimeContract), ("prime-change-orders", Kind::PrimeChange)] {
+        router = router.route(
+            &format!("/projects/{{id}}/{path}/{{rid}}/pdf"),
+            get(move |s: State<Shared>, h: HeaderMap, Path((id, rid)): Path<(u64, u64)>| async move {
+                pdf_for(&s.0, &h, |r| buildkiosk_web::pdfs::contract(r, Id::new(id), kind, rid))
+            }),
+        );
+    }
+    router
+}
+
 fn doc_routes<T: LineDoc>(router: Router<Shared>) -> Router<Shared> {
     let base = format!("/projects/{{id}}/{}", T::PATH);
     router

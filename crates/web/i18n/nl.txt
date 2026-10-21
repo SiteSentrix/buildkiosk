@@ -175,6 +175,7 @@ Amount to add for {}	Bij te tellen bedrag voor {}
 Amount, line {}	Bedrag, regel {}
 An Excel workbook (.xlsx) works too, and its first sheet is read.	Een Excel-werkmap (.xlsx) kan ook, en het eerste blad wordt gelezen.
 An assembly	Een samenstelling
+An earlier version of the contract	Een eerdere versie van het contract
 Another day	Een andere dag
 Answer	Antwoord
 Answer a bidder's question by {}	Vraag van een bieder beantwoorden door {}
@@ -1534,6 +1535,7 @@ Other hours worked in	Overige gewerkte uren in
 Other hours worked in {}	Overige gewerkte uren in {}
 Other minutes	Overige minuten
 Other notes	Overige notities
+Other party	Andere partij
 Our company	Ons bedrijf
 Out for bid	Uitgevraagd
 Out for signature	Ter ondertekening uit
@@ -1662,8 +1664,10 @@ Priced apart from the base estimate. Accepted ones are added to the subtotal, an
 Prices are from	Prijzen zijn van
 Prices for	Prijzen voor
 Prices for {}	Prijzen voor {}
+Prime change order #{}	Hoofdwijzigingsorder nr. {}
 Prime change orders	Wijzigingsopdrachten hoofdcontract
 Prime contract	Hoofdcontract
+Prime contract #{}	Hoofdcontract nr. {}
 Print as letter	Afdrukken als brief
 Print view	Afdrukweergave
 Printable checklist	Afdrukbare checklist
@@ -2213,6 +2217,8 @@ Signed by	Ondertekend door
 Signed contracts	Ondertekende contracten
 Signed off	Afgetekend
 Signed off by {} on {}.	Afgetekend door {} op {}.
+Signed on	Ondertekend op
+Signed through	Ondertekend via
 Signed through the link	Ondertekend via de link
 Signing link	Ondertekeningslink
 Signing link for	Ondertekeningslink voor
@@ -2354,12 +2360,14 @@ Template	Sjabloon
 Template gives	Sjabloon geeft
 Template name	Sjabloonnaam
 Templates	Sjablonen
+Terms signed	Ondertekende voorwaarden
 Test it	Uitproberen
 Text	Tekst
 That page doesn't exist, or you don't have access to it.	Die pagina bestaat niet, of je hebt er geen toegang toe.
 The address of this server is used for the links in messages.	Het adres van deze server wordt gebruikt voor de links in berichten.
 The catalogue is empty.	De catalogus is leeg.
 The contract	Het contract
+The contract as shown here	Het contract zoals hier getoond
 The dashed line is today. Red bars are on the critical path. Grey columns are days off. Float is the working days a task can slip without moving the last finish.	De stippellijn is vandaag. Rode balken liggen op het kritieke pad. Grijze kolommen zijn vrije dagen. Speling is het aantal werkdagen dat een taak kan opschuiven zonder de laatste einddatum te verplaatsen.
 The days work is done on. Task dates and durations are counted in these days.	De dagen waarop wordt gewerkt. Taakdatums en duur worden in deze dagen geteld.
 The due date for this package has passed, so it is no longer taking bids. Ask the team if you need more time.	De uiterste datum voor dit pakket is verstreken, dus het neemt geen biedingen meer aan. Vraag het team om meer tijd.

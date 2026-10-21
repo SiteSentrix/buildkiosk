@@ -175,6 +175,7 @@ Amount to add for {}	Montant à ajouter pour {}
 Amount, line {}	Montant, ligne {}
 An Excel workbook (.xlsx) works too, and its first sheet is read.	Un classeur Excel (.xlsx) convient aussi, et sa première feuille est lue.
 An assembly	Un ouvrage composé
+An earlier version of the contract	Une version antérieure du contrat
 Another day	Un autre jour
 Answer	Réponse
 Answer a bidder's question by {}	Répondre à la question d’un soumissionnaire par {}
@@ -1534,6 +1535,7 @@ Other hours worked in	Autres heures travaillées en
 Other hours worked in {}	Autres heures travaillées en {}
 Other minutes	Autres minutes
 Other notes	Autres notes
+Other party	Autre partie
 Our company	Notre entreprise
 Out for bid	En appel d'offres
 Out for signature	En attente de signature
@@ -1662,8 +1664,10 @@ Priced apart from the base estimate. Accepted ones are added to the subtotal, an
 Prices are from	Les prix datent du
 Prices for	Prix pour
 Prices for {}	Prix pour {}
+Prime change order #{}	Avenant principal n° {}
 Prime change orders	Avenants au contrat principal
 Prime contract	Contrat principal
+Prime contract #{}	Contrat principal n° {}
 Print as letter	Imprimer au format lettre
 Print view	Version imprimable
 Printable checklist	Liste de contrôle imprimable
@@ -2213,6 +2217,8 @@ Signed by	Signé par
 Signed contracts	Contrats signés
 Signed off	Validé
 Signed off by {} on {}.	Validé par {} le {}.
+Signed on	Signé le
+Signed through	Signé via
 Signed through the link	Signé via le lien
 Signing link	Lien de signature
 Signing link for	Lien de signature pour
@@ -2354,12 +2360,14 @@ Template	Modèle
 Template gives	Le modèle donne
 Template name	Nom du modèle
 Templates	Modèles
+Terms signed	Conditions signées
 Test it	Le tester
 Text	Texte
 That page doesn't exist, or you don't have access to it.	Cette page n'existe pas, ou vous n'y avez pas accès.
 The address of this server is used for the links in messages.	L'adresse de ce serveur sert à créer les liens dans les messages.
 The catalogue is empty.	Le catalogue est vide.
 The contract	Le contrat
+The contract as shown here	Le contrat tel qu'il est présenté ici
 The dashed line is today. Red bars are on the critical path. Grey columns are days off. Float is the working days a task can slip without moving the last finish.	La ligne en pointillés indique aujourd'hui. Les barres rouges sont sur le chemin critique. Les colonnes grises sont des jours non travaillés. La marge correspond aux jours ouvrés dont une tâche peut glisser sans repousser la dernière fin.
 The days work is done on. Task dates and durations are counted in these days.	Les jours travaillés. Les dates et les durées des tâches sont comptées en ces jours.
 The due date for this package has passed, so it is no longer taking bids. Ask the team if you need more time.	La date limite de ce lot est passée; il n’accepte donc plus de soumissions. Demandez à l’équipe si vous avez besoin de plus de temps.

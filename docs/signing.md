@@ -37,6 +37,10 @@ signature service, and BuildKiosk does not claim it meets any particular law's r
 check with your counsel. Digital certificates, witnesses, signing order and several signers per contract are not
 built.
 
+## The printed contract
+
+Each commitment, prime contract and prime change order has a PDF (`.../pdf`, linked from its signature card) with the lines, the total, and the record of the signature: who signed, the day, and for a signature through the link its moment and whether the contract still reads as it did when it was signed. It follows the same visibility rules as the contract's page.
+
 ## Reminders
 
 A link that has been emailed and not used is followed by a reminder email three days after it was sent, and again every three days, three reminders at most (`contract.reminder_sent` records each; stopped by signing, declining, taking the contract back, or the link's last day).
@@ -44,4 +48,3 @@ A link that has been emailed and not used is followed by a reminder email three 
 ## Left for later
 
 - Several signers, signing in order, and counter-signature by the company on the same page.
-- A signed PDF of the contract with the signature record printed on it.

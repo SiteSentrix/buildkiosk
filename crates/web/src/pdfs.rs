@@ -990,3 +990,126 @@ pub fn company_report(req: &Req<'_>, report: Option<Id<buildkiosk_engine::model:
     doc.blocks.push(Block::Paragraph("Only the projects you can open, and only what you can see of each, are included.".into()));
     Some((file_name(&title), render(&doc)))
 }
+
+/// A contract (commitment, prime contract or prime change order) with its lines, total and the record of its signature.
+pub fn contract(req: &Req<'_>, id: Id<Project>, kind: buildkiosk_engine::cmd::signing::Kind, rid: u64) -> Option<Pdf> {
+    use buildkiosk_engine::cmd::signing::Kind;
+    use buildkiosk_engine::model::finance::{CostLine, SignatureStatus};
+    let state = req.engine.state();
+    let p = project_of(req, id, kind.tool())?;
+    let vendor = |v: Option<Id<buildkiosk_engine::model::directory::Vendor>>| v.map(|v| view::vendor_name(state, v)).unwrap_or_default();
+    struct Parts<'a> {
+        label: String,
+        title: String,
+        description: String,
+        party: String,
+        status: String,
+        retainage: Option<String>,
+        lines: &'a [CostLine],
+        sig: &'a buildkiosk_engine::model::finance::ContractSignature,
+        updated: buildkiosk_engine::model::common::Stamp,
+    }
+    let parts = match kind {
+        Kind::Commitment => {
+            let c = state
+                .commitments
+                .get(Id::new(rid))
+                .filter(|c| c.project == id && c.deleted.is_none() && view::can_see_commitment(state, req.actor(), c))?;
+            Parts {
+                label: c.label(),
+                title: c.title.clone(),
+                description: c.description.clone(),
+                party: vendor(c.vendor),
+                status: c.status.label().to_string(),
+                retainage: c.retainage.map(|r| r.to_string()),
+                lines: &c.lines,
+                sig: &c.signature,
+                updated: c.updated,
+            }
+        }
+        Kind::PrimeContract => {
+            let c = state
+                .prime_contracts
+                .get(Id::new(rid))
+                .filter(|c| c.project == id && c.deleted.is_none() && buildkiosk_engine::costdoc::can_see(state, req.actor(), *c))?;
+            Parts {
+                label: format!("Prime contract #{}", c.number),
+                title: c.title.clone(),
+                description: c.description.clone(),
+                party: vendor(c.owner),
+                status: c.status.label().to_string(),
+                retainage: c.retainage.map(|r| r.to_string()),
+                lines: &c.lines,
+                sig: &c.signature,
+                updated: c.updated,
+            }
+        }
+        Kind::PrimeChange => {
+            let c = state
+                .prime_changes
+                .get(Id::new(rid))
+                .filter(|c| c.project == id && c.deleted.is_none() && buildkiosk_engine::costdoc::can_see(state, req.actor(), *c))?;
+            let owner = state.prime_contracts.get(c.contract).and_then(|k| k.owner);
+            Parts {
+                label: format!("Prime change order #{}", c.number),
+                title: c.title.clone(),
+                description: c.description.clone(),
+                party: vendor(owner),
+                status: c.status.label().to_string(),
+                retainage: None,
+                lines: &c.lines,
+                sig: &c.signature,
+                updated: c.updated,
+            }
+        }
+    };
+    let Parts { label, title, description, party, status, retainage, lines, sig, updated } = parts;
+    let code = |c| state.cost_codes.get(c).map(|c| c.display()).unwrap_or_default();
+    let (mut doc, _) = start(req, p, format!("{label}: {title}"), &format!("Status: {status}"));
+    let mut facts = vec![("Other party".to_string(), dash(&party))];
+    if let Some(r) = &retainage {
+        facts.push(("Retainage".into(), r.clone()));
+    }
+    doc.blocks.push(Block::Facts(facts));
+    if !description.is_empty() {
+        doc.blocks.push(Block::Paragraph(description));
+    }
+    let total = buildkiosk_engine::core::Money::sum(lines.iter().map(|l| l.amount));
+    doc.blocks.push(Block::Table(Table {
+        headers: ["Cost code", "Description", "Amount"].iter().map(|h| h.to_string()).collect(),
+        widths: vec![2.4, 5.0, 1.8],
+        aligns: vec![Align::Left, Align::Left, Align::Right],
+        rows: lines.iter().map(|l| vec![code(l.cost_code), l.description.clone(), l.amount.to_string()]).collect(),
+        footer: Some(vec!["Total".into(), String::new(), total.map(|t| t.to_string()).unwrap_or_default()]),
+    }));
+    doc.blocks.push(Block::Heading("Signature".into()));
+    let mut sign = vec![("Status".to_string(), sig.status.label().to_string())];
+    if let Some(d) = sig.sent_on {
+        sign.push(("Sent".into(), format!("{}{}", d.pretty(), if sig.sent_to.is_empty() { String::new() } else { format!(" to {}", sig.sent_to) })));
+    }
+    match sig.status {
+        SignatureStatus::Signed => {
+            sign.push(("Signed by".into(), dash(&sig.signer)));
+            if let Some(d) = sig.signed_on {
+                sign.push(("Signed on".into(), d.pretty()));
+            }
+            if let Some(at) = sig.signed_at {
+                sign.push(("Signed through".into(), format!("the signing link, {}", req.when(at.at))));
+                // What the signer saw: the contract as it stood at the moment they signed.
+                let same = sig.signed_terms.is_some_and(|t| t.at == updated.at);
+                sign.push((
+                    "Terms signed".into(),
+                    if same { "The contract as shown here".into() } else { "An earlier version of the contract".into() },
+                ));
+            }
+        }
+        SignatureStatus::Declined if !sig.note.is_empty() => sign.push(("Note".into(), sig.note.clone())),
+        SignatureStatus::Sent | SignatureStatus::NotSent => {
+            sign.push(("Signed by".into(), "______________________________".into()));
+            sign.push(("Date".into(), "______________________________".into()));
+        }
+        SignatureStatus::Declined => {}
+    }
+    doc.blocks.push(Block::Facts(sign));
+    Some((file_name(&label), render(&doc)))
+}

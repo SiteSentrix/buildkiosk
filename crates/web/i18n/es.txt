@@ -1251,6 +1251,7 @@ Monday	Lunes
 Month	Mes
 Monthly	Mensual
 More	Más
+More people who sign (an email on each line)	Más personas que firman (un correo por línea)
 Move	Mover
 Move or resize a task by {}	Mover o cambiar el tamaño de una tarea por {}
 Move tasks that start too early	Mover tareas que empiezan demasiado pronto
@@ -1470,6 +1471,7 @@ Oldest open RFI (days)	RFI abierto más antiguo (días)
 On hold	En espera
 On the critical path	En la ruta crítica
 Once there is something approved to invoice, start the first invoice below.	Cuando haya algo aprobado para facturar, comienza la primera factura abajo.
+One after the other, as listed	Una tras otra, en el orden indicado
 One category per line. When there are some, new observations pick from them; leave it empty to type any category.	Una categoría por línea. Si hay alguna, las nuevas observaciones eligen entre ellas; déjalo vacío para escribir cualquier categoría.
 One item per line	Un elemento por línea
 One line per cost code	Una línea por código de costo
@@ -2220,6 +2222,8 @@ Signed off by {} on {}.	Aprobado por {} el {}.
 Signed on	Firmado el
 Signed through	Firmado mediante
 Signed through the link	Firmado mediante el enlace
+Signer	Firmante
+Signer {}	Firmante {}
 Signing link	Enlace de firma
 Signing link for	Enlace de firma para
 Signing link for {}	Enlace de firma para {}
@@ -2241,6 +2245,7 @@ Slideshow	Presentación de diapositivas
 Small items to fix or finish before closeout	Pequeños pendientes por corregir o terminar antes del cierre
 Snapshots	Instantáneas
 Snow	Nieve
+Someone else	Otra persona
 Sort by	Ordenar por
 Spec	Espec.
 Spec section	Sección de especificaciones
@@ -2379,6 +2384,7 @@ The level this template gives on each tool. People with it get these levels on t
 The link may have been replaced by a newer one, cancelled, or passed its last day. Ask the person who invited you to send it again.	Puede que el enlace haya sido reemplazado por uno nuevo, cancelado o haya pasado su último día. Pida a quien le invitó que se lo envíe de nuevo.
 The log lists every submittal once there are some.	El registro enumera todos los submittals cuando haya alguno.
 The most of each resource needed on any one working day in each week, from tasks that aren't finished. Red is over the limit you set.	El máximo de cada recurso necesario en un solo día laborable de cada semana, según las tareas que no están terminadas. El rojo supera el límite que definiste.
+The people before you sign first. You will get an email when it is your turn.	Las personas anteriores firman primero. Recibirá un correo cuando sea su turno.
 The plan cannot start until every approver has approved. Changing the wording of items clears the answers.	El plan no puede iniciar hasta que todos los aprobadores hayan aprobado. Cambiar el texto de los elementos borra las respuestas.
 The project's section list; submittals link to a section by its number	La lista de secciones del proyecto; los submittals se vinculan a una sección por su número
 The questions each kind of form asks. Forms already started keep the questions they were started with.	Las preguntas que hace cada tipo de formulario. Los formularios ya iniciados conservan las preguntas con las que se iniciaron.
@@ -2394,6 +2400,8 @@ There are no lines on this contract yet.	Este contrato aún no tiene líneas.
 There are no tasks in your projects.	No hay tareas en tus proyectos.
 There is nothing to show.	No hay nada que mostrar.
 These answers are to version	Estas respuestas son de la versión
+They sign one after the other, in the order given (each is emailed when the one before has signed)	Firman una tras otra, en el orden indicado (a cada una se le escribe cuando ha firmado la anterior)
+They sign one after the other, in this order.	Firman una tras otra, en este orden.
 Things to get done, with an owner and a due date	Cosas por hacer, con un responsable y una fecha de vencimiento
 This contract can't be signed now. Ask the team.	Este contrato no se puede firmar ahora. Pregunte al equipo.
 This contract is not out for signature. Ask the team.	Este contrato no está pendiente de firma. Pregunte al equipo.
@@ -2567,6 +2575,7 @@ Who gets it	Quién lo recibe
 Who should see it	Quién debería verlo
 Who signed for the other party	Quién firmó por la otra parte
 Who signed for the owner	Quién firmó por el propietario
+Who signs	Quién firma
 Why	Por qué
 Why (optional)	Motivo (opcional)
 Windy	Ventoso
@@ -2600,10 +2609,12 @@ Yes or no	Sí o no
 Yes, a single day	Sí, un solo día
 Yes, enter it on the injury log	Sí, anótalo en el registro de lesiones
 Yes, only the people below, the manager and the tool's admins	Sí, solo las personas de abajo, el gerente y los administradores de la herramienta
+You	Usted
 You can change your bid below until the due date.	Puede cambiar su oferta más abajo hasta la fecha límite.
 You declined to sign this contract.	Usted rechazó firmar este contrato.
 You have no tokens.	No tienes tokens.
 You have read this	Usted ha leído esto
+You have signed. The contract is complete when everyone has.	Usted ya firmó. El contrato queda completo cuando todos hayan firmado.
 You'll be told here when something needs you, like a submittal waiting for your review.	Aquí se te avisará cuando algo requiera tu atención, como un submittal esperando tu revisión.
 Your bid	Su oferta
 Your details	Sus datos

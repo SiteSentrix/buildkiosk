@@ -1251,6 +1251,7 @@ Monday	Maandag
 Month	Maand
 Monthly	Maandelijks
 More	Meer
+More people who sign (an email on each line)	Meer ondertekenaars (een e-mailadres per regel)
 Move	Verplaatsen
 Move or resize a task by {}	Een taak verplaatsen of van grootte wijzigen door {}
 Move tasks that start too early	Taken verplaatsen die te vroeg beginnen
@@ -1470,6 +1471,7 @@ Oldest open RFI (days)	Oudste open RFI (dagen)
 On hold	In de wacht
 On the critical path	Op het kritieke pad
 Once there is something approved to invoice, start the first invoice below.	Zodra er iets is goedgekeurd om te factureren, start je hieronder de eerste factuur.
+One after the other, as listed	Na elkaar, in de genoemde volgorde
 One category per line. When there are some, new observations pick from them; leave it empty to type any category.	Eén categorie per regel. Als er categorieën zijn, kiezen nieuwe waarnemingen daaruit; laat leeg om een willekeurige categorie te typen.
 One item per line	Eén item per regel
 One line per cost code	Eén regel per kostencode
@@ -2220,6 +2222,8 @@ Signed off by {} on {}.	Afgetekend door {} op {}.
 Signed on	Ondertekend op
 Signed through	Ondertekend via
 Signed through the link	Ondertekend via de link
+Signer	Ondertekenaar
+Signer {}	Ondertekenaar {}
 Signing link	Ondertekeningslink
 Signing link for	Ondertekeningslink voor
 Signing link for {}	Ondertekeningslink voor {}
@@ -2241,6 +2245,7 @@ Slideshow	Diavoorstelling
 Small items to fix or finish before closeout	Kleine punten om te herstellen of af te maken vóór de oplevering
 Snapshots	Momentopnamen
 Snow	Sneeuw
+Someone else	Iemand anders
 Sort by	Sorteren op
 Spec	Spec
 Spec section	Specificatiehoofdstuk
@@ -2379,6 +2384,7 @@ The level this template gives on each tool. People with it get these levels on t
 The link may have been replaced by a newer one, cancelled, or passed its last day. Ask the person who invited you to send it again.	De link is mogelijk vervangen door een nieuwe, geannuleerd of voorbij zijn laatste dag. Vraag de persoon die u uitnodigde om hem opnieuw te sturen.
 The log lists every submittal once there are some.	De log toont elke submittal zodra er een is.
 The most of each resource needed on any one working day in each week, from tasks that aren't finished. Red is over the limit you set.	Het hoogste aantal van elke resource dat op één werkdag per week nodig is, uit taken die niet klaar zijn. Rood is boven de limiet die je hebt ingesteld.
+The people before you sign first. You will get an email when it is your turn.	De mensen voor u tekenen eerst. U krijgt een e-mail wanneer het uw beurt is.
 The plan cannot start until every approver has approved. Changing the wording of items clears the answers.	Het plan kan pas starten als elke goedkeurder heeft goedgekeurd. Als je de formulering van onderdelen wijzigt, worden de antwoorden gewist.
 The project's section list; submittals link to a section by its number	De hoofdstuklijst van het project; submittals verwijzen naar een hoofdstuk via het nummer
 The questions each kind of form asks. Forms already started keep the questions they were started with.	De vragen die elk soort formulier stelt. Formulieren die al zijn gestart behouden de vragen waarmee ze zijn gestart.
@@ -2394,6 +2400,8 @@ There are no lines on this contract yet.	Dit contract heeft nog geen regels.
 There are no tasks in your projects.	Er zijn geen taken in je projecten.
 There is nothing to show.	Er is niets om te tonen.
 These answers are to version	Deze antwoorden zijn voor versie
+They sign one after the other, in the order given (each is emailed when the one before has signed)	Ze tekenen na elkaar, in de opgegeven volgorde (ieder krijgt een e-mail zodra de vorige heeft getekend)
+They sign one after the other, in this order.	Ze tekenen na elkaar, in deze volgorde.
 Things to get done, with an owner and a due date	Dingen die gedaan moeten worden, met een eigenaar en een vervaldatum
 This contract can't be signed now. Ask the team.	Dit contract kan nu niet worden ondertekend. Vraag het team.
 This contract is not out for signature. Ask the team.	Dit contract staat niet open voor ondertekening. Vraag het team.
@@ -2567,6 +2575,7 @@ Who gets it	Wie het krijgt
 Who should see it	Wie het moet zien
 Who signed for the other party	Wie tekende namens de andere partij
 Who signed for the owner	Wie tekende namens de opdrachtgever
+Who signs	Wie tekent
 Why	Waarom
 Why (optional)	Reden (optioneel)
 Windy	Winderig
@@ -2600,10 +2609,12 @@ Yes or no	Ja of nee
 Yes, a single day	Ja, één dag
 Yes, enter it on the injury log	Ja, op het letselregister invoeren
 Yes, only the people below, the manager and the tool's admins	Ja, alleen de mensen hieronder, de manager en de beheerders van de tool
+You	U
 You can change your bid below until the due date.	U kunt uw bieding hieronder wijzigen tot de uiterste datum.
 You declined to sign this contract.	U hebt geweigerd dit contract te ondertekenen.
 You have no tokens.	Je hebt geen tokens.
 You have read this	U heeft dit gelezen
+You have signed. The contract is complete when everyone has.	U hebt getekend. Het contract is compleet zodra iedereen heeft getekend.
 You'll be told here when something needs you, like a submittal waiting for your review.	Hier krijg je een melding wanneer iets jouw aandacht nodig heeft, zoals een submittal die op jouw beoordeling wacht.
 Your bid	Uw bieding
 Your details	Uw gegevens

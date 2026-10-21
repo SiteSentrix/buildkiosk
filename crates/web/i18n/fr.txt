@@ -1251,6 +1251,7 @@ Monday	Lundi
 Month	Mois
 Monthly	Mensuel
 More	Plus
+More people who sign (an email on each line)	Autres personnes qui signent (une adresse par ligne)
 Move	Déplacer
 Move or resize a task by {}	Déplacer ou redimensionner une tâche par {}
 Move tasks that start too early	Décaler les tâches qui commencent trop tôt
@@ -1470,6 +1471,7 @@ Oldest open RFI (days)	RFI ouverte la plus ancienne (jours)
 On hold	En attente
 On the critical path	Sur le chemin critique
 Once there is something approved to invoice, start the first invoice below.	Dès qu'un élément est approuvé pour facturation, démarrez la première facture ci-dessous.
+One after the other, as listed	L'une après l'autre, dans l'ordre indiqué
 One category per line. When there are some, new observations pick from them; leave it empty to type any category.	Une catégorie par ligne. Quand il y en a, les nouvelles observations les proposent ; laissez vide pour saisir n'importe quelle catégorie.
 One item per line	Un élément par ligne
 One line per cost code	Une ligne par code de coût
@@ -2220,6 +2222,8 @@ Signed off by {} on {}.	Validé par {} le {}.
 Signed on	Signé le
 Signed through	Signé via
 Signed through the link	Signé via le lien
+Signer	Signataire
+Signer {}	Signataire {}
 Signing link	Lien de signature
 Signing link for	Lien de signature pour
 Signing link for {}	Lien de signature pour {}
@@ -2241,6 +2245,7 @@ Slideshow	Diaporama
 Small items to fix or finish before closeout	Petits éléments à corriger ou à terminer avant la clôture
 Snapshots	Instantanés
 Snow	Neige
+Someone else	Quelqu'un d'autre
 Sort by	Trier par
 Spec	Spéc.
 Spec section	Section de spécifications
@@ -2379,6 +2384,7 @@ The level this template gives on each tool. People with it get these levels on t
 The link may have been replaced by a newer one, cancelled, or passed its last day. Ask the person who invited you to send it again.	Le lien a peut-être été remplacé par un plus récent, annulé ou a dépassé son dernier jour. Demandez à la personne qui vous a invité de vous le renvoyer.
 The log lists every submittal once there are some.	Le journal liste chaque soumission dès qu'il y en a.
 The most of each resource needed on any one working day in each week, from tasks that aren't finished. Red is over the limit you set.	Le maximum de chaque ressource nécessaire sur un même jour ouvré de chaque semaine, d'après les tâches non terminées. Le rouge dépasse la limite que vous avez fixée.
+The people before you sign first. You will get an email when it is your turn.	Les personnes qui vous précèdent signent d'abord. Vous recevrez un e-mail quand ce sera votre tour.
 The plan cannot start until every approver has approved. Changing the wording of items clears the answers.	Le plan ne peut pas démarrer tant que chaque approbateur n'a pas approuvé. Modifier le libellé des éléments efface les réponses.
 The project's section list; submittals link to a section by its number	La liste des sections du projet ; les soumissions renvoient à une section par son numéro
 The questions each kind of form asks. Forms already started keep the questions they were started with.	Les questions posées par chaque type de formulaire. Les formulaires déjà démarrés conservent les questions avec lesquelles ils ont commencé.
@@ -2394,6 +2400,8 @@ There are no lines on this contract yet.	Ce contrat n'a pas encore de lignes.
 There are no tasks in your projects.	Il n'y a aucune tâche dans vos projets.
 There is nothing to show.	Il n'y a rien à afficher.
 These answers are to version	Ces réponses sont à la version
+They sign one after the other, in the order given (each is emailed when the one before has signed)	Ils signent l'un après l'autre, dans l'ordre indiqué (chacun reçoit un e-mail quand le précédent a signé)
+They sign one after the other, in this order.	Ils signent l'un après l'autre, dans cet ordre.
 Things to get done, with an owner and a due date	Choses à faire, avec un responsable et une échéance
 This contract can't be signed now. Ask the team.	Ce contrat ne peut pas être signé maintenant. Demandez à l'équipe.
 This contract is not out for signature. Ask the team.	Ce contrat n'est pas soumis à signature. Demandez à l'équipe.
@@ -2567,6 +2575,7 @@ Who gets it	Qui le reçoit
 Who should see it	Qui doit le voir
 Who signed for the other party	Qui a signé pour l'autre partie
 Who signed for the owner	Qui a signé pour le maître d'ouvrage
+Who signs	Qui signe
 Why	Pourquoi
 Why (optional)	Motif (facultatif)
 Windy	Venteux
@@ -2600,10 +2609,12 @@ Yes or no	Oui ou non
 Yes, a single day	Oui, un seul jour
 Yes, enter it on the injury log	Oui, l'inscrire au registre des accidents
 Yes, only the people below, the manager and the tool's admins	Oui, seulement les personnes ci-dessous, le responsable et les administrateurs de l'outil
+You	Vous
 You can change your bid below until the due date.	Vous pouvez modifier votre soumission ci-dessous jusqu’à la date limite.
 You declined to sign this contract.	Vous avez refusé de signer ce contrat.
 You have no tokens.	Vous n'avez aucun jeton.
 You have read this	Vous avez lu ceci
+You have signed. The contract is complete when everyone has.	Vous avez signé. Le contrat est complet quand tout le monde a signé.
 You'll be told here when something needs you, like a submittal waiting for your review.	Vous serez informé ici lorsque quelque chose requiert votre action, comme une soumission en attente de votre révision.
 Your bid	Votre soumission
 Your details	Vos informations

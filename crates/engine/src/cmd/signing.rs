@@ -13,7 +13,8 @@
 
 use buildkiosk_core::{Id, Money, Percent, text};
 use buildkiosk_model::finance::{
-    Commitment, CommitmentStatus, ContractSignature, CostLine, MAX_REMINDERS, PrimeChange, PrimeContract, SignatureLink, SignatureStatus,
+    CoSigner, Commitment, CommitmentStatus, ContractSignature, CostLine, MAX_REMINDERS, MAX_SIGNERS, PrimeChange, PrimeContract, SignatureLink,
+    SignatureStatus,
 };
 use buildkiosk_model::project::Project;
 use buildkiosk_model::{Level, Tool, perm};
@@ -125,6 +126,51 @@ pub(super) fn new_link(ctx: &Ctx<'_>, p: &Params<'_>) -> Result<Option<Signature
     Ok(Some(SignatureLink { email, generation, expires, created: stamp, sent: None, reminders: 0, reminded: None }))
 }
 
+/// The signing a contract is sent out with: the first link (`email`, `expires`), more people to sign (`others`: email addresses
+/// separated by lines, commas or spaces) and whether they sign in turn (`ordered`). Every link has its own generation, counting up from
+/// the first one's.
+pub(super) fn new_signing(ctx: &Ctx<'_>, p: &Params<'_>) -> Result<(Option<SignatureLink>, Vec<CoSigner>, bool)> {
+    let first = new_link(ctx, p)?;
+    let raw = p.text_or_empty("others", 2_000)?;
+    let mut others = Vec::new();
+    for token in raw.split(|c: char| c.is_whitespace() || c == ',' || c == ';').filter(|t| !t.is_empty()) {
+        let email = text::email(token).ok_or_else(|| p.bad("others", format!("`{token}` is not a valid email address")))?;
+        others.push(email);
+    }
+    let ordered = p.flag_or("ordered", false)?;
+    let Some(first) = first else {
+        if !others.is_empty() || ordered {
+            return Err(p.bad("email", "is needed to add more signers or to sign in order"));
+        }
+        return Ok((None, Vec::new(), false));
+    };
+    if others.len() + 1 > MAX_SIGNERS {
+        return Err(p.bad("others", format!("a contract can have at most {MAX_SIGNERS} signers")));
+    }
+    let signers = others
+        .into_iter()
+        .enumerate()
+        .map(|(k, email)| {
+            let step = u32::try_from(k + 1).unwrap_or(1);
+            let generation = first.generation.wrapping_add(step) % 4_000_000_000;
+            CoSigner {
+                link: SignatureLink { email, generation, ..first.clone() },
+                name: String::new(),
+                signed_at: None,
+                signed_on: None,
+                signed_terms: None,
+            }
+        })
+        .collect();
+    Ok((Some(first), signers, ordered))
+}
+
+/// The link of the person at `index` in the signing.
+fn link_at(sig: &mut ContractSignature, index: usize) -> Option<&mut SignatureLink> {
+    let first = usize::from(sig.link.is_some());
+    if index < first { sig.link.as_mut() } else { sig.others.get_mut(index - first).map(|o| &mut o.link) }
+}
+
 /// What a signer reads: one contract's terms.
 struct Doc {
     project: Id<Project>,
@@ -192,16 +238,17 @@ fn load_doc(state: &buildkiosk_model::CompanyState, kind: Kind, id: u64) -> Resu
 }
 
 /// The contract and link a checked link names.
-fn linked(state: &buildkiosk_model::CompanyState, p: &Params<'_>, today: buildkiosk_core::Date) -> Result<(Kind, u64, Doc)> {
+fn linked(state: &buildkiosk_model::CompanyState, p: &Params<'_>, today: buildkiosk_core::Date) -> Result<(Kind, u64, Doc, usize)> {
     let kind = p.req_line("kind", 20).ok().and_then(|k| Kind::parse(&k)).ok_or_else(bad_link)?;
     let id: u64 = p.id::<Commitment>("id").map_err(|_| bad_link())?.raw();
     let generation: u32 = p.int("generation", 0..=4_000_000_000)?.and_then(|v| u32::try_from(v).ok()).ok_or_else(bad_link)?;
     let doc = load_doc(state, kind, id)?;
-    let ok = doc.signature.link.as_ref().is_some_and(|l| l.generation == generation && l.active(today));
-    if !ok {
+    let index = doc.signature.slot_of(generation).ok_or_else(bad_link)?;
+    let active = doc.signature.slots().iter().any(|s| s.index == index && s.link.active(today));
+    if !active {
         return Err(bad_link());
     }
-    Ok((kind, id, doc))
+    Ok((kind, id, doc, index))
 }
 
 fn link_sent(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
@@ -217,7 +264,9 @@ fn link_sent(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     let mut sig = doc.signature;
     let stamp = ctx.stamp();
     // A link sent again while the first email was on its way stays unsent, so the newer one goes out.
-    if let Some(link) = sig.link.as_mut().filter(|l| l.generation == generation) {
+    if let Some(index) = sig.slot_of(generation)
+        && let Some(link) = link_at(&mut sig, index)
+    {
         link.sent = Some(stamp);
         store_signature_keep(ctx, kind, id, sig);
     }
@@ -238,7 +287,8 @@ fn reminder_sent(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     let stamp = ctx.stamp();
     // Only for the live link of a contract still out for signature, and never past the most reminders.
     if sig.status == SignatureStatus::Sent
-        && let Some(link) = sig.link.as_mut().filter(|l| l.generation == generation && l.reminders < MAX_REMINDERS)
+        && let Some(index) = sig.slot_of(generation)
+        && let Some(link) = link_at(&mut sig, index).filter(|l| l.reminders < MAX_REMINDERS)
     {
         link.reminders += 1;
         link.reminded = Some(stamp);
@@ -259,7 +309,7 @@ fn store_signature_keep(ctx: &mut Ctx<'_>, kind: Kind, id: u64, sig: ContractSig
 }
 
 fn portal_view(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
-    let (kind, id, doc) = linked(v.state, p, v.today())?;
+    let (kind, id, doc, index) = linked(v.state, p, v.today())?;
     let total: Option<Money> = Money::sum(doc.lines.iter().map(|l| l.amount));
     let lines: Vec<Value> = doc
         .lines
@@ -272,7 +322,17 @@ fn portal_view(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
     let project = v.state.projects.get(doc.project).map(|x| x.name.clone()).unwrap_or_default();
     let own = v.state.company().map(|c| c.name.clone()).unwrap_or_default();
     let sig = &doc.signature;
+    let slots = sig.slots();
+    let signers: Vec<Value> = slots
+        .iter()
+        .map(|s| json!({ "signed": s.signed, "name": s.name, "you": s.index == index, "email": if s.index == index { s.link.email.clone() } else { String::new() } }))
+        .collect();
+    let mine = slots.iter().find(|s| s.index == index);
     Ok(json!({
+        "signers": signers,
+        "ordered": sig.ordered,
+        "you_signed": mine.is_some_and(|s| s.signed),
+        "your_turn": sig.turn(index),
         "kind": kind.key(),
         "id": id,
         "label": doc.label,
@@ -290,7 +350,7 @@ fn portal_view(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
         "signed_on": sig.signed_on,
         "note": sig.note,
         "terms": doc.updated.at.millis(),
-        "email": sig.link.as_ref().map(|l| l.email.clone()),
+        "email": mine.map(|s| s.link.email.clone()),
     }))
 }
 
@@ -303,7 +363,7 @@ fn tell_team(ctx: &mut Ctx<'_>, kind: Kind, id: u64, doc: &Doc, what: &str) {
 }
 
 fn portal_sign(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
-    let (kind, id, doc) = linked(ctx.state, p, ctx.today())?;
+    let (kind, id, doc, index) = linked(ctx.state, p, ctx.today())?;
     if !doc.open {
         return Err(EngineError::conflict("this contract can't be signed now"));
     }
@@ -311,6 +371,12 @@ fn portal_sign(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         SignatureStatus::Sent => {}
         SignatureStatus::Signed => return Err(EngineError::conflict("this contract is already signed")),
         _ => return Err(EngineError::conflict("this contract is not out for signature")),
+    }
+    if doc.signature.slots().iter().any(|s| s.index == index && s.signed) {
+        return Err(EngineError::conflict("you have already signed this contract"));
+    }
+    if !doc.signature.turn(index) {
+        return Err(EngineError::conflict("the people before you have to sign first; you will get an email when it is your turn"));
     }
     if doc.lines.is_empty() {
         return Err(EngineError::conflict("this contract has no lines to sign for"));
@@ -327,23 +393,44 @@ fn portal_sign(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         return Err(EngineError::conflict("the contract was changed after you opened it; read it again before signing"));
     }
     let stamp = ctx.stamp();
-    let sig = ContractSignature {
-        status: SignatureStatus::Signed,
-        signed_on: Some(ctx.today()),
-        signer: name,
-        signed_at: Some(stamp),
-        signed_terms: Some(doc.updated),
-        note: String::new(),
-        ..doc.signature.clone()
-    };
+    let today = ctx.today();
+    let mut sig = doc.signature.clone();
+    let first = usize::from(sig.link.is_some());
+    if index < first {
+        sig.signer = name.clone();
+        sig.signed_at = Some(stamp);
+        sig.signed_terms = Some(doc.updated);
+    } else if let Some(o) = sig.others.get_mut(index - first) {
+        o.name = name.clone();
+        o.signed_at = Some(stamp);
+        o.signed_on = Some(today);
+        o.signed_terms = Some(doc.updated);
+    }
+    sig.note = String::new();
+    // The contract is signed once everyone with a link has; until then it stays out for signature.
+    let done = sig.all_signed();
+    let total = sig.slots().len();
+    let count = sig.slots().iter().filter(|s| s.signed).count();
+    if done {
+        sig.status = SignatureStatus::Signed;
+        sig.signed_on = Some(today);
+    }
     // Signing does not change what was agreed, so the contract's own "last changed" moment stays the same.
     store_signature_keep(ctx, kind, id, sig);
-    tell_team(ctx, kind, id, &doc, &format!("{} signed", if doc.party.is_empty() { "The other party".to_string() } else { doc.party.clone() }));
-    Ok(json!({ "id": id, "signed_on": ctx.today() }))
+    let who = if doc.party.is_empty() { "The other party".to_string() } else { doc.party.clone() };
+    let what = if total <= 1 {
+        format!("{who} signed")
+    } else if done {
+        format!("{name} signed; all {total} people have signed")
+    } else {
+        format!("{name} signed ({count} of {total})")
+    };
+    tell_team(ctx, kind, id, &doc, &what);
+    Ok(json!({ "id": id, "signed_on": today, "complete": done, "signed": count, "of": total }))
 }
 
 fn portal_decline(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
-    let (kind, id, doc) = linked(ctx.state, p, ctx.today())?;
+    let (kind, id, doc, _) = linked(ctx.state, p, ctx.today())?;
     if doc.signature.status != SignatureStatus::Sent {
         return Err(EngineError::conflict("this contract is not out for signature"));
     }
@@ -359,7 +446,8 @@ fn portal_decline(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     Ok(json!({ "id": id }))
 }
 
-/// The contract a team page can show the signing link for, if it has a live one.
-pub fn live_link(state: &buildkiosk_model::CompanyState, kind: Kind, id: u64, today: buildkiosk_core::Date) -> Option<SignatureLink> {
-    load_doc(state, kind, id).ok().and_then(|d| d.signature.link).filter(|l| l.active(today))
+/// The signing link of the person at `index` (0 is the first) that a team page can show, if it is live.
+pub fn live_link(state: &buildkiosk_model::CompanyState, kind: Kind, id: u64, index: usize, today: buildkiosk_core::Date) -> Option<SignatureLink> {
+    let doc = load_doc(state, kind, id).ok()?;
+    doc.signature.slots().into_iter().find(|s| s.index == index && s.link.active(today)).map(|s| s.link.clone())
 }

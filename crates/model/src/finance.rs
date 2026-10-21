@@ -209,6 +209,25 @@ impl SignatureLink {
     }
 }
 
+/// A further person who signs through their own link, after (or alongside) the one on [`ContractSignature::link`].
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CoSigner {
+    pub link: SignatureLink,
+    /// The name they typed when they signed; empty until they have.
+    #[serde(default)]
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signed_at: Option<Stamp>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signed_on: Option<Date>,
+    /// The contract's last change when they signed: what was on their page.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signed_terms: Option<Stamp>,
+}
+
+/// The most people who can sign one contract through links.
+pub const MAX_SIGNERS: usize = 6;
+
 /// The signing of a contract: recorded by the team, or signed by the other party themselves through a link.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ContractSignature {
@@ -235,6 +254,52 @@ pub struct ContractSignature {
     /// The contract's last change when it was signed through the link: what was on the page when they signed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub signed_terms: Option<Stamp>,
+    /// More people who sign through links of their own; the contract is signed when every one has.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub others: Vec<CoSigner>,
+    /// Whether the people sign one after the other (the first link, then each of `others` in turn) rather than in any order.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub ordered: bool,
+}
+
+/// One person's place in the signing, as seen from outside: their link, whether they have signed and the name they typed.
+pub struct Slot<'a> {
+    pub index: usize,
+    pub link: &'a SignatureLink,
+    pub signed: bool,
+    pub name: &'a str,
+    pub signed_at: Option<Stamp>,
+}
+
+impl ContractSignature {
+    /// Everyone who signs through a link, in order: the first link (if any), then `others`.
+    pub fn slots(&self) -> Vec<Slot<'_>> {
+        let mut out = Vec::new();
+        if let Some(link) = &self.link {
+            out.push(Slot { index: 0, link, signed: self.signed_at.is_some(), name: &self.signer, signed_at: self.signed_at });
+        }
+        let first = out.len();
+        for (i, o) in self.others.iter().enumerate() {
+            out.push(Slot { index: first + i, link: &o.link, signed: o.signed_at.is_some(), name: &o.name, signed_at: o.signed_at });
+        }
+        out
+    }
+
+    /// The place whose link has this generation.
+    pub fn slot_of(&self, generation: u32) -> Option<usize> {
+        self.slots().iter().find(|s| s.link.generation == generation).map(|s| s.index)
+    }
+
+    /// Whether it is this person's turn: always when signing in any order, else once everyone before them has signed.
+    pub fn turn(&self, index: usize) -> bool {
+        !self.ordered || self.slots().iter().take_while(|s| s.index < index).all(|s| s.signed)
+    }
+
+    /// Whether everyone with a link has signed (false when nobody has a link).
+    pub fn all_signed(&self) -> bool {
+        let slots = self.slots();
+        !slots.is_empty() && slots.iter().all(|s| s.signed)
+    }
 }
 
 /// One line of a schedule of values or a change: an amount against a cost code.

@@ -26,7 +26,6 @@ A name already used is replaced. The new baseline becomes the one the chart and 
 A new version of	Een nieuwe versie van
 A project admin has full access to every tool, so overrides have no effect.	Een projectbeheerder heeft volledige toegang tot alle tools, dus overschrijvingen hebben geen effect.
 A saved crew	Een opgeslagen ploeg
-A seventh to tenth column is optional	Een zevende tot tiende kolom is optioneel
 A spreadsheet saved as CSV. Put the column names on the first line	Een spreadsheet opgeslagen als CSV. Zet de kolomnamen op de eerste regel
 A takeoff from a drawing	Een opmeting van een tekening
 A token lets a script or an AI agent act as you over the HTTP API (	Met een token kan een script of een AI-agent via de HTTP-API namens jou handelen (
@@ -1939,7 +1938,6 @@ Save snapshot	Momentopname opslaan
 Save template	Sjabloon opslaan
 Save the current dates as	De huidige data opslaan als
 Save the email from your mail program as a .eml file, open it in a text editor and paste everything here. The subject, date, sender and text are read from it, and people whose email address is on the To or Cc line are told.	Sla de e-mail uit je mailprogramma op als .eml-bestand, open het in een teksteditor en plak alles hier. Het onderwerp, de datum, de afzender en de tekst worden eruit gelezen, en mensen wier e-mailadres op de Aan- of Cc-regel staat, krijgen een melding.
-Save the schedule from your planning software as XML. Tasks, dates, percent complete, milestones, outline levels, links with their kind and lag, and start and finish constraints come across; resources, calendars and costs are left behind. Up to 8 MB.	Sla de planning uit je planningssoftware op als XML. Taken, data, percentage gereed, mijlpalen, overzichtsniveaus, koppelingen met hun soort en wachttijd, en begin- en eindbeperkingen worden overgenomen; middelen, kalenders en kosten blijven achter. Maximaal 8 MB.
 Save type	Type opslaan
 Saved	Opgeslagen
 Scale	Schaal
@@ -2499,7 +2497,6 @@ leveled	genivelleerd
 lines can't be edited, added or imported.	regels kunnen niet worden bewerkt, toegevoegd of geïmporteerd.
 low {}	laag {}
 marcus.lee@example.com	marcus.lee@example.com
-milestone (yes or no), then a constraint (snet, mso or fnlt) and its date.	mijlpaal (yes of no), daarna een beperking (snet, mso of fnlt) en de datum ervan.
 name, unit, unit cost, category (optional), cost code (optional, from the company's standard list). An item with the same name has its price changed.	naam, eenheid, eenheidsprijs, categorie (optioneel), kostencode (optioneel, uit de standaardlijst van het bedrijf). Een onderdeel met dezelfde naam krijgt een gewijzigde prijs.
 name, weight (adding up to 100), then price for the one worked out from the bids	naam, gewicht (samen 100), daarna prijs voor degene die uit de inschrijvingen wordt berekend
 no file	geen bestand
@@ -2556,3 +2553,22 @@ weekly summary	weekoverzicht
 {}Directory	{}Adresboek
 {}Prequalification	{}Voorkwalificatie
 ← Previous week	← Vorige week
+A seventh to eleventh column is optional	Een zevende tot elfde kolom is optioneel
+Apply this plan	Dit plan toepassen
+Delays tasks that need more of a resource than the limit allows on a working day, and what follows them through their links. Finished work, started work and work pinned to a date stay where they are. Tasks only move later. Look at the plan first	Schuift taken op die op een werkdag meer van een middel nodig hebben dan de limiet toestaat, en wat erop volgt via de koppelingen. Afgerond werk, gestart werk en werk dat aan een datum is vastgezet blijft staan. Taken schuiven alleen later. Bekijk eerst het plan
+Level resources	Middelen nivelleren
+Level resources by {}	Middelen genivelleerd door {}
+No resource is over its limit, so nothing needs to move.	Geen middel overschrijdt zijn limiet, dus er hoeft niets te verschuiven.
+Now	Nu
+Preview, keeping the finish date	Voorbeeld, met behoud van de einddatum
+Preview, letting the finish move	Voorbeeld, waarbij het einde mag verschuiven
+Project finish	Einde van het project
+Replace this project's working days and days off with the file's calendar (then recalculate)	De werkdagen en vrije dagen van dit project vervangen door de kalender uit het bestand (daarna herberekenen)
+Save the schedule from your planning software as XML. Tasks, dates, percent complete, milestones, outline levels, links with their kind and lag, and start and finish constraints come across. Tick the boxes below to take more from the file. Costs are left behind. Up to 8 MB.	Sla de planning vanuit uw planningsprogramma op als XML. Taken, data, het voltooiingspercentage, mijlpalen, de niveaus van de structuur, koppelingen met hun soort en vertraging, en begin- en eindbeperkingen komen mee. Vink hieronder de vakjes aan om meer uit het bestand over te nemen. Kosten blijven achter. Maximaal 8 MB.
+Set the resource limits from the file's maximum of each resource	De limieten voor middelen instellen op het maximum van elk middel in het bestand
+Still over a limit	Nog steeds boven een limiet
+Take the resources assigned to each task (100% is one a day, rounded to whole numbers)	De aan elke taak toegewezen middelen overnemen (100% is er één per dag, afgerond op hele getallen)
+Working days later	Werkdagen later
+Would be	Wordt
+milestone (yes or no), then a constraint (snet, mso or fnlt) and its date, then the resources the task needs each working day, such as Carpenter 4, Laborer 2.	mijlpaal (ja of nee), dan een beperking (snet, mso of fnlt) en de datum ervan, dan de middelen die de taak elke werkdag nodig heeft, zoals Carpenter 4, Laborer 2.
+nothing changes until you apply it.	er verandert niets totdat u het toepast.

@@ -468,13 +468,30 @@ pub fn router(app: Shared) -> Router {
             get(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, Query(q): Q| async move {
                 let weeks = q.get("weeks").and_then(|w| w.trim().parse::<i64>().ok()).unwrap_or(8);
                 let from = q.get("from").and_then(|f| buildkiosk_core::Date::parse(f.trim()));
-                page(&s.0, &h, &q, |r, _| buildkiosk_web::schedule::resources(r, Id::new(id), weeks, from))
+                // `level=float` or `level=all` asks for a levelling preview (keeping the finish, or letting it move).
+                let level = q.get("level").and_then(|l| match l.trim() {
+                    "float" => Some(true),
+                    "all" => Some(false),
+                    _ => None,
+                });
+                page(&s.0, &h, &q, |r, _| buildkiosk_web::schedule::resources(r, Id::new(id), weeks, from, level))
             }),
         )
         .route(
             "/projects/{id}/schedule/import-xml",
             post(|s: State<Shared>, h: HeaderMap, Path(id): Path<u64>, m: Multipart| async move {
-                import_file(s.0, h, id, "schedule", "schedule.import_xml", "task", ("8 MB", "Microsoft Project XML file"), &[], m).await
+                import_file(
+                    s.0,
+                    h,
+                    id,
+                    "schedule",
+                    "schedule.import_xml",
+                    "task",
+                    ("8 MB", "Microsoft Project XML file"),
+                    &["resources", "limits", "calendar"],
+                    m,
+                )
+                .await
             })
             .layer(DefaultBodyLimit::max(8 * 1024 * 1024 + 64 * 1024)),
         )

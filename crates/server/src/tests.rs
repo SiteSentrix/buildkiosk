@@ -4075,6 +4075,63 @@ async fn messages_after_a_save_come_out_in_the_language() {
 }
 
 #[tokio::test]
+async fn the_company_counter_signs_on_the_team_page() {
+    let dir = temp("countersign");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let bare = |uri: &str| Request::get(uri.to_string()).body(Body::empty()).unwrap();
+    let post_bare = |uri: &str, body: String| {
+        Request::post(uri.to_string()).header("content-type", "application/x-www-form-urlencoded").body(Body::from(body)).unwrap()
+    };
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=P"))).await;
+    send(&app, post("/do/vendor.create", &ada, format!("_csrf={csrf}&name=Keystone+Concrete&kind=subcontractor"))).await;
+    let code = app.lock().tenant.as_ref().unwrap().engine.state().cost_codes.iter().next().unwrap().id.raw();
+    let lines = format!("lines.0.cost_code={code}&lines.0.description=Footings&lines.0.amount=30000");
+    send(&app, post("/do/commitment.create", &ada, format!("_csrf={csrf}&project=1&title=Footings&vendor=1&{lines}"))).await;
+    let (_, _, card) = send(&app, get("/projects/1/commitments/1")).await;
+    assert!(card.contains("counter-signs here too"), "{card}");
+    send(&app, post("/do/commitment.send_for_signature", &ada, format!("_csrf={csrf}&project=1&id=1&email=amy%40keystone.example&countersign=true")))
+        .await;
+    let generation = app.lock().tenant.as_ref().unwrap().engine.state().commitments.iter().next().unwrap().signature.link.clone().unwrap().generation;
+    let slug = app.lock().tenant.as_ref().unwrap().slug.clone();
+    let link = sign_portal::token(app.secret(), &slug, buildkiosk_engine::cmd::signing::Kind::Commitment, 1, generation);
+
+    // Waiting for the company on the team page (with the button), and listed on the signer's page.
+    let (_, _, card) = send(&app, get("/projects/1/commitments/1")).await;
+    assert!(card.contains("Company counter-signature") && card.contains("waiting") && card.contains("Counter-sign for the company"), "{card}");
+    let (_, _, page) = send(&app, bare(&format!("/sign/{link}"))).await;
+    assert!(page.contains("Who signs") && page.contains("Acme (counter-signature)"), "{page}");
+
+    // The other party signs: the contract still waits for the company.
+    let (form, terms) = (field(&page, "_csrf"), field(&page, "terms"));
+    send(&app, post_bare(&format!("/sign/{link}/sign"), format!("_csrf={form}&name=Amy+First&agree=true&terms={terms}"))).await;
+    let status = || app.lock().tenant.as_ref().unwrap().engine.state().commitments.iter().next().unwrap().signature.status;
+    assert_eq!(status(), buildkiosk_engine::model::finance::SignatureStatus::Sent);
+
+    // The company counter-signs from the page; then it is signed and the button is gone.
+    let (_, h, _) =
+        send(&app, post("/do/commitment.countersign", &ada, format!("_csrf={csrf}&project=1&id=1&_next=/projects/1/commitments/1"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok=") || !h.get(LOCATION).unwrap().to_str().unwrap().contains("error="), "{h:?}");
+    assert_eq!(status(), buildkiosk_engine::model::finance::SignatureStatus::Signed);
+    let (_, _, card) = send(&app, get("/projects/1/commitments/1")).await;
+    assert!(card.contains("Ada Admin") && !card.contains("Counter-sign for the company"), "{card}");
+    let (_, _, done) = send(&app, bare(&format!("/sign/{link}"))).await;
+    assert!(done.contains("Signed by") && done.contains("Amy First"), "{done}");
+    let (st, _, pdf) = send(&app, get("/projects/1/commitments/1/pdf")).await;
+    assert!(st == StatusCode::OK && pdf.contains("Company counter-signature") && pdf.contains("Ada Admin"), "{st}");
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
 async fn bidders_use_their_links_without_an_account() {
     let dir = temp("portal");
     let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());

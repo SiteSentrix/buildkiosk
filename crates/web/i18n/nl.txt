@@ -492,6 +492,7 @@ Companies	Bedrijven
 Company	Bedrijf
 Company admin	Bedrijfsbeheerder
 Company attaches a file by {}	Bestand toegevoegd door het bedrijf {}
+Company counter-signature	Medeondertekening van het bedrijf
 Company holiday lists	Feestdaglijsten van het bedrijf
 Company holiday lists this project takes	Feestdaglijsten van het bedrijf die dit project gebruikt
 Company in the directory	Bedrijf in het adresboek
@@ -565,6 +566,10 @@ Cost to date	Kosten tot nu toe
 Cost types	Kostensoorten
 Costs paid without a commitment	Kosten betaald zonder verplichting
 Count	Telling
+Counter-sign a commitment for the company by {}	Medeondertekening van een verplichting namens het bedrijf door {}
+Counter-sign a prime change order for the company by {}	Medeondertekening van een hoofdwijzigingsorder namens het bedrijf door {}
+Counter-sign a prime contract for the company by {}	Medeondertekening van een hoofdcontract namens het bedrijf door {}
+Counter-sign for the company	Medeondertekenen namens het bedrijf
 Country	Land
 County inspector	Inspecteur van de gemeente
 Covered?	Gedekt?
@@ -2372,6 +2377,7 @@ Text	Tekst
 That page doesn't exist, or you don't have access to it.	Die pagina bestaat niet, of je hebt er geen toegang toe.
 The address of this server is used for the links in messages.	Het adres van deze server wordt gebruikt voor de links in berichten.
 The catalogue is empty.	De catalogus is leeg.
+The company counter-signs here too, once the others have signed	Het bedrijf ondertekent hier ook mee, zodra de anderen hebben getekend
 The contract	Het contract
 The contract as shown here	Het contract zoals hier getoond
 The dashed line is today. Red bars are on the critical path. Grey columns are days off. Float is the working days a task can slip without moving the last finish.	De stippellijn is vandaag. Rode balken liggen op het kritieke pad. Grijze kolommen zijn vrije dagen. Speling is het aantal werkdagen dat een taak kan opschuiven zonder de laatste einddatum te verplaatsen.

@@ -492,6 +492,7 @@ Companies
 Company
 Company admin
 Company attaches a file by {}
+Company counter-signature
 Company holiday lists
 Company holiday lists this project takes
 Company in the directory
@@ -565,6 +566,10 @@ Cost to date
 Cost types
 Costs paid without a commitment
 Count
+Counter-sign a commitment for the company by {}
+Counter-sign a prime change order for the company by {}
+Counter-sign a prime contract for the company by {}
+Counter-sign for the company
 Country
 County inspector
 Covered?
@@ -2372,6 +2377,7 @@ Text
 That page doesn't exist, or you don't have access to it.
 The address of this server is used for the links in messages.
 The catalogue is empty.
+The company counter-signs here too, once the others have signed
 The contract
 The contract as shown here
 The dashed line is today. Red bars are on the critical path. Grey columns are days off. Float is the working days a task can slip without moving the last finish.

@@ -260,6 +260,14 @@ pub struct ContractSignature {
     /// Whether the people sign one after the other (the first link, then each of `others` in turn) rather than in any order.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub ordered: bool,
+    /// Whether the company also signs, in the app, once it has seen the others' signatures.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub countersign: bool,
+    /// Who counter-signed for the company, and when.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub countersigned_by: Option<Id<Person>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub countersigned_at: Option<Stamp>,
 }
 
 /// One person's place in the signing, as seen from outside: their link, whether they have signed and the name they typed.
@@ -293,6 +301,11 @@ impl ContractSignature {
     /// Whether it is this person's turn: always when signing in any order, else once everyone before them has signed.
     pub fn turn(&self, index: usize) -> bool {
         !self.ordered || self.slots().iter().take_while(|s| s.index < index).all(|s| s.signed)
+    }
+
+    /// Whether the contract is fully signed: everyone with a link has, and the company has too when it was to counter-sign.
+    pub fn complete(&self) -> bool {
+        self.all_signed() && (!self.countersign || self.countersigned_at.is_some())
     }
 
     /// Whether everyone with a link has signed (false when nobody has a link).

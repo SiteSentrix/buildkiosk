@@ -60,7 +60,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Send prime contract for signature",
         Tool::PrimeContracts,
         Access::Project(Level::Standard),
-        "project, id: ids; to?: who it was sent to; on?: YYYY-MM-DD (default today); email?: also gives the other party a link to read it and sign it here, emailed by the server (a new link each time, the earlier one stops working); expires?: YYYY-MM-DD, the link's last day; others?: more people to sign through links of their own (email addresses, one a line; it is signed when all have); ordered?: bool (they sign in turn, each emailed when the one before has signed)",
+        "project, id: ids; to?: who it was sent to; on?: YYYY-MM-DD (default today); email?: also gives the other party a link to read it and sign it here, emailed by the server (a new link each time, the earlier one stops working); expires?: YYYY-MM-DD, the link's last day; others?: more people to sign through links of their own (email addresses, one a line; it is signed when all have); ordered?: bool (they sign in turn, each emailed when the one before has signed); countersign?: bool (the company signs too, with the countersign command, and the contract is signed when the others and the company have)",
         sig_send::<PrimeContract>,
     ),
     CommandSpec::mutate(
@@ -114,7 +114,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Send prime change order for signature",
         Tool::ChangeOrders,
         Access::Project(Level::Standard),
-        "project, id: ids; to?: who it was sent to; on?: YYYY-MM-DD (default today); email?: also gives the other party a link to read it and sign it here, emailed by the server (a new link each time, the earlier one stops working); expires?: YYYY-MM-DD, the link's last day; others?: more people to sign through links of their own (email addresses, one a line; it is signed when all have); ordered?: bool (they sign in turn, each emailed when the one before has signed)",
+        "project, id: ids; to?: who it was sent to; on?: YYYY-MM-DD (default today); email?: also gives the other party a link to read it and sign it here, emailed by the server (a new link each time, the earlier one stops working); expires?: YYYY-MM-DD, the link's last day; others?: more people to sign through links of their own (email addresses, one a line; it is signed when all have); ordered?: bool (they sign in turn, each emailed when the one before has signed); countersign?: bool (the company signs too, with the countersign command, and it is signed when the others and the company have)",
         sig_send::<PrimeChange>,
     ),
     CommandSpec::mutate(
@@ -221,6 +221,7 @@ fn sig_send<T: Signable>(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         status: SignatureStatus::Sent,
         sent_to: p.line_or_empty("to", text::SHORT)?,
         sent_on: Some(p.date("on")?.unwrap_or_else(|| ctx.today())),
+        countersign: super::signing::countersign_flag(p, link.is_some())?,
         link,
         others,
         ordered,

@@ -278,3 +278,71 @@ fn several_people_sign_one_contract_in_turn() {
     assert_eq!(w.engine.state().commitments.get(Id::new(d)).unwrap().signature.status, SignatureStatus::Declined);
     w.assert_replay();
 }
+
+#[test]
+fn the_company_counter_signs_after_the_others() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let reader = w.member(p, "Rae", "Reader", "Read only");
+    let admin = w.admin();
+    let vendor = w.ok(admin, "vendor.create", json!({"name": "Keystone Concrete", "kind": "subcontractor"}))["id"].as_u64().unwrap();
+    let concrete = code(&w, "03-300");
+    let make = |w: &mut World, title: &str| {
+        w.ok(
+            pm,
+            "commitment.create",
+            json!({"project": p, "title": title, "vendor": vendor, "lines": [{"cost_code": concrete, "description": title, "amount": "30000"}]}),
+        )["id"]
+            .as_u64()
+            .unwrap()
+    };
+    let c = make(&mut w, "Footings");
+    // Counter-signing needs a link to wait for; nothing to counter-sign before it is sent, and a reader can't.
+    w.err(pm, "commitment.send_for_signature", json!({"project": p, "id": c, "countersign": true}));
+    w.err(pm, "commitment.countersign", json!({"project": p, "id": c}));
+    w.ok(pm, "commitment.send_for_signature", json!({"project": p, "id": c, "email": "a@keystone.example", "countersign": true}));
+    let sig = |w: &World, c: u64| w.engine.state().commitments.get(Id::new(c)).unwrap().signature.clone();
+    let g = u64::from(sig(&w, c).link.unwrap().generation);
+    w.err(reader, "commitment.countersign", json!({"project": p, "id": c}));
+    w.err(Actor::System, "commitment.countersign", json!({"project": p, "id": c}));
+    // The company can counter-sign first; the contract is signed only when the other party has too.
+    w.ok(pm, "commitment.countersign", json!({"project": p, "id": c}));
+    assert_eq!(sig(&w, c).status, SignatureStatus::Sent);
+    w.err(pm, "commitment.countersign", json!({"project": p, "id": c}));
+    let terms = w.ok(Actor::System, "contract.portal_view", link_params(c, g));
+    assert_eq!(
+        (terms["countersign"].clone(), terms["countersigned"].clone(), terms["countersigned_by"].clone()),
+        (json!(true), json!(true), json!("Paula Manager"))
+    );
+    let out = w.ok(
+        Actor::System,
+        "contract.portal_sign",
+        link("commitment", c, g, json!({"name": "Amy First", "agree": true, "terms": terms["terms"].as_i64().unwrap()})),
+    );
+    assert_eq!(out["complete"], json!(true));
+    assert_eq!(sig(&w, c).status, SignatureStatus::Signed);
+
+    // Counter-signing last: the others' signatures leave it waiting for the company, which completes it.
+    let d = make(&mut w, "Slab");
+    w.ok(pm, "commitment.send_for_signature", json!({"project": p, "id": d, "email": "a@keystone.example", "countersign": true}));
+    let gd = u64::from(sig(&w, d).link.unwrap().generation);
+    let td = w.ok(Actor::System, "contract.portal_view", link("commitment", d, gd, json!({})))["terms"].as_i64().unwrap();
+    let out = w.ok(Actor::System, "contract.portal_sign", link("commitment", d, gd, json!({"name": "Amy First", "agree": true, "terms": td})));
+    assert_eq!((out["complete"].clone(), out["awaiting_company"].clone()), (json!(false), json!(true)));
+    assert_eq!(sig(&w, d).status, SignatureStatus::Sent);
+    w.ok(pm, "commitment.countersign", json!({"project": p, "id": d}));
+    let done = sig(&w, d);
+    assert_eq!(done.status, SignatureStatus::Signed);
+    assert!(done.countersigned_at.is_some() && done.complete());
+    let told: Vec<String> = w.engine.state().notifications.iter().map(|n| n.text.clone()).collect();
+    assert!(told.iter().any(|t| t.contains("counter-signed; the contract is fully signed")), "{told:?}");
+
+    // Without it asked for, there is nothing to counter-sign, and a contract from another project is not found.
+    let e = make(&mut w, "Rebar");
+    w.ok(pm, "commitment.send_for_signature", json!({"project": p, "id": e, "email": "a@keystone.example"}));
+    w.err(pm, "commitment.countersign", json!({"project": p, "id": e}));
+    let other = w.project("Other");
+    w.err(admin, "commitment.countersign", json!({"project": other, "id": c}));
+    w.assert_replay();
+}

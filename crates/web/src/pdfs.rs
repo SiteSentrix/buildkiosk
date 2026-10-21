@@ -1132,6 +1132,13 @@ pub fn contract(req: &Req<'_>, id: Id<Project>, kind: buildkiosk_engine::cmd::si
             SignatureStatus::Declined => {}
         }
     }
+    if sig.countersign {
+        let text = match (sig.countersigned_by, sig.countersigned_at) {
+            (Some(by), Some(at)) => format!("{}, {}", person(state, Some(by)), req.when(at.at)),
+            _ => "not yet".to_string(),
+        };
+        sign.push(("Company counter-signature".into(), text));
+    }
     doc.blocks.push(Block::Facts(sign));
     Some((file_name(&label), render(&doc)))
 }

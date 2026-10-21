@@ -7,6 +7,7 @@
 /api/v1/commands/…	/api/v1/commands/…
 /mcp	/mcp
 0 switches a rule off. Weeks run Monday to Sunday and hours already paid as daily overtime are not counted again.	0 schakelt een regel uit. Weken lopen van maandag tot en met zondag en uren die al als dagelijkse overuren zijn betaald, worden niet opnieuw meegeteld.
+03-300 material	03-300 material
 03-300, 120000, Concrete	03-300, 120000, Beton
 2027-01-01 New Year's Day	2027-01-01 Nieuwjaarsdag
 8'-6" above finished floor. The RCP will be revised.	8'-6" boven afgewerkte vloer. De RCP wordt herzien.
@@ -26,10 +27,11 @@ A name already used is replaced. The new baseline becomes the one the chart and 
 A new version of	Een nieuwe versie van
 A project admin has full access to every tool, so overrides have no effect.	Een projectbeheerder heeft volledige toegang tot alle tools, dus overschrijvingen hebben geen effect.
 A saved crew	Een opgeslagen ploeg
+A seventh to eleventh column is optional	Een zevende tot elfde kolom is optioneel
 A spreadsheet saved as CSV. Put the column names on the first line	Een spreadsheet opgeslagen als CSV. Zet de kolomnamen op de eerste regel
 A takeoff from a drawing	Een opmeting van een tekening
 A token lets a script or an AI agent act as you over the HTTP API (	Met een token kan een script of een AI-agent via de HTTP-API namens jou handelen (
-A view keeps the columns you want to see and whether cost codes are grouped by division. It changes the table above and the CSV export, nothing else.	Een weergave bewaart de kolommen die je wilt zien en of kostencodes per divisie worden gegroepeerd. Dit verandert de tabel hierboven en de CSV-export, niets anders.
+A view keeps the columns you want to see and whether cost codes are grouped (by division, section or cost type). It changes the table above and the CSV export, nothing else.	Een weergave bewaart de kolommen die u wilt zien en of kostencodes worden gegroepeerd (per afdeling, sectie of kostensoort). Ze verandert de tabel hierboven en de CSV-export, niets anders.
 A, 2, Addendum 3	A, 2, Addendum 3
 A-101.txt	A-101.txt
 API tokens	API-tokens
@@ -190,6 +192,7 @@ Anyone with this link can ask to be invited to bid. Nobody gets the bid document
 Anyone with this link can read the package and send or change a bid for	Iedereen met deze link kan het pakket lezen en een bieding versturen of wijzigen voor
 Anyone with this link can read the package and send or change a bid for {}. Send it only to them.	Iedereen met deze link kan het pakket lezen en een bieding versturen of wijzigen voor {}. Stuur hem alleen naar hen.
 Applied	Toegepast
+Apply this plan	Dit plan toepassen
 Approval	Goedkeuring
 Approve	Goedkeuren
 Approve a request to bid by {}	Een verzoek om te bieden goedkeuren door {}
@@ -346,8 +349,10 @@ Bulletin 1	Bulletin 1
 Bulletin 1 drawings	Tekeningen bulletin 1
 By	Door
 By cost code	Per kostencode
+By cost type	Per kostensoort
 By division	Per divisie
 By person	Per persoon
+By section	Per sectie
 By severity	Per ernst
 CSV file	CSV-bestand
 CSV text	CSV-tekst
@@ -535,6 +540,7 @@ Cost per unit	Kosten per eenheid
 Cost then	Kosten toen
 Cost to add if excluded	Extra kosten indien uitgesloten
 Cost to date	Kosten tot nu toe
+Cost types	Kostensoorten
 Costs paid without a commitment	Kosten betaald zonder verplichting
 Country	Land
 County inspector	Inspecteur van de gemeente
@@ -612,6 +618,7 @@ Decline a request to bid by {}	Een verzoek om te bieden afwijzen door {}
 Declined	Afgewezen
 Delays	Vertragingen
 Delays and issues	Vertragingen en problemen
+Delays tasks that need more of a resource than the limit allows on a working day, and what follows them through their links. Finished work, started work and work pinned to a date stay where they are. Tasks only move later. Look at the plan first	Schuift taken op die op een werkdag meer van een middel nodig hebben dan de limiet toestaat, en wat erop volgt via de koppelingen. Afgerond werk, gestart werk en werk dat aan een datum is vastgezet blijft staan. Taken schuiven alleen later. Bekijk eerst het plan
 Delete	Verwijderen
 Delete RFI by {}	RFI verwijderen door {}
 Delete a saved baseline by {}	Een opgeslagen basisplanning verwijderen door {}
@@ -1082,6 +1089,8 @@ Level 1 corridor	Gang niveau 1
 Level 2	Niveau 2
 Level 2 stair hall	Trappenhal niveau 2
 Level on {}	Niveau op {}
+Level resources	Middelen nivelleren
+Level resources by {}	Middelen genivelleerd door {}
 Leveled	Genivelleerd
 Leveling	Nivelleren
 Licence	Licentie
@@ -1305,6 +1314,7 @@ No recordable cases in	Geen registratieplichtige gevallen in
 No recordable cases in {}.	Geen registratieplichtige gevallen in {}.
 No records	Geen records
 No replies yet.	Nog geen reacties.
+No resource is over its limit, so nothing needs to move.	Geen middel overschrijdt zijn limiet, dus er hoeft niets te verschuiven.
 No resources yet	Nog geen resources
 No responses yet.	Nog geen antwoorden.
 No reviews yet.	Nog geen beoordelingen.
@@ -1379,6 +1389,7 @@ Nothing yet	Nog niets
 Notifications	Meldingen
 Notifications, {} unread	Meldingen, {} ongelezen
 Nov	nov
+Now	Nu
 Now compared with “	Nu vergeleken met “
 Now compared with “{}”	Nu vergeleken met “{}”
 Number	Nummer
@@ -1567,6 +1578,8 @@ Prequalified	Voorgekwalificeerd
 Present	Aanwezig
 Preview	Voorbeeld
 Preview of {}	Voorbeeld van {}
+Preview, keeping the finish date	Voorbeeld, met behoud van de einddatum
+Preview, letting the finish move	Voorbeeld, waarbij het einde mag verschuiven
 Previous page	Vorige pagina
 Previous week	Vorige week
 Price catalogue	Prijscatalogus
@@ -1596,6 +1609,7 @@ Project directory	Projectadresboek
 Project engineer	Projectingenieur
 Project file	Projectbestand
 Project files in folders, each with its versions	Projectbestanden in mappen, elk met zijn versies
+Project finish	Einde van het project
 Project home	Projectstartpagina
 Project id in the file (optional)	Project-id in het bestand (optioneel)
 Project management	Projectbeheer
@@ -1762,6 +1776,7 @@ Repeats	Herhaalt
 Replace baseline with current dates	Basisplanning vervangen door huidige data
 Replace cracked ceiling tile	Gescheurde plafondplaat vervangen
 Replace the link	Link vervangen
+Replace this project's working days and days off with the file's calendar (then recalculate)	De werkdagen en vrije dagen van dit project vervangen door de kalender uit het bestand (daarna herberekenen)
 Replies	Reacties
 Reply	Reageren
 Reply by	Antwoorden voor
@@ -1911,6 +1926,7 @@ Save changes to this view	Wijzigingen in deze weergave opslaan
 Save company holiday list by {}	Feestdagenlijst van het bedrijf opslaan door {}
 Save company report by {}	Bedrijfsrapport opslaan door {}
 Save correspondence type by {}	Correspondentietype opslaan door {}
+Save cost types	Kostensoorten opslaan
 Save crew	Ploeg opslaan
 Save crew by {}	Ploeg opslaan door {}
 Save criteria	Criteria opslaan
@@ -1938,8 +1954,10 @@ Save snapshot	Momentopname opslaan
 Save template	Sjabloon opslaan
 Save the current dates as	De huidige data opslaan als
 Save the email from your mail program as a .eml file, open it in a text editor and paste everything here. The subject, date, sender and text are read from it, and people whose email address is on the To or Cc line are told.	Sla de e-mail uit je mailprogramma op als .eml-bestand, open het in een teksteditor en plak alles hier. Het onderwerp, de datum, de afzender en de tekst worden eruit gelezen, en mensen wier e-mailadres op de Aan- of Cc-regel staat, krijgen een melding.
+Save the schedule from your planning software as XML. Tasks, dates, percent complete, milestones, outline levels, links with their kind and lag, and start and finish constraints come across. Tick the boxes below to take more from the file. Costs are left behind. Up to 8 MB.	Sla de planning vanuit uw planningsprogramma op als XML. Taken, data, het voltooiingspercentage, mijlpalen, de niveaus van de structuur, koppelingen met hun soort en vertraging, en begin- en eindbeperkingen komen mee. Vink hieronder de vakjes aan om meer uit het bestand over te nemen. Kosten blijven achter. Maximaal 8 MB.
 Save type	Type opslaan
 Saved	Opgeslagen
+Say what kind of cost each cost code is (labor, material, equipment, subcontract or other) so a budget view can group the budget by cost type. One per line	Geef aan welke soort kosten elke kostencode is (labor, material, equipment, subcontract of other) zodat een budgetweergave het per kostensoort kan groeperen. Eén per regel
 Scale	Schaal
 Schedule	Planning
 Schedule a recurring form by {}	Een terugkerend formulier plannen door {}
@@ -1996,6 +2014,7 @@ Search {}	{} zoeken
 Second copy	Tweede kopie
 Section	Sectie
 Section number	Sectienummer
+Section {}	Sectie {}
 Sections	Secties
 Sections and items	Secties en onderdelen
 Sections of questions, each worth points; the share earned becomes a company's score	Secties met vragen, elk met punten; het verdiende aandeel wordt de score van een bedrijf
@@ -2038,6 +2057,7 @@ Sent to {}	Verstuurd naar {}
 Sep	Sep
 Set	Instellen
 Set a budget line	Een budgetregel instellen
+Set a cost code's cost type by {}	Kostensoort van een kostencode ingesteld door {}
 Set bid scoring criteria by {}	Beoordelingscriteria voor inschrijvingen instellen door {}
 Set budget line by {}	Budgetregel instellen door {}
 Set forecast to complete by {}	Prognose tot oplevering instellen door {}
@@ -2051,8 +2071,10 @@ Set plan approvers by {}	Goedkeurders van het plan instellen door {}
 Set rate	Tarief instellen
 Set scale	Schaal instellen
 Set task progress by {}	Voortgang van taak instellen door {}
+Set the cost type of many cost codes by {}	Kostensoorten van meerdere kostencodes ingesteld door {}
 Set the criteria	Stel de criteria in
 Set the project's working days and holidays by {}	Werkdagen en feestdagen van het project instellen door {}
+Set the resource limits from the file's maximum of each resource	De limieten voor middelen instellen op het maximum van elk middel in het bestand
 Set the scale	Stel de schaal in
 Set the scale of a sheet page from a stretch of known length by {}	Schaal van een tekeningpagina instellen aan de hand van een stuk met bekende lengte door {}
 Set up outgoing email	Uitgaande e-mail instellen
@@ -2160,6 +2182,7 @@ State	Status
 State or region	Provincie of regio
 Status	Status
 Steel arrives the week after next.	Het staal komt de week na volgende week aan.
+Still over a limit	Nog steeds boven een limiet
 Stop requiring it	Niet meer verplicht stellen
 Stop requiring signatures	Handtekeningen niet meer verplicht stellen
 Stopped	Gestopt
@@ -2216,6 +2239,7 @@ Tag it to	Label toekennen aan
 Tag photo to an item by {}	Foto aan een onderdeel koppelen door {}
 Tagged to	Gekoppeld aan
 Take back	Terugnemen
+Take the resources assigned to each task (100% is one a day, rounded to whole numbers)	De aan elke taak toegewezen middelen overnemen (100% is er één per dag, afgerond op hele getallen)
 Taken	Genomen
 Task	Taak
 Task #{}	Taak #{}
@@ -2443,6 +2467,8 @@ Workers on site	Werkers op de bouwplaats
 Workers wear the protective gear the task needs	Werkers dragen de beschermingsmiddelen die de taak vereist
 Working calendar	Werkkalender
 Working days	Werkdagen
+Working days later	Werkdagen later
+Would be	Wordt
 Write a letter or notice to keep it on the record.	Schrijf een brief of mededeling om die vast te leggen in het dossier.
 Write a plan to track a body of work item by item.	Schrijf een plan om een geheel aan werk onderdeel voor onderdeel te volgen.
 Write your own below, or add the small starter set and change it to suit.	Schrijf hieronder je eigen lijst, of voeg de kleine startset toe en pas die aan.
@@ -2497,6 +2523,7 @@ leveled	genivelleerd
 lines can't be edited, added or imported.	regels kunnen niet worden bewerkt, toegevoegd of geïmporteerd.
 low {}	laag {}
 marcus.lee@example.com	marcus.lee@example.com
+milestone (yes or no), then a constraint (snet, mso or fnlt) and its date, then the resources the task needs each working day, such as Carpenter 4, Laborer 2.	mijlpaal (ja of nee), dan een beperking (snet, mso of fnlt) en de datum ervan, dan de middelen die de taak elke werkdag nodig heeft, zoals Carpenter 4, Laborer 2.
 name, unit, unit cost, category (optional), cost code (optional, from the company's standard list). An item with the same name has its price changed.	naam, eenheid, eenheidsprijs, categorie (optioneel), kostencode (optioneel, uit de standaardlijst van het bedrijf). Een onderdeel met dezelfde naam krijgt een gewijzigde prijs.
 name, weight (adding up to 100), then price for the one worked out from the bids	naam, gewicht (samen 100), daarna prijs voor degene die uit de inschrijvingen wordt berekend
 no file	geen bestand
@@ -2505,6 +2532,7 @@ no project has a figure for {} that you can see.	geen enkel project heeft een ci
 none yet	nog geen
 not required	niet vereist
 nothing	niets
+nothing changes until you apply it.	er verandert niets totdat u het toepast.
 number, then title, separated by a comma or a tab. Sections already in the list are skipped.	nummer, daarna titel, gescheiden door een komma of een tab. Hoofdstukken die al in de lijst staan worden overgeslagen.
 number, title, discipline, area, separated by commas or tabs. A header line is skipped, and sheets already in the log are left alone. Add each sheet's file later as a revision.	nummer, titel, discipline, zone, gescheiden door komma's of tabs. Een kopregel wordt overgeslagen en tekeningen die al in de log staan blijven ongemoeid. Voeg het bestand van elke tekening later toe als revisie.
 only Documents admins see this	alleen Documenten-beheerders zien dit
@@ -2519,6 +2547,7 @@ sf	sf
 smtp.example.com	smtp.example.com
 standard on project management, read-only financials.	standaard op projectmanagement, alleen-lezen financiën.
 submitted {}	ingediend {}
+the cost code, then the type, or none to clear it. All lines are applied, or none if one is wrong.	de kostencode, dan de soort, of none om te wissen. Alle regels worden toegepast, of geen als er één fout is.
 the date in the picture, else today)	de datum op de foto, anders vandaag)
 the file name)	de bestandsnaam)
 the old one stops working at once.	de oude werkt meteen niet meer.
@@ -2553,22 +2582,3 @@ weekly summary	weekoverzicht
 {}Directory	{}Adresboek
 {}Prequalification	{}Voorkwalificatie
 ← Previous week	← Vorige week
-A seventh to eleventh column is optional	Een zevende tot elfde kolom is optioneel
-Apply this plan	Dit plan toepassen
-Delays tasks that need more of a resource than the limit allows on a working day, and what follows them through their links. Finished work, started work and work pinned to a date stay where they are. Tasks only move later. Look at the plan first	Schuift taken op die op een werkdag meer van een middel nodig hebben dan de limiet toestaat, en wat erop volgt via de koppelingen. Afgerond werk, gestart werk en werk dat aan een datum is vastgezet blijft staan. Taken schuiven alleen later. Bekijk eerst het plan
-Level resources	Middelen nivelleren
-Level resources by {}	Middelen genivelleerd door {}
-No resource is over its limit, so nothing needs to move.	Geen middel overschrijdt zijn limiet, dus er hoeft niets te verschuiven.
-Now	Nu
-Preview, keeping the finish date	Voorbeeld, met behoud van de einddatum
-Preview, letting the finish move	Voorbeeld, waarbij het einde mag verschuiven
-Project finish	Einde van het project
-Replace this project's working days and days off with the file's calendar (then recalculate)	De werkdagen en vrije dagen van dit project vervangen door de kalender uit het bestand (daarna herberekenen)
-Save the schedule from your planning software as XML. Tasks, dates, percent complete, milestones, outline levels, links with their kind and lag, and start and finish constraints come across. Tick the boxes below to take more from the file. Costs are left behind. Up to 8 MB.	Sla de planning vanuit uw planningsprogramma op als XML. Taken, data, het voltooiingspercentage, mijlpalen, de niveaus van de structuur, koppelingen met hun soort en vertraging, en begin- en eindbeperkingen komen mee. Vink hieronder de vakjes aan om meer uit het bestand over te nemen. Kosten blijven achter. Maximaal 8 MB.
-Set the resource limits from the file's maximum of each resource	De limieten voor middelen instellen op het maximum van elk middel in het bestand
-Still over a limit	Nog steeds boven een limiet
-Take the resources assigned to each task (100% is one a day, rounded to whole numbers)	De aan elke taak toegewezen middelen overnemen (100% is er één per dag, afgerond op hele getallen)
-Working days later	Werkdagen later
-Would be	Wordt
-milestone (yes or no), then a constraint (snet, mso or fnlt) and its date, then the resources the task needs each working day, such as Carpenter 4, Laborer 2.	mijlpaal (ja of nee), dan een beperking (snet, mso of fnlt) en de datum ervan, dan de middelen die de taak elke werkdag nodig heeft, zoals Carpenter 4, Laborer 2.
-nothing changes until you apply it.	er verandert niets totdat u het toepast.

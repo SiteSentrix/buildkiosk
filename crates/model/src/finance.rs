@@ -89,6 +89,10 @@ choice! {
         None = ("none", "No grouping"),
         /// By the first part of the code ("03" of "03-300"), with a subtotal for each.
         Division = ("division", "By division"),
+        /// By the first two parts of the code ("03-300" of "03-300-10"), with a subtotal for each.
+        Section = ("section", "By section"),
+        /// By the kind of cost the code is for (labor, material, ...), with a subtotal for each.
+        Type = ("type", "By cost type"),
     }
 }
 

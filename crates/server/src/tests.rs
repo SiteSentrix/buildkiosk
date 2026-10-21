@@ -4029,3 +4029,42 @@ async fn bid_files_receipts_and_the_open_link() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn budget_grouped_by_cost_type_page() {
+    let dir = temp("budget-types");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let session = cookies(&h);
+    let (_, _, home) = send(&app, Request::get("/").header("cookie", &session).body(Body::empty()).unwrap()).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &session, format!("_csrf={csrf}&name=P"))).await;
+    send(&app, post("/do/cost_code.create", &session, format!("_csrf={csrf}&project=1&code=77-100&description=Paving"))).await;
+    send(&app, post("/do/cost_code.create", &session, format!("_csrf={csrf}&project=1&code=77-200&description=Curbs"))).await;
+    send(&app, post("/do/budget.import", &session, format!("_csrf={csrf}&project=1&text=77-100%2C+1000%0A77-200%2C+2000"))).await;
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &session).body(Body::empty()).unwrap();
+    let (st, _, page) = send(&app, get("/projects/1/budget")).await;
+    assert!(st == StatusCode::OK && page.contains("Cost types") && page.contains("Save cost types"), "the admin sees the cost types card");
+    // Types are set from the page's form; a wrong line changes nothing and says so.
+    let (_, h, _) = send(
+        &app,
+        post("/do/cost_code.set_types", &session, format!("_csrf={csrf}&project=1&text=77-100+labor%0A99-999+labor&_next=%2Fprojects%2F1%2Fbudget")),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("error="), "{h:?}");
+    send(&app, post("/do/cost_code.set_types", &session, format!("_csrf={csrf}&project=1&text=77-100+labor%0A77-200+material"))).await;
+    let (_, _, page) = send(&app, get("/projects/1/budget")).await;
+    assert!(page.contains("77-100 labor") && page.contains("77-200 material"), "the card shows what is set");
+    // A view grouped by cost type puts labor before material, each with a subtotal.
+    send(&app, post("/do/budget.view_save", &session, format!("_csrf={csrf}&project=1&name=Types&columns=original&group=type"))).await;
+    let (_, _, page) = send(&app, get("/projects/1/budget?view=1")).await;
+    let (labor, material) = (page.find(">Labor</th>"), page.find(">Material</th>"));
+    assert!(matches!((labor, material), (Some(a), Some(b)) if a < b), "labor then material");
+    assert!(page.contains("Subtotal") && page.contains(", by cost type"), "subtotals and the view's grouping are named");
+    let (st, h, _) = send(&app, get("/projects/1/budget.pdf?view=1")).await;
+    assert!(st == StatusCode::OK && h.get("content-type").unwrap().to_str().unwrap().contains("pdf"), "the PDF follows the view");
+}

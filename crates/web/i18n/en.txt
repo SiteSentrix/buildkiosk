@@ -27,7 +27,7 @@ A name already used is replaced. The new baseline becomes the one the chart and 
 A new version of
 A project admin has full access to every tool, so overrides have no effect.
 A saved crew
-A seventh to tenth column is optional
+A seventh to eleventh column is optional
 A spreadsheet saved as CSV. Put the column names on the first line
 A takeoff from a drawing
 A token lets a script or an AI agent act as you over the HTTP API (
@@ -192,6 +192,7 @@ Anyone with this link can ask to be invited to bid. Nobody gets the bid document
 Anyone with this link can read the package and send or change a bid for
 Anyone with this link can read the package and send or change a bid for {}. Send it only to them.
 Applied
+Apply this plan
 Approval
 Approve
 Approve a request to bid by {}
@@ -617,6 +618,7 @@ Decline a request to bid by {}
 Declined
 Delays
 Delays and issues
+Delays tasks that need more of a resource than the limit allows on a working day, and what follows them through their links. Finished work, started work and work pinned to a date stay where they are. Tasks only move later. Look at the plan first
 Delete
 Delete RFI by {}
 Delete a saved baseline by {}
@@ -1087,6 +1089,8 @@ Level 1 corridor
 Level 2
 Level 2 stair hall
 Level on {}
+Level resources
+Level resources by {}
 Leveled
 Leveling
 Licence
@@ -1310,6 +1314,7 @@ No recordable cases in
 No recordable cases in {}.
 No records
 No replies yet.
+No resource is over its limit, so nothing needs to move.
 No resources yet
 No responses yet.
 No reviews yet.
@@ -1384,6 +1389,7 @@ Nothing yet
 Notifications
 Notifications, {} unread
 Nov
+Now
 Now compared with “
 Now compared with “{}”
 Number
@@ -1572,6 +1578,8 @@ Prequalified
 Present
 Preview
 Preview of {}
+Preview, keeping the finish date
+Preview, letting the finish move
 Previous page
 Previous week
 Price catalogue
@@ -1601,6 +1609,7 @@ Project directory
 Project engineer
 Project file
 Project files in folders, each with its versions
+Project finish
 Project home
 Project id in the file (optional)
 Project management
@@ -1767,6 +1776,7 @@ Repeats
 Replace baseline with current dates
 Replace cracked ceiling tile
 Replace the link
+Replace this project's working days and days off with the file's calendar (then recalculate)
 Replies
 Reply
 Reply by
@@ -1944,7 +1954,7 @@ Save snapshot
 Save template
 Save the current dates as
 Save the email from your mail program as a .eml file, open it in a text editor and paste everything here. The subject, date, sender and text are read from it, and people whose email address is on the To or Cc line are told.
-Save the schedule from your planning software as XML. Tasks, dates, percent complete, milestones, outline levels, links with their kind and lag, and start and finish constraints come across; resources, calendars and costs are left behind. Up to 8 MB.
+Save the schedule from your planning software as XML. Tasks, dates, percent complete, milestones, outline levels, links with their kind and lag, and start and finish constraints come across. Tick the boxes below to take more from the file. Costs are left behind. Up to 8 MB.
 Save type
 Saved
 Say what kind of cost each cost code is (labor, material, equipment, subcontract or other) so a budget view can group the budget by cost type. One per line
@@ -2064,6 +2074,7 @@ Set task progress by {}
 Set the cost type of many cost codes by {}
 Set the criteria
 Set the project's working days and holidays by {}
+Set the resource limits from the file's maximum of each resource
 Set the scale
 Set the scale of a sheet page from a stretch of known length by {}
 Set up outgoing email
@@ -2171,6 +2182,7 @@ State
 State or region
 Status
 Steel arrives the week after next.
+Still over a limit
 Stop requiring it
 Stop requiring signatures
 Stopped
@@ -2227,6 +2239,7 @@ Tag it to
 Tag photo to an item by {}
 Tagged to
 Take back
+Take the resources assigned to each task (100% is one a day, rounded to whole numbers)
 Taken
 Task
 Task #{}
@@ -2454,6 +2467,8 @@ Workers on site
 Workers wear the protective gear the task needs
 Working calendar
 Working days
+Working days later
+Would be
 Write a letter or notice to keep it on the record.
 Write a plan to track a body of work item by item.
 Write your own below, or add the small starter set and change it to suit.
@@ -2508,7 +2523,7 @@ leveled
 lines can't be edited, added or imported.
 low {}
 marcus.lee@example.com
-milestone (yes or no), then a constraint (snet, mso or fnlt) and its date.
+milestone (yes or no), then a constraint (snet, mso or fnlt) and its date, then the resources the task needs each working day, such as Carpenter 4, Laborer 2.
 name, unit, unit cost, category (optional), cost code (optional, from the company's standard list). An item with the same name has its price changed.
 name, weight (adding up to 100), then price for the one worked out from the bids
 no file
@@ -2517,6 +2532,7 @@ no project has a figure for {} that you can see.
 none yet
 not required
 nothing
+nothing changes until you apply it.
 number, then title, separated by a comma or a tab. Sections already in the list are skipped.
 number, title, discipline, area, separated by commas or tabs. A header line is skipped, and sheets already in the log are left alone. Add each sheet's file later as a revision.
 only Documents admins see this

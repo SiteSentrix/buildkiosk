@@ -258,10 +258,15 @@ pub fn page(req: &Req<'_>, id: Id<Project>, filter: &str, drag: bool) -> Markup 
             div class="card" {
                 details class="disclosure" {
                     summary { "Import a project file (Microsoft Project XML)" }
-                    p class="muted small" { "Save the schedule from your planning software as XML. Tasks, dates, percent complete, milestones, outline levels, links with their kind and lag, and start and finish constraints come across; resources, calendars and costs are left behind. Up to 8 MB." }
+                    p class="muted small" { "Save the schedule from your planning software as XML. Tasks, dates, percent complete, milestones, outline levels, links with their kind and lag, and start and finish constraints come across. Tick the boxes below to take more from the file. Costs are left behind. Up to 8 MB." }
                     form method="post" action=(format!("{base}/import-xml")) enctype="multipart/form-data" {
                         input type="hidden" name="_csrf" value=(req.csrf);
                         (field("Project file", "sched_xml", true, true, html! { input type="file" id="sched_xml" name="file" accept=".xml,text/xml,application/xml" required; }))
+                        label class="check" { input type="checkbox" name="resources" value="true"; " Take the resources assigned to each task (100% is one a day, rounded to whole numbers)" }
+                        @if lvl == Level::Admin {
+                            label class="check" { input type="checkbox" name="limits" value="true"; " Set the resource limits from the file's maximum of each resource" }
+                            label class="check" { input type="checkbox" name="calendar" value="true"; " Replace this project's working days and days off with the file's calendar (then recalculate)" }
+                        }
                         div class="form-actions" { button type="submit" class="btn primary" { "Import file" } }
                     }
                 }
@@ -282,7 +287,7 @@ pub fn page(req: &Req<'_>, id: Id<Project>, filter: &str, drag: bool) -> Markup 
                 details class="disclosure" {
                     summary { "Import a schedule" }
                     p class="muted small" { "One task per line: id, name, start, finish, percent, predecessors, parent. Dates are YYYY-MM-DD. Predecessors are other ids in the file separated by ;, each with an optional lag such as 4+2. Ids are renumbered when imported." }
-                    p class="muted small" { "A seventh to tenth column is optional: milestone (yes or no), then a constraint (snet, mso or fnlt) and its date." }
+                    p class="muted small" { "A seventh to eleventh column is optional: milestone (yes or no), then a constraint (snet, mso or fnlt) and its date, then the resources the task needs each working day, such as Carpenter 4, Laborer 2." }
                     (command_form(req, "schedule.import", &base, &base, html! {
                         input type="hidden" name="project" value=(id);
                         (field("Tasks", "sched_text", true, true, html! { textarea id="sched_text" name="text" required {} }))
@@ -590,7 +595,7 @@ pub fn lookahead(req: &Req<'_>, id: Id<Project>, weeks: i64, from: Option<Date>)
 }
 
 /// How many of each resource are needed each week, against the project's limits.
-pub fn resources(req: &Req<'_>, id: Id<Project>, weeks: i64, from: Option<Date>) -> Markup {
+pub fn resources(req: &Req<'_>, id: Id<Project>, weeks: i64, from: Option<Date>, level: Option<bool>) -> Markup {
     let Some(p) = project_for(req, id) else { return not_found(req) };
     let state = req.engine.state();
     let lvl = view::level(state, req.actor(), id, Tool::Schedule);
@@ -634,6 +639,9 @@ pub fn resources(req: &Req<'_>, id: Id<Project>, weeks: i64, from: Option<Date>)
                 }
             } }
         }
+        @if lvl >= Level::Standard && !limits.trim().is_empty() {
+            (levelling(req, id, &base, &here, weeks, from, level))
+        }
         @if lvl == Level::Admin {
             div class="card" {
                 h2 { "Limits" }
@@ -653,4 +661,62 @@ pub fn resources(req: &Req<'_>, id: Id<Project>, weeks: i64, from: Option<Date>)
         &[("Projects", Some("/".into())), (&p.name, Some(format!("/projects/{id}"))), ("Schedule", Some(base)), ("Resources", None)],
         body,
     )
+}
+
+/// The "Level resources" card: a preview of what levelling would do and the button that does it.
+fn levelling(req: &Req<'_>, id: Id<Project>, base: &str, here: &str, weeks: i64, from: Date, level: Option<bool>) -> Markup {
+    let state = req.engine.state();
+    let plan = level.map(|within| (within, buildkiosk_engine::level::plan(state, id, req.today(), within)));
+    let link = |within: &str| format!("{here}?weeks={weeks}&from={from}&level={within}");
+    html! {
+        div class="card" {
+            h2 { "Level resources" }
+            p class="muted small" { "Delays tasks that need more of a resource than the limit allows on a working day, and what follows them through their links. Finished work, started work and work pinned to a date stay where they are. Tasks only move later. Look at the plan first: nothing changes until you apply it." }
+            div class="actions" {
+                a class="btn" href=(link("float")) { "Preview, keeping the finish date" }
+                a class="btn" href=(link("all")) { "Preview, letting the finish move" }
+            }
+            @match &plan {
+                None => {}
+                Some((_, Err(msg))) => { p class="error" { (msg) } }
+                Some((within, Ok(plan))) => {
+                    @if plan.moves.is_empty() && plan.unresolved.is_empty() {
+                        p { "No resource is over its limit, so nothing needs to move." }
+                    }
+                    @if !plan.moves.is_empty() {
+                        div class="table-wrap" { table class="data" {
+                            thead { tr { th class="right" { "#" } th { "Task" } th { "Now" } th { "Would be" } th class="right" { "Working days later" } } }
+                            tbody {
+                                @for m in &plan.moves {
+                                    tr {
+                                        td class="right" { (m.number) }
+                                        td { (m.name) }
+                                        td { (m.from_start.pretty()) " – " (m.from_finish.pretty()) }
+                                        td { (m.start.pretty()) " – " (m.finish.pretty()) }
+                                        td class="right" { (m.days) }
+                                    }
+                                }
+                            }
+                        } }
+                        @if let (Some(a), Some(b)) = (plan.finish_before, plan.finish_after) {
+                            p { "Project finish: " (a.pretty()) @if plan.finish_slip > 0 { " becomes " strong { (b.pretty()) } " (" (plan.finish_slip) " working days later)" } @else { ", unchanged" } "." }
+                        }
+                    }
+                    @if !plan.unresolved.is_empty() {
+                        h3 { "Still over a limit" }
+                        ul {
+                            @for u in &plan.unresolved { li { "#" (u.number) " " (u.name) ": " (u.resource) " " (u.reason) } }
+                        }
+                    }
+                    @if !plan.moves.is_empty() {
+                        (command_form(req, "schedule.level", base, base, html! {
+                            input type="hidden" name="project" value=(id);
+                            input type="hidden" name="within_float" value=(if *within { "true" } else { "false" });
+                            div class="form-actions" { button type="submit" class="btn primary" { "Apply this plan" } }
+                        }))
+                    }
+                }
+            }
+        }
+    }
 }

@@ -7,6 +7,7 @@
 /api/v1/commands/…	/api/v1/commands/…
 /mcp	/mcp
 0 switches a rule off. Weeks run Monday to Sunday and hours already paid as daily overtime are not counted again.	0 désactive une règle. Les semaines vont du lundi au dimanche et les heures déjà payées comme heures supplémentaires journalières ne sont pas comptées à nouveau.
+03-300 material	03-300 material
 03-300, 120000, Concrete	03-300, 120000, Béton
 2027-01-01 New Year's Day	2027-01-01 Jour de l'An
 8'-6" above finished floor. The RCP will be revised.	8'-6" au-dessus du sol fini. Le plan de plafond réfléchi (RCP) sera révisé.
@@ -26,10 +27,11 @@ A name already used is replaced. The new baseline becomes the one the chart and 
 A new version of	Une nouvelle version de
 A project admin has full access to every tool, so overrides have no effect.	Un administrateur de projet a un accès complet à tous les outils, donc les exceptions n'ont aucun effet.
 A saved crew	Une équipe enregistrée
-A seventh to tenth column is optional	Une septième à dixième colonne est facultative
+A seventh to eleventh column is optional	Une septième à onzième colonne est facultative
 A spreadsheet saved as CSV. Put the column names on the first line	Un tableur enregistré au format CSV. Placez les noms des colonnes sur la première ligne
 A takeoff from a drawing	Un métré à partir d'un plan
 A token lets a script or an AI agent act as you over the HTTP API (	Un jeton permet à un script ou à un agent IA d'agir en votre nom via l'API HTTP (
+A view keeps the columns you want to see and whether cost codes are grouped (by division, section or cost type). It changes the table above and the CSV export, nothing else.	Une vue garde les colonnes que vous voulez voir et si les codes de coût sont regroupés (par division, section ou type de coût). Elle change le tableau ci-dessus et l'export CSV, rien d'autre.
 A, 2, Addendum 3	A, 2, Additif 3
 A-101.txt	A-101.txt
 API tokens	Jetons d'API
@@ -190,6 +192,7 @@ Anyone with this link can ask to be invited to bid. Nobody gets the bid document
 Anyone with this link can read the package and send or change a bid for	Toute personne ayant ce lien peut lire le lot et envoyer ou modifier une soumission pour
 Anyone with this link can read the package and send or change a bid for {}. Send it only to them.	Toute personne ayant ce lien peut lire le lot et envoyer ou modifier une soumission pour {}. Ne l’envoyez qu’à eux.
 Applied	Appliqué
+Apply this plan	Appliquer ce plan
 Approval	Approbation
 Approve	Approuver
 Approve a request to bid by {}	Approuver une demande de soumission par {}
@@ -346,8 +349,10 @@ Bulletin 1	Bulletin 1
 Bulletin 1 drawings	Plans du bulletin 1
 By	Par
 By cost code	Par code de coût
+By cost type	Par type de coût
 By division	Par division
 By person	Par personne
+By section	Par section
 By severity	Par gravité
 CSV file	Fichier CSV
 CSV text	Texte CSV
@@ -535,6 +540,7 @@ Cost per unit	Coût unitaire
 Cost then	Coût à l'époque
 Cost to add if excluded	Coût à ajouter si exclu
 Cost to date	Coût à ce jour
+Cost types	Types de coût
 Costs paid without a commitment	Coûts payés sans engagement
 Country	Pays
 County inspector	Inspecteur du comté
@@ -612,6 +618,7 @@ Decline a request to bid by {}	Refuser une demande de soumission par {}
 Declined	Refusé
 Delays	Retards
 Delays and issues	Retards et problèmes
+Delays tasks that need more of a resource than the limit allows on a working day, and what follows them through their links. Finished work, started work and work pinned to a date stay where they are. Tasks only move later. Look at the plan first	Décale les tâches qui demandent plus d'une ressource que la limite ne le permet un jour ouvré, et ce qui les suit par leurs liens. Le travail terminé, commencé ou fixé à une date reste en place. Les tâches ne font que se décaler plus tard. Regardez d'abord le plan
 Delete	Supprimer
 Delete RFI by {}	Supprimer la RFI par {}
 Delete a saved baseline by {}	Supprimer un planning de référence enregistré par {}
@@ -1082,6 +1089,8 @@ Level 1 corridor	Couloir du niveau 1
 Level 2	Niveau 2
 Level 2 stair hall	Cage d'escalier du niveau 2
 Level on {}	Niveau le {}
+Level resources	Niveler les ressources
+Level resources by {}	Ressources nivelées par {}
 Leveled	Nivelé
 Leveling	Nivellement
 Licence	Licence
@@ -1305,6 +1314,7 @@ No recordable cases in	Aucun cas à déclarer en
 No recordable cases in {}.	Aucun cas à déclarer en {}.
 No records	Aucun enregistrement
 No replies yet.	Aucune réponse pour le moment.
+No resource is over its limit, so nothing needs to move.	Aucune ressource ne dépasse sa limite : rien à déplacer.
 No resources yet	Aucune ressource pour le moment
 No responses yet.	Aucune réponse pour le moment.
 No reviews yet.	Aucune relecture pour le moment.
@@ -1379,6 +1389,7 @@ Nothing yet	Rien pour l'instant
 Notifications	Notifications
 Notifications, {} unread	Notifications, {} non lues
 Nov	nov.
+Now	Actuellement
 Now compared with “	Comparé maintenant à “
 Now compared with “{}”	Comparé maintenant à “{}”
 Number	Numéro
@@ -1567,6 +1578,8 @@ Prequalified	Préqualifié
 Present	Présent
 Preview	Aperçu
 Preview of {}	Aperçu de {}
+Preview, keeping the finish date	Aperçu, en gardant la date de fin
+Preview, letting the finish move	Aperçu, en laissant la fin se décaler
 Previous page	Page précédente
 Previous week	Semaine précédente
 Price catalogue	Catalogue de prix
@@ -1596,6 +1609,7 @@ Project directory	Annuaire du projet
 Project engineer	Ingénieur de projet
 Project file	Fichier du projet
 Project files in folders, each with its versions	Fichiers du projet dans des dossiers, chacun avec ses versions
+Project finish	Fin du projet
 Project home	Accueil du projet
 Project id in the file (optional)	Identifiant du projet dans le fichier (facultatif)
 Project management	Gestion de projet
@@ -1762,6 +1776,7 @@ Repeats	Répétitions
 Replace baseline with current dates	Remplacer le planning de référence par les dates actuelles
 Replace cracked ceiling tile	Remplacer la dalle de plafond fissurée
 Replace the link	Remplacer le lien
+Replace this project's working days and days off with the file's calendar (then recalculate)	Remplacer les jours travaillés et les jours chômés de ce projet par le calendrier du fichier (puis recalculer)
 Replies	Réponses
 Reply	Répondre
 Reply by	Répondre avant le
@@ -1911,6 +1926,7 @@ Save changes to this view	Enregistrer les modifications de cette vue
 Save company holiday list by {}	Enregistrer la liste des jours fériés de l'entreprise par {}
 Save company report by {}	Enregistrer le rapport de l'entreprise par {}
 Save correspondence type by {}	Enregistrer le type de courrier par {}
+Save cost types	Enregistrer les types de coût
 Save crew	Enregistrer l'équipe
 Save crew by {}	Enregistrer l'équipe par {}
 Save criteria	Enregistrer les critères
@@ -1938,9 +1954,10 @@ Save snapshot	Enregistrer l'instantané
 Save template	Enregistrer le modèle
 Save the current dates as	Enregistrer les dates actuelles sous
 Save the email from your mail program as a .eml file, open it in a text editor and paste everything here. The subject, date, sender and text are read from it, and people whose email address is on the To or Cc line are told.	Enregistrez l'e-mail depuis votre messagerie au format .eml, ouvrez-le dans un éditeur de texte et collez tout son contenu ici. L'objet, la date, l'expéditeur et le texte en sont extraits, et les personnes dont l'adresse figure sur la ligne À ou Cc sont prévenues.
-Save the schedule from your planning software as XML. Tasks, dates, percent complete, milestones, outline levels, links with their kind and lag, and start and finish constraints come across; resources, calendars and costs are left behind. Up to 8 MB.	Enregistrez le planning depuis votre logiciel de planification au format XML. Les tâches, dates, pourcentages d'avancement, jalons, niveaux de plan, liens avec leur type et leur décalage, et contraintes de début et de fin sont repris ; les ressources, calendriers et coûts ne le sont pas. 8 Mo maximum.
+Save the schedule from your planning software as XML. Tasks, dates, percent complete, milestones, outline levels, links with their kind and lag, and start and finish constraints come across. Tick the boxes below to take more from the file. Costs are left behind. Up to 8 MB.	Enregistrez le planning depuis votre logiciel de planification au format XML. Les tâches, les dates, le pourcentage d'avancement, les jalons, les niveaux du plan, les liens avec leur type et leur décalage, et les contraintes de début et de fin sont repris. Cochez les cases ci-dessous pour reprendre davantage du fichier. Les coûts sont laissés de côté. Jusqu'à 8 Mo.
 Save type	Enregistrer le type
 Saved	Enregistré
+Say what kind of cost each cost code is (labor, material, equipment, subcontract or other) so a budget view can group the budget by cost type. One per line	Indiquez de quel type de coût est chaque code de coût (labor, material, equipment, subcontract ou other) pour qu'une vue du budget puisse le regrouper par type de coût. Un par ligne
 Scale	Échelle
 Schedule	Planning
 Schedule a recurring form by {}	Planifier un formulaire récurrent par {}
@@ -1997,6 +2014,7 @@ Search {}	Rechercher {}
 Second copy	Deuxième exemplaire
 Section	Section
 Section number	Numéro de section
+Section {}	Section {}
 Sections	Sections
 Sections and items	Sections et éléments
 Sections of questions, each worth points; the share earned becomes a company's score	Sections de questions, chacune valant des points ; la part obtenue devient la note d'une entreprise
@@ -2039,6 +2057,7 @@ Sent to {}	Envoyé à {}
 Sep	sept.
 Set	Définir
 Set a budget line	Définir une ligne de budget
+Set a cost code's cost type by {}	Type de coût d'un code de coût défini par {}
 Set bid scoring criteria by {}	Définir les critères de notation des offres par {}
 Set budget line by {}	Définir la ligne de budget par {}
 Set forecast to complete by {}	Définir la prévision à l'achèvement par {}
@@ -2052,8 +2071,10 @@ Set plan approvers by {}	Définir les approbateurs du plan par {}
 Set rate	Définir le taux
 Set scale	Définir l'échelle
 Set task progress by {}	Définir l'avancement de la tâche par {}
+Set the cost type of many cost codes by {}	Types de coût de plusieurs codes de coût définis par {}
 Set the criteria	Définir les critères
 Set the project's working days and holidays by {}	Définir les jours ouvrés et les jours fériés du projet par {}
+Set the resource limits from the file's maximum of each resource	Fixer les limites de ressources d'après le maximum de chaque ressource dans le fichier
 Set the scale	Définir l'échelle
 Set the scale of a sheet page from a stretch of known length by {}	Définir l'échelle d'une page de feuille à partir d'une longueur connue par {}
 Set up outgoing email	Configurer l'e-mail sortant
@@ -2161,6 +2182,7 @@ State	État
 State or region	État ou région
 Status	Statut
 Steel arrives the week after next.	L'acier arrive la semaine après la prochaine.
+Still over a limit	Toujours au-dessus d'une limite
 Stop requiring it	Ne plus l'exiger
 Stop requiring signatures	Ne plus exiger de signatures
 Stopped	Arrêté
@@ -2217,6 +2239,7 @@ Tag it to	L'associer à
 Tag photo to an item by {}	Associer la photo à un élément par {}
 Tagged to	Associé à
 Take back	Reprendre
+Take the resources assigned to each task (100% is one a day, rounded to whole numbers)	Reprendre les ressources affectées à chaque tâche (100 % vaut un par jour, arrondi à l'entier)
 Taken	Prise le
 Task	Tâche
 Task #{}	Tâche n° {}
@@ -2444,6 +2467,8 @@ Workers on site	Ouvriers sur site
 Workers wear the protective gear the task needs	Les ouvriers portent l'équipement de protection que la tâche exige
 Working calendar	Calendrier de travail
 Working days	Jours ouvrés
+Working days later	Jours ouvrés plus tard
+Would be	Serait
 Write a letter or notice to keep it on the record.	Rédigez un courrier ou un avis pour le conserver au dossier.
 Write a plan to track a body of work item by item.	Rédigez un plan pour suivre un ensemble de travaux élément par élément.
 Write your own below, or add the small starter set and change it to suit.	Rédigez le vôtre ci-dessous, ou ajoutez le petit jeu de départ et adaptez-le à vos besoins.
@@ -2498,7 +2523,7 @@ leveled	nivelé
 lines can't be edited, added or imported.	les lignes ne peuvent pas être modifiées, ajoutées ou importées.
 low {}	bas {}
 marcus.lee@example.com	marcus.lee@example.com
-milestone (yes or no), then a constraint (snet, mso or fnlt) and its date.	jalon (yes ou no), puis une contrainte (snet, mso ou fnlt) et sa date.
+milestone (yes or no), then a constraint (snet, mso or fnlt) and its date, then the resources the task needs each working day, such as Carpenter 4, Laborer 2.	jalon (oui ou non), puis une contrainte (snet, mso ou fnlt) et sa date, puis les ressources dont la tâche a besoin chaque jour ouvré, comme Carpenter 4, Laborer 2.
 name, unit, unit cost, category (optional), cost code (optional, from the company's standard list). An item with the same name has its price changed.	name, unit, unit cost, category (facultatif), cost code (facultatif, issu de la liste standard de l'entreprise). Un article du même nom voit son prix modifié.
 name, weight (adding up to 100), then price for the one worked out from the bids	nom, pondération (total de 100), puis prix pour celui calculé à partir des offres
 no file	aucun fichier
@@ -2507,6 +2532,7 @@ no project has a figure for {} that you can see.	aucun projet que vous pouvez vo
 none yet	aucun pour l'instant
 not required	non requis
 nothing	rien
+nothing changes until you apply it.	rien ne change tant que vous ne l'appliquez pas.
 number, then title, separated by a comma or a tab. Sections already in the list are skipped.	numéro, puis titre, séparés par une virgule ou une tabulation. Les sections déjà dans la liste sont ignorées.
 number, title, discipline, area, separated by commas or tabs. A header line is skipped, and sheets already in the log are left alone. Add each sheet's file later as a revision.	numéro, titre, discipline, zone, séparés par des virgules ou des tabulations. Une ligne d'en-tête est ignorée et les feuilles déjà dans le journal sont laissées telles quelles. Ajoutez le fichier de chaque feuille plus tard comme révision.
 only Documents admins see this	visible uniquement par les administrateurs de Documents
@@ -2521,6 +2547,7 @@ sf	sf
 smtp.example.com	smtp.example.com
 standard on project management, read-only financials.	standard sur la gestion de projet, finances en lecture seule.
 submitted {}	soumis {}
+the cost code, then the type, or none to clear it. All lines are applied, or none if one is wrong.	le code de coût, puis le type, ou none pour l'effacer. Toutes les lignes sont appliquées, ou aucune si l'une est erronée.
 the date in the picture, else today)	la date de la photo, sinon aujourd'hui)
 the file name)	le nom du fichier)
 the old one stops working at once.	l’ancien cesse de fonctionner immédiatement.
@@ -2555,14 +2582,3 @@ weekly summary	synthèse hebdomadaire
 {}Directory	{}Annuaire
 {}Prequalification	{}Préqualification
 ← Previous week	← Semaine précédente
-03-300 material	03-300 material
-A view keeps the columns you want to see and whether cost codes are grouped (by division, section or cost type). It changes the table above and the CSV export, nothing else.	Une vue garde les colonnes que vous voulez voir et si les codes de coût sont regroupés (par division, section ou type de coût). Elle change le tableau ci-dessus et l'export CSV, rien d'autre.
-By cost type	Par type de coût
-By section	Par section
-Cost types	Types de coût
-Save cost types	Enregistrer les types de coût
-Say what kind of cost each cost code is (labor, material, equipment, subcontract or other) so a budget view can group the budget by cost type. One per line	Indiquez de quel type de coût est chaque code de coût (labor, material, equipment, subcontract ou other) pour qu'une vue du budget puisse le regrouper par type de coût. Un par ligne
-Section {}	Section {}
-Set a cost code's cost type by {}	Type de coût d'un code de coût défini par {}
-Set the cost type of many cost codes by {}	Types de coût de plusieurs codes de coût définis par {}
-the cost code, then the type, or none to clear it. All lines are applied, or none if one is wrong.	le code de coût, puis le type, ou none pour l'effacer. Toutes les lignes sont appliquées, ou aucune si l'une est erronée.

@@ -1517,6 +1517,7 @@ Open or close the open bid link by {}	Abrir o cerrar el enlace de oferta abierto
 Open punch items	Pendientes abiertos
 Open sealed bids by {}	Abrir ofertas selladas por {}
 Open tasks	Tareas abiertas
+Open the report	Abrir el informe
 Open the standard layout by default	Abrir el diseño estándar por defecto
 Open them now	Abrirlas ahora
 Open this view by default	Abrir esta vista por defecto
@@ -2391,6 +2392,7 @@ The questions each kind of form asks. Forms already started keep the questions t
 The record was put forward by the company through link	El registro fue presentado por la empresa mediante el enlace
 The record was put forward by the company through link {}.	El registro fue presentado por la empresa mediante el enlace {}.
 The reflected ceiling plan shows 9'-0" but the section shows 8'-6". Which governs?	El plano de cielo raso reflejado muestra 9'-0" pero la sección muestra 8'-6". ¿Cuál prevalece?
+The same figures are attached as a CSV file.	Las mismas cifras se adjuntan en un archivo CSV.
 The section governs	Prevalece la sección
 The sheet log	El registro de planos
 The team answers you here. They may share a question and its answer with the other bidders, without your name.	El equipo le responde aquí. Puede compartir una pregunta y su respuesta con los demás licitantes, sin su nombre.
@@ -2612,6 +2614,8 @@ Yes, only the people below, the manager and the tool's admins	Sí, solo las pers
 You	Usted
 You can change your bid below until the due date.	Puede cambiar su oferta más abajo hasta la fecha límite.
 You declined to sign this contract.	Usted rechazó firmar este contrato.
+You get this because email notifications are on for your BuildKiosk account. Turn them off under My account.	Recibe esto porque las notificaciones por correo están activadas en su cuenta de BuildKiosk. Desactívelas en Mi cuenta.
+You get this because the report is emailed to you on a schedule. Each figure is only what you can see of a project.	Recibe esto porque el informe se le envía por correo según un calendario. Cada cifra es solo lo que usted puede ver de un proyecto.
 You have no tokens.	No tienes tokens.
 You have read this	Usted ha leído esto
 You have signed. The contract is complete when everyone has.	Usted ya firmó. El contrato queda completo cuando todos hayan firmado.

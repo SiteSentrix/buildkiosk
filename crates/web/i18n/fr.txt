@@ -1517,6 +1517,7 @@ Open or close the open bid link by {}	Ouvrir ou fermer le lien de soumission ouv
 Open punch items	Réserves ouvertes
 Open sealed bids by {}	Ouvrir les soumissions scellées par {}
 Open tasks	Tâches ouvertes
+Open the report	Ouvrir le rapport
 Open the standard layout by default	Ouvrir la mise en page standard par défaut
 Open them now	Les ouvrir maintenant
 Open this view by default	Ouvrir cette vue par défaut
@@ -2391,6 +2392,7 @@ The questions each kind of form asks. Forms already started keep the questions t
 The record was put forward by the company through link	Le dossier a été présenté par l'entreprise au moyen du lien
 The record was put forward by the company through link {}.	Le dossier a été présenté par l'entreprise au moyen du lien {}.
 The reflected ceiling plan shows 9'-0" but the section shows 8'-6". Which governs?	Le plan de plafond réfléchi indique 9'-0" mais la coupe indique 8'-6". Lequel prévaut ?
+The same figures are attached as a CSV file.	Les mêmes chiffres sont joints dans un fichier CSV.
 The section governs	La section prévaut
 The sheet log	Le journal des feuilles
 The team answers you here. They may share a question and its answer with the other bidders, without your name.	L’équipe vous répond ici. Elle peut partager une question et sa réponse avec les autres soumissionnaires, sans votre nom.
@@ -2612,6 +2614,8 @@ Yes, only the people below, the manager and the tool's admins	Oui, seulement les
 You	Vous
 You can change your bid below until the due date.	Vous pouvez modifier votre soumission ci-dessous jusqu’à la date limite.
 You declined to sign this contract.	Vous avez refusé de signer ce contrat.
+You get this because email notifications are on for your BuildKiosk account. Turn them off under My account.	Vous recevez ceci parce que les notifications par e-mail sont activées sur votre compte BuildKiosk. Désactivez-les dans Mon compte.
+You get this because the report is emailed to you on a schedule. Each figure is only what you can see of a project.	Vous recevez ceci parce que le rapport vous est envoyé par e-mail selon un calendrier. Chaque chiffre ne reflète que ce que vous pouvez voir d'un projet.
 You have no tokens.	Vous n'avez aucun jeton.
 You have read this	Vous avez lu ceci
 You have signed. The contract is complete when everyone has.	Vous avez signé. Le contrat est complet quand tout le monde a signé.

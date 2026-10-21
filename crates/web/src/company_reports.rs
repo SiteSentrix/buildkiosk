@@ -401,7 +401,10 @@ pub fn delivery_email(req: &Req<'_>, report: Id<SavedReport>, base_url: &str) ->
     if !base_url.is_empty() {
         body.push_str(&format!("\n{}: {base_url}/reports?report={report}", t("Open the report")));
     }
-    body.push_str(&format!("\n\n{}\n", t("You get this because the report is emailed to you on a schedule. Each figure is only what you can see of a project.")));
+    body.push_str(&format!(
+        "\n\n{}\n",
+        t("You get this because the report is emailed to you on a schedule. Each figure is only what you can see of a project.")
+    ));
     let subject: String = format!("{} · {today}", table.title).chars().filter(|c| !c.is_control()).take(120).collect();
     Some((subject, body, csv))
 }

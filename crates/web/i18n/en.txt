@@ -1517,6 +1517,7 @@ Open or close the open bid link by {}
 Open punch items
 Open sealed bids by {}
 Open tasks
+Open the report
 Open the standard layout by default
 Open them now
 Open this view by default
@@ -2391,6 +2392,7 @@ The questions each kind of form asks. Forms already started keep the questions t
 The record was put forward by the company through link
 The record was put forward by the company through link {}.
 The reflected ceiling plan shows 9'-0" but the section shows 8'-6". Which governs?
+The same figures are attached as a CSV file.
 The section governs
 The sheet log
 The team answers you here. They may share a question and its answer with the other bidders, without your name.
@@ -2612,6 +2614,8 @@ Yes, only the people below, the manager and the tool's admins
 You
 You can change your bid below until the due date.
 You declined to sign this contract.
+You get this because email notifications are on for your BuildKiosk account. Turn them off under My account.
+You get this because the report is emailed to you on a schedule. Each figure is only what you can see of a project.
 You have no tokens.
 You have read this
 You have signed. The contract is complete when everyone has.

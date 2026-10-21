@@ -3344,6 +3344,17 @@ async fn notifications_are_emailed() {
     assert!(got.contains("bo@example.com") && got.contains("https://bk.example.com/projects/1/submittals/1"), "{got}");
     let a = app.clone();
     assert_eq!(tokio::task::spawn_blocking(move || mail_pass(&a)).await.unwrap(), 0, "already sent");
+    assert!(got.contains("You get this because email notifications are on"), "{got}");
+
+    // A person who saved a language gets their emails in it: the closing line here (the notice's own wording where a catalog has it).
+    app.lock().run(buildkiosk_engine::Actor::Person(buildkiosk_core::Id::new(2)), "person.set_language", &json!({"language": "es"})).unwrap();
+    send(&app, run("submittal.import", "project=1&text=title%2Cspec_section%0ABeam+plates%2C05+12+00".into())).await;
+    send(&app, run("submittal.update", "project=1&id=2&reviewers%5B%5D=2&ordered=true".into())).await;
+    send(&app, run("submittal.open", "project=1&id=2".into())).await;
+    let a = app.clone();
+    assert_eq!(tokio::task::spawn_blocking(move || mail_pass(&a)).await.unwrap(), 1);
+    let got = rx.recv_timeout(Duration::from_secs(10)).unwrap();
+    assert!(got.contains("bo@example.com") && got.contains("Recibe esto porque") && !got.contains("You get this because"), "{got}");
 
     let (_, h, page) = send(&app, Request::get("/login").body(Body::empty()).unwrap()).await;
     let anon = cookies(&h);
@@ -4428,6 +4439,22 @@ async fn company_report_chart_kinds_and_email_schedule() {
         "{body}"
     );
     assert!(csv.starts_with("Project,Open tasks,Original budget") && csv.contains("Alpha,3"), "{csv}");
+    // The same email in the language the person saved: the sentences, the headings and the date follow it; the figures don't.
+    app.lock().run(buildkiosk_engine::Actor::Person(buildkiosk_core::Id::new(1)), "person.set_language", &json!({"language": "es"})).unwrap();
+    let (_, spanish, _) = {
+        let inner = app.lock();
+        let t = inner.tenant.as_ref().unwrap();
+        let req = buildkiosk_web::layout::Req {
+            engine: &t.engine,
+            person: buildkiosk_core::Id::new(1),
+            csrf: "",
+            now: buildkiosk_core::Timestamp::from_millis(super::now_ms()),
+            flash: None,
+        };
+        buildkiosk_web::company_reports::delivery_email(&req, buildkiosk_core::Id::new(1), "https://bk.example.com").unwrap()
+    };
+    assert!(spanish.contains("Las mismas cifras se adjuntan") && spanish.contains("Abrir el informe") && spanish.contains("Alpha"), "{spanish}");
+    assert!(!spanish.contains("The same figures"), "{spanish}");
 }
 
 #[tokio::test]

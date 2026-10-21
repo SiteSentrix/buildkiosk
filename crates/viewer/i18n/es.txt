@@ -1,0 +1,25 @@
+# Hints and notes of the browser viewer, es: `English<TAB>translation`; `{}` stands for a value.
+Click where the path starts.	Haga clic donde empieza el trayecto.
+Click each bend. Click the last point again, or press Enter, to finish; Backspace undoes a point.	Haga clic en cada giro. Haga clic otra vez en el último punto, o pulse Intro, para terminar; Retroceso deshace un punto.
+Click a corner of the outline.	Haga clic en una esquina del contorno.
+Click each corner. Click the first corner again, or press Enter, to close it; Backspace undoes a point.	Haga clic en cada esquina. Haga clic otra vez en la primera esquina, o pulse Intro, para cerrarlo; Retroceso deshace un punto.
+Drag to move the sheet. Scroll or pinch to zoom.	Arrastre para mover el plano. Desplace o pellizque para ampliar.
+Click the sheet where the pin goes.	Haga clic en el plano donde va la chincheta.
+Click where the words go.	Haga clic donde van las palabras.
+Click each item to count; name what you are counting in the note.	Haga clic en cada elemento para contarlo; nombre lo que cuenta en la nota.
+Click one corner of the box.	Haga clic en una esquina del recuadro.
+Click the opposite corner.	Haga clic en la esquina opuesta.
+Click where the arrow starts.	Haga clic donde empieza la flecha.
+Click where the arrow points.	Haga clic donde apunta la flecha.
+Click one end of a stretch whose real length you know.	Haga clic en un extremo de un tramo cuya longitud real conozca.
+Click the other end of the stretch.	Haga clic en el otro extremo del tramo.
+Click where the length starts.	Haga clic donde empieza la longitud.
+Click where it ends.	Haga clic donde termina.
+Click one corner of the area.	Haga clic en una esquina del área.
+That needs more points. Keep clicking, or press Escape to start over.	Hacen falta más puntos. Siga haciendo clic, o pulse Esc para empezar de nuevo.
+The sides cross or double back. Backspace removes the last point; draw it so the sides only meet at corners.	Los lados se cruzan o retroceden. Retroceso quita el último punto; dibújelo de modo que los lados solo se unan en las esquinas.
+Set this page's scale first: pick Scale, then click both ends of a stretch whose real length you know.	Fije primero la escala de esta página: elija Escala y haga clic en ambos extremos de un tramo cuya longitud real conozca.
+That is as many points as one path can have; press Enter to finish.	Es el máximo de puntos que puede tener un trayecto; pulse Intro para terminar.
+Loading…	Cargando…
+Scale set from a stretch of {}. Lengths and areas drawn on this page use it.	Escala fijada a partir de un tramo de {}. Las longitudes y áreas dibujadas en esta página la usan.
+No scale set on this page. Use the Scale tool to set it, then measure lengths and areas.	Esta página no tiene escala. Use la herramienta Escala para fijarla y luego mida longitudes y áreas.

@@ -1,0 +1,25 @@
+# Hints and notes of the browser viewer, nl: `English<TAB>translation`; `{}` stands for a value.
+Click where the path starts.	Klik waar het pad begint.
+Click each bend. Click the last point again, or press Enter, to finish; Backspace undoes a point.	Klik op elke bocht. Klik nogmaals op het laatste punt, of druk op Enter, om af te ronden; Backspace maakt een punt ongedaan.
+Click a corner of the outline.	Klik op een hoek van de omtrek.
+Click each corner. Click the first corner again, or press Enter, to close it; Backspace undoes a point.	Klik op elke hoek. Klik nogmaals op de eerste hoek, of druk op Enter, om de omtrek te sluiten; Backspace maakt een punt ongedaan.
+Drag to move the sheet. Scroll or pinch to zoom.	Sleep om het blad te verplaatsen. Scroll of knijp om te zoomen.
+Click the sheet where the pin goes.	Klik op het blad waar de speld komt.
+Click where the words go.	Klik waar de woorden komen.
+Click each item to count; name what you are counting in the note.	Klik op elk item om te tellen; benoem wat u telt in de notitie.
+Click one corner of the box.	Klik op een hoek van het kader.
+Click the opposite corner.	Klik op de tegenoverliggende hoek.
+Click where the arrow starts.	Klik waar de pijl begint.
+Click where the arrow points.	Klik waar de pijl naartoe wijst.
+Click one end of a stretch whose real length you know.	Klik op één uiteinde van een stuk waarvan u de werkelijke lengte kent.
+Click the other end of the stretch.	Klik op het andere uiteinde van het stuk.
+Click where the length starts.	Klik waar de lengte begint.
+Click where it ends.	Klik waar het eindigt.
+Click one corner of the area.	Klik op een hoek van de oppervlakte.
+That needs more points. Keep clicking, or press Escape to start over.	Er zijn meer punten nodig. Blijf klikken, of druk op Esc om opnieuw te beginnen.
+The sides cross or double back. Backspace removes the last point; draw it so the sides only meet at corners.	De zijden kruisen elkaar of keren terug. Backspace verwijdert het laatste punt; teken het zo dat de zijden alleen in hoeken samenkomen.
+Set this page's scale first: pick Scale, then click both ends of a stretch whose real length you know.	Stel eerst de schaal van deze pagina in: kies Schaal en klik op beide uiteinden van een stuk waarvan u de werkelijke lengte kent.
+That is as many points as one path can have; press Enter to finish.	Dat is het maximale aantal punten van één pad; druk op Enter om af te ronden.
+Loading…	Laden…
+Scale set from a stretch of {}. Lengths and areas drawn on this page use it.	Schaal ingesteld op basis van een stuk van {}. Lengtes en oppervlakten op deze pagina gebruiken die.
+No scale set on this page. Use the Scale tool to set it, then measure lengths and areas.	Deze pagina heeft geen schaal. Gebruik het hulpmiddel Schaal om die in te stellen en meet daarna lengtes en oppervlakten.

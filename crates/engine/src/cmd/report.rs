@@ -3,7 +3,7 @@
 
 use buildkiosk_core::{Id, text};
 use buildkiosk_model::project::{Project, ProjectStage};
-use buildkiosk_model::saved_report::{ReportColumn, SavedReport};
+use buildkiosk_model::saved_report::{DeliveryRhythm, MAX_RECIPIENTS, ReportColumn, ReportDelivery, SavedReport};
 use buildkiosk_model::{Choice, Level, Tool, perm};
 use serde_json::{Value, json};
 
@@ -44,6 +44,30 @@ pub const COMMANDS: &[CommandSpec] = &[
         Access::Member,
         "id: report id (its owner, or a company admin)",
         delete,
+    ),
+    CommandSpec::mutate(
+        "company_report.schedule",
+        "Email a report on a schedule",
+        Tool::CompanyReports,
+        Access::Member,
+        "id: report id (its owner, or a company admin); rhythm: off|daily|weekly|monthly (off stops it); weekday?: mon to sun (weekly; default monday); day?: 1-28 (monthly; default 1); people?: [person ids] who get it, up to 25 (each person gets it as they themselves would see it, so what they can't see of a project is blank; they must be active users with an email address, and on a report that isn't shared only its owner and company admins can get it). The first email is the next time the rhythm comes round; emails go out from about six in the morning",
+        schedule,
+    ),
+    CommandSpec::query(
+        "company_report.due",
+        "Reports due to be emailed",
+        Tool::CompanyReports,
+        Access::System,
+        "(none) (the saved reports whose delivery has come due, with the people to send each to; the server sends them and then records it with company_report.mark_sent)",
+        due,
+    ),
+    CommandSpec::mutate(
+        "company_report.mark_sent",
+        "Record that a report was emailed",
+        Tool::CompanyReports,
+        Access::System,
+        "id: report id (counts today's delivery as made)",
+        mark_sent,
     ),
     CommandSpec::query(
         "company_report.list",
@@ -160,6 +184,7 @@ fn save(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
                 descending,
                 shared,
                 owner: me,
+                delivery: None,
                 created: stamp,
                 updated: stamp,
                 deleted: None,
@@ -184,6 +209,111 @@ fn delete(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     }
     let stamp = ctx.stamp();
     ctx.state.saved_reports.update(id, |r| r.deleted = Some(stamp));
+    Ok(json!({ "id": id }))
+}
+
+/// A weekday from a name (`mon`, `Monday`) or a number 0 (Monday) to 6.
+fn weekday_of(p: &Params<'_>, raw: &str) -> Result<u8> {
+    const NAMES: [&str; 7] = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+    let raw = raw.trim().to_ascii_lowercase();
+    if raw.is_empty() {
+        return Ok(0);
+    }
+    if raw.len() >= 3
+        && let Some(i) = NAMES.iter().position(|n| n.starts_with(&raw))
+    {
+        return u8::try_from(i).map_err(|_| p.bad("weekday", "is not a weekday"));
+    }
+    Err(p.bad("weekday", "must be a weekday such as monday"))
+}
+
+fn schedule(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let me = ctx.person().ok_or_else(|| EngineError::forbidden("reports are scheduled by a person"))?;
+    let id: Id<SavedReport> = p.id("id")?;
+    let r = ctx
+        .state
+        .saved_reports
+        .get(id)
+        .filter(|r| r.deleted.is_none() && sees(ctx.state, ctx.actor, r))
+        .ok_or_else(|| EngineError::not_found(format!("report {id} not found")))?
+        .clone();
+    let admin = perm::company_level(ctx.state, me, Tool::CompanyAdmin) == Level::Admin;
+    if r.owner != me && !admin {
+        return Err(EngineError::forbidden("only its owner or a company admin can email a report"));
+    }
+    let rhythm_text = p.req_line("rhythm", 20)?;
+    let delivery = if rhythm_text.eq_ignore_ascii_case("off") || rhythm_text.eq_ignore_ascii_case("none") {
+        None
+    } else {
+        let rhythm = DeliveryRhythm::parse(&rhythm_text).ok_or_else(|| p.bad("rhythm", "must be off, daily, weekly or monthly"))?;
+        let weekday = weekday_of(p, &p.line_or_empty("weekday", 20)?)?;
+        let day = p.int("day", 1..=28)?.unwrap_or(1);
+        let mut people = p.ids::<buildkiosk_model::directory::Person>("people")?;
+        people.sort();
+        people.dedup();
+        if people.is_empty() {
+            return Err(p.bad("people", "name at least one person to send it to"));
+        }
+        if people.len() > MAX_RECIPIENTS {
+            return Err(p.bad("people", format!("a report goes to at most {MAX_RECIPIENTS} people")));
+        }
+        for person in &people {
+            let ok = ctx.state.people.get(*person).is_some_and(|x| x.is_user && x.active && x.email.is_some());
+            if !ok {
+                return Err(p.bad("people", format!("person {person} is not an active user with an email address")));
+            }
+            let may_see = r.shared || *person == r.owner || perm::company_level(ctx.state, *person, Tool::CompanyAdmin) == Level::Admin;
+            if !may_see {
+                return Err(p.bad("people", format!("person {person} can't run this report: share it first")));
+            }
+        }
+        Some(ReportDelivery { rhythm, weekday, day: u8::try_from(day).unwrap_or(1), recipients: people, last_sent: Some(ctx.today()) })
+    };
+    let stamp = ctx.stamp();
+    ctx.state.saved_reports.update(id, |x| {
+        x.delivery = delivery;
+        x.updated = stamp;
+    });
+    Ok(json!({ "id": id }))
+}
+
+/// Six in the morning, company time: reports go out after it.
+const FIRST_HOUR: i64 = 6;
+
+fn due(v: &View<'_>, _p: &Params<'_>) -> Result<Value> {
+    const MS_PER_DAY: i64 = 86_400_000;
+    let local_ms = v.at().millis().saturating_add(i64::from(v.state.utc_offset()).saturating_mul(60_000));
+    if local_ms.rem_euclid(MS_PER_DAY) / 3_600_000 < FIRST_HOUR {
+        return Ok(json!([]));
+    }
+    let today = v.today();
+    let mut out = Vec::new();
+    for r in v.state.saved_reports.iter().filter(|r| r.deleted.is_none()) {
+        let Some(d) = r.delivery.as_ref().filter(|d| d.due(today)) else { continue };
+        let recipients: Vec<Value> = d
+            .recipients
+            .iter()
+            .filter_map(|id| v.state.people.get(*id))
+            .filter(|x| x.is_user && x.active)
+            .filter_map(|x| Some(json!({ "person": x.id, "email": x.email.clone()? })))
+            .collect();
+        out.push(json!({ "id": r.id, "name": r.name, "recipients": recipients }));
+    }
+    Ok(Value::Array(out))
+}
+
+fn mark_sent(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let id: Id<SavedReport> = p.id("id")?;
+    let today = ctx.today();
+    let r = ctx.state.saved_reports.get(id).filter(|r| r.deleted.is_none() && r.delivery.is_some());
+    if r.is_none() {
+        return Err(EngineError::not_found(format!("report {id} is not emailed")));
+    }
+    ctx.state.saved_reports.update(id, |x| {
+        if let Some(d) = x.delivery.as_mut() {
+            d.last_sent = Some(today);
+        }
+    });
     Ok(json!({ "id": id }))
 }
 

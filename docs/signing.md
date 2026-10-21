@@ -1,0 +1,44 @@
+# Signing contracts in BuildKiosk
+
+_Status: 2026-10-20. Built: commitments, prime contracts and prime change orders can be sent for signature with an emailed link; the other party signs on a page with no account. Left for later: below._
+
+## What it does
+
+Sending a contract for signature (`commitment.send_for_signature`, `prime_contract.send_for_signature`,
+`prime_change.send_for_signature`) used to record only that it went out. Give it an `email` (and optionally `expires`,
+the link's last day) and BuildKiosk makes a signing link as well:
+
+- The server emails the link (when outgoing email and the public address are set up under Email settings), and the
+  contract's page shows "Show link" so the team can copy it when email isn't set up.
+- The other party opens `/sign/<link>`, reads the lines and the total, types their full name, ticks the box and signs.
+  They can also decline, with a reason.
+- The contract's signature record gets the typed name, the day, the moment (`signed_at`) and the version of the terms
+  the signer saw (`signed_terms`). The team is notified, and the signer gets a receipt email.
+- Paper still works: leave the email empty and record the signature by hand, as before.
+
+## Safety
+
+Same design as the bidder portal ([`bidder-portal.md`](bidder-portal.md)):
+
+- The link is `<kind>.<id>.<generation>.<signature>`, an HMAC under the server's secret. Nothing stored (state, journal,
+  backups) can open the page. Sending again makes a new generation (taken from the clock), so an old link never opens
+  a newer sending, and a link stops working when the signature is taken back or after its last day.
+- The `contract.portal_*` commands are system-only: a person, API token or agent can't call them. Each re-checks the
+  contract and link, and every failure answers "this link is not valid".
+- A signature is refused unless the signer sends the terms they were shown: if the contract changed after they opened
+  the page, they must read it again. Changing a contract's lines while it is out for signature or signed clears the
+  signature, as before.
+- Per-link form token, rate limit, `no-store`, `no-referrer`, `noindex`, no JavaScript.
+
+## What this is not
+
+A typed name with a record of the time and the terms is a simple electronic signature. It is not a certified
+signature service, and BuildKiosk does not claim it meets any particular law's requirements for a given contract;
+check with your counsel. Digital certificates, witnesses, signing order and several signers per contract are not
+built.
+
+## Left for later
+
+- Several signers, signing in order, and counter-signature by the company on the same page.
+- A signed PDF of the contract with the signature record printed on it.
+- Reminders to the signer when a contract has been out for a while.

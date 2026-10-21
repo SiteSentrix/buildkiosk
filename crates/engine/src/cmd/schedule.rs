@@ -173,6 +173,22 @@ pub const COMMANDS: &[CommandSpec] = &[
         loading,
     ),
     CommandSpec::query(
+        "schedule.level_plan",
+        "Plan resource levelling",
+        Tool::Schedule,
+        Access::Project(Level::Read),
+        "project: project id; within_float?: bool (only delay a task as far as its float allows, so the project finish stays; default false) (what levelling would do, changing nothing: the tasks that move later with their new dates, the tasks that stay over a limit and why, and how far the project finish moves; resources with no limit are not levelled)",
+        level_plan,
+    ),
+    CommandSpec::mutate(
+        "schedule.level",
+        "Level resources",
+        Tool::Schedule,
+        Access::Project(Level::Standard),
+        "project: project id; within_float?: bool (as for schedule.level_plan) (delays tasks so that no resource with a limit is needed beyond it on any working day; work that is finished, started or pinned to a date stays put, and tasks only move later; links are kept)",
+        level,
+    ),
+    CommandSpec::query(
         "schedule.calendar",
         "Get the project's working days and holidays",
         Tool::Schedule,
@@ -734,6 +750,7 @@ pub(super) fn import_body(ctx: &mut Ctx<'_>, project: Id<Project>, body: &str, p
         percent: u8,
         preds: String,
         parent: String,
+        resources: Vec<Assignment>,
     }
     let mut rows: Vec<Pending> = Vec::new();
     for (n, raw) in body.lines().enumerate() {
@@ -784,6 +801,7 @@ pub(super) fn import_body(ctx: &mut Ctx<'_>, project: Id<Project>, body: &str, p
             Some(k) => (k, Some(Date::parse(cell(9)).ok_or_else(|| at("constraint date", format!("`{}` is not a date (YYYY-MM-DD)", cell(9))))?)),
             None => (Constraint::None, None),
         };
+        let resources = parse_resources(p, "text", cell(10)).map_err(|e| at("resources", e.to_string()))?;
         rows.push(Pending {
             milestone,
             constraint,
@@ -795,6 +813,7 @@ pub(super) fn import_body(ctx: &mut Ctx<'_>, project: Id<Project>, body: &str, p
             percent: pct,
             preds: cell(5).to_string(),
             parent: cell(6).to_string(),
+            resources,
         });
     }
     if ctx.state.schedule_tasks.iter().filter(|t| t.project == project).count() + rows.len() > MAX_TASKS {
@@ -826,7 +845,7 @@ pub(super) fn import_body(ctx: &mut Ctx<'_>, project: Id<Project>, body: &str, p
             notes: String::new(),
             constraint: r.constraint,
             constraint_date: r.constraint_date,
-            resources: Vec::new(),
+            resources: r.resources.clone(),
             baseline_start: None,
             baseline_finish: None,
             created: stamp,
@@ -1061,6 +1080,31 @@ fn loading(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
     let weeks = p.int("weeks", 1..=26)?.unwrap_or(8);
     let from = p.date("from")?.unwrap_or_else(|| v.today());
     json(&sched::loading(v.state, project, from, weeks))
+}
+
+fn level_plan(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    in_project_exists(v, project)?;
+    let plan = crate::level::plan(v.state(), project, v.today(), p.flag_or("within_float", false)?).map_err(EngineError::conflict)?;
+    json(&plan)
+}
+
+fn level(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let plan = crate::level::plan(ctx.state, project, ctx.today(), p.flag_or("within_float", false)?).map_err(EngineError::conflict)?;
+    let stamp = ctx.stamp();
+    for m in &plan.moves {
+        ctx.state.schedule_tasks.update(m.id, |x| {
+            x.start = m.start;
+            x.finish = m.finish;
+            x.updated = stamp;
+        });
+    }
+    let mut out = json(&plan)?;
+    if let Some(o) = out.as_object_mut() {
+        o.insert("moved".into(), json!(plan.moves.len()));
+    }
+    Ok(out)
 }
 
 fn calendar_get(v: &View<'_>, p: &Params<'_>) -> Result<Value> {

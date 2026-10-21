@@ -17,7 +17,7 @@ fn money(v: Option<&Value>) -> Option<Money> {
     v.and_then(Value::as_str).and_then(|s| Money::parse(s).ok())
 }
 
-fn shell(title: &str, flash: Option<&Flash>, body: Markup) -> Markup {
+pub(crate) fn shell(title: &str, flash: Option<&Flash>, body: Markup) -> Markup {
     html! {
         (DOCTYPE)
         html lang="en" {

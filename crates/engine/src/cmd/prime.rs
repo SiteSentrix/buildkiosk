@@ -60,7 +60,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Send prime contract for signature",
         Tool::PrimeContracts,
         Access::Project(Level::Standard),
-        "project, id: ids; to?: who it was sent to; on?: YYYY-MM-DD (default today)",
+        "project, id: ids; to?: who it was sent to; on?: YYYY-MM-DD (default today); email?: also gives the other party a link to read it and sign it here, emailed by the server (a new link each time, the earlier one stops working); expires?: YYYY-MM-DD, the link's last day",
         sig_send::<PrimeContract>,
     ),
     CommandSpec::mutate(
@@ -114,7 +114,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Send prime change order for signature",
         Tool::ChangeOrders,
         Access::Project(Level::Standard),
-        "project, id: ids; to?: who it was sent to; on?: YYYY-MM-DD (default today)",
+        "project, id: ids; to?: who it was sent to; on?: YYYY-MM-DD (default today); email?: also gives the other party a link to read it and sign it here, emailed by the server (a new link each time, the earlier one stops working); expires?: YYYY-MM-DD, the link's last day",
         sig_send::<PrimeChange>,
     ),
     CommandSpec::mutate(
@@ -220,6 +220,7 @@ fn sig_send<T: Signable>(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         status: SignatureStatus::Sent,
         sent_to: p.line_or_empty("to", text::SHORT)?,
         sent_on: Some(p.date("on")?.unwrap_or_else(|| ctx.today())),
+        link: super::signing::new_link(ctx, p)?,
         ..Default::default()
     };
     Ok(sig_store(ctx, &d, sig))

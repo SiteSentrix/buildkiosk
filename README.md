@@ -90,14 +90,14 @@ differs; [`docs/gaps.md`](docs/gaps.md) lists what each one still lacks.
 | **Specifications** | Sections with links from RFIs and submittals |
 | **Documents** | Folders and versions, files restricted to named people, previews, zip downloads, a recycle bin |
 | **Photos** | Albums and tags, thumbnails that respect camera orientation, a slideshow, side-by-side compare |
-| **Schedule** | A Gantt chart with critical path and float; working calendars and company holiday lists; seven kinds of constraint; named baselines; look-ahead; resource loading; drag bars to move work; import Microsoft Project XML and Primavera exchange (.xer) files |
+| **Schedule** | A Gantt chart with critical path and float; working calendars and company holiday lists; seven kinds of constraint; named baselines; look-ahead; resource loading and levelling against limits; drag bars to move work; import Microsoft Project XML (with resources, limits and the calendar if you want them) and Primavera exchange (.xer) files |
 
 ### Financials
 
 | Tool | What you can do |
 | --- | --- |
 | **Budget** | By cost code with forecast, saved views, snapshots and comparison, and a lock; PDF and CSV |
-| **Commitments** | Subcontracts and purchase orders with schedule of values, change orders, approvals, signatures and files |
+| **Commitments** | Subcontracts and purchase orders with schedule of values, change orders, approvals, signatures (the other party can sign through an emailed link) and files |
 | **Direct costs** | Costs outside commitments, posted to the budget |
 | **Prime contract** | The owner's contract, its change orders, and owner invoices (payment applications designed from first principles) |
 | **Commitment invoices** | Invoices against commitments with retainage |
@@ -110,8 +110,8 @@ differs; [`docs/gaps.md`](docs/gaps.md) lists what each one still lacks.
 | **Estimating** | A priced catalogue with price history by supplier, assemblies, take-offs from drawings, estimates with markups, alternates and versions, templates, and "put it in the budget" |
 | **Bidding** | Bid packages with scope, addenda and acknowledgements, leveling, weighted scoring, bid bonds, and award to a commitment; a bidder portal where invited companies, with no account, open an emailed link to read the documents, ask questions, attach files, and send, change or withdraw a sealed bid, an open link for public work where companies ask to be invited, and emails and notices at each step |
 | **Timesheets** | Hours with overtime rules, pay rates, crews and a labour cost report that posts to the budget |
-| **Prequalification** | Scored, versioned questionnaires, insurance and licence expiry warnings, and an optional rule that awards need a current prequalification |
-| **Reports** | Per-project and company reports with chosen columns, totals, charts, CSV and PDF |
+| **Prequalification** | Scored, versioned questionnaires that companies can answer themselves through an emailed link (no account), insurance and licence expiry warnings to the admins and the company, standing shown on commitments, and an optional rule that awards need a current prequalification |
+| **Reports** | Per-project and company reports with chosen columns across the tools, totals, bar, column and pie charts, CSV and PDF; saved reports can be emailed on a schedule to chosen people, each seeing only what they may see |
 | **Directory and permissions** | Companies and people, permission templates, and per-tool overrides on each team member; every rule is enforced in the engine |
 
 ### For agents and administrators
@@ -131,7 +131,7 @@ differs; [`docs/gaps.md`](docs/gaps.md) lists what each one still lacks.
 ### Not yet
 
 A way to share documents by link, offline field mode and mobile apps, native
-Microsoft Project (.mpp) files, integrations with other software, electronic signing inside BuildKiosk, and the
+Microsoft Project (.mpp) files, integrations with other software, and the
 long tail of each tool. These are tracked in [`docs/gaps.md`](docs/gaps.md) and [`ROADMAP.md`](ROADMAP.md).
 
 ## Install or build it

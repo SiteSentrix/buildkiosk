@@ -144,6 +144,9 @@ pub struct CostCode {
     pub project: Option<Id<Project>>,
     pub code: String,
     pub description: String,
+    /// The kind of cost the code is for, when it has been set: used to group the budget.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cost_type: Option<CostType>,
     pub created: Stamp,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deleted: Option<Stamp>,

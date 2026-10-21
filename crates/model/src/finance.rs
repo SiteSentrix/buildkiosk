@@ -89,6 +89,10 @@ choice! {
         None = ("none", "No grouping"),
         /// By the first part of the code ("03" of "03-300"), with a subtotal for each.
         Division = ("division", "By division"),
+        /// By the first two parts of the code ("03-300" of "03-300-10"), with a subtotal for each.
+        Section = ("section", "By section"),
+        /// By the kind of cost the code is for (labor, material, ...), with a subtotal for each.
+        Type = ("type", "By cost type"),
     }
 }
 
@@ -168,8 +172,31 @@ choice! {
     }
 }
 
-/// The signing of a commitment's contract, recorded by the team (BuildKiosk does not collect signatures itself:
-/// the signed copy is attached as a file).
+/// A link the other party opens to read the contract and sign it in BuildKiosk, with no account. The link itself is
+/// worked out by the server from its secret and never stored, so nothing here (or in the journal) can open it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SignatureLink {
+    /// Where the link is sent.
+    pub email: String,
+    /// Names the link; it changes every time the contract is sent for signature again, so an earlier link stops working.
+    pub generation: u32,
+    /// The link stops working after this day; none means until the signature is cleared.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expires: Option<Date>,
+    pub created: Stamp,
+    /// When the server emailed the link; none while it still has to be sent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sent: Option<Stamp>,
+}
+
+impl SignatureLink {
+    /// Whether the link opens the contract on `today`.
+    pub fn active(&self, today: Date) -> bool {
+        self.expires.is_none_or(|e| today <= e)
+    }
+}
+
+/// The signing of a contract: recorded by the team, or signed by the other party themselves through a link.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ContractSignature {
     #[serde(default)]
@@ -186,6 +213,15 @@ pub struct ContractSignature {
     pub signer: String,
     #[serde(default)]
     pub note: String,
+    /// A link for the other party to sign through, when the team sent one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub link: Option<SignatureLink>,
+    /// The moment it was signed, when the other party signed through the link.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signed_at: Option<Stamp>,
+    /// The contract's last change when it was signed through the link: what was on the page when they signed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signed_terms: Option<Stamp>,
 }
 
 /// One line of a schedule of values or a change: an amount against a cost code.

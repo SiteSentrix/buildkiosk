@@ -216,6 +216,7 @@ fn setup(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
                 project: None,
                 code: (*code).into(),
                 description: (*description).into(),
+                cost_type: None,
                 created: stamp,
                 deleted: None,
             });

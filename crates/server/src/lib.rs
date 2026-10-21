@@ -12,6 +12,7 @@ mod portal;
 mod prequal_portal;
 mod render;
 pub mod s3;
+mod sign_portal;
 mod zip;
 
 /// The browser sheet viewer, when `cargo xtask viewer` built it before this crate was compiled.
@@ -439,6 +440,7 @@ pub fn router(app: Shared) -> Router {
         .route("/projects/{id}/bidding/{bid}/edit", get(bid_package_edit))
         .route("/projects/{id}/bidding/{bid}/links/{n}", get(bid_link_page))
         .route("/projects/{id}/bidding/{bid}/open-link", get(bid_open_link_page))
+        .route("/projects/{id}/sign-link/{kind}/{rid}", get(sign_link_page))
         .route("/projects/{id}/bidding/{bid}/upload", post(bid_package_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
         .route("/projects/{id}/bidding/{bid}/files/{sha}", get(bid_package_download))
         .route("/projects/{id}/estimating", get(estimating_page))
@@ -716,6 +718,7 @@ pub fn router(app: Shared) -> Router {
     let router = invoice_routes::<OwnerInvoice>(router);
     let router = invoice_routes::<CommitmentInvoice>(router);
     let router = portal::routes(router);
+    let router = sign_portal::routes(router);
     let router = prequal_portal::routes(router);
     router
         .fallback(not_found)
@@ -2857,6 +2860,40 @@ async fn bid_link_page(State(app): State<Shared>, headers: HeaderMap, Path((id, 
     page(&app, &headers, &q, |r, _| buildkiosk_web::bidding::link_page(r, Id::new(id), Id::new(bid), &company, &inv.email, &url))
 }
 
+/// Shows one contract's signing link so the team can copy it. Needs the contract's tool at standard level.
+async fn sign_link_page(State(app): State<Shared>, headers: HeaderMap, Path((id, kind, rid)): Path<(u64, String, u64)>, Query(q): Q) -> Response {
+    use buildkiosk_engine::cmd::signing::{Kind, live_link};
+    let Some(kind) = Kind::parse(&kind) else { return not_found(State(app), headers).await };
+    let found = {
+        let inner = app.lock();
+        let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+        let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+        let state = t.engine.state();
+        let allowed = view::level(state, Actor::Person(s.person), Id::new(id), kind.tool()) >= Level::Standard;
+        let today = Timestamp::from_millis(now_ms()).date_at(state.utc_offset());
+        let in_project = match kind {
+            Kind::Commitment => state.commitments.get(Id::new(rid)).is_some_and(|c| c.project.raw() == id),
+            Kind::PrimeContract => state.prime_contracts.get(Id::new(rid)).is_some_and(|c| c.project.raw() == id),
+            Kind::PrimeChange => state.prime_changes.get(Id::new(rid)).is_some_and(|c| c.project.raw() == id),
+        };
+        let link = if allowed && in_project { live_link(state, kind, rid, today) } else { None };
+        link.map(|l| (l, t.slug.clone()))
+    };
+    let Some((link, slug)) = found else { return not_found(State(app), headers).await };
+    let url = sign_portal::team_link(&app, &slug, kind, rid, link.generation);
+    let nav = match kind {
+        Kind::Commitment => buildkiosk_web::layout::Nav::Commitments(Id::new(id)),
+        _ => buildkiosk_web::layout::Nav::PrimeContracts(Id::new(id)),
+    };
+    let tool = match kind {
+        Kind::Commitment => "Commitments",
+        Kind::PrimeContract => "Prime contracts",
+        Kind::PrimeChange => "Prime change orders",
+    };
+    let path = format!("{}/{rid}", kind.path());
+    page(&app, &headers, &q, |r, _| buildkiosk_web::sign_portal::link_page(r, Id::new(id), nav, (tool, &path), tool, &link.email, &url))
+}
+
 /// Shows the package's open bid link so the team can share it.
 /// Shows one prequalification link so the team can copy it. Needs Prequalification at standard level.
 async fn prequal_link_page(State(app): State<Shared>, headers: HeaderMap, Path((vendor, n)): Path<(u64, u32)>, Query(q): Q) -> Response {
@@ -4155,6 +4192,7 @@ async fn mail_loop(app: Shared) {
         if let Err(e) = tokio::task::spawn_blocking(move || {
             mail_pass(&a);
             portal::invite_pass(&a);
+            sign_portal::mail_pass(&a);
             prequal_portal::mail_pass(&a);
         })
         .await

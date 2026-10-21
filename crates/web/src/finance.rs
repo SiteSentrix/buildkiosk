@@ -628,6 +628,7 @@ pub fn commitment(req: &Req<'_>, id: Id<Project>, cid: Id<Commitment>, history: 
                     }
                 }
                 @if sig.status == SignatureStatus::Signed { p class="muted small" { "Attach the signed copy under Files if you haven't." } }
+                (signing_link_facts(req, sig, id, "commitment", c.id.raw(), can_sign))
                 @if can_sign {
                     @if sig.status != SignatureStatus::Signed {
                         @if sig.status != SignatureStatus::Sent {
@@ -636,8 +637,10 @@ pub fn commitment(req: &Req<'_>, id: Id<Project>, cid: Id<Commitment>, history: 
                                 div class="form-grid" {
                                     (field("Sent to", "sig_to", false, false, html! { input type="text" id="sig_to" name="to" placeholder="Name or email"; }))
                                     (field("Date sent", "sig_on", false, false, html! { input type="date" id="sig_on" name="on"; }))
+                                    (field("Email a signing link to", "sig_email", false, false, html! { input type="email" id="sig_email" name="email" placeholder="Leave empty to sign on paper"; }))
+                                    (field("Link works until", "sig_until", false, false, html! { input type="date" id="sig_until" name="expires"; }))
                                 }
-                                div class="form-actions" { button type="submit" class="btn" { "Mark as sent for signature" } }
+                                div class="form-actions" { button type="submit" class="btn" { "Send for signature" } }
                             }))
                         }
                         details class="disclosure" {
@@ -872,6 +875,33 @@ pub fn direct_costs(req: &Req<'_>, id: Id<Project>) -> Markup {
     )
 }
 
+/// What the signing link is doing: who it went to, whether the email went out, and a way to copy it.
+fn signing_link_facts(
+    req: &Req<'_>,
+    sig: &buildkiosk_engine::model::finance::ContractSignature,
+    project: Id<Project>,
+    kind: &str,
+    doc: u64,
+    can_see: bool,
+) -> Markup {
+    let Some(link) = sig.link.as_ref() else { return html! {} };
+    let live = link.active(req.today());
+    html! {
+        dl class="facts" {
+            dt { "Signing link" }
+            dd {
+                (link.email)
+                @if !live { " · " span class="muted" { "expired" } }
+                @else if link.sent.is_some() { " · emailed" }
+                @else { " · waiting to be emailed" }
+                @if let Some(d) = link.expires { " · works until " (d.pretty()) }
+                @if live && can_see { " · " a href=(format!("/projects/{project}/sign-link/{kind}/{doc}")) { "Show link" } }
+            }
+            @if let Some(at) = sig.signed_at { dt { "Signed through the link" } dd { (req.when(at.at)) } }
+        }
+    }
+}
+
 /// The signature card of a prime contract or change order: where the signing stands and the steps that move it.
 pub(crate) fn signature_card(
     req: &Req<'_>,
@@ -902,6 +932,7 @@ pub(crate) fn signature_card(
                         @if !sig.note.is_empty() { dt { "Note" } dd { (sig.note) } }
                     }
                 }
+                (signing_link_facts(req, sig, project, prefix, doc, can_sign))
                 @if can_sign {
                     @if sig.status != SignatureStatus::Signed {
                         @if sig.status != SignatureStatus::Sent {
@@ -910,8 +941,10 @@ pub(crate) fn signature_card(
                                 div class="form-grid" {
                                     (field("Sent to", "sig_to", false, false, html! { input type="text" id="sig_to" name="to" placeholder="Name or email"; }))
                                     (field("Date sent", "sig_on", false, false, html! { input type="date" id="sig_on" name="on"; }))
+                                    (field("Email a signing link to", "sig_email", false, false, html! { input type="email" id="sig_email" name="email" placeholder="Leave empty to sign on paper"; }))
+                                    (field("Link works until", "sig_until", false, false, html! { input type="date" id="sig_until" name="expires"; }))
                                 }
-                                div class="form-actions" { button type="submit" class="btn" { "Mark as sent for signature" } }
+                                div class="form-actions" { button type="submit" class="btn" { "Send for signature" } }
                             }))
                         }
                         details class="disclosure" {

@@ -1117,7 +1117,7 @@ async fn prime_contract_and_owner_invoicing_in_the_browser_flow() {
         assert!(contract.contains(want), "{want} missing from the contract");
     }
     // Signing the contract with the owner is tracked on the contract's page.
-    assert!(contract.contains("Mark as sent for signature") && contract.contains("Record the signature"), "{contract}");
+    assert!(contract.contains("Send for signature") && contract.contains("Record the signature"), "{contract}");
     send(&app, post("/do/prime_contract.record_signature", &ada, format!("_csrf={csrf}&project=1&id=1&signer=Olga+Owner&on=2026-10-01"))).await;
     let (_, _, contract) = send(&app, get("/projects/1/prime-contracts/1")).await;
     assert!(contract.contains("Olga Owner") && contract.contains("Clear the signature"), "{contract}");
@@ -4251,4 +4251,97 @@ async fn company_report_chart_kinds_and_email_schedule() {
         "{body}"
     );
     assert!(csv.starts_with("Project,Open tasks,Original budget") && csv.contains("Alpha,3"), "{csv}");
+}
+
+#[tokio::test]
+async fn the_other_party_signs_a_contract_through_its_link() {
+    let dir = temp("signing");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let bare = |uri: &str| Request::get(uri.to_string()).body(Body::empty()).unwrap();
+    let post_bare = |uri: &str, body: String| {
+        Request::post(uri.to_string()).header("content-type", "application/x-www-form-urlencoded").body(Body::from(body)).unwrap()
+    };
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=P"))).await;
+    send(&app, post("/do/vendor.create", &ada, format!("_csrf={csrf}&name=Keystone+Concrete&kind=subcontractor"))).await;
+    let code = app.lock().tenant.as_ref().unwrap().engine.state().cost_codes.iter().next().unwrap().id.raw();
+    let lines = format!("lines.0.cost_code={code}&lines.0.description=Footings&lines.0.amount=30000");
+    send(&app, post("/do/commitment.create", &ada, format!("_csrf={csrf}&project=1&title=Footings&vendor=1&{lines}"))).await;
+    let (st, _, card) = send(&app, get("/projects/1/commitments/1")).await;
+    assert!(st == StatusCode::OK && card.contains("Email a signing link to"), "{card}");
+
+    send(&app, post("/do/commitment.send_for_signature", &ada, format!("_csrf={csrf}&project=1&id=1&email=sam%40keystone.example"))).await;
+    let generation = {
+        let inner = app.lock();
+        let c = inner.tenant.as_ref().unwrap().engine.state().commitments.iter().next().unwrap().clone();
+        c.signature.link.unwrap().generation
+    };
+    let slug = app.lock().tenant.as_ref().unwrap().slug.clone();
+    let tok = |g: u32| sign_portal::token(app.secret(), &slug, buildkiosk_engine::cmd::signing::Kind::Commitment, 1, g);
+    let link = tok(generation);
+
+    // The link opens the contract with no sign-in; anything else is the same page.
+    let (st, h, page) = send(&app, bare(&format!("/sign/{link}"))).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(page.contains("Footings") && page.contains("Keystone Concrete") && page.contains("30,000.00"), "{page}");
+    assert!(h.get(SET_COOKIE).is_none());
+    assert_eq!(h.get("referrer-policy").unwrap(), "no-referrer");
+    assert_eq!(h.get("cache-control").unwrap(), "no-store");
+    assert!(h.get("content-security-policy").unwrap().to_str().unwrap().contains("script-src 'none'"));
+    let tampered = format!("{}x", &link[..link.len() - 1]);
+    let stale = tok(generation + 1);
+    let mut answers = Vec::new();
+    for bad in [tampered.as_str(), stale.as_str(), "garbage", "commitment.1.0.", "nonsense.1.0.abc"] {
+        let (st, _, body) = send(&app, bare(&format!("/sign/{bad}"))).await;
+        assert_eq!(st, StatusCode::NOT_FOUND, "{bad}");
+        answers.push(body);
+    }
+    assert!(answers.windows(2).all(|w| w[0] == w[1]) && !answers[0].contains("Footings"));
+
+    // The team can copy the link, and it is emailed once outgoing email is set up.
+    let (st, _, shown) = send(&app, get("/projects/1/sign-link/commitment/1")).await;
+    assert!(st == StatusCode::OK && shown.contains(&format!("/sign/{link}")), "{shown}");
+    assert_eq!(send(&app, get("/projects/1/sign-link/commitment/9")).await.0, StatusCode::NOT_FOUND);
+    assert!(sign_portal::pending(&app).is_none());
+    app.lock().creds.smtp = Some(buildkiosk_store::creds::SmtpSettings {
+        host: "mail.example".into(),
+        port: 25,
+        security: "none".into(),
+        from: "contracts@example.com".into(),
+        base_url: "https://sign.example".into(),
+        ..Default::default()
+    });
+    let (_, out) = sign_portal::pending(&app).unwrap();
+    assert_eq!(out.len(), 1);
+
+    // Signing needs the form token, the box and a name.
+    let form = field(&page, "_csrf");
+    let terms = field(&page, "terms");
+    let (st, ..) = send(&app, post_bare(&format!("/sign/{link}/sign"), format!("_csrf=nope&name=Sam+Sub&agree=true&terms={terms}"))).await;
+    assert_eq!(st, StatusCode::FORBIDDEN);
+    let (st, h, _) = send(&app, post_bare(&format!("/sign/{link}/sign"), format!("_csrf={form}&name=Sam+Sub&terms={terms}"))).await;
+    assert_eq!(st, StatusCode::SEE_OTHER);
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("err"), "{h:?}");
+    let (st, h, _) = send(&app, post_bare(&format!("/sign/{link}/sign"), format!("_csrf={form}&name=Sam+Sub&agree=true&terms={terms}"))).await;
+    assert_eq!(st, StatusCode::SEE_OTHER);
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().starts_with(&format!("/sign/{link}?ok=")), "{h:?}");
+    let (_, _, done) = send(&app, bare(&format!("/sign/{link}"))).await;
+    assert!(done.contains("Signed by") && done.contains("Sam Sub") && !done.contains("Decline to sign"), "{done}");
+    let (_, _, card) = send(&app, get("/projects/1/commitments/1")).await;
+    assert!(card.contains("Sam Sub") && card.contains("Signed through the link"), "{card}");
+    let (_, out) = sign_portal::pending(&app).unwrap();
+    assert!(out.is_empty(), "a signed contract is not emailed again");
+    // A second try is refused.
+    let (_, h, _) = send(&app, post_bare(&format!("/sign/{link}/sign"), format!("_csrf={form}&name=Eve+Eve&agree=true&terms={terms}"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("err"));
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
 }

@@ -37,6 +37,7 @@ pub mod reports;
 pub mod restore;
 pub mod schedule;
 pub mod settings;
+pub mod sign_portal;
 pub mod specs;
 pub mod style;
 pub mod submittals;

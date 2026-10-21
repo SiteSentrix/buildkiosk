@@ -4022,16 +4022,16 @@ fn mail_pending(app: &App) -> Option<(buildkiosk_store::creds::SmtpSettings, Vec
         .filter_map(|n| {
             let p = state.people.get(n.person)?;
             let to = p.email.clone().filter(|_| p.is_user && p.active)?;
-            let subject: String = n.text.chars().filter(|c| !c.is_control()).take(120).collect();
+            // In the language the person saved; the notice's own wording is translated where a catalog has it.
+            let lang = buildkiosk_web::i18n::Lang::parse(&p.language).unwrap_or_default();
+            let text = buildkiosk_web::i18n::translate_plain(&n.text, lang);
+            let subject: String = text.chars().filter(|c| !c.is_control()).take(120).collect();
             let link = if n.link.is_empty() || smtp.base_url.is_empty() { String::new() } else { format!("\n\n{}{}", smtp.base_url, n.link) };
             Some(mail::Mail {
                 id: n.id.raw(),
                 to,
                 subject,
-                body: format!(
-                    "{}{link}\n\nYou get this because email notifications are on for your BuildKiosk account. Turn them off under My account.\n",
-                    n.text
-                ),
+                body: format!("{text}{link}\n\n{}\n", buildkiosk_web::i18n::translate_plain(buildkiosk_web::inbox::EMAIL_FOOTER, lang)),
             })
         })
         .collect();

@@ -36,3 +36,6 @@ pub fn page(req: &Req<'_>) -> Markup {
     };
     layout::app(req, "Notifications", Nav::Notifications, &[("Notifications", None)], body)
 }
+
+/// The closing line of a notification email (the server translates it into the reader's language).
+pub const EMAIL_FOOTER: &str = "You get this because email notifications are on for your BuildKiosk account. Turn them off under My account.";

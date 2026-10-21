@@ -85,12 +85,18 @@ pub struct Person {
     pub company_template: Option<Id<PermissionTemplate>>,
     #[serde(default = "yes")]
     pub active: bool,
+    /// The language this person reads the interface in (one of [`LANGUAGES`]); empty follows the browser.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub language: String,
     pub created: Stamp,
     pub updated: Stamp,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deleted: Option<Stamp>,
 }
 record!(Person, "person", trash);
+
+/// The interface languages a person can choose (codes as in `crates/web/i18n`).
+pub const LANGUAGES: [&str; 4] = ["en", "es", "fr", "nl"];
 
 fn yes() -> bool {
     true

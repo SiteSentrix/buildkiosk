@@ -406,6 +406,7 @@ Choose companies	Bedrijven kiezen
 Choose documents	Documenten kiezen
 Choose forecasting method by {}	Prognosemethode kiezen door {}
 Choose my default budget view by {}	Mijn standaardbudgetweergave kiezen door {}
+Choose my language by {}	Taalkeuze door {}
 Choose one	Kies er één
 Choose people	Personen kiezen
 Choose people to keep informed	Kies personen die op de hoogte moeten blijven

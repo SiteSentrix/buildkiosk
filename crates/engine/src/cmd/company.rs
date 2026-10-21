@@ -204,6 +204,7 @@ fn setup(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         company_admin: true,
         company_template: None,
         active: true,
+        language: String::new(),
         created: stamp,
         updated: stamp,
         deleted: None,

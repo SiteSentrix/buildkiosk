@@ -3678,6 +3678,18 @@ async fn pages_come_out_in_the_language_chosen() {
     }
     let (_, h, _) = send(&app, choose("tlh", "http://x/a")).await;
     assert_eq!((h.get(LOCATION).unwrap().to_str().unwrap(), h.get(SET_COOKIE).is_none()), ("/", true));
+
+    // Signed in, the choice is kept with the account: another browser (no cookie, English preference) follows it.
+    let signed_choice = Request::get("/language?to=fr").header("cookie", &ada).header("referer", "http://x/").body(Body::empty()).unwrap();
+    assert_eq!(send(&app, signed_choice).await.0, StatusCode::SEE_OTHER);
+    assert_eq!(app.lock().tenant.as_ref().unwrap().engine.state().people.iter().next().unwrap().language, "fr");
+    let elsewhere = Request::get("/").header("cookie", &ada).header("accept-language", "en").body(Body::empty()).unwrap();
+    let (_, _, fr) = send(&app, elsewhere).await;
+    assert!(fr.contains("<html lang=\"fr\">") && !fr.contains(">Projects<"), "{fr}");
+    // Choosing again changes it; nothing else can set a language but the person themselves.
+    let again = Request::get("/language?to=nl").header("cookie", &ada).header("referer", "http://x/").body(Body::empty()).unwrap();
+    send(&app, again).await;
+    assert_eq!(app.lock().tenant.as_ref().unwrap().engine.state().people.iter().next().unwrap().language, "nl");
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }

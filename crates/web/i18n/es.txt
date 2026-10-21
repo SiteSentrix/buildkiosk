@@ -406,6 +406,7 @@ Choose companies	Elegir empresas
 Choose documents	Elegir documentos
 Choose forecasting method by {}	Elegir método de proyección por {}
 Choose my default budget view by {}	Elegir mi vista de presupuesto predeterminada por {}
+Choose my language by {}	Elección de idioma por {}
 Choose one	Elige uno
 Choose people	Elegir personas
 Choose people to keep informed	Elige las personas a mantener informadas

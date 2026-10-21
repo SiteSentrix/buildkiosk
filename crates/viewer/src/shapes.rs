@@ -96,6 +96,7 @@ pub fn shapes(marks: &[Mark], camera: &Camera) -> Vec<Drawn> {
             let id = m.id.to_string();
             let shape = match m.kind {
                 MarkupKind::Pin => Shape::Pin { x, y, label: id },
+                MarkupKind::Count => Shape::Pin { x, y, label: if m.text.is_empty() { id } else { format!("{id} {}", m.text) } },
                 MarkupKind::Rectangle => Shape::Box { x: x.min(x2), y: y.min(y2), w: (x - x2).abs(), h: (y - y2).abs(), label: id },
                 MarkupKind::Arrow => Shape::Arrow { x1: x, y1: y, x2, y2, label: id },
                 MarkupKind::Text => Shape::Text { x, y, label: format!("{id}. {}", m.text) },

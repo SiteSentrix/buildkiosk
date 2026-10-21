@@ -837,6 +837,7 @@ fn get(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
 struct Group {
     kind: buildkiosk_model::drawing::MarkupKind,
     label: String,
+    cost_code: Option<Id<CostCode>>,
     count: usize,
     /// Micrometres for lengths, square micrometres for areas; unused for counts.
     total: u128,
@@ -850,7 +851,7 @@ impl Group {
     fn quantity(&self) -> Option<(i64, String)> {
         use buildkiosk_model::drawing::{LengthUnit as U, MarkupKind as K};
         match self.kind {
-            K::Pin => Some((i64::try_from(self.count).ok()?.checked_mul(1000)?, "ea".into())),
+            K::Pin | K::Count => Some((i64::try_from(self.count).ok()?.checked_mul(1000)?, "ea".into())),
             K::Dimension | K::Area if self.mixed => None,
             K::Dimension => {
                 let unit = self.unit?;
@@ -898,23 +899,31 @@ pub fn takeoff_kind(kind: buildkiosk_model::drawing::MarkupKind) -> buildkiosk_m
 
 /// The measurements on the current revision of a sheet, by kind and label.
 fn groups(state: &buildkiosk_model::CompanyState, project: Id<Project>, drawing: Id<buildkiosk_model::drawing::Drawing>) -> Result<Vec<Group>> {
-    use buildkiosk_model::drawing::MarkupKind as K;
     let d = in_project(&state.drawings, project, drawing, "drawing")?;
     if d.deleted.is_some() {
         return Err(EngineError::not_found(format!("drawing {drawing} not found in this project")));
     }
+    Ok(collect(d, false))
+}
+
+/// Whether a markup is something a take-off adds up: a counted item, a pin, or a measurement with a value.
+fn counts_in_takeoff(m: &buildkiosk_model::drawing::Markup) -> bool {
+    use buildkiosk_model::drawing::MarkupKind as K;
+    matches!(m.kind, K::Pin | K::Count) || ((m.kind.measures_length() || m.kind.measures_area()) && m.measure > 0)
+}
+
+/// A sheet's current revision added up by kind and label (and by cost code when `by_code`).
+fn collect(d: &buildkiosk_model::drawing::Drawing, by_code: bool) -> Vec<Group> {
     let mut out: Vec<Group> = Vec::new();
-    for m in d.current().into_iter().flat_map(|r| &r.markups) {
-        if !(m.kind.measures_length() || m.kind.measures_area() || m.kind == K::Pin) || (m.kind != K::Pin && m.measure == 0) {
-            continue;
-        }
+    for m in d.current().into_iter().flat_map(|r| &r.markups).filter(|m| counts_in_takeoff(m)) {
         // A path adds up with straight lengths, an outline with boxes.
         let kind = takeoff_kind(m.kind);
         let label = m.text.trim().to_string();
-        let g = match out.iter().position(|g| g.kind == kind && g.label == label) {
+        let cost_code = if by_code { m.cost_code } else { None };
+        let g = match out.iter().position(|g| g.kind == kind && g.label == label && g.cost_code == cost_code) {
             Some(i) => i,
             None => {
-                out.push(Group { kind, label, count: 0, total: 0, unit: m.unit, mixed: false });
+                out.push(Group { kind, label, cost_code, count: 0, total: 0, unit: m.unit, mixed: false });
                 out.len() - 1
             }
         };
@@ -922,6 +931,55 @@ fn groups(state: &buildkiosk_model::CompanyState, project: Id<Project>, drawing:
             g.count += 1;
             g.total = g.total.saturating_add(u128::from(m.measure));
             g.mixed |= g.unit != m.unit;
+        }
+    }
+    out
+}
+
+/// One line of the quantities report.
+pub struct QuantityRow {
+    pub drawing: Id<buildkiosk_model::drawing::Drawing>,
+    pub sheet: String,
+    pub kind: buildkiosk_model::drawing::MarkupKind,
+    pub label: String,
+    pub cost_code: Option<Id<CostCode>>,
+    pub count: usize,
+    /// The quantity as text ("120.500"), none when the group mixes units.
+    pub quantity: Option<String>,
+    pub unit: Option<String>,
+}
+
+/// What is measured and counted on the current revision of each sheet (or just `one`), by sheet, cost code, kind and label.
+pub fn quantity_rows(
+    state: &buildkiosk_model::CompanyState,
+    project: Id<Project>,
+    one: Option<Id<buildkiosk_model::drawing::Drawing>>,
+) -> Result<Vec<QuantityRow>> {
+    let mut sheets: Vec<&buildkiosk_model::drawing::Drawing> = match one {
+        Some(id) => {
+            let d = in_project(&state.drawings, project, id, "drawing")?;
+            if d.deleted.is_some() {
+                return Err(EngineError::not_found(format!("drawing {id} not found in this project")));
+            }
+            vec![d]
+        }
+        None => state.drawings.iter().filter(|d| d.project == project && d.deleted.is_none()).collect(),
+    };
+    sheets.sort_by(|a, b| a.number.cmp(&b.number));
+    let mut out = Vec::new();
+    for d in sheets {
+        for g in collect(d, true) {
+            let q = g.quantity();
+            out.push(QuantityRow {
+                drawing: d.id,
+                sheet: d.label(),
+                kind: g.kind,
+                label: g.label,
+                cost_code: g.cost_code,
+                count: g.count,
+                quantity: q.as_ref().map(|(m, _)| format!("{}.{:03}", m / 1000, m % 1000)),
+                unit: q.map(|(_, u)| u),
+            });
         }
     }
     Ok(out)
@@ -944,8 +1002,10 @@ fn add_from_takeoff(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     use buildkiosk_model::drawing::MarkupKind as K;
     let mut e = draft(ctx, p)?;
     let drawing: Id<buildkiosk_model::drawing::Drawing> = p.id("drawing")?;
-    let kind =
-        p.choice::<K>("kind")?.filter(|k| matches!(k, K::Dimension | K::Area | K::Pin)).ok_or_else(|| p.bad("kind", "must be dim, area or pin"))?;
+    let kind = p
+        .choice::<K>("kind")?
+        .filter(|k| matches!(k, K::Dimension | K::Area | K::Pin | K::Count))
+        .ok_or_else(|| p.bad("kind", "must be dim, area, pin or count"))?;
     let label = p.line_or_empty("label", text::SHORT)?;
     let code: Id<CostCode> = p.id("cost_code")?;
     usable_code(ctx.state, e.project, code)?;

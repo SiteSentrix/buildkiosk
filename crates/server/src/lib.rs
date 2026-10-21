@@ -516,6 +516,8 @@ pub fn router(app: Shared) -> Router {
         .route("/projects/{id}/schedule/{tid}", get(schedule_task_page))
         .route("/projects/{id}/drawings", get(drawings_page))
         .route("/projects/{id}/drawings.csv", get(drawings_csv))
+        .route("/projects/{id}/drawings/quantities", get(drawing_quantities))
+        .route("/projects/{id}/drawings/quantities.csv", get(drawing_quantities_csv))
         .route("/projects/{id}/drawings/upload", post(drawing_upload_new).layer(DefaultBodyLimit::max(MAX_UPLOAD + 64 * 1024)))
         .route("/projects/{id}/drawings/upload-set", post(drawing_upload_set).layer(DefaultBodyLimit::max(MAX_BULK + 64 * 1024)))
         .route("/projects/{id}/drawings/{did}/view", get(drawing_view))
@@ -3049,6 +3051,22 @@ async fn drawings_csv(State(app): State<Shared>, headers: HeaderMap, Path(id): P
     res
 }
 
+async fn drawing_quantities(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>, Query(q): Q) -> Response {
+    page(&app, &headers, &q, |r, _| buildkiosk_web::drawings::quantities(r, Id::new(id)))
+}
+
+async fn drawing_quantities_csv(State(app): State<Shared>, headers: HeaderMap, Path(id): Path<u64>) -> Response {
+    let inner = app.lock();
+    let Some(t) = inner.tenant.as_ref() else { return redirect("/setup") };
+    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+    let req = Req { engine: &t.engine, person: s.person, csrf: "", now: Timestamp::from_millis(now_ms()), flash: None };
+    let Some(csv) = buildkiosk_web::drawings::quantities_csv(&req, Id::new(id)) else { return plain(StatusCode::NOT_FOUND, "Not found") };
+    let mut res = csv.into_response();
+    res.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_static("text/csv; charset=utf-8"));
+    res.headers_mut().insert("content-disposition", HeaderValue::from_static("attachment; filename=\"quantities.csv\""));
+    res
+}
+
 /// The sheet number and title in a file name: "A-101 Floor plan.pdf" is sheet A-101, "Floor plan".
 fn sheet_from_file_name(file: &str) -> (String, String) {
     let stem = file.rsplit_once('.').map(|(s, _)| s).unwrap_or(file).trim();
@@ -3222,7 +3240,7 @@ fn view_from_query(q: &HashMap<String, String>) -> buildkiosk_web::drawings::Vie
         rev: text("rev"),
         page: num("page").unwrap_or(1).clamp(1, 2_000),
         width: num("w").unwrap_or(900).clamp(render::MIN_WIDTH, render::MAX_WIDTH),
-        tool: if matches!(tool.as_str(), "pin" | "rect" | "arrow" | "text") { tool } else { String::new() },
+        tool: if matches!(tool.as_str(), "pin" | "rect" | "arrow" | "text" | "count") { tool } else { String::new() },
         first: point("x1", "y1"),
         click: None,
         compare: text("compare"),

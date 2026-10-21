@@ -441,6 +441,7 @@ Clear prime change order signature status by {}	Ondertekeningsstatus van wijzigi
 Clear prime contract signature status by {}	Ondertekeningsstatus van hoofdcontract wissen door {}
 Clear signature status by {}	Ondertekeningsstatus wissen door {}
 Clear the signature	De handtekening wissen
+Click each item to count.	Klik op elk te tellen item.
 Click one corner of the box.	Klik op één hoek van het vak.
 Click the opposite corner.	Klik op de tegenoverliggende hoek.
 Click the picture where the pin goes.	Klik op de afbeelding waar de pin moet komen.
@@ -544,6 +545,7 @@ Correspondence #{}	Correspondentie #{}
 Correspondence types	Correspondentietypen
 Cost	Kosten
 Cost code	Kostencode
+Cost code (optional)	Kostencode (optioneel)
 Cost code (to compare with the budget)	Kostencode (om met het budget te vergelijken)
 Cost code for hours without one	Kostencode voor uren zonder kostencode
 Cost code for parts without one	Kostencode voor onderdelen zonder kostencode
@@ -559,6 +561,7 @@ Cost to add if excluded	Extra kosten indien uitgesloten
 Cost to date	Kosten tot nu toe
 Cost types	Kostensoorten
 Costs paid without a commitment	Kosten betaald zonder verplichting
+Count	Telling
 Country	Land
 County inspector	Inspecteur van de gemeente
 Covered?	Gedekt?
@@ -1099,6 +1102,7 @@ Kind	Soort
 Kind of chart	Soort grafiek
 LTR	LTR
 LTR-001, LTR-002… With types set, every item must be one of them.	LTR-001, LTR-002… Als er typen zijn ingesteld, moet elk item een van deze typen zijn.
+Label	Label
 Labor	Arbeid
 Labour cost	Arbeidskosten
 Ladders and scaffolds are in good condition and used correctly	Ladders en steigers zijn in goede staat en worden correct gebruikt
@@ -1121,6 +1125,7 @@ Leave empty to sign on paper	Leeg laten om op papier te ondertekenen
 Leave the markups out	De markeringen weglaten
 Leave this empty	Laat dit leeg
 Length	Lengte
+Lengths along paths add up with straight lengths and outline areas with boxes. Add a line to an estimate from its Takeoff section.	Lengtes langs paden worden bij rechte lengtes opgeteld en oppervlakten van omtrekken bij die van kaders. Voeg een regel toe aan een raming vanuit het onderdeel Opmeting.
 Letter	Brief
 Letter, Notice, Email…	Brief, bericht, e-mail…
 Letters, notices and emails kept on the project record	Brieven, berichten en e-mails die in het projectdossier zijn bewaard
@@ -1199,6 +1204,7 @@ Mark task work done by {}	Werk aan taak als gereed markeren door {}
 Mark up	Markeren
 Mark up a sheet by {}	Een tekening markeren door {}
 Mark work done	Werk als gereed markeren
+Marks	Markeringen
 Markup {} name	Naam van opslag {}
 Markup {} percent	Percentage van opslag {}
 Markups (a percentage of the subtotal)	Opslagen (een percentage van het subtotaal)
@@ -1429,6 +1435,7 @@ Nothing has been added yet.	Er is nog niets toegevoegd.
 Nothing here yet	Hier is nog niets
 Nothing in the catalogue	Niets in de catalogus
 Nothing is approved to invoice yet.	Er is nog niets goedgekeurd om te factureren.
+Nothing is measured or counted yet	Er is nog niets gemeten of geteld
 Nothing matches, or you can't open any project yet.	Niets gevonden, of je kunt nog geen project openen.
 Nothing recorded yet.	Nog niets vastgelegd.
 Nothing scheduled.	Niets gepland.
@@ -1712,6 +1719,7 @@ Put in the budget {}	In het budget zetten {}
 Qty	Aantal
 Quality	Kwaliteit
 Quality and safety	Kwaliteit en veiligheid
+Quantities	Hoeveelheden
 Quantity	Hoeveelheid
 Quantity of line {}	Hoeveelheid van regel {}
 Quantity per unit	Hoeveelheid per eenheid
@@ -2134,6 +2142,7 @@ Sep	Sep
 Set	Instellen
 Set a budget line	Een budgetregel instellen
 Set a cost code's cost type by {}	Kostensoort van een kostencode ingesteld door {}
+Set a page's scale in the sheet viewer, then draw lengths and areas or click the Count tool on each item.	Stel de schaal van een pagina in de tekeningviewer in en teken dan lengtes en oppervlakten, of gebruik het hulpmiddel Telling op elk item.
 Set bid scoring criteria by {}	Beoordelingscriteria voor inschrijvingen instellen door {}
 Set budget line by {}	Budgetregel instellen door {}
 Set forecast to complete by {}	Prognose tot oplevering instellen door {}
@@ -2147,6 +2156,7 @@ Set plan approvers by {}	Goedkeurders van het plan instellen door {}
 Set rate	Tarief instellen
 Set scale	Schaal instellen
 Set task progress by {}	Voortgang van taak instellen door {}
+Set the cost code of a measurement or count by {}	Kostencode van een meting of telling ingesteld door {}
 Set the cost type of many cost codes by {}	Kostensoorten van meerdere kostencodes ingesteld door {}
 Set the criteria	Stel de criteria in
 Set the project's working days and holidays by {}	Werkdagen en feestdagen van het project instellen door {}
@@ -2526,6 +2536,7 @@ What changed, or what to do about it	Wat er veranderd is, of wat eraan te doen i
 What each cost code was budgeted, what is committed and what has been spent	Wat per kostencode is begroot, wat is verplicht en wat is uitgegeven
 What happened	Wat er gebeurd is
 What happened on site, day by day	Wat er op de bouwplaats is gebeurd, dag voor dag
+What is measured and counted on the current revision of each sheet	Wat er is gemeten en geteld op de huidige revisie van elk blad
 What it is for	Waar het voor dient
 What still needs doing	Wat nog moet gebeuren
 What subcontractors and suppliers bill against their commitments	Wat onderaannemers en leveranciers factureren op hun verplichtingen

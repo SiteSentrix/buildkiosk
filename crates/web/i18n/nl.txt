@@ -1517,6 +1517,7 @@ Open or close the open bid link by {}	De open biedlink openen of sluiten door {}
 Open punch items	Open opleverpunten
 Open sealed bids by {}	Verzegelde biedingen openen door {}
 Open tasks	Open taken
+Open the report	Open het rapport
 Open the standard layout by default	Open de standaardindeling als standaard
 Open them now	Nu openen
 Open this view by default	Open deze weergave als standaard
@@ -2391,6 +2392,7 @@ The questions each kind of form asks. Forms already started keep the questions t
 The record was put forward by the company through link	Het dossier is door het bedrijf ingediend via link
 The record was put forward by the company through link {}.	Het dossier is door het bedrijf ingediend via link {}.
 The reflected ceiling plan shows 9'-0" but the section shows 8'-6". Which governs?	Het plafondspiegelplan toont 2,75 m, maar de doorsnede toont 2,60 m. Welke geldt?
+The same figures are attached as a CSV file.	Dezelfde cijfers zitten als CSV-bestand in de bijlage.
 The section governs	Het hoofdstuk geldt
 The sheet log	De tekeninglog
 The team answers you here. They may share a question and its answer with the other bidders, without your name.	Het team antwoordt u hier. Het kan een vraag en het antwoord delen met de andere bieders, zonder uw naam.
@@ -2612,6 +2614,8 @@ Yes, only the people below, the manager and the tool's admins	Ja, alleen de mens
 You	U
 You can change your bid below until the due date.	U kunt uw bieding hieronder wijzigen tot de uiterste datum.
 You declined to sign this contract.	U hebt geweigerd dit contract te ondertekenen.
+You get this because email notifications are on for your BuildKiosk account. Turn them off under My account.	U krijgt dit omdat e-mailmeldingen aanstaan voor uw BuildKiosk-account. Zet ze uit onder Mijn account.
+You get this because the report is emailed to you on a schedule. Each figure is only what you can see of a project.	U krijgt dit omdat het rapport volgens een schema naar u wordt gemaild. Elk cijfer is alleen wat u van een project kunt zien.
 You have no tokens.	Je hebt geen tokens.
 You have read this	U heeft dit gelezen
 You have signed. The contract is complete when everyone has.	U hebt getekend. Het contract is compleet zodra iedereen heeft getekend.

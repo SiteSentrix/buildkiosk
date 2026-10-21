@@ -364,8 +364,14 @@ pub fn table_text(req: &Req<'_>, report: Option<Id<SavedReport>>) -> Option<Tabl
 /// server's address is known, and the CSV to attach. `None` when the person can't run the report. The figures are what
 /// that person can see (`req` is theirs).
 pub fn delivery_email(req: &Req<'_>, report: Id<SavedReport>, base_url: &str) -> Option<(String, String, String)> {
-    let table = table_text(req, Some(report))?;
+    let mut table = table_text(req, Some(report))?;
     let csv = csv(req, Some(report))?;
+    // The email is written in the language the person saved; one who saved none gets English.
+    let lang = req.engine.state().people.get(req.person).and_then(|p| crate::i18n::Lang::parse(&p.language)).unwrap_or_default();
+    let t = |s: &str| crate::i18n::translate_plain(s, lang);
+    table.title = t(&table.title);
+    table.headers = table.headers.iter().map(|h| t(h)).collect();
+    table.totals = table.totals.iter().map(|c| t(c)).collect();
     let mut widths: Vec<usize> = table.headers.iter().map(|h| h.chars().count()).collect();
     for row in table.rows.iter().chain(std::iter::once(&table.totals)) {
         for (w, cell) in widths.iter_mut().zip(row) {
@@ -384,18 +390,22 @@ pub fn delivery_email(req: &Req<'_>, report: Id<SavedReport>, base_url: &str) ->
             .collect();
         parts.join("  ").trim_end().to_string()
     };
-    let mut body = format!("{} · {}\n\n{}\n", table.title, req.today().pretty(), line(&table.headers));
+    let today = t(&req.today().pretty());
+    let mut body = format!("{} · {today}\n\n{}\n", table.title, line(&table.headers));
     for row in &table.rows {
         body.push_str(&line(row));
         body.push('\n');
     }
     body.push_str(&line(&table.totals));
-    body.push_str("\n\nThe same figures are attached as a CSV file.");
+    body.push_str(&format!("\n\n{}", t("The same figures are attached as a CSV file.")));
     if !base_url.is_empty() {
-        body.push_str(&format!("\nOpen the report: {base_url}/reports?report={report}"));
+        body.push_str(&format!("\n{}: {base_url}/reports?report={report}", t("Open the report")));
     }
-    body.push_str("\n\nYou get this because the report is emailed to you on a schedule. Each figure is only what you can see of a project.\n");
-    let subject: String = format!("{} · {}", table.title, req.today().pretty()).chars().filter(|c| !c.is_control()).take(120).collect();
+    body.push_str(&format!(
+        "\n\n{}\n",
+        t("You get this because the report is emailed to you on a schedule. Each figure is only what you can see of a project.")
+    ));
+    let subject: String = format!("{} · {today}", table.title).chars().filter(|c| !c.is_control()).take(120).collect();
     Some((subject, body, csv))
 }
 

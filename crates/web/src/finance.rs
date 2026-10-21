@@ -347,7 +347,8 @@ pub fn budget(
                     p class="muted small" { "A spreadsheet saved as CSV. Put the column names on the first line: Cost code, Amount (or Original budget), and optionally Description and Notes, in any order. Without a first line of names, the columns are code, amount, notes. A code that already has a line changes it. Up to 1 MB." }
                     form method="post" action=(format!("{here}/import-file")) enctype="multipart/form-data" {
                         input type="hidden" name="_csrf" value=(req.csrf);
-                        (field("Budget file", "budget_file", true, true, html! { input type="file" id="budget_file" name="file" accept=".csv,text/csv,text/plain" required; }))
+                        p class="muted small" { "An Excel workbook (.xlsx) works too, and its first sheet is read." }
+                        (field("Budget file", "budget_file", true, true, html! { input type="file" id="budget_file" name="file" accept=".csv,.xlsx,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required; }))
                         @if req.allowed("cost_code.create", Some(id)) {
                             label class="check" { input type="checkbox" name="add_codes" value="true"; " Add the cost codes this project doesn't have yet (they take their names from the Description column)" }
                         }

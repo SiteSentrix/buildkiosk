@@ -13,6 +13,7 @@ mod prequal_portal;
 mod render;
 pub mod s3;
 mod sign_portal;
+mod xlsx;
 mod zip;
 
 /// The browser sheet viewer, when `cargo xtask viewer` built it before this crate was compiled.
@@ -3483,7 +3484,16 @@ async fn import_file(
     }
     let Some(bytes) = file.filter(|b| !b.is_empty()) else { return redirect(&with_flash(&back, false, &format!("Choose a {what} to import."))) };
     // Exchange files from planning programs are usually in a Windows code page, not UTF-8; their text is read as Latin-1 then.
-    let text = match String::from_utf8(bytes.to_vec()) {
+    // A workbook is read as its first sheet, written out as CSV.
+    let workbook = if xlsx::looks_like_workbook(&bytes) {
+        match xlsx::to_csv(&bytes) {
+            Ok(t) => Some(t),
+            Err(e) => return redirect(&with_flash(&back, false, &e)),
+        }
+    } else {
+        None
+    };
+    let text = match workbook.map_or_else(|| String::from_utf8(bytes.to_vec()), Ok) {
         Ok(t) => t,
         Err(_) if command == "schedule.import_xer" && bytes.starts_with(b"ERMHDR") => bytes.iter().map(|&b| char::from(b)).collect(),
         Err(_) => return redirect(&with_flash(&back, false, &format!("The file isn't text. Save it as a {what} (UTF-8) and try again."))),

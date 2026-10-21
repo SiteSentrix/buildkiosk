@@ -173,6 +173,7 @@ Amount due this invoice	Montant dû pour cette facture
 Amount for {}	Montant pour {}
 Amount to add for {}	Montant à ajouter pour {}
 Amount, line {}	Montant, ligne {}
+An Excel workbook (.xlsx) works too, and its first sheet is read.	Un classeur Excel (.xlsx) convient aussi, et sa première feuille est lue.
 An assembly	Un ouvrage composé
 Another day	Un autre jour
 Answer	Réponse

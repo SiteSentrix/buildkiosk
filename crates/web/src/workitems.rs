@@ -543,7 +543,7 @@ pub fn list<T: WorkPage>(req: &Req<'_>, id: Id<Project>, filter: &Filter) -> Mar
                     p class="muted small" { "One per line: title, location, " (T::KIND_LABEL.to_lowercase()) ", priority (low, medium, high, urgent), due date (YYYY-MM-DD), assignees (email addresses separated by semicolons). A header line starting with title is skipped. Nothing is added unless every line is good." }
                     form method="post" action=(format!("{base}/import")) enctype="multipart/form-data" class="stack" {
                         input type="hidden" name="_csrf" value=(req.csrf);
-                        (field("CSV file", "import_file", true, true, html! { input type="file" id="import_file" name="file" accept=".csv,text/csv,text/plain" required; }))
+                        (field("CSV file", "import_file", true, true, html! { input type="file" id="import_file" name="file" accept=".csv,.xlsx,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required; }))
                         div class="form-actions" { button type="submit" class="btn primary" { "Import file" } }
                     }
                     p class="muted small" { "Or paste the lines:" }

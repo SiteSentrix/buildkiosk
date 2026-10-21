@@ -296,8 +296,60 @@ fn header_row(l: &mut Layout, t: &Table, widths: &[f32]) {
     l.y = top - h;
 }
 
+thread_local! {
+    /// The language documents are written in on this thread (set around the code that builds one).
+    static LANGUAGE: std::cell::Cell<crate::i18n::Lang> = const { std::cell::Cell::new(crate::i18n::Lang::En) };
+}
+
+/// Runs `build` so that every document rendered on this thread is written in `lang`.
+pub fn with_language<R>(lang: crate::i18n::Lang, build: impl FnOnce() -> R) -> R {
+    let before = LANGUAGE.with(|l| l.replace(lang));
+    let out = build();
+    LANGUAGE.with(|l| l.set(before));
+    out
+}
+
+/// The document with its wording (and dates) in the thread's language.
+fn localized(doc: &Doc) -> Option<Doc> {
+    let lang = LANGUAGE.with(std::cell::Cell::get);
+    if lang == crate::i18n::Lang::En {
+        return None;
+    }
+    let t = |s: &str| crate::i18n::translate_plain(s, lang);
+    let row = |r: &[String]| r.iter().map(|c| t(c)).collect::<Vec<_>>();
+    Some(Doc {
+        title: t(&doc.title),
+        subtitle: t(&doc.subtitle),
+        running_head: t(&doc.running_head),
+        blocks: doc
+            .blocks
+            .iter()
+            .map(|b| match b {
+                Block::Space => Block::Space,
+                Block::Heading(h) => Block::Heading(t(h)),
+                Block::Paragraph(p) => Block::Paragraph(t(p)),
+                Block::Facts(f) => Block::Facts(f.iter().map(|(k, v)| (t(k), t(v))).collect()),
+                Block::Table(x) => Block::Table(Table {
+                    headers: row(&x.headers),
+                    widths: x.widths.clone(),
+                    aligns: x.aligns.clone(),
+                    rows: x.rows.iter().map(|r| row(r)).collect(),
+                    footer: x.footer.as_deref().map(row),
+                }),
+            })
+            .collect(),
+    })
+}
+
 /// Lays the document out and returns the PDF file's bytes.
 pub fn render(doc: &Doc) -> Vec<u8> {
+    if let Some(translated) = localized(doc) {
+        return render_in_place(&translated);
+    }
+    render_in_place(doc)
+}
+
+fn render_in_place(doc: &Doc) -> Vec<u8> {
     let mut l = Layout::new();
     // Title block.
     for (k, line) in wrap(&doc.title, CONTENT_W, 18.0, true).iter().enumerate() {
@@ -404,6 +456,48 @@ fn finish(doc: &Doc, mut pages: Vec<Page>) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn small() -> Doc {
+        Doc {
+            title: "Other party".into(),
+            subtitle: "Status: Signed".into(),
+            running_head: "Summit Ridge Builders".into(),
+            blocks: vec![
+                Block::Heading("Signature".into()),
+                Block::Facts(vec![("Signed on".into(), "Oct 31, 2026".into()), ("Signed by".into(), "Sam Sub".into())]),
+                Block::Table(Table {
+                    headers: vec!["Cost code".into(), "Amount".into()],
+                    widths: vec![1.0, 1.0],
+                    aligns: vec![Align::Left, Align::Right],
+                    rows: vec![vec!["03-300".into(), "1.00".into()]],
+                    footer: Some(vec!["Total".into(), "1.00".into()]),
+                }),
+            ],
+        }
+    }
+
+    fn has(bytes: &[u8], needle: &str) -> bool {
+        bytes.windows(needle.len()).any(|w| w == needle.as_bytes())
+    }
+
+    #[test]
+    fn a_document_is_written_in_the_language_it_is_asked_for() {
+        use crate::i18n::Lang;
+        let english = render(&small());
+        assert!(has(&english, "Other party") && has(&english, "Signed on") && !has(&english, "Otra parte"));
+        // The people's own text and the company name stay as they are; the wording and dates follow the language.
+        let spanish = with_language(Lang::Es, || render(&small()));
+        assert!(has(&spanish, "Otra parte") && has(&spanish, "Sam Sub") && has(&spanish, "Summit Ridge Builders") && !has(&spanish, "Other party"));
+        let french = with_language(Lang::Fr, || render(&small()));
+        assert!(has(&french, "Autre partie") && !has(&french, "Other party"));
+        // The language is only for the closure: afterwards it is English again.
+        assert!(has(&render(&small()), "Other party"));
+        // Text with no translation is left alone.
+        let odd = with_language(Lang::Nl, || {
+            render(&Doc { title: "Zzz nothing like this".into(), subtitle: String::new(), running_head: String::new(), blocks: Vec::new() })
+        });
+        assert!(has(&odd, "Zzz nothing like this"));
+    }
 
     pub(super) fn sample() -> Doc {
         let rows: Vec<Vec<String>> = (1..=120)

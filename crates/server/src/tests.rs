@@ -4068,4 +4068,3 @@ async fn budget_grouped_by_cost_type_page() {
     let (st, h, _) = send(&app, get("/projects/1/budget.pdf?view=1")).await;
     assert!(st == StatusCode::OK && h.get("content-type").unwrap().to_str().unwrap().contains("pdf"), "the PDF follows the view");
 }
-

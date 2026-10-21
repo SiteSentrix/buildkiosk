@@ -196,3 +196,21 @@ fn duplicate_companies_merge() {
     assert_eq!(s.prequalifications.iter().filter(|q| q.deleted.is_none() && q.vendor.raw() == keep).count(), 1);
     w.assert_replay();
 }
+
+#[test]
+fn a_person_keeps_their_own_language() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let eng = w.member(p, "Eli", "Engineer", "Project engineer");
+    let lang = |w: &World, who| w.engine.state().people.get(who).unwrap().language.clone();
+    w.ok(pm, "person.set_language", json!({"language": "ES"}));
+    assert_eq!((lang(&w, pm).as_str(), lang(&w, eng).as_str()), ("es", ""), "it changes only the caller's own setting");
+    w.err(pm, "person.set_language", json!({"language": "tlh"}));
+    assert_eq!(lang(&w, pm), "es");
+    w.ok(pm, "person.set_language", json!({"language": ""}));
+    assert_eq!(lang(&w, pm), "");
+    // The system has no language of its own.
+    w.err(Actor::System, "person.set_language", json!({"language": "fr"}));
+    w.assert_replay();
+}

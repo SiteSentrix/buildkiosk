@@ -421,6 +421,7 @@ Choose companies
 Choose documents
 Choose forecasting method by {}
 Choose my default budget view by {}
+Choose my language by {}
 Choose one
 Choose people
 Choose people to keep informed

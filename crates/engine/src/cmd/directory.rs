@@ -15,6 +15,14 @@ const PERSON_FIELDS: &str = "first_name, last_name: text; email?: email; phone?,
      is_user?: bool (may sign in; Directory admin); company_admin?: bool (company admins only); company_template?: permission template id";
 
 pub const COMMANDS: &[CommandSpec] = &[
+    CommandSpec::mutate(
+        "person.set_language",
+        "Choose my language",
+        Tool::Directory,
+        Access::Member,
+        "language: en|es|fr|nl, or empty to follow the browser (changes the calling person's own setting)",
+        set_language,
+    ),
     CommandSpec::mutate("person.create", "Add person", Tool::Directory, Access::Company(Level::Standard), PERSON_FIELDS, person_create),
     CommandSpec::mutate(
         "person.update",
@@ -193,6 +201,16 @@ fn keep_an_admin(ctx: &Ctx<'_>, before: &Person, after: &Person) -> Result<()> {
     Ok(())
 }
 
+fn set_language(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let me = ctx.person().ok_or_else(|| EngineError::forbidden("only a signed-in person has a language"))?;
+    let code = p.line_or_empty("language", 10)?.to_lowercase();
+    if !code.is_empty() && !buildkiosk_model::directory::LANGUAGES.contains(&code.as_str()) {
+        return Err(p.bad("language", "must be en, es, fr or nl (empty follows the browser)"));
+    }
+    let _ = ctx.state.people.update(me, |x| x.language = code.clone());
+    Ok(json!({ "language": code }))
+}
+
 fn person_create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     let stamp = ctx.stamp();
     let mut person = Person {
@@ -207,6 +225,7 @@ fn person_create(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         company_admin: false,
         company_template: None,
         active: true,
+        language: String::new(),
         created: stamp,
         updated: stamp,
         deleted: None,

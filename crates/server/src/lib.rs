@@ -724,7 +724,7 @@ pub fn router(app: Shared) -> Router {
     let router = prequal_portal::routes(router);
     router
         .fallback(not_found)
-        .layer(axum::middleware::from_fn(translate_pages))
+        .layer(axum::middleware::from_fn_with_state(app.clone(), translate_pages))
         .layer(DefaultBodyLimit::max(MAX_BODY))
         .layer(axum::middleware::map_response_with_state(app.clone(), security_headers))
         .layer(CatchPanicLayer::new())
@@ -778,8 +778,18 @@ const LANGUAGE_COOKIE: &str = "bk_lang";
 
 /// The language to show a request in: the one chosen with the links at the foot of each page, else the
 /// browser's own preference, else English.
-fn language_of(headers: &HeaderMap) -> buildkiosk_web::i18n::Lang {
+fn language_of(app: &App, headers: &HeaderMap) -> buildkiosk_web::i18n::Lang {
     use buildkiosk_web::i18n::Lang;
+    // A signed-in person's saved language comes first, so it follows them from one browser to the next.
+    {
+        let inner = app.lock();
+        let saved = session(app, &inner, headers)
+            .and_then(|s| inner.tenant.as_ref().and_then(|t| t.engine.state().people.get(s.person)).map(|p| p.language.clone()))
+            .and_then(|code| Lang::parse(&code));
+        if let Some(l) = saved {
+            return l;
+        }
+    }
     if let Some(l) = cookie(headers, LANGUAGE_COOKIE).as_deref().and_then(Lang::parse) {
         return l;
     }
@@ -788,8 +798,8 @@ fn language_of(headers: &HeaderMap) -> buildkiosk_web::i18n::Lang {
 
 /// Pages go out in the reader's language: the page is built in English and its wording is looked up in the
 /// language's catalog on the way out. Only HTML is touched.
-async fn translate_pages(req: axum::extract::Request, next: axum::middleware::Next) -> Response {
-    let lang = language_of(req.headers());
+async fn translate_pages(State(app): State<Shared>, req: axum::extract::Request, next: axum::middleware::Next) -> Response {
+    let lang = language_of(&app, req.headers());
     let res = next.run(req).await;
     let is_html = res.headers().get(CONTENT_TYPE).and_then(|v| v.to_str().ok()).is_some_and(|v| v.starts_with("text/html"));
     if !is_html {
@@ -824,6 +834,16 @@ async fn language_set(State(app): State<Shared>, headers: HeaderMap, Query(q): Q
         .and_then(|rest| rest.find('/').and_then(|i| rest.get(i..)))
         .filter(|p| p.starts_with('/') && !p.starts_with("//") && !p.starts_with("/language") && p.len() < 2000)
         .unwrap_or("/");
+    // Signed in: keep the choice with the account too, so other browsers and devices follow it.
+    {
+        let mut inner = app.lock();
+        if let Some(s) = session(&app, &inner, &headers) {
+            let who = Actor::Person(s.person);
+            if let Err(e) = inner.run(who, "person.set_language", &json!({"language": lang.code()})) {
+                log::warn!("could not save a language choice: {e}");
+            }
+        }
+    }
     with_cookie(redirect(back), &auth::set_cookie(LANGUAGE_COOKIE, lang.code(), 365 * 24 * 3600, app.secure))
 }
 

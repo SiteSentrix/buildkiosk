@@ -492,6 +492,7 @@ Companies	Empresas
 Company	Empresa
 Company admin	Administrador de la empresa
 Company attaches a file by {}	Archivo adjuntado por la empresa {}
+Company counter-signature	Contrafirma de la empresa
 Company holiday lists	Listas de feriados de la empresa
 Company holiday lists this project takes	Listas de feriados de la empresa que usa este proyecto
 Company in the directory	Empresa del directorio
@@ -565,6 +566,10 @@ Cost to date	Costo a la fecha
 Cost types	Tipos de costo
 Costs paid without a commitment	Costos pagados sin un compromiso
 Count	Conteo
+Counter-sign a commitment for the company by {}	Contrafirma de un compromiso por la empresa por {}
+Counter-sign a prime change order for the company by {}	Contrafirma de una orden de cambio principal por la empresa por {}
+Counter-sign a prime contract for the company by {}	Contrafirma de un contrato principal por la empresa por {}
+Counter-sign for the company	Contrafirmar por la empresa
 Country	País
 County inspector	Inspector del condado
 Covered?	¿Cubierto?
@@ -2372,6 +2377,7 @@ Text	Texto
 That page doesn't exist, or you don't have access to it.	Esa página no existe, o no tienes acceso a ella.
 The address of this server is used for the links in messages.	La dirección de este servidor se usa para los vínculos en los mensajes.
 The catalogue is empty.	El catálogo está vacío.
+The company counter-signs here too, once the others have signed	La empresa también contrafirma aquí, cuando los demás hayan firmado
 The contract	El contrato
 The contract as shown here	El contrato tal como se muestra aquí
 The dashed line is today. Red bars are on the critical path. Grey columns are days off. Float is the working days a task can slip without moving the last finish.	La línea punteada es hoy. Las barras rojas están en la ruta crítica. Las columnas grises son días libres. La holgura son los días laborables que una tarea puede retrasarse sin mover la última fecha de fin.

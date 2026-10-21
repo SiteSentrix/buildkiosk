@@ -41,6 +41,10 @@ built.
 
 Sending a contract for signature can name more people (`others`: one email address on each line, up to six signers in all with the first). Each gets a link of their own. The contract is signed when every one has signed; a decline by anyone stops it for everyone. With `ordered` they sign one after the other as listed: a later signer's link opens and shows who has signed, but offers no form until the ones before have signed, and each is emailed only when it is their turn. Reminders go to whoever is next (or, in any order, everyone who hasn't signed). Every signature records the typed name, the moment and the terms version; the printed contract lists them all.
 
+## The company's counter-signature
+
+Sending a contract for signature can ask for the company to sign too (`countersign`). A person with standard access to the tool counter-signs from the contract's page (`commitment.countersign`, `prime_contract.countersign`, `prime_change.countersign`; as themselves, no typed name needed). The contract is signed when every signer and the company have signed, in whichever order: the company can sign first, and the signers' page lists the company's counter-signature with who is still to sign. The printed contract shows it.
+
 ## The printed contract
 
 Each commitment, prime contract and prime change order has a PDF (`.../pdf`, linked from its signature card) with the lines, the total, and the record of the signature: who signed, the day, and for a signature through the link its moment and whether the contract still reads as it did when it was signed. It follows the same visibility rules as the contract's page.

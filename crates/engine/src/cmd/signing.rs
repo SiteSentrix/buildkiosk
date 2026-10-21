@@ -33,6 +33,30 @@ pub const COMMANDS: &[CommandSpec] = &[
         link_sent,
     ),
     CommandSpec::mutate(
+        "commitment.countersign",
+        "Counter-sign a commitment for the company",
+        Tool::Commitments,
+        Access::Project(Level::Standard),
+        "project, id: ids (the commitment must be out for signature with counter-signing asked for; counter-signs as the person running it)",
+        countersign_commitment,
+    ),
+    CommandSpec::mutate(
+        "prime_contract.countersign",
+        "Counter-sign a prime contract for the company",
+        Tool::PrimeContracts,
+        Access::Project(Level::Standard),
+        "project, id: ids (the contract must be out for signature with counter-signing asked for; counter-signs as the person running it)",
+        countersign_prime_contract,
+    ),
+    CommandSpec::mutate(
+        "prime_change.countersign",
+        "Counter-sign a prime change order for the company",
+        Tool::ChangeOrders,
+        Access::Project(Level::Standard),
+        "project, id: ids (the change order must be out for signature with counter-signing asked for; counter-signs as the person running it)",
+        countersign_prime_change,
+    ),
+    CommandSpec::mutate(
         "contract.reminder_sent",
         "Record that a signing reminder was emailed",
         Tool::Commitments,
@@ -163,6 +187,15 @@ pub(super) fn new_signing(ctx: &Ctx<'_>, p: &Params<'_>) -> Result<(Option<Signa
         })
         .collect();
     Ok((Some(first), signers, ordered))
+}
+
+/// Whether the company counter-signs (`countersign`), which needs a signing link.
+pub(super) fn countersign_flag(p: &Params<'_>, has_link: bool) -> Result<bool> {
+    let flag = p.flag_or("countersign", false)?;
+    if flag && !has_link {
+        return Err(p.bad("email", "is needed for the company to counter-sign after the others"));
+    }
+    Ok(flag)
 }
 
 /// The link of the person at `index` in the signing.
@@ -331,6 +364,9 @@ fn portal_view(v: &View<'_>, p: &Params<'_>) -> Result<Value> {
     Ok(json!({
         "signers": signers,
         "ordered": sig.ordered,
+        "countersign": sig.countersign,
+        "countersigned": sig.countersigned_at.is_some(),
+        "countersigned_by": sig.countersigned_by.map(|p| crate::view::person_name(v.state, p)).unwrap_or_default(),
         "you_signed": mine.is_some_and(|s| s.signed),
         "your_turn": sig.turn(index),
         "kind": kind.key(),
@@ -407,8 +443,9 @@ fn portal_sign(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         o.signed_terms = Some(doc.updated);
     }
     sig.note = String::new();
-    // The contract is signed once everyone with a link has; until then it stays out for signature.
-    let done = sig.all_signed();
+    // The contract is signed once everyone with a link has (and the company, when it counter-signs); until then it stays out for signature.
+    let everyone = sig.all_signed();
+    let done = sig.complete();
     let total = sig.slots().len();
     let count = sig.slots().iter().filter(|s| s.signed).count();
     if done {
@@ -418,7 +455,11 @@ fn portal_sign(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     // Signing does not change what was agreed, so the contract's own "last changed" moment stays the same.
     store_signature_keep(ctx, kind, id, sig);
     let who = if doc.party.is_empty() { "The other party".to_string() } else { doc.party.clone() };
-    let what = if total <= 1 {
+    let what = if total <= 1 && !everyone {
+        format!("{who} signed")
+    } else if everyone && !done {
+        format!("{name} signed; everyone has signed and the company counter-signs next")
+    } else if total <= 1 {
         format!("{who} signed")
     } else if done {
         format!("{name} signed; all {total} people have signed")
@@ -426,7 +467,7 @@ fn portal_sign(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         format!("{name} signed ({count} of {total})")
     };
     tell_team(ctx, kind, id, &doc, &what);
-    Ok(json!({ "id": id, "signed_on": today, "complete": done, "signed": count, "of": total }))
+    Ok(json!({ "id": id, "signed_on": today, "complete": done, "signed": count, "of": total, "awaiting_company": everyone && !done }))
 }
 
 fn portal_decline(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
@@ -444,6 +485,58 @@ fn portal_decline(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
         &format!("{} declined to sign", if doc.party.is_empty() { "The other party".to_string() } else { doc.party.clone() }),
     );
     Ok(json!({ "id": id }))
+}
+
+fn countersign_commitment(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    countersign(ctx, p, Kind::Commitment)
+}
+
+fn countersign_prime_contract(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    countersign(ctx, p, Kind::PrimeContract)
+}
+
+fn countersign_prime_change(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    countersign(ctx, p, Kind::PrimeChange)
+}
+
+/// The company signs, as the person running the command, when the contract asked for it: once the others have signed the
+/// contract is complete.
+fn countersign(ctx: &mut Ctx<'_>, p: &Params<'_>, kind: Kind) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let id: u64 = p.id::<Commitment>("id")?.raw();
+    let doc = load_doc(ctx.state, kind, id)?;
+    if doc.project != project {
+        return Err(EngineError::not_found(format!("{} not found in this project", kind.key())));
+    }
+    let me = ctx.person().ok_or_else(|| EngineError::forbidden("the company counter-signs as a person"))?;
+    if !doc.open {
+        return Err(EngineError::conflict(format!("{} can't be signed now", doc.label)));
+    }
+    let mut sig = doc.signature.clone();
+    if sig.status != SignatureStatus::Sent || !sig.countersign {
+        return Err(EngineError::conflict(format!("{} is not waiting for the company to counter-sign", doc.label)));
+    }
+    if sig.countersigned_at.is_some() {
+        return Err(EngineError::conflict(format!("the company has already counter-signed {}", doc.label)));
+    }
+    let stamp = ctx.stamp();
+    sig.countersigned_by = Some(me);
+    sig.countersigned_at = Some(stamp);
+    let done = sig.complete();
+    if done {
+        sig.status = SignatureStatus::Signed;
+        sig.signed_on = Some(ctx.today());
+    }
+    store_signature_keep(ctx, kind, id, sig);
+    let who = crate::view::person_name(ctx.state, me);
+    tell_team(
+        ctx,
+        kind,
+        id,
+        &doc,
+        &if done { format!("{who} counter-signed; the contract is fully signed") } else { format!("{who} counter-signed for the company") },
+    );
+    Ok(json!({ "id": id, "complete": done }))
 }
 
 /// The signing link of the person at `index` (0 is the first) that a team page can show, if it is live.

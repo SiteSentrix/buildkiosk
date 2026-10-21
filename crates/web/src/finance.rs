@@ -630,6 +630,7 @@ pub fn commitment(req: &Req<'_>, id: Id<Project>, cid: Id<Commitment>, history: 
                 }
                 @if sig.status == SignatureStatus::Signed { p class="muted small" { "Attach the signed copy under Files if you haven't." } }
                 (signing_link_facts(req, sig, id, "commitment", c.id.raw(), can_sign))
+                (countersign_block(req, sig, id, "commitment", c.id.raw(), &here, can_sign))
                 p class="muted small" { a href=(format!("{here}/pdf")) { "PDF" } }
                 @if can_sign {
                     @if sig.status != SignatureStatus::Signed {
@@ -644,6 +645,7 @@ pub fn commitment(req: &Req<'_>, id: Id<Project>, cid: Id<Commitment>, history: 
                                     (field("More people who sign (an email on each line)", "sig_others", false, true, html! { textarea id="sig_others" name="others" class="short" {} }))
                                 }
                                 label class="check" { input type="checkbox" name="ordered" value="true"; " They sign one after the other, in the order given (each is emailed when the one before has signed)" }
+                                label class="check" { input type="checkbox" name="countersign" value="true"; " The company counter-signs here too, once the others have signed" }
                                 div class="form-actions" { button type="submit" class="btn" { "Send for signature" } }
                             }))
                         }
@@ -930,6 +932,39 @@ fn signing_link_facts(
     }
 }
 
+/// The company's counter-signature: where it stands and, for someone who may, the button that gives it.
+fn countersign_block(
+    req: &Req<'_>,
+    sig: &buildkiosk_engine::model::finance::ContractSignature,
+    project: Id<Project>,
+    prefix: &str,
+    doc: u64,
+    here: &str,
+    may: bool,
+) -> Markup {
+    use buildkiosk_engine::model::finance::SignatureStatus;
+    if !sig.countersign {
+        return html! {};
+    }
+    let state = req.engine.state();
+    let ids = [("project", project.to_string()), ("id", doc.to_string())];
+    html! {
+        dl class="facts" {
+            dt { "Company counter-signature" }
+            dd {
+                @if let (Some(by), Some(at)) = (sig.countersigned_by, sig.countersigned_at) {
+                    (view::person_name(state, by)) ", " (req.when(at.at))
+                } @else if sig.status == SignatureStatus::Sent {
+                    "waiting"
+                } @else { "—" }
+            }
+        }
+        @if may && sig.status == SignatureStatus::Sent && sig.countersigned_at.is_none() && req.allowed(&format!("{prefix}.countersign"), Some(project)) {
+            (button_form(req, &format!("{prefix}.countersign"), here, &ids, "Counter-sign for the company", "btn primary"))
+        }
+    }
+}
+
 /// The signature card of a prime contract or change order: where the signing stands and the steps that move it.
 pub(crate) fn signature_card(
     req: &Req<'_>,
@@ -961,6 +996,7 @@ pub(crate) fn signature_card(
                     }
                 }
                 (signing_link_facts(req, sig, project, prefix, doc, can_sign))
+                (countersign_block(req, sig, project, prefix, doc, here, can_sign))
                 p class="muted small" { a href=(format!("{here}/pdf")) { "PDF" } }
                 @if can_sign {
                     @if sig.status != SignatureStatus::Signed {
@@ -975,6 +1011,7 @@ pub(crate) fn signature_card(
                                     (field("More people who sign (an email on each line)", "sig_others", false, true, html! { textarea id="sig_others" name="others" class="short" {} }))
                                 }
                                 label class="check" { input type="checkbox" name="ordered" value="true"; " They sign one after the other, in the order given (each is emailed when the one before has signed)" }
+                                label class="check" { input type="checkbox" name="countersign" value="true"; " The company counter-signs here too, once the others have signed" }
                                 div class="form-actions" { button type="submit" class="btn" { "Send for signature" } }
                             }))
                         }

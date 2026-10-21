@@ -76,7 +76,8 @@ pub fn page(view: &Value, base: &str, csrf: &str, flash: Option<&Flash>) -> Mark
                     _ => { div class="flash info" { "This contract is not out for signature. Ask the team." } }
                 }
             }
-            @if signers.len() > 1 {
+            @let counter = view.get("countersign").and_then(Value::as_bool).unwrap_or(false);
+            @if signers.len() > 1 || counter {
                 div class="card" {
                     h2 { "Who signs" }
                     @if ordered { p class="muted small" { "They sign one after the other, in this order." } }
@@ -85,7 +86,13 @@ pub fn page(view: &Value, base: &str, csrf: &str, flash: Option<&Flash>) -> Mark
                         @if who.get("you").and_then(Value::as_bool).unwrap_or(false) { strong { "You" } } @else if !text(who, "name").is_empty() { (text(who, "name")) } @else { "Someone else" }
                         " · "
                         @if who.get("signed").and_then(Value::as_bool).unwrap_or(false) { span class="pill green" { "Signed" } } @else { span class="pill" { "Not yet" } }
-                    } } }
+                    } }
+                    @if counter {
+                        li {
+                            (signers.len() + 1) ". " (text(view, "company")) " (counter-signature) · "
+                            @if view.get("countersigned").and_then(Value::as_bool).unwrap_or(false) { span class="pill green" { "Signed" } } @else { span class="pill" { "Not yet" } }
+                        }
+                    } }
                 }
             }
             div class="card" {

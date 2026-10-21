@@ -89,6 +89,35 @@ pub struct ReminderSent {
     pub days: u32,
 }
 
+/// A link a company's contact uses to fill in the prequalification without an account. The link itself is worked out
+/// by the server from its secret and is never stored, so nothing here (or in the journal) can open it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PrequalInvitation {
+    /// Counts up from 1 within the record; names the link.
+    pub number: u32,
+    /// Where the link is sent.
+    pub email: String,
+    /// Bumped when the link is sent again, which makes the earlier link stop working.
+    #[serde(default)]
+    pub generation: u32,
+    /// The link stops working after this day; none means until it is cancelled.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expires: Option<Date>,
+    pub created: Stamp,
+    /// When the server emailed the current link; none while it still has to be sent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sent: Option<Stamp>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revoked: Option<Stamp>,
+}
+
+impl PrequalInvitation {
+    /// Whether the link opens the record on `today`.
+    pub fn active(&self, today: Date) -> bool {
+        self.revoked.is_none() && self.expires.is_none_or(|e| today <= e)
+    }
+}
+
 /// One company's prequalification record (at most one live record per company).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Prequalification {
@@ -123,6 +152,21 @@ pub struct Prequalification {
     pub attachments: Vec<FileRef>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub reminders: Vec<ReminderSent>,
+    /// Links given to the company's contacts to fill the record in themselves.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub invitations: Vec<PrequalInvitation>,
+    /// Warnings emailed to the company's own contact (the admins' are in `reminders`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub company_reminders: Vec<ReminderSent>,
+    /// The link (its number) the record was last put forward through, when the company did it itself.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub submitted_via: Option<u32>,
+    /// Hashes of the files the company attached itself, which are the only ones it can take off again.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub portal_files: Vec<String>,
+    /// The latest message the company left for the reviewers.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub company_message: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reviewed: Option<Stamp>,
     pub created: Stamp,

@@ -23,8 +23,11 @@ A file from {}	Un fichier de {}
 A formal record of what was sent, to whom and why	Un enregistrement formel de ce qui a été envoyé, à qui et pourquoi
 A line starting with # begins a section; every other line is an item. Assign owners and dates on the plan page. Editing the outline keeps the owner, date, note and done state of items whose wording and section are unchanged.	Une ligne commençant par # débute une section ; toute autre ligne est un élément. Assignez les responsables et les dates sur la page du plan. Modifier le plan conserve le responsable, la date, la note et l'état terminé des éléments dont le libellé et la section sont inchangés.
 A link lets one contact at an invited company read the documents, acknowledge addenda and send or change a bid, with no account. Links are emailed once the package is out for bid. Bids sent this way stay sealed until bidding closes.	Un lien permet à un contact d’une entreprise invitée de lire les documents, d’accuser réception des addenda et d’envoyer ou de modifier une soumission, sans compte. Les liens sont envoyés par courriel dès que le lot est lancé en appel d’offres. Les soumissions reçues ainsi restent scellées jusqu’à la clôture.
+A message for the reviewers (optional)	Un message pour les évaluateurs (facultatif)
 A name already used is replaced. The new baseline becomes the one the chart and each task's slip compare against.	Un nom déjà utilisé est remplacé. Le nouveau planning de référence devient celui auquel le diagramme et le retard de chaque tâche se comparent.
 A new version of	Une nouvelle version de
+A pie needs figures that are not negative and add up to more than nothing. Use bars or columns for	Un camembert demande des chiffres non négatifs dont la somme dépasse zéro. Utilisez des barres ou des colonnes pour
+A pie needs figures that are not negative and add up to more than nothing. Use bars or columns for {}.	Un camembert demande des chiffres non négatifs dont la somme dépasse zéro. Utilisez des barres ou des colonnes pour {}.
 A project admin has full access to every tool, so overrides have no effect.	Un administrateur de projet a un accès complet à tous les outils, donc les exceptions n'ont aucun effet.
 A saved crew	Une équipe enregistrée
 A seventh to eleventh column is optional	Une septième à onzième colonne est facultative
@@ -177,6 +180,7 @@ Answer a bidder's question by {}	Répondre à la question d’un soumissionnaire
 Answer inspection checklist by {}	Répondre à la liste de contrôle d'inspection par {}
 Answer that shows question {}	Réponse qui affiche la question {}
 Answer the door hardware RFI	Répondre à la RFI sur la quincaillerie des portes
+Answer the questions, give your dates, attach your documents and send your record for review.	Répondez aux questions, indiquez vos dates, joignez vos documents et envoyez votre dossier pour examen.
 Answer type	Type de réponse
 Answer type of question {}	Type de réponse de la question {}
 Answered	Répondu
@@ -189,6 +193,8 @@ Any template	Tout modèle
 Any {}	Tout {}
 Anyone	Tout le monde
 Anyone with this link can ask to be invited to bid. Nobody gets the bid documents until you approve their request.	Toute personne ayant ce lien peut demander à être invitée à soumissionner. Personne ne reçoit les documents avant que vous n’approuviez sa demande.
+Anyone with this link can change	Quiconque possède ce lien peut modifier
+Anyone with this link can change {}'s prequalification answers, dates and documents. Send it only to them.	Quiconque possède ce lien peut modifier les réponses, dates et documents de préqualification de {}. Ne l'envoyez qu'à cette entreprise.
 Anyone with this link can read the package and send or change a bid for	Toute personne ayant ce lien peut lire le lot et envoyer ou modifier une soumission pour
 Anyone with this link can read the package and send or change a bid for {}. Send it only to them.	Toute personne ayant ce lien peut lire le lot et envoyer ou modifier une soumission pour {}. Ne l’envoyez qu’à eux.
 Applied	Appliqué
@@ -238,6 +244,7 @@ Assigned to me	Assigné à moi
 Assignees	Personnes assignées
 At least 10 characters.	Au moins 10 caractères.
 Attach a proposal, bond or other document (up to 25 MB each, 10 files).	Joignez une proposition, une garantie ou un autre document (jusqu’à 25 Mo chacun, 10 fichiers).
+Attach document	Joindre le document
 Attach file	Joindre un fichier
 Attach file to RFI by {}	Joindre un fichier à la RFI par {}
 Attach file to a checklist line by {}	Joindre un fichier à une ligne de liste de contrôle par {}
@@ -294,6 +301,7 @@ Backups	Sauvegardes
 Backups kept	Sauvegardes conservées
 Balance to finish	Solde à terminer
 Ball in court	À traiter par
+Bars	Barres
 Baselines	Plannings de référence
 Before closing in	Avant la mise hors d'eau
 Bid	Offre
@@ -360,6 +368,7 @@ Calendar	Calendrier
 Can sign in	Peut se connecter
 Can sign in (needs an email)	Peut se connecter (nécessite un e-mail)
 Cancel	Annuler
+Cancel a prequalification link by {}	Lien de préqualification annulé par {}
 Cancel bid link by {}	Annuler le lien de soumission par {}
 Cancelled	Annulé
 Caption	Légende
@@ -476,11 +485,16 @@ Committed cost	Coût engagé
 Companies	Entreprises
 Company	Entreprise
 Company admin	Administrateur de l'entreprise
+Company attaches a file by {}	Fichier joint par l'entreprise {}
 Company holiday lists	Listes de jours fériés de l'entreprise
 Company holiday lists this project takes	Listes de jours fériés de l'entreprise retenues par ce projet
 Company in the directory	Entreprise du répertoire
+Company leaves a message by {}	Message laissé par l'entreprise {}
 Company name	Nom de l'entreprise
+Company puts its record forward by {}	Dossier présenté par l'entreprise {}
+Company removes a file it attached by {}	Fichier retiré par l'entreprise {}
 Company reports	Rapports de l'entreprise
+Company saves its answers by {}	Réponses enregistrées par l'entreprise {}
 Company settings	Paramètres de l'entreprise
 Compare	Comparer
 Compare estimates	Comparer les estimations
@@ -505,6 +519,7 @@ Construction	Construction
 Consultant	Consultant
 Contact	Contact
 Contact only	Contact uniquement
+Contact's email	E-mail du contact
 Contract	Contrat
 Contract signature	Signature du contrat
 Coordination	Coordination
@@ -603,6 +618,7 @@ Dates and times are shown at UTC	Les dates et heures sont affichées en UTC
 Dates and times are shown at UTC{}. Amounts are in {}. Changing the currency doesn't convert existing amounts.	Les dates et heures sont affichées en UTC{}. Les montants sont en {}. Changer la devise ne convertit pas les montants existants.
 Day	Jour
 Day and weather	Jour et météo
+Day of the month (monthly)	Jour du mois (mensuel)
 Days	Jours
 Days are working days of the project calendar. Float is the working days a task can slip without moving the last finish.	Les jours sont des jours ouvrés du calendrier du projet. La marge est le nombre de jours ouvrés dont une tâche peut glisser sans repousser la dernière fin.
 Days for a submittal review	Jours pour une révision de soumission
@@ -706,6 +722,7 @@ Distribution list	Liste de distribution
 Division	Division
 Division {}	Division {}
 Document	Document
+Document to attach	Document à joindre
 Documents	Documents
 Documents sent for review before the work goes ahead	Documents envoyés pour examen avant le début des travaux
 Does not repeat	Ne se répète pas
@@ -720,6 +737,7 @@ Download all	Tout télécharger
 Download all as zip	Tout télécharger en zip
 Download original	Télécharger l'original
 Draft	Brouillon
+Draft transmittals	Transmissions en brouillon
 Drafts	Brouillons
 Drawing	Plan
 Drawing log	Registre des plans
@@ -734,6 +752,7 @@ Due date	Échéance
 Due date of action {}	Échéance de l'action {}
 EMR	EMR
 Each has the same title, type, time, place, invitees and agenda topics, on the dates after this one.	Chacune a les mêmes titre, type, horaire, lieu, invités et sujets à l'ordre du jour, aux dates postérieures à celle-ci.
+Each person gets the report as they themselves would see it, as a table in the email and a CSV file, from about six in the morning. Outgoing email has to be set up first. The first email is the next time the rhythm comes round.	Chaque personne reçoit le rapport tel qu'elle le verrait elle-même, sous forme de tableau dans l'e-mail et de fichier CSV, vers six heures du matin. Le courrier sortant doit d'abord être configuré. Le premier e-mail part la prochaine fois que le rythme revient.
 Each person once; blank rows are ignored.	Chaque personne une seule fois ; les lignes vides sont ignorées.
 Each ticked person gets their own entry for this day. With nobody ticked, the hours are yours.	Chaque personne cochée reçoit sa propre entrée pour ce jour. Si personne n'est coché, les heures sont les vôtres.
 Each type is numbered on its own	Chaque type est numéroté séparément
@@ -800,8 +819,15 @@ Edit type	Modifier le type
 Edit {}	Modifier {}
 Electrical	Électricité
 Email	E-mail
+Email a report on a schedule by {}	Rapport programmé pour envoi par e-mail par {}
 Email address	Adresse courriel
 Email me my notifications	M'envoyer mes notifications par e-mail
+Email this report	Envoyer ce rapport par e-mail
+Emailed every	Envoyé chaque
+Emailed every day	Envoyé tous les jours
+Emailed every {}	Envoyé chaque {}
+Emailed on day	Envoyé le jour
+Emailed on day {} of every month	Envoyé le {} de chaque mois
 Embeds, sleeves and penetrations are in place and secured	Les inserts, fourreaux et traversées sont en place et fixés
 Enclosures	Pièces jointes
 Encryption	Chiffrement
@@ -817,6 +843,7 @@ Estimate #{}	Estimation n° {}
 Estimated value	Valeur estimée
 Estimating	Estimation
 Every	Chaque
+Every day	Tous les jours
 Every form from one template side by side	Tous les formulaires d'un même modèle côte à côte
 Every month	Chaque mois
 Every project you can open, with the columns chosen	Tous les projets que vous pouvez ouvrir, avec les colonnes choisies
@@ -839,6 +866,7 @@ Excavate and grade	Terrassement et nivellement
 Exchange file	Fichier d'échange
 Excluded	Exclu
 Experience modification rate	Taux de modification de l'expérience
+Experience modification rate (such as 0.85)	Taux de modification de l'expérience (comme 0.85)
 Expired	Expiré
 Expiring soon	Expire bientôt
 Export CSV	Exporter en CSV
@@ -910,6 +938,7 @@ Form	Formulaire
 Form templates	Modèles de formulaire
 Forms	Formulaires
 Forms are clean, braced and match the drawings	Les coffrages sont propres, étayés et conformes aux plans
+Forms in draft	Formulaires en brouillon
 Forms report	Rapport des formulaires
 Formwork and reinforcement	Coffrage et armatures
 Foundations	Fondations
@@ -921,6 +950,7 @@ Framing lumber package	Lot de bois d'ossature
 Framing walk-through	Visite de l'ossature
 Français	Français
 Fri	ven.
+Friday	Vendredi
 From	De
 From (email)	De (e-mail)
 From (name)	De (nom)
@@ -1057,6 +1087,7 @@ Keys, manuals and warranty papers are ready for handover	Les clés, notices et g
 Keystone Properties	Keystone Properties
 Kickoff meeting notes	Notes de la réunion de lancement
 Kind	Genre
+Kind of chart	Type de graphique
 LTR	LTR
 LTR-001, LTR-002… With types set, every item must be one of them.	LTR-001, LTR-002… Lorsque des types sont définis, chaque élément doit être l'un d'eux.
 Labor	Main-d'œuvre
@@ -1104,7 +1135,10 @@ Line {} description	Description de la ligne {}
 Line {} quantity	Quantité de la ligne {}
 Line {} unit	Unité de la ligne {}
 Lines	Lignes
+Link	Lien
+Link for the company	Lien pour l'entreprise
 Link not valid	Lien non valide
+Link works until (optional)	Le lien fonctionne jusqu'au (facultatif)
 Linked RFIs	RFI liées
 Linked documents	Documents liés
 Linked submittals	Soumissions liées
@@ -1181,6 +1215,8 @@ Merge and remove {}	Fusionner et supprimer {}
 Merge duplicate companies by {}	Fusionner les entreprises en double par {}
 Merge into another company	Fusionner dans une autre entreprise
 Message	Message
+Message from the company	Message de l'entreprise
+Message the reviewers	Envoyer un message aux évaluateurs
 Method	Méthode
 Metres	Mètres
 Milestone	Jalon
@@ -1192,6 +1228,7 @@ Minutes east of UTC	Minutes à l'est d'UTC
 Minutes issued	Compte rendu émis
 Mix, delivery schedule and pump are confirmed with the supplier	Le mélange, le calendrier de livraison et la pompe sont confirmés avec le fournisseur
 Mon	lun.
+Monday	Lundi
 Month	Mois
 Monthly	Mensuel
 More	Plus
@@ -1278,6 +1315,7 @@ No cost code	Aucun code de coût
 No days off are listed.	Aucun jour de congé n'est indiqué.
 No direct costs yet	Aucun coût direct pour le moment
 No documents here	Aucun document ici
+No documents yet. Attach your insurance certificate, financial statements and the like.	Aucun document pour l'instant. Joignez votre attestation d'assurance, vos états financiers, etc.
 No drawings yet	Aucun plan pour le moment
 No estimates	Aucune estimation
 No files attached.	Aucun fichier joint.
@@ -1296,6 +1334,7 @@ No items	Aucun élément
 No items here	Aucun élément ici
 No items listed.	Aucun élément listé.
 No lines yet.	Aucune ligne pour le moment.
+No link has been sent.	Aucun lien n'a été envoyé.
 No location	Aucun emplacement
 No log	Aucun journal
 No logs here	Aucun journal ici
@@ -1356,6 +1395,8 @@ Not clear	Pas clair
 Not closed	Non clôturé
 Not complete	Non terminé
 Not copied	Non copié
+Not emailed	Pas envoyé par e-mail
+Not emailed. Pick a rhythm and who gets it.	Pas envoyé par e-mail. Choisissez le rythme et les destinataires.
 Not found	Introuvable
 Not in the budget yet	Pas encore dans le budget
 Not received	Non reçu
@@ -1441,11 +1482,19 @@ Open action items	Actions ouvertes
 Open actions	Actions ouvertes
 Open actions from earlier meetings	Actions ouvertes des réunions précédentes
 Open bid link	Lien de soumission ouvert
+Open change events	Événements de changement ouverts
+Open commitments	Engagements ouverts
+Open correspondence	Correspondance ouverte
 Open floor edge at level 2 stair	Bord de plancher ouvert à l'escalier du niveau 2
 Open in viewer	Ouvrir dans la visionneuse
+Open incidents	Incidents ouverts
+Open inspections	Inspections ouvertes
+Open meeting actions	Actions de réunion ouvertes
+Open observations	Observations ouvertes
 Open or close the open bid link by {}	Ouvrir ou fermer le lien de soumission ouvert par {}
 Open punch items	Réserves ouvertes
 Open sealed bids by {}	Ouvrir les soumissions scellées par {}
+Open tasks	Tâches ouvertes
 Open the standard layout by default	Ouvrir la mise en page standard par défaut
 Open them now	Les ouvrir maintenant
 Open this view by default	Ouvrir cette vue par défaut
@@ -1511,6 +1560,7 @@ Pass	Réussi
 Passed	Réussi
 Password	Mot de passe
 Past due	Échu
+Past its last day	Dernier jour dépassé
 Past-due RFIs	RFI échues
 Paste an email	Coller un e-mail
 Path	Chemin
@@ -1548,6 +1598,7 @@ Picture	Image
 Picture {} of {}	Image {} sur {}
 Pictures (JPEG, PNG, GIF or WebP; choose several)	Images (JPEG, PNG, GIF ou WebP ; plusieurs possibles)
 Pictures of the work, by album	Photos du chantier, par album
+Pie	Camembert
 Pin	Épingler
 Plan	Plan
 Plan a meeting to keep its agenda, minutes and action items together.	Planifiez une réunion pour regrouper son ordre du jour, son compte rendu et ses actions.
@@ -1573,6 +1624,9 @@ Preconstruction	Préconstruction
 Predecessors (task numbers with an optional kind and lag, e.g. 3, 5+2, 7SS, 4FF-1)	Prédécesseurs (numéros de tâches avec un type et un décalage facultatifs, p. ex. 3, 5+2, 7SS, 4FF-1)
 Prefix	Préfixe
 Prequalification	Préqualification
+Prequalification link	Lien de préqualification
+Prequalification link for	Lien de préqualification pour
+Prequalification link for {}	Lien de préqualification pour {}
 Prequalification questionnaires	Questionnaires de préqualification
 Prequalified	Préqualifié
 Present	Présent
@@ -1689,6 +1743,7 @@ Record a direct cost	Enregistrer un coût direct
 Record a price	Enregistrer un prix
 Record a price for a catalogue item by {}	Enregistrer un prix pour un article du catalogue par {}
 Record a purchase, a rental or another cost below.	Enregistrez ci-dessous un achat, une location ou un autre coût.
+Record a warning emailed to a company by {}	Avertissement envoyé par e-mail à une entreprise enregistré par {}
 Record addendum acknowledged by {}	Enregistrer l'accusé de réception de l'addendum par {}
 Record as declined	Enregistrer comme refusé
 Record bid	Enregistrer l'offre
@@ -1708,6 +1763,8 @@ Record questionnaire answers by {}	Enregistrer les réponses au questionnaire pa
 Record receipt	Enregistrer la réception
 Record signature	Enregistrer la signature
 Record signed contract by {}	Enregistrer le contrat signé par {}
+Record that a prequalification link was emailed by {}	Envoi par e-mail d'un lien de préqualification enregistré par {}
+Record that a report was emailed by {}	Envoi d'un rapport par e-mail enregistré par {}
 Record the signature	Enregistrer la signature
 Record the signed contract	Enregistrer le contrat signé
 Recordable	Enregistrable
@@ -1897,11 +1954,13 @@ Safety	Sécurité
 Safety&#10;Quality&#10;Housekeeping	Sécurité&#10;Qualité&#10;Propreté du chantier
 Safety, quality and housekeeping findings	Constats de sécurité, de qualité et de propreté du chantier
 Safety, quality, housekeeping…	Sécurité, qualité, propreté du chantier…
+Saturday	Samedi
 Save	Enregistrer
 Save a named baseline by {}	Enregistrer un planning de référence nommé par {}
 Save a report	Enregistrer un rapport
 Save access	Enregistrer l'accès
 Save amounts	Enregistrer les montants
+Save and come back later	Enregistrer et revenir plus tard
 Save and complete	Enregistrer et terminer
 Save and open	Enregistrer et ouvrir
 Save and send for review	Enregistrer et envoyer pour examen
@@ -2021,6 +2080,9 @@ Sections of questions, each worth points; the share earned becomes a company's s
 See the project report	Voir le rapport du projet
 Sees every project tool except financials; changes nothing.	Voit tous les outils du projet sauf les finances ; ne modifie rien.
 Send	Envoyer
+Send a company a prequalification link by {}	Lien de préqualification envoyé à une entreprise par {}
+Send a link	Envoyer un lien
+Send a prequalification link again by {}	Lien de préqualification renvoyé par {}
 Send a test email	Envoyer un e-mail de test
 Send again	Renvoyer
 Send back	Renvoyer
@@ -2034,6 +2096,7 @@ Send for review	Envoyer pour révision
 Send from	Envoyer depuis
 Send hours back by {}	Renvoyer les heures par {}
 Send incident back by {}	Renvoyer l'incident par {}
+Send message	Envoyer le message
 Send notifications	Envoyer les notifications
 Send notifications to people's inboxes	Envoyer les notifications dans la boîte de réception des personnes
 Send observation back by {}	Renvoyer l'observation par {}
@@ -2049,6 +2112,7 @@ Send submittal for review by {}	Envoyer la soumission pour révision par {}
 Send task back by {}	Renvoyer la tâche par {}
 Send transmittal by {}	Envoyer le bordereau de transmission par {}
 Send your bid	Envoyez votre soumission
+Sending needs every question answered. Once sent, your answers are locked until the reviewers return the record.	Pour envoyer, il faut répondre à toutes les questions. Une fois envoyé, vos réponses sont verrouillées jusqu'à ce que les évaluateurs renvoient le dossier.
 Sends a short message to your own address.	Envoie un court message à votre propre adresse.
 Sent	Envoyé
 Sent back	Renvoyé
@@ -2226,6 +2290,7 @@ Subtotal	Sous-total
 Such as mon-fri, mon-sat, or mon, tue, thu.	Par exemple mon-fri, mon-sat ou mon, tue, thu.
 Summit Ridge Builders	Summit Ridge Builders
 Sun	dim.
+Sunday	Dimanche
 Superintendent	Conducteur de travaux
 Supplier	Fournisseur
 Supplier (if it is their price list)	Fournisseur (s'il s'agit de son bordereau de prix)
@@ -2278,6 +2343,8 @@ The most of each resource needed on any one working day in each week, from tasks
 The plan cannot start until every approver has approved. Changing the wording of items clears the answers.	Le plan ne peut pas démarrer tant que chaque approbateur n'a pas approuvé. Modifier le libellé des éléments efface les réponses.
 The project's section list; submittals link to a section by its number	La liste des sections du projet ; les soumissions renvoient à une section par son numéro
 The questions each kind of form asks. Forms already started keep the questions they were started with.	Les questions posées par chaque type de formulaire. Les formulaires déjà démarrés conservent les questions avec lesquelles ils ont commencé.
+The record was put forward by the company through link	Le dossier a été présenté par l'entreprise au moyen du lien
+The record was put forward by the company through link {}.	Le dossier a été présenté par l'entreprise au moyen du lien {}.
 The reflected ceiling plan shows 9'-0" but the section shows 8'-6". Which governs?	Le plan de plafond réfléchi indique 9'-0" mais la coupe indique 8'-6". Lequel prévaut ?
 The section governs	La section prévaut
 The sheet log	Le journal des feuilles
@@ -2301,6 +2368,7 @@ This project needs a signed contract before this can be approved.	Ce projet néc
 This sheet can't be shown	Cette feuille ne peut pas être affichée
 Three-week look-ahead	Planning prévisionnel à trois semaines
 Thu	jeu.
+Thursday	Jeudi
 Time	Heure
 Timesheet	Feuille de temps
 Timesheets	Feuilles de temps
@@ -2310,6 +2378,7 @@ Title (optional)	Titre (facultatif)
 To	À
 To be determined	À déterminer
 To date	À ce jour
+To send a renewed insurance certificate or licence, attach it below and leave a message. The team updates the dates.	Pour envoyer une attestation d'assurance ou une licence renouvelée, joignez-la ci-dessous et laissez un message. L'équipe met à jour les dates.
 Today's log	Journal du jour
 Tool	Outil
 Tool access	Accès aux outils
@@ -2329,6 +2398,7 @@ Transmittals	Bordereaux de transmission
 Trends	Tendances
 Trends appear once observations are recorded.	Les tendances apparaissent dès que des observations sont enregistrées.
 Tue	mar.
+Tuesday	Mardi
 Turn email off	Désactiver l'e-mail
 Turn off	Désactiver
 Turn on the open link	Activer le lien ouvert
@@ -2341,6 +2411,7 @@ Type your full name	Saisissez votre nom complet
 Types	Types
 USD	USD
 Unassigned	Non assigné
+Unfinished schedule tasks	Tâches du planning non terminées
 Unit	Unité
 Unit cost	Coût unitaire
 Unit cost of line {}	Coût unitaire de la ligne {}
@@ -2352,6 +2423,7 @@ Unit price of {}	Prix unitaire de {}
 Unit prices	Prix unitaires
 Unlock original budget by {}	Déverrouiller le budget initial par {}
 Unlock the budget	Déverrouiller le budget
+Up to 25 MB each.	Jusqu'à 25 Mo chacun.
 Up to 25 MB in one upload.	Jusqu'à 25 Mo par envoi.
 Up to 50 files, 25 MB each and 100 MB in all.	Jusqu'à 50 fichiers, 25 Mo chacun et 100 Mo au total.
 Up to 50 files, 25 MB each and 100 MB in all. Each file becomes a document titled with its file name.	Jusqu'à 50 fichiers, 25 Mo chacun et 100 Mo au total. Chaque fichier devient un document intitulé du nom du fichier.
@@ -2399,6 +2471,7 @@ Waiting	En attente
 Waiting for approval	En attente d'approbation
 Waiting on me	En attente de moi
 Waiting on you	En attente de vous
+Waiting to be emailed	En attente d'envoi par e-mail
 Walkways and access routes are clear	Les cheminements et les accès sont dégagés
 Warn before approvals lapse by {}	Avertir avant l'expiration des approbations par {}
 Warnings sent	Avertissements envoyés
@@ -2409,6 +2482,7 @@ Weather and curing plan are confirmed	La météo et le plan de cure sont confirm
 Weather notes	Remarques météo
 Website	Site web
 Wed	mer.
+Wednesday	Mercredi
 Week	Semaine
 Week ends	La semaine se termine le
 Week ends {}.	La semaine se termine le {}.
@@ -2416,6 +2490,7 @@ Week of	Semaine du
 Week of {}	Semaine du {}
 Week of {} to {}	Semaine du {} au {}
 Week {}	Semaine {}
+Weekday (weekly)	Jour de la semaine (hebdomadaire)
 Weekdays worked	Jours travaillés
 Weekly	Hebdomadaire
 Weekly coordination	Coordination hebdomadaire
@@ -2444,6 +2519,7 @@ Which companies have been vetted to work for you, and when their approval, insur
 Who	Qui
 Who can open it	Qui peut l'ouvrir
 Who does action {}	Qui réalise l'action {}
+Who gets it	Qui le reçoit
 Who should see it	Qui doit le voir
 Who signed for the other party	Qui a signé pour l'autre partie
 Who signed for the owner	Qui a signé pour le maître d'ouvrage
@@ -2484,10 +2560,14 @@ You have no tokens.	Vous n'avez aucun jeton.
 You have read this	Vous avez lu ceci
 You'll be told here when something needs you, like a submittal waiting for your review.	Vous serez informé ici lorsque quelque chose requiert votre action, comme une soumission en attente de votre révision.
 Your bid	Votre soumission
+Your details	Vos informations
 Your first name	Votre prénom
 Your last name	Votre nom de famille
 Your name	Votre nom
 Your question	Votre question
+Your record is approved	Votre dossier est approuvé
+Your record was not approved this time. Correct what the reviewers asked for, and send it again.	Votre dossier n'a pas été approuvé cette fois. Corrigez ce que les évaluateurs ont demandé et renvoyez-le.
+Your record was sent and is waiting for review. You can still attach files and leave a message below.	Votre dossier a été envoyé et attend l'examen. Vous pouvez encore joindre des fichiers et laisser un message ci-dessous.
 Your reply	Votre réponse
 Your response	Votre réponse
 Zoom	Zoom
@@ -2582,41 +2662,3 @@ weekly summary	synthèse hebdomadaire
 {}Directory	{}Annuaire
 {}Prequalification	{}Préqualification
 ← Previous week	← Semaine précédente
-A pie needs figures that are not negative and add up to more than nothing. Use bars or columns for	Un camembert demande des chiffres non négatifs dont la somme dépasse zéro. Utilisez des barres ou des colonnes pour
-A pie needs figures that are not negative and add up to more than nothing. Use bars or columns for {}.	Un camembert demande des chiffres non négatifs dont la somme dépasse zéro. Utilisez des barres ou des colonnes pour {}.
-Bars	Barres
-Day of the month (monthly)	Jour du mois (mensuel)
-Draft transmittals	Transmissions en brouillon
-Each person gets the report as they themselves would see it, as a table in the email and a CSV file, from about six in the morning. Outgoing email has to be set up first. The first email is the next time the rhythm comes round.	Chaque personne reçoit le rapport tel qu'elle le verrait elle-même, sous forme de tableau dans l'e-mail et de fichier CSV, vers six heures du matin. Le courrier sortant doit d'abord être configuré. Le premier e-mail part la prochaine fois que le rythme revient.
-Email a report on a schedule by {}	Rapport programmé pour envoi par e-mail par {}
-Email this report	Envoyer ce rapport par e-mail
-Emailed every	Envoyé chaque
-Emailed every day	Envoyé tous les jours
-Emailed every {}	Envoyé chaque {}
-Emailed on day	Envoyé le jour
-Emailed on day {} of every month	Envoyé le {} de chaque mois
-Every day	Tous les jours
-Forms in draft	Formulaires en brouillon
-Friday	Vendredi
-Kind of chart	Type de graphique
-Monday	Lundi
-Not emailed	Pas envoyé par e-mail
-Not emailed. Pick a rhythm and who gets it.	Pas envoyé par e-mail. Choisissez le rythme et les destinataires.
-Open change events	Événements de changement ouverts
-Open commitments	Engagements ouverts
-Open correspondence	Correspondance ouverte
-Open incidents	Incidents ouverts
-Open inspections	Inspections ouvertes
-Open meeting actions	Actions de réunion ouvertes
-Open observations	Observations ouvertes
-Open tasks	Tâches ouvertes
-Pie	Camembert
-Record that a report was emailed by {}	Envoi d'un rapport par e-mail enregistré par {}
-Saturday	Samedi
-Sunday	Dimanche
-Thursday	Jeudi
-Tuesday	Mardi
-Unfinished schedule tasks	Tâches du planning non terminées
-Wednesday	Mercredi
-Weekday (weekly)	Jour de la semaine (hebdomadaire)
-Who gets it	Qui le reçoit

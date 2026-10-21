@@ -91,7 +91,7 @@ fn args(l: &Link) -> Map<String, Value> {
 }
 
 /// Every portal response: never cached, never leaks the link through a referrer, not indexed.
-fn guard(mut res: Response) -> Response {
+pub(crate) fn guard(mut res: Response) -> Response {
     let h = res.headers_mut();
     h.insert("cache-control", HeaderValue::from_static("no-store"));
     h.insert("referrer-policy", HeaderValue::from_static("no-referrer"));
@@ -99,7 +99,7 @@ fn guard(mut res: Response) -> Response {
     res
 }
 
-fn invalid() -> Response {
+pub(crate) fn invalid() -> Response {
     guard(html(StatusCode::NOT_FOUND, buildkiosk_web::portal::bad_link()))
 }
 

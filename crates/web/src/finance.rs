@@ -541,13 +541,15 @@ pub fn commitments(req: &Req<'_>, id: Id<Project>, filter: &CommitmentFilter) ->
         } @else {
             div class="table-wrap" {
                 table class="data" {
-                    thead { tr { th { "#" } th { "Title" } th { "Company" } th { "Type" } th { "Status" } th { "Contract" } th class="num" { "Total" } } }
+                    @let standing = buildkiosk_engine::model::perm::company_level(state, req.person, Tool::Prequalification) >= Level::Read;
+                    thead { tr { th { "#" } th { "Title" } th { "Company" } @if standing { th { "Prequalification" } } th { "Type" } th { "Status" } th { "Contract" } th class="num" { "Total" } } }
                     tbody {
                         @for c in &shown {
                             tr {
                                 td class="nowrap" { (c.number) }
                                 td { a class="row-link" href=(format!("{base}/{}", c.id)) { (c.title) } }
                                 td { @if let Some(v) = c.vendor { (view::vendor_name(state, v)) } }
+                                @if standing { td { @if let Some(v) = c.vendor { a href=(format!("/prequalification/{v}")) { (crate::prequal::standing_pill(buildkiosk_engine::cmd::prequal::vendor_standing(state, v, req.today()))) } } } }
                                 td { (c.kind.label()) }
                                 td { (status_pill(c.status)) }
                                 td { @if c.signature.status != SignatureStatus::NotSent || p.require_signed_contracts { (signature_pill(c.signature.status)) } }

@@ -110,7 +110,7 @@ differs; [`docs/gaps.md`](docs/gaps.md) lists what each one still lacks.
 | **Estimating** | A priced catalogue with price history by supplier, assemblies, take-offs from drawings, estimates with markups, alternates and versions, templates, and "put it in the budget" |
 | **Bidding** | Bid packages with scope, addenda and acknowledgements, leveling, weighted scoring, bid bonds, and award to a commitment; a bidder portal where invited companies, with no account, open an emailed link to read the documents, ask questions, attach files, and send, change or withdraw a sealed bid, an open link for public work where companies ask to be invited, and emails and notices at each step |
 | **Timesheets** | Hours with overtime rules, pay rates, crews and a labour cost report that posts to the budget |
-| **Prequalification** | Scored, versioned questionnaires, insurance and licence expiry warnings, and an optional rule that awards need a current prequalification |
+| **Prequalification** | Scored, versioned questionnaires that companies can answer themselves through an emailed link (no account), insurance and licence expiry warnings to the admins and the company, standing shown on commitments, and an optional rule that awards need a current prequalification |
 | **Reports** | Per-project and company reports with chosen columns across the tools, totals, bar, column and pie charts, CSV and PDF; saved reports can be emailed on a schedule to chosen people, each seeing only what they may see |
 | **Directory and permissions** | Companies and people, permission templates, and per-tool overrides on each team member; every rule is enforced in the engine |
 

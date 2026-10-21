@@ -876,6 +876,7 @@ async fn budget_commitments_and_direct_costs_in_the_browser_flow() {
     assert!(detail.contains("Contract signature"), "{detail}");
     let (_, _, list) = send(&app, get("/projects/1/commitments")).await;
     assert!(list.contains("Require a signed contract before approval"), "{list}");
+    assert!(list.contains("<th>Prequalification</th>"), "the list shows each company's prequalification standing to people who may read it: {list}");
     send(&app, post("/do/commitment.require_signed", &ada, format!("_csrf={csrf}&_next=/projects/1/commitments&project=1&required=true"))).await;
     let (_, _, list) = send(&app, get("/projects/1/commitments")).await;
     assert!(list.contains("Stop requiring signatures"), "{list}");
@@ -3738,6 +3739,119 @@ async fn pages_come_out_in_the_language_chosen() {
     }
     let (_, h, _) = send(&app, choose("tlh", "http://x/a")).await;
     assert_eq!((h.get(LOCATION).unwrap().to_str().unwrap(), h.get(SET_COOKIE).is_none()), ("/", true));
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
+async fn companies_fill_in_their_prequalification_through_a_link() {
+    let dir = temp("prequal-link");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let bare = |uri: &str| Request::get(uri.to_string()).body(Body::empty()).unwrap();
+    let post_bare = |uri: &str, body: String| {
+        Request::post(uri.to_string()).header("content-type", "application/x-www-form-urlencoded").body(Body::from(body)).unwrap()
+    };
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/vendor.create", &ada, format!("_csrf={csrf}&name=Keystone+Concrete&kind=subcontractor"))).await;
+    send(
+        &app,
+        post(
+            "/do/prequal.form_save",
+            &ada,
+            format!("_csrf={csrf}&name=Subs&text=%23+Safety%0ADo+you+have+a+written+safety+program%3F+%7C+20%0AWhat+is+your+EMR%3F+%7C+10"),
+        ),
+    )
+    .await;
+    send(&app, post("/do/prequal.save", &ada, format!("_csrf={csrf}&vendor=1&notes=Team+secret+note"))).await;
+    send(&app, post("/do/prequal.answer", &ada, format!("_csrf={csrf}&vendor=1&form=1"))).await;
+
+    // The team sends a link from the company's page and can copy it.
+    let (_, h, _) =
+        send(&app, post("/do/prequal.invite", &ada, format!("_csrf={csrf}&vendor=1&email=office%40keystone.example&_next=%2Fprequalification%2F1")))
+            .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, detail) = send(&app, get("/prequalification/1")).await;
+    assert!(
+        detail.contains("Link for the company") && detail.contains("office@keystone.example") && detail.contains("Waiting to be emailed"),
+        "{detail}"
+    );
+    let slug = app.lock().tenant.as_ref().unwrap().slug.clone();
+    let token = prequal_portal::token(app.secret(), &slug, 1, 1, 0);
+    let (st, _, shown) = send(&app, get("/prequalification/1/links/1")).await;
+    assert!(st == StatusCode::OK && shown.contains(&format!("/prequal/{token}")), "{shown}");
+    assert_eq!(send(&app, get("/prequalification/1/links/9")).await.0, StatusCode::NOT_FOUND);
+
+    // The link opens the company's page with no sign-in: its questions, not the team's note.
+    let (st, h, page) = send(&app, bare(&format!("/prequal/{token}"))).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(page.contains("Keystone Concrete") && page.contains("written safety program") && !page.contains("Team secret note"), "{page}");
+    assert!(h.get(SET_COOKIE).is_none());
+    assert_eq!(h.get("referrer-policy").unwrap(), "no-referrer");
+    assert_eq!(h.get("cache-control").unwrap(), "no-store");
+    // Forged, replaced and foreign links all look the same.
+    let wrong_generation = prequal_portal::token(app.secret(), &slug, 1, 1, 3);
+    let foreign = prequal_portal::token(app.secret(), "someone-else", 1, 1, 0);
+    let mut answers = Vec::new();
+    for bad in [format!("{token}x"), wrong_generation, foreign, "garbage".to_string(), "1.1.0.".to_string()] {
+        let (st, _, body) = send(&app, bare(&format!("/prequal/{bad}"))).await;
+        assert_eq!(st, StatusCode::NOT_FOUND, "{bad}");
+        answers.push(body);
+    }
+    assert!(answers.windows(2).all(|w| w[0] == w[1]) && !answers[0].contains("Keystone"));
+
+    // Posting needs the page's own form token.
+    let form = field(&page, "_csrf");
+    assert_eq!(send(&app, post_bare(&format!("/prequal/{token}/save"), "_csrf=nope".into())).await.0, StatusCode::FORBIDDEN);
+    let body = format!("_csrf={form}&reply_0_0=Yes%2C+reviewed+yearly&insurance_expires=2027-03-01&emr=0.9");
+    let (st, h, _) = send(&app, post_bare(&format!("/prequal/{token}/save"), body)).await;
+    assert!(st == StatusCode::SEE_OTHER && h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, again) = send(&app, bare(&format!("/prequal/{token}"))).await;
+    assert!(again.contains("Yes, reviewed yearly") && again.contains("value=\"2027-03-01\"") && again.contains("value=\"0.90\""), "{again}");
+    // Sending needs every question answered; it saves what is on the page first, then sends.
+    let (_, h, _) =
+        send(&app, post_bare(&format!("/prequal/{token}/submit"), format!("_csrf={form}&reply_0_0=Yes%2C+reviewed+yearly&reply_0_1="))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("error="), "{h:?}");
+    let (_, h, _) = send(
+        &app,
+        post_bare(
+            &format!("/prequal/{token}/submit"),
+            format!("_csrf={form}&reply_0_0=Yes%2C+reviewed+yearly&reply_0_1=0.90&message=Certificate+attached"),
+        ),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, locked) = send(&app, bare(&format!("/prequal/{token}"))).await;
+    assert!(locked.contains("waiting for review") && !locked.contains("Save and come back later"), "{locked}");
+    // A document and a message still go through; the team sees both.
+    let mut upload = String::new();
+    upload.push_str(&format!("--B\r\nContent-Disposition: form-data; name=\"_csrf\"\r\n\r\n{form}\r\n"));
+    upload.push_str("--B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"insurance.pdf\"\r\nContent-Type: application/pdf\r\n\r\n%PDF-1.4 test\r\n--B--\r\n");
+    let req =
+        Request::post(format!("/prequal/{token}/upload")).header("content-type", "multipart/form-data; boundary=B").body(Body::from(upload)).unwrap();
+    let (_, h, _) = send(&app, req).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, h, _) = send(&app, post_bare(&format!("/prequal/{token}/message"), format!("_csrf={form}&message=Bond+letter+in+the+post"))).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, detail) = send(&app, get("/prequalification/1")).await;
+    assert!(
+        detail.contains("Message from the company") && detail.contains("Bond letter in the post") && detail.contains("insurance.pdf"),
+        "{detail}"
+    );
+    assert!(detail.contains("put forward by the company through link 1"), "{detail}");
+
+    // Cancelling the link stops it at once.
+    send(&app, post("/do/prequal.revoke_invite", &ada, format!("_csrf={csrf}&vendor=1&number=1"))).await;
+    assert_eq!(send(&app, bare(&format!("/prequal/{token}"))).await.0, StatusCode::NOT_FOUND);
+    let (st, h, _) = send(&app, post_bare(&format!("/prequal/{token}/message"), format!("_csrf={form}&message=hi"))).await;
+    assert!(st == StatusCode::SEE_OTHER && h.get(LOCATION).unwrap().to_str().unwrap().contains("error=this%20link%20is%20not%20valid"), "{h:?}");
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }

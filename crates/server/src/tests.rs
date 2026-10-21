@@ -4138,4 +4138,3 @@ async fn company_report_chart_kinds_and_email_schedule() {
     );
     assert!(csv.starts_with("Project,Open tasks,Original budget") && csv.contains("Alpha,3"), "{csv}");
 }
-

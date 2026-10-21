@@ -44,3 +44,69 @@ this contract is not out for signature	dit contract staat niet open voor onderte
 your account is disabled	uw account is uitgeschakeld
 the change could not be saved	de wijziging kon niet worden opgeslagen
 unknown command `{}`	onbekend commando `{}`
+that company has no standing bid	dat bedrijf heeft geen lopend bod
+`{}` needs at least one column	`{}` heeft minstens één kolom nodig
+an invoice bills this change order's lines; void or edit that invoice first	een factuur brengt de regels van deze wijzigingsorder in rekening; annuleer of bewerk die factuur eerst
+`{}` can't be changed; create a new change order instead	`{}` kan niet worden gewijzigd; maak in plaats daarvan een nieuwe wijzigingsorder
+choose at least one recipient	kies minstens één ontvanger
+`{}` must be between 0 and 100	`{}` moet tussen 0 en 100 liggen
+that person isn't on the project	die persoon zit niet in het project
+that company has no prequalification record yet	dat bedrijf heeft nog geen voorkwalificatiedossier
+that link was sent too many times	die link is te vaak verstuurd
+that link is already cancelled	die link is al geannuleerd
+only project admins can take the resource limits or the calendar from a file	alleen projectbeheerders kunnen de resourcelimieten of de kalender uit een bestand overnemen
+the company isn't set up yet	het bedrijf is nog niet ingesteld
+only the template's author or a company admin can delete it	alleen de maker van het sjabloon of een bedrijfsbeheerder kan het verwijderen
+project not found	project niet gevonden
+`{}` needs at least one working day	`{}` heeft minstens één werkdag nodig
+this package is not taking bids	dit pakket neemt geen biedingen aan
+you have no bid on this package	u hebt geen bod op dit pakket
+that request was already decided	dat verzoek is al beslist
+later invoices build on this one; void them first	latere facturen bouwen hierop voort; annuleer die eerst
+only admins can delete invoices (authors can delete their own drafts)	alleen beheerders kunnen facturen verwijderen (makers kunnen hun eigen concepten verwijderen)
+your account no longer exists	uw account bestaat niet meer
+only the item's manager or an admin can send it back	alleen de beheerder van het item of een beheerder kan het terugsturen
+only the item's manager or an admin can close it	alleen de beheerder van het item of een beheerder kan het sluiten
+only the item's manager or an admin can reopen it	alleen de beheerder van het item of een beheerder kan het heropenen
+only the manager or an inspections admin can reopen an inspection	alleen de beheerder of een inspectiebeheerder kan een inspectie heropenen
+only the manager or an inspections admin can raise punch items	alleen de beheerder of een inspectiebeheerder kan restpunten aanmaken
+there are no failed lines without a punch item	er zijn geen afgekeurde regels zonder restpunt
+only inspections admins can delete inspections (authors can delete their own before any answers)	alleen inspectiebeheerders kunnen inspecties verwijderen (makers kunnen hun eigen inspecties verwijderen zolang er geen antwoorden zijn)
+only inspections admins can see the recycle bin	alleen inspectiebeheerders kunnen de prullenbak zien
+invoices exist for this commitment; void them first	er bestaan facturen voor deze verplichting; annuleer die eerst
+only commitments admins can delete commitments (authors can delete their own drafts)	alleen beheerders van verplichtingen kunnen verplichtingen verwijderen (makers kunnen hun eigen concepten verwijderen)
+only commitments admins can see the recycle bin	alleen beheerders van verplichtingen kunnen de prullenbak zien
+write the question before opening the RFI	schrijf de vraag voordat u de RFI opent
+assign someone to answer before opening the RFI	wijs iemand aan om te antwoorden voordat u de RFI opent
+only the RFI manager or an RFI admin can open an RFI	alleen de RFI-beheerder of een RFI-beheerder kan een RFI openen
+only the RFI manager or an RFI admin can give the official response	alleen de RFI-beheerder of een RFI-beheerder kan het officiële antwoord geven
+only the RFI manager or an RFI admin can close an RFI	alleen de RFI-beheerder of een RFI-beheerder kan een RFI sluiten
+only the RFI manager or an RFI admin can reopen an RFI	alleen de RFI-beheerder of een RFI-beheerder kan een RFI heropenen
+only RFI admins can delete RFIs (authors can delete their own drafts)	alleen RFI-beheerders kunnen RFI's verwijderen (makers kunnen hun eigen concepten verwijderen)
+only RFI admins can see the recycle bin	alleen RFI-beheerders kunnen de prullenbak zien
+the folder is not empty; move or delete what is in it first	de map is niet leeg; verplaats of verwijder eerst wat erin zit
+only the person who added a document or a Documents admin can edit it	alleen wie een document heeft toegevoegd of een documentbeheerder kan het bewerken
+only the person who added a document or a Documents admin can delete it	alleen wie een document heeft toegevoegd of een documentbeheerder kan het verwijderen
+only open correspondence can be replied to	alleen op open correspondentie kan worden gereageerd
+only the author and the people it was sent to can reply	alleen de maker en de ontvangers kunnen reageren
+only the author or an admin can do that	alleen de maker of een beheerder kan dat doen
+it is not in the recycle bin	het zit niet in de prullenbak
+only the person who drew a markup or a Drawings admin can remove it	alleen wie een markering heeft getekend of een tekeningbeheerder kan die verwijderen
+another sheet now uses that number	een ander blad gebruikt dat nummer al
+only an approved prime contract can be invoiced	alleen een goedgekeurd hoofdcontract kan worden gefactureerd
+only an approved commitment can be invoiced	alleen een goedgekeurde verplichting kan worden gefactureerd
+only project admins can add project admins	alleen projectbeheerders kunnen projectbeheerders toevoegen
+only project admins can change who is a project admin	alleen projectbeheerders kunnen wijzigen wie projectbeheerder is
+`{}` is before the start date	`{}` ligt voor de startdatum
+this contract can't be signed now	dit contract kan nu niet worden ondertekend
+this contract has no lines to sign for	dit contract heeft geen regels om voor te tekenen
+the company counter-signs as a person	het bedrijf tekent mee als persoon
+`{}` is needed to add more signers or to sign in order	`{}` is nodig om meer ondertekenaars toe te voegen of in volgorde te tekenen
+`{}` is needed for the company to counter-sign after the others	`{}` is nodig om het bedrijf na de anderen te laten meetekenen
+the path crosses itself, repeats a point or doubles back; draw it so its sides only meet at corners	het pad kruist zichzelf, herhaalt een punt of keert terug; teken het zo dat de zijden alleen in hoeken samenkomen
+`{}` is required for a text markup	`{}` is verplicht voor een tekstmarkering
+only commitments admins can clear a signed contract	alleen beheerders van verplichtingen kunnen een ondertekend contract wissen
+give your insurance or licence date, or attach a file, before sending your record	geef de datum van uw verzekering of vergunning op, of voeg een bestand toe, voordat u uw dossier verstuurt
+that address already has a link; send it again instead	dat adres heeft al een link; verstuur die opnieuw
+there is no questionnaire to answer	er is geen vragenlijst om te beantwoorden
+only an admin can send a link for an approved record	alleen een beheerder kan een link versturen voor een goedgekeurd item

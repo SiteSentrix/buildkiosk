@@ -44,3 +44,69 @@ this contract is not out for signature	este contrato no está pendiente de firma
 your account is disabled	su cuenta está desactivada
 the change could not be saved	no se pudo guardar el cambio
 unknown command `{}`	comando desconocido `{}`
+that company has no standing bid	esa empresa no tiene una oferta vigente
+`{}` needs at least one column	`{}` necesita al menos una columna
+an invoice bills this change order's lines; void or edit that invoice first	una factura cobra las líneas de esta orden de cambio; anule o edite esa factura primero
+`{}` can't be changed; create a new change order instead	`{}` no se puede cambiar; cree una orden de cambio nueva
+choose at least one recipient	elija al menos un destinatario
+`{}` must be between 0 and 100	`{}` debe estar entre 0 y 100
+that person isn't on the project	esa persona no está en el proyecto
+that company has no prequalification record yet	esa empresa aún no tiene un registro de precalificación
+that link was sent too many times	ese enlace se envió demasiadas veces
+that link is already cancelled	ese enlace ya está cancelado
+only project admins can take the resource limits or the calendar from a file	solo los administradores del proyecto pueden tomar los límites de recursos o el calendario de un archivo
+the company isn't set up yet	la empresa aún no está configurada
+only the template's author or a company admin can delete it	solo el autor de la plantilla o un administrador de la empresa puede eliminarla
+project not found	proyecto no encontrado
+`{}` needs at least one working day	`{}` necesita al menos un día laborable
+this package is not taking bids	este paquete no recibe ofertas
+you have no bid on this package	usted no tiene ninguna oferta en este paquete
+that request was already decided	esa solicitud ya fue resuelta
+later invoices build on this one; void them first	las facturas posteriores se basan en esta; anúlelas primero
+only admins can delete invoices (authors can delete their own drafts)	solo los administradores pueden eliminar facturas (los autores pueden eliminar sus propios borradores)
+your account no longer exists	su cuenta ya no existe
+only the item's manager or an admin can send it back	solo el responsable del elemento o un administrador puede devolverlo
+only the item's manager or an admin can close it	solo el responsable del elemento o un administrador puede cerrarlo
+only the item's manager or an admin can reopen it	solo el responsable del elemento o un administrador puede reabrirlo
+only the manager or an inspections admin can reopen an inspection	solo el responsable o un administrador de inspecciones puede reabrir una inspección
+only the manager or an inspections admin can raise punch items	solo el responsable o un administrador de inspecciones puede crear pendientes
+there are no failed lines without a punch item	no hay líneas fallidas sin un pendiente
+only inspections admins can delete inspections (authors can delete their own before any answers)	solo los administradores de inspecciones pueden eliminar inspecciones (los autores pueden eliminar las suyas antes de que haya respuestas)
+only inspections admins can see the recycle bin	solo los administradores de inspecciones pueden ver la papelera
+invoices exist for this commitment; void them first	existen facturas de este compromiso; anúlelas primero
+only commitments admins can delete commitments (authors can delete their own drafts)	solo los administradores de compromisos pueden eliminar compromisos (los autores pueden eliminar sus propios borradores)
+only commitments admins can see the recycle bin	solo los administradores de compromisos pueden ver la papelera
+write the question before opening the RFI	escriba la pregunta antes de abrir la RFI
+assign someone to answer before opening the RFI	asigne a alguien para responder antes de abrir la RFI
+only the RFI manager or an RFI admin can open an RFI	solo el responsable de la RFI o un administrador de RFI puede abrir una RFI
+only the RFI manager or an RFI admin can give the official response	solo el responsable de la RFI o un administrador de RFI puede dar la respuesta oficial
+only the RFI manager or an RFI admin can close an RFI	solo el responsable de la RFI o un administrador de RFI puede cerrar una RFI
+only the RFI manager or an RFI admin can reopen an RFI	solo el responsable de la RFI o un administrador de RFI puede reabrir una RFI
+only RFI admins can delete RFIs (authors can delete their own drafts)	solo los administradores de RFI pueden eliminar RFI (los autores pueden eliminar sus propios borradores)
+only RFI admins can see the recycle bin	solo los administradores de RFI pueden ver la papelera
+the folder is not empty; move or delete what is in it first	la carpeta no está vacía; mueva o elimine primero lo que contiene
+only the person who added a document or a Documents admin can edit it	solo quien añadió un documento o un administrador de documentos puede editarlo
+only the person who added a document or a Documents admin can delete it	solo quien añadió un documento o un administrador de documentos puede eliminarlo
+only open correspondence can be replied to	solo se puede responder a la correspondencia abierta
+only the author and the people it was sent to can reply	solo el autor y las personas a quienes se envió pueden responder
+only the author or an admin can do that	solo el autor o un administrador puede hacerlo
+it is not in the recycle bin	no está en la papelera
+only the person who drew a markup or a Drawings admin can remove it	solo quien dibujó una marca o un administrador de planos puede quitarla
+another sheet now uses that number	otra hoja ya usa ese número
+only an approved prime contract can be invoiced	solo un contrato principal aprobado puede facturarse
+only an approved commitment can be invoiced	solo un compromiso aprobado puede facturarse
+only project admins can add project admins	solo los administradores del proyecto pueden añadir administradores del proyecto
+only project admins can change who is a project admin	solo los administradores del proyecto pueden cambiar quién es administrador del proyecto
+`{}` is before the start date	`{}` es anterior a la fecha de inicio
+this contract can't be signed now	este contrato no se puede firmar ahora
+this contract has no lines to sign for	este contrato no tiene líneas que firmar
+the company counter-signs as a person	la empresa contrafirma como persona
+`{}` is needed to add more signers or to sign in order	`{}` es necesario para añadir más firmantes o firmar en orden
+`{}` is needed for the company to counter-sign after the others	`{}` es necesario para que la empresa contrafirme después de los demás
+the path crosses itself, repeats a point or doubles back; draw it so its sides only meet at corners	el trayecto se cruza, repite un punto o retrocede; dibújelo de modo que sus lados solo se unan en las esquinas
+`{}` is required for a text markup	`{}` es obligatorio para una marca de texto
+only commitments admins can clear a signed contract	solo los administradores de compromisos pueden borrar un contrato firmado
+give your insurance or licence date, or attach a file, before sending your record	indique la fecha de su seguro o licencia, o adjunte un archivo, antes de enviar su registro
+that address already has a link; send it again instead	esa dirección ya tiene un enlace; envíelo de nuevo
+there is no questionnaire to answer	no hay ningún cuestionario que responder
+only an admin can send a link for an approved record	solo un administrador puede enviar un enlace de un registro aprobado

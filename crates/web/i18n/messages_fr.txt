@@ -44,3 +44,69 @@ this contract is not out for signature	ce contrat n'est pas soumis à signature
 your account is disabled	votre compte est désactivé
 the change could not be saved	la modification n'a pas pu être enregistrée
 unknown command `{}`	commande inconnue `{}`
+that company has no standing bid	cette entreprise n'a pas d'offre en cours
+`{}` needs at least one column	`{}` nécessite au moins une colonne
+an invoice bills this change order's lines; void or edit that invoice first	une facture porte sur les lignes de cet avenant ; annulez ou modifiez d'abord cette facture
+`{}` can't be changed; create a new change order instead	`{}` ne peut pas être modifié ; créez plutôt un nouvel avenant
+choose at least one recipient	choisissez au moins un destinataire
+`{}` must be between 0 and 100	`{}` doit être compris entre 0 et 100
+that person isn't on the project	cette personne ne fait pas partie du projet
+that company has no prequalification record yet	cette entreprise n'a pas encore de dossier de préqualification
+that link was sent too many times	ce lien a été envoyé trop de fois
+that link is already cancelled	ce lien est déjà annulé
+only project admins can take the resource limits or the calendar from a file	seuls les administrateurs du projet peuvent reprendre les limites de ressources ou le calendrier d'un fichier
+the company isn't set up yet	l'entreprise n'est pas encore configurée
+only the template's author or a company admin can delete it	seuls l'auteur du modèle ou un administrateur de l'entreprise peuvent le supprimer
+project not found	projet introuvable
+`{}` needs at least one working day	`{}` nécessite au moins un jour ouvré
+this package is not taking bids	ce lot n'accepte pas d'offres
+you have no bid on this package	vous n'avez aucune offre sur ce lot
+that request was already decided	cette demande a déjà été tranchée
+later invoices build on this one; void them first	les factures suivantes s'appuient sur celle-ci ; annulez-les d'abord
+only admins can delete invoices (authors can delete their own drafts)	seuls les administrateurs peuvent supprimer des factures (les auteurs peuvent supprimer leurs propres brouillons)
+your account no longer exists	votre compte n'existe plus
+only the item's manager or an admin can send it back	seul le responsable de l'élément ou un administrateur peut le renvoyer
+only the item's manager or an admin can close it	seul le responsable de l'élément ou un administrateur peut le clore
+only the item's manager or an admin can reopen it	seul le responsable de l'élément ou un administrateur peut le rouvrir
+only the manager or an inspections admin can reopen an inspection	seul le responsable ou un administrateur des inspections peut rouvrir une inspection
+only the manager or an inspections admin can raise punch items	seul le responsable ou un administrateur des inspections peut créer des réserves
+there are no failed lines without a punch item	il n'y a aucune ligne en échec sans réserve
+only inspections admins can delete inspections (authors can delete their own before any answers)	seuls les administrateurs des inspections peuvent supprimer des inspections (les auteurs peuvent supprimer les leurs avant toute réponse)
+only inspections admins can see the recycle bin	seuls les administrateurs des inspections peuvent voir la corbeille
+invoices exist for this commitment; void them first	des factures existent pour cet engagement ; annulez-les d'abord
+only commitments admins can delete commitments (authors can delete their own drafts)	seuls les administrateurs des engagements peuvent supprimer des engagements (les auteurs peuvent supprimer leurs propres brouillons)
+only commitments admins can see the recycle bin	seuls les administrateurs des engagements peuvent voir la corbeille
+write the question before opening the RFI	rédigez la question avant d'ouvrir la DIE
+assign someone to answer before opening the RFI	désignez quelqu'un pour répondre avant d'ouvrir la DIE
+only the RFI manager or an RFI admin can open an RFI	seul le responsable de la DIE ou un administrateur des DIE peut ouvrir une DIE
+only the RFI manager or an RFI admin can give the official response	seul le responsable de la DIE ou un administrateur des DIE peut donner la réponse officielle
+only the RFI manager or an RFI admin can close an RFI	seul le responsable de la DIE ou un administrateur des DIE peut clore une DIE
+only the RFI manager or an RFI admin can reopen an RFI	seul le responsable de la DIE ou un administrateur des DIE peut rouvrir une DIE
+only RFI admins can delete RFIs (authors can delete their own drafts)	seuls les administrateurs des DIE peuvent supprimer des DIE (les auteurs peuvent supprimer leurs propres brouillons)
+only RFI admins can see the recycle bin	seuls les administrateurs des DIE peuvent voir la corbeille
+the folder is not empty; move or delete what is in it first	le dossier n'est pas vide ; déplacez ou supprimez d'abord son contenu
+only the person who added a document or a Documents admin can edit it	seule la personne qui a ajouté un document ou un administrateur des documents peut le modifier
+only the person who added a document or a Documents admin can delete it	seule la personne qui a ajouté un document ou un administrateur des documents peut le supprimer
+only open correspondence can be replied to	on ne peut répondre qu'à une correspondance ouverte
+only the author and the people it was sent to can reply	seuls l'auteur et les destinataires peuvent répondre
+only the author or an admin can do that	seul l'auteur ou un administrateur peut le faire
+it is not in the recycle bin	il n'est pas dans la corbeille
+only the person who drew a markup or a Drawings admin can remove it	seule la personne qui a dessiné une annotation ou un administrateur des plans peut la supprimer
+another sheet now uses that number	une autre feuille utilise déjà ce numéro
+only an approved prime contract can be invoiced	seul un contrat principal approuvé peut être facturé
+only an approved commitment can be invoiced	seul un engagement approuvé peut être facturé
+only project admins can add project admins	seuls les administrateurs du projet peuvent ajouter des administrateurs du projet
+only project admins can change who is a project admin	seuls les administrateurs du projet peuvent changer qui est administrateur du projet
+`{}` is before the start date	`{}` est antérieur à la date de début
+this contract can't be signed now	ce contrat ne peut pas être signé maintenant
+this contract has no lines to sign for	ce contrat n'a aucune ligne à signer
+the company counter-signs as a person	l'entreprise contresigne en tant que personne
+`{}` is needed to add more signers or to sign in order	`{}` est nécessaire pour ajouter des signataires ou signer dans l'ordre
+`{}` is needed for the company to counter-sign after the others	`{}` est nécessaire pour que l'entreprise contresigne après les autres
+the path crosses itself, repeats a point or doubles back; draw it so its sides only meet at corners	le tracé se croise, répète un point ou revient en arrière ; dessinez-le de sorte que ses côtés ne se touchent qu'aux angles
+`{}` is required for a text markup	`{}` est obligatoire pour une annotation de texte
+only commitments admins can clear a signed contract	seuls les administrateurs des engagements peuvent effacer un contrat signé
+give your insurance or licence date, or attach a file, before sending your record	indiquez la date de votre assurance ou de votre licence, ou joignez un fichier, avant d'envoyer votre dossier
+that address already has a link; send it again instead	cette adresse a déjà un lien ; renvoyez-le plutôt
+there is no questionnaire to answer	il n'y a aucun questionnaire à remplir
+only an admin can send a link for an approved record	seul un administrateur peut envoyer un lien pour un enregistrement approuvé

@@ -1451,8 +1451,8 @@ async fn drawings_log_revisions_and_csv() {
 }
 
 #[tokio::test]
-async fn company_report_chart_kinds_and_email_schedule() {
-    let dir = temp("report-email");
+async fn resource_levelling_preview_and_apply() {
+    let dir = temp("level");
     let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
     let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
     let anon = cookies(&h);
@@ -1462,62 +1462,52 @@ async fn company_report_chart_kinds_and_email_schedule() {
     let session = cookies(&h);
     let (_, _, home) = send(&app, Request::get("/").header("cookie", &session).body(Body::empty()).unwrap()).await;
     let csrf = field(&home, "_csrf");
-    for name in ["Alpha", "Bravo"] {
-        send(&app, post("/do/project.create", &session, format!("_csrf={csrf}&name={name}"))).await;
+    send(&app, post("/do/project.create", &session, format!("_csrf={csrf}&name=P"))).await;
+    for (name, start, days, res) in [("Framing", "2026-10-12", 3, "Carpenter+4"), ("Blocking", "2026-10-13", 2, "Carpenter+3")] {
+        send(&app, post("/do/schedule.add", &session, format!("_csrf={csrf}&project=1&name={name}&start={start}&days={days}&resources={res}"))).await;
     }
-    for (project, title) in [(1, "A1"), (1, "A2"), (1, "A3"), (2, "B1")] {
-        send(&app, post("/do/task.create", &session, format!("_csrf={csrf}&project={project}&title={title}"))).await;
-    }
-    send(&app, post("/do/company_report.save", &session, format!("_csrf={csrf}&name=Tasks&columns%5B%5D=tasks&columns%5B%5D=original&shared=true")))
-        .await;
     let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &session).body(Body::empty()).unwrap();
-
-    // The chart is drawn as bars, columns or a pie; a pie shows each share.
-    let (_, _, bars) = send(&app, get("/reports?report=1&chart=tasks")).await;
-    assert!(bars.contains("one bar per project") && bars.contains("Kind of chart"), "bars are the default");
-    let (_, _, cols) = send(&app, get("/reports?report=1&chart=tasks&kind=columns")).await;
-    assert!(cols.contains("one column per project"), "columns");
-    let (_, _, pie) = send(&app, get("/reports?report=1&chart=tasks&kind=pie")).await;
-    assert!(pie.contains("each project&#39;s share of the total") || pie.contains("each project's share of the total"), "{pie}");
-    assert!(pie.contains("Alpha: 3 (75%)") && pie.contains("Bravo: 1 (25%)"), "the key gives each share");
-    // No project has an original budget, so the figures add up to nothing and a pie says so.
-    let (_, _, none) = send(&app, get("/reports?report=1&chart=original&kind=pie")).await;
-    assert!(none.contains("A pie needs figures that are not negative"), "no figures");
-
-    // Scheduling: the form is on the report's page; saving shows the rhythm.
-    assert!(bars.contains("Email this report") && bars.contains("Not emailed"));
-    let (_, h, _) = send(
-        &app,
-        post(
-            "/do/company_report.schedule",
-            &session,
-            format!("_csrf={csrf}&id=1&rhythm=weekly&weekday=friday&day=1&people%5B%5D=1&_next=%2Freports%3Freport%3D1"),
-        ),
-    )
-    .await;
+    // With no limits there is nothing to level.
+    let (_, _, res) = send(&app, get("/projects/1/schedule/resources?from=2026-10-12")).await;
+    assert!(!res.contains("Level resources"), "{res}");
+    send(&app, post("/do/schedule.resource_limits", &session, format!("_csrf={csrf}&project=1&text=Carpenter+5"))).await;
+    let (st, _, res) = send(&app, get("/projects/1/schedule/resources?from=2026-10-12")).await;
+    assert!(st == StatusCode::OK && res.contains("Level resources") && res.contains("Preview, keeping the finish date"), "{res}");
+    assert!(!res.contains("Apply this plan"), "no plan is shown until one is asked for");
+    // The preview lists what would move and offers to apply it; nothing has changed yet.
+    let (_, _, res) = send(&app, get("/projects/1/schedule/resources?from=2026-10-12&level=all")).await;
+    assert!(res.contains("Blocking") && res.contains("Apply this plan") && res.contains("Working days later"), "{res}");
+    let (_, _, list) = send(&app, get("/projects/1/schedule.csv")).await;
+    assert!(list.contains("2026-10-13"), "{list}");
+    // Applying moves the task, so the page then finds nothing to do.
+    let (_, h, _) =
+        send(&app, post("/do/schedule.level", &session, format!("_csrf={csrf}&project=1&within_float=false&_next=%2Fprojects%2F1%2Fschedule"))).await;
     assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
-    let (_, _, bars) = send(&app, get("/reports?report=1")).await;
-    assert!(bars.contains("Emailed every Friday to 1 person"), "{bars}");
+    let (_, _, res) = send(&app, get("/projects/1/schedule/resources?from=2026-10-12&level=all")).await;
+    assert!(res.contains("nothing needs to move") && !res.contains("Apply this plan"), "{res}");
+    let (_, _, list) = send(&app, get("/projects/1/schedule.csv")).await;
+    assert!(list.contains("Blocking") && list.contains("2026-10-15"), "{list}");
 
-    // What goes in the email: the table, the totals, a link and the CSV, as that person sees it.
-    let (subject, body, csv) = {
-        let inner = app.lock();
-        let t = inner.tenant.as_ref().unwrap();
-        let req = buildkiosk_web::layout::Req {
-            engine: &t.engine,
-            person: buildkiosk_core::Id::new(1),
-            csrf: "",
-            now: buildkiosk_core::Timestamp::from_millis(super::now_ms()),
-            flash: None,
-        };
-        buildkiosk_web::company_reports::delivery_email(&req, buildkiosk_core::Id::new(1), "https://bk.example.com").unwrap()
-    };
-    assert!(subject.starts_with("Tasks"), "{subject}");
-    assert!(
-        body.contains("Alpha") && body.contains("Bravo") && body.contains("Total") && body.contains("https://bk.example.com/reports?report=1"),
-        "{body}"
-    );
-    assert!(csv.starts_with("Project,Open tasks,Original budget") && csv.contains("Alpha,3"), "{csv}");
+    // A project file uploaded with the boxes ticked brings its resources, limits and calendar.
+    let xml = r#"<Project xmlns="http://schemas.microsoft.com/project"><Calendars><Calendar><UID>1</UID><IsBaseCalendar>1</IsBaseCalendar><WeekDays><WeekDay><DayType>1</DayType><DayWorking>0</DayWorking></WeekDay><WeekDay><DayType>2</DayType><DayWorking>1</DayWorking></WeekDay><WeekDay><DayType>7</DayType><DayWorking>1</DayWorking></WeekDay></WeekDays></Calendar></Calendars><Resources><Resource><UID>1</UID><Name>Mason</Name><MaxUnits>3</MaxUnits></Resource></Resources><Tasks><Task><UID>1</UID><Name>Pour</Name><Start>2026-11-02T08:00:00</Start><Finish>2026-11-03T17:00:00</Finish></Task></Tasks><Assignments><Assignment><TaskUID>1</TaskUID><ResourceUID>1</ResourceUID><Units>2</Units></Assignment></Assignments></Project>"#;
+    let mut body = String::new();
+    for (k, v) in [("_csrf", csrf.as_str()), ("resources", "true"), ("limits", "true"), ("calendar", "true")] {
+        body.push_str(&format!("--B\r\nContent-Disposition: form-data; name=\"{k}\"\r\n\r\n{v}\r\n"));
+    }
+    body.push_str(&format!(
+        "--B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"plan.xml\"\r\nContent-Type: text/xml\r\n\r\n{xml}\r\n--B--\r\n"
+    ));
+    let upload = Request::post("/projects/1/schedule/import-xml")
+        .header("cookie", &session)
+        .header("content-type", "multipart/form-data; boundary=B")
+        .body(Body::from(body))
+        .unwrap();
+    let (_, h, _) = send(&app, upload).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, res) = send(&app, get("/projects/1/schedule/resources?from=2026-11-02&weeks=1")).await;
+    assert!(res.contains("Mason") && res.contains(">3<"), "the limit from the file is shown: {res}");
+    let (_, _, cal) = send(&app, get("/projects/1/schedule/calendar")).await;
+    assert!(cal.contains("value=\"mon, sat\""), "the file's weekdays, Monday and Saturday only here");
 }
 
 #[tokio::test]
@@ -4039,3 +4029,113 @@ async fn bid_files_receipts_and_the_open_link() {
     drop(app);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn budget_grouped_by_cost_type_page() {
+    let dir = temp("budget-types");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let session = cookies(&h);
+    let (_, _, home) = send(&app, Request::get("/").header("cookie", &session).body(Body::empty()).unwrap()).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &session, format!("_csrf={csrf}&name=P"))).await;
+    send(&app, post("/do/cost_code.create", &session, format!("_csrf={csrf}&project=1&code=77-100&description=Paving"))).await;
+    send(&app, post("/do/cost_code.create", &session, format!("_csrf={csrf}&project=1&code=77-200&description=Curbs"))).await;
+    send(&app, post("/do/budget.import", &session, format!("_csrf={csrf}&project=1&text=77-100%2C+1000%0A77-200%2C+2000"))).await;
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &session).body(Body::empty()).unwrap();
+    let (st, _, page) = send(&app, get("/projects/1/budget")).await;
+    assert!(st == StatusCode::OK && page.contains("Cost types") && page.contains("Save cost types"), "the admin sees the cost types card");
+    // Types are set from the page's form; a wrong line changes nothing and says so.
+    let (_, h, _) = send(
+        &app,
+        post("/do/cost_code.set_types", &session, format!("_csrf={csrf}&project=1&text=77-100+labor%0A99-999+labor&_next=%2Fprojects%2F1%2Fbudget")),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("error="), "{h:?}");
+    send(&app, post("/do/cost_code.set_types", &session, format!("_csrf={csrf}&project=1&text=77-100+labor%0A77-200+material"))).await;
+    let (_, _, page) = send(&app, get("/projects/1/budget")).await;
+    assert!(page.contains("77-100 labor") && page.contains("77-200 material"), "the card shows what is set");
+    // A view grouped by cost type puts labor before material, each with a subtotal.
+    send(&app, post("/do/budget.view_save", &session, format!("_csrf={csrf}&project=1&name=Types&columns=original&group=type"))).await;
+    let (_, _, page) = send(&app, get("/projects/1/budget?view=1")).await;
+    let (labor, material) = (page.find(">Labor</th>"), page.find(">Material</th>"));
+    assert!(matches!((labor, material), (Some(a), Some(b)) if a < b), "labor then material");
+    assert!(page.contains("Subtotal") && page.contains(", by cost type"), "subtotals and the view's grouping are named");
+    let (st, h, _) = send(&app, get("/projects/1/budget.pdf?view=1")).await;
+    assert!(st == StatusCode::OK && h.get("content-type").unwrap().to_str().unwrap().contains("pdf"), "the PDF follows the view");
+}
+
+#[tokio::test]
+async fn company_report_chart_kinds_and_email_schedule() {
+    let dir = temp("report-email");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let session = cookies(&h);
+    let (_, _, home) = send(&app, Request::get("/").header("cookie", &session).body(Body::empty()).unwrap()).await;
+    let csrf = field(&home, "_csrf");
+    for name in ["Alpha", "Bravo"] {
+        send(&app, post("/do/project.create", &session, format!("_csrf={csrf}&name={name}"))).await;
+    }
+    for (project, title) in [(1, "A1"), (1, "A2"), (1, "A3"), (2, "B1")] {
+        send(&app, post("/do/task.create", &session, format!("_csrf={csrf}&project={project}&title={title}"))).await;
+    }
+    send(&app, post("/do/company_report.save", &session, format!("_csrf={csrf}&name=Tasks&columns%5B%5D=tasks&columns%5B%5D=original&shared=true")))
+        .await;
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &session).body(Body::empty()).unwrap();
+
+    // The chart is drawn as bars, columns or a pie; a pie shows each share.
+    let (_, _, bars) = send(&app, get("/reports?report=1&chart=tasks")).await;
+    assert!(bars.contains("one bar per project") && bars.contains("Kind of chart"), "bars are the default");
+    let (_, _, cols) = send(&app, get("/reports?report=1&chart=tasks&kind=columns")).await;
+    assert!(cols.contains("one column per project"), "columns");
+    let (_, _, pie) = send(&app, get("/reports?report=1&chart=tasks&kind=pie")).await;
+    assert!(pie.contains("each project&#39;s share of the total") || pie.contains("each project's share of the total"), "{pie}");
+    assert!(pie.contains("Alpha: 3 (75%)") && pie.contains("Bravo: 1 (25%)"), "the key gives each share");
+    // No project has an original budget, so the figures add up to nothing and a pie says so.
+    let (_, _, none) = send(&app, get("/reports?report=1&chart=original&kind=pie")).await;
+    assert!(none.contains("A pie needs figures that are not negative"), "no figures");
+
+    // Scheduling: the form is on the report's page; saving shows the rhythm.
+    assert!(bars.contains("Email this report") && bars.contains("Not emailed"));
+    let (_, h, _) = send(
+        &app,
+        post(
+            "/do/company_report.schedule",
+            &session,
+            format!("_csrf={csrf}&id=1&rhythm=weekly&weekday=friday&day=1&people%5B%5D=1&_next=%2Freports%3Freport%3D1"),
+        ),
+    )
+    .await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    let (_, _, bars) = send(&app, get("/reports?report=1")).await;
+    assert!(bars.contains("Emailed every Friday to 1 person"), "{bars}");
+
+    // What goes in the email: the table, the totals, a link and the CSV, as that person sees it.
+    let (subject, body, csv) = {
+        let inner = app.lock();
+        let t = inner.tenant.as_ref().unwrap();
+        let req = buildkiosk_web::layout::Req {
+            engine: &t.engine,
+            person: buildkiosk_core::Id::new(1),
+            csrf: "",
+            now: buildkiosk_core::Timestamp::from_millis(super::now_ms()),
+            flash: None,
+        };
+        buildkiosk_web::company_reports::delivery_email(&req, buildkiosk_core::Id::new(1), "https://bk.example.com").unwrap()
+    };
+    assert!(subject.starts_with("Tasks"), "{subject}");
+    assert!(
+        body.contains("Alpha") && body.contains("Bravo") && body.contains("Total") && body.contains("https://bk.example.com/reports?report=1"),
+        "{body}"
+    );
+    assert!(csv.starts_with("Project,Open tasks,Original budget") && csv.contains("Alpha,3"), "{csv}");
+}
+

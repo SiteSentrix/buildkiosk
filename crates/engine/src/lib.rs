@@ -18,6 +18,7 @@ pub mod ctx;
 pub mod guard;
 pub mod invoicedoc;
 pub mod journal;
+pub mod level;
 pub mod params;
 pub mod report;
 pub mod sched;

@@ -25,6 +25,8 @@ A line starting with # begins a section; every other line is an item. Assign own
 A link lets one contact at an invited company read the documents, acknowledge addenda and send or change a bid, with no account. Links are emailed once the package is out for bid. Bids sent this way stay sealed until bidding closes.
 A name already used is replaced. The new baseline becomes the one the chart and each task's slip compare against.
 A new version of
+A pie needs figures that are not negative and add up to more than nothing. Use bars or columns for
+A pie needs figures that are not negative and add up to more than nothing. Use bars or columns for {}.
 A project admin has full access to every tool, so overrides have no effect.
 A saved crew
 A seventh to eleventh column is optional
@@ -294,6 +296,7 @@ Backups
 Backups kept
 Balance to finish
 Ball in court
+Bars
 Baselines
 Before closing in
 Bid
@@ -603,6 +606,7 @@ Dates and times are shown at UTC
 Dates and times are shown at UTC{}. Amounts are in {}. Changing the currency doesn't convert existing amounts.
 Day
 Day and weather
+Day of the month (monthly)
 Days
 Days are working days of the project calendar. Float is the working days a task can slip without moving the last finish.
 Days for a submittal review
@@ -720,6 +724,7 @@ Download all
 Download all as zip
 Download original
 Draft
+Draft transmittals
 Drafts
 Drawing
 Drawing log
@@ -734,6 +739,7 @@ Due date
 Due date of action {}
 EMR
 Each has the same title, type, time, place, invitees and agenda topics, on the dates after this one.
+Each person gets the report as they themselves would see it, as a table in the email and a CSV file, from about six in the morning. Outgoing email has to be set up first. The first email is the next time the rhythm comes round.
 Each person once; blank rows are ignored.
 Each ticked person gets their own entry for this day. With nobody ticked, the hours are yours.
 Each type is numbered on its own
@@ -800,8 +806,15 @@ Edit type
 Edit {}
 Electrical
 Email
+Email a report on a schedule by {}
 Email address
 Email me my notifications
+Email this report
+Emailed every
+Emailed every day
+Emailed every {}
+Emailed on day
+Emailed on day {} of every month
 Embeds, sleeves and penetrations are in place and secured
 Enclosures
 Encryption
@@ -817,6 +830,7 @@ Estimate #{}
 Estimated value
 Estimating
 Every
+Every day
 Every form from one template side by side
 Every month
 Every project you can open, with the columns chosen
@@ -910,6 +924,7 @@ Form
 Form templates
 Forms
 Forms are clean, braced and match the drawings
+Forms in draft
 Forms report
 Formwork and reinforcement
 Foundations
@@ -921,6 +936,7 @@ Framing lumber package
 Framing walk-through
 Français
 Fri
+Friday
 From
 From (email)
 From (name)
@@ -1057,6 +1073,7 @@ Keys, manuals and warranty papers are ready for handover
 Keystone Properties
 Kickoff meeting notes
 Kind
+Kind of chart
 LTR
 LTR-001, LTR-002… With types set, every item must be one of them.
 Labor
@@ -1192,6 +1209,7 @@ Minutes east of UTC
 Minutes issued
 Mix, delivery schedule and pump are confirmed with the supplier
 Mon
+Monday
 Month
 Monthly
 More
@@ -1356,6 +1374,8 @@ Not clear
 Not closed
 Not complete
 Not copied
+Not emailed
+Not emailed. Pick a rhythm and who gets it.
 Not found
 Not in the budget yet
 Not received
@@ -1441,11 +1461,19 @@ Open action items
 Open actions
 Open actions from earlier meetings
 Open bid link
+Open change events
+Open commitments
+Open correspondence
 Open floor edge at level 2 stair
 Open in viewer
+Open incidents
+Open inspections
+Open meeting actions
+Open observations
 Open or close the open bid link by {}
 Open punch items
 Open sealed bids by {}
+Open tasks
 Open the standard layout by default
 Open them now
 Open this view by default
@@ -1548,6 +1576,7 @@ Picture
 Picture {} of {}
 Pictures (JPEG, PNG, GIF or WebP; choose several)
 Pictures of the work, by album
+Pie
 Pin
 Plan
 Plan a meeting to keep its agenda, minutes and action items together.
@@ -1708,6 +1737,7 @@ Record questionnaire answers by {}
 Record receipt
 Record signature
 Record signed contract by {}
+Record that a report was emailed by {}
 Record the signature
 Record the signed contract
 Recordable
@@ -1897,6 +1927,7 @@ Safety
 Safety&#10;Quality&#10;Housekeeping
 Safety, quality and housekeeping findings
 Safety, quality, housekeeping…
+Saturday
 Save
 Save a named baseline by {}
 Save a report
@@ -2226,6 +2257,7 @@ Subtotal
 Such as mon-fri, mon-sat, or mon, tue, thu.
 Summit Ridge Builders
 Sun
+Sunday
 Superintendent
 Supplier
 Supplier (if it is their price list)
@@ -2301,6 +2333,7 @@ This project needs a signed contract before this can be approved.
 This sheet can't be shown
 Three-week look-ahead
 Thu
+Thursday
 Time
 Timesheet
 Timesheets
@@ -2329,6 +2362,7 @@ Transmittals
 Trends
 Trends appear once observations are recorded.
 Tue
+Tuesday
 Turn email off
 Turn off
 Turn on the open link
@@ -2341,6 +2375,7 @@ Type your full name
 Types
 USD
 Unassigned
+Unfinished schedule tasks
 Unit
 Unit cost
 Unit cost of line {}
@@ -2409,6 +2444,7 @@ Weather and curing plan are confirmed
 Weather notes
 Website
 Wed
+Wednesday
 Week
 Week ends
 Week ends {}.
@@ -2416,6 +2452,7 @@ Week of
 Week of {}
 Week of {} to {}
 Week {}
+Weekday (weekly)
 Weekdays worked
 Weekly
 Weekly coordination
@@ -2444,6 +2481,7 @@ Which companies have been vetted to work for you, and when their approval, insur
 Who
 Who can open it
 Who does action {}
+Who gets it
 Who should see it
 Who signed for the other party
 Who signed for the owner

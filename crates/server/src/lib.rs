@@ -730,6 +730,7 @@ pub async fn serve(app: Shared, bind: SocketAddr) -> Result<(), String> {
     tokio::spawn(mail_loop(app.clone()));
     tokio::spawn(prequal_loop(app.clone()));
     tokio::spawn(form_loop(app.clone()));
+    tokio::spawn(report_loop(app.clone()));
     if app.backups.is_some() {
         tokio::spawn(backup_loop(app.clone()));
     }
@@ -983,7 +984,9 @@ async fn company_reports_page(State(app): State<Shared>, headers: HeaderMap, Que
     let report = q.get("report").and_then(|r| r.parse::<u64>().ok()).map(Id::new);
     use buildkiosk_engine::model::Choice as _;
     let chart = q.get("chart").and_then(|c| buildkiosk_engine::model::saved_report::ReportColumn::parse(c));
-    page(&app, &headers, &q, |r, _| buildkiosk_web::company_reports::page(r, report, chart))
+    let kind =
+        q.get("kind").and_then(|k| buildkiosk_web::company_reports::ChartKind::parse(k)).unwrap_or(buildkiosk_web::company_reports::ChartKind::Bars);
+    page(&app, &headers, &q, |r, _| buildkiosk_web::company_reports::page(r, report, chart, kind))
 }
 
 async fn company_injury_log_page(State(app): State<Shared>, headers: HeaderMap, Query(q): Q) -> Response {
@@ -1141,6 +1144,109 @@ async fn form_loop(app: Shared) {
         }
         tokio::time::sleep(Duration::from_secs(3600)).await;
     }
+}
+
+/// Emails the saved reports whose schedule has come due: a pass every hour (the engine remembers the day each was
+/// sent, so more passes cost nothing; without outgoing email set up nothing is sent or marked).
+async fn report_loop(app: Shared) {
+    tokio::time::sleep(Duration::from_secs(150)).await;
+    loop {
+        let a = app.clone();
+        match tokio::task::spawn_blocking(move || report_pass(&a)).await {
+            Ok(0) => {}
+            Ok(n) => log::info!("report emails sent: {n}"),
+            Err(e) => log::warn!("the report email pass stopped: {e}"),
+        }
+        tokio::time::sleep(Duration::from_secs(3600)).await;
+    }
+}
+
+/// One report email: whom it is for and what to send.
+struct ReportMail {
+    report: u64,
+    mail: mail::Mail,
+    csv: String,
+}
+
+/// Builds each due report as every recipient sees it (outside the lock, nothing is sent while it is held), sends the
+/// emails and records the reports as sent. Returns how many emails went out.
+fn report_pass(app: &App) -> usize {
+    let (smtp, mails) = {
+        let mut inner = app.lock();
+        let Some(smtp) = inner.creds.smtp.clone() else { return 0 };
+        let due = match inner.run(Actor::System, "company_report.due", &json!({})) {
+            Ok(v) => v,
+            Err(e) => {
+                log::warn!("could not list the reports due: {e}");
+                return 0;
+            }
+        };
+        let Some(t) = inner.tenant.as_ref() else { return 0 };
+        let now = Timestamp::from_millis(now_ms());
+        let mut mails = Vec::new();
+        for r in due.as_array().into_iter().flatten() {
+            let Some(report) = r.get("id").and_then(Value::as_u64) else { continue };
+            let mut any = false;
+            for who in r.get("recipients").and_then(Value::as_array).into_iter().flatten() {
+                let (Some(person), Some(to)) = (who.get("person").and_then(Value::as_u64), who.get("email").and_then(Value::as_str)) else {
+                    continue;
+                };
+                let req = Req { engine: &t.engine, person: Id::new(person), csrf: "", now, flash: None };
+                // A person who can no longer run the report simply gets nothing.
+                let Some((subject, body, csv)) = buildkiosk_web::company_reports::delivery_email(&req, Id::new(report), &smtp.base_url) else {
+                    continue;
+                };
+                mails.push(ReportMail { report, mail: mail::Mail { id: 0, to: to.to_string(), subject, body }, csv });
+                any = true;
+            }
+            if !any {
+                // Nobody to send to today: count the day as done so the pass does not look at it again until the next one is due.
+                mails.push(ReportMail {
+                    report,
+                    mail: mail::Mail { id: 0, to: String::new(), subject: String::new(), body: String::new() },
+                    csv: String::new(),
+                });
+            }
+        }
+        (smtp, mails)
+    };
+    let mut sent = 0;
+    // Per report: how many emails were tried and how many went out. A report is recorded as sent unless every email failed
+    // (the mail server being down), so the next pass tries it again.
+    let mut tally: Vec<(u64, usize, usize)> = Vec::new();
+    for m in &mails {
+        let at = match tally.iter().position(|t| t.0 == m.report) {
+            Some(i) => i,
+            None => {
+                tally.push((m.report, 0, 0));
+                tally.len() - 1
+            }
+        };
+        if m.mail.to.is_empty() {
+            continue;
+        }
+        let result = mail::send_with_file(&smtp, &m.mail, "report.csv", &m.csv);
+        if let Some(t) = tally.get_mut(at) {
+            t.1 += 1;
+            if result.is_ok() {
+                t.2 += 1;
+            }
+        }
+        match result {
+            Ok(()) => sent += 1,
+            Err(e) => log::warn!("could not email a report to {}: {e}", m.mail.to),
+        }
+    }
+    let mut inner = app.lock();
+    for (id, tried, ok) in tally {
+        if tried > 0 && ok == 0 {
+            continue;
+        }
+        if let Err(e) = inner.run(Actor::System, "company_report.mark_sent", &json!({ "id": id })) {
+            log::warn!("could not record that report {id} was emailed: {e}");
+        }
+    }
+    sent
 }
 
 async fn forms_report_params(

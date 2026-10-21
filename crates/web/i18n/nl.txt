@@ -2582,3 +2582,41 @@ weekly summary	weekoverzicht
 {}Directory	{}Adresboek
 {}Prequalification	{}Voorkwalificatie
 ← Previous week	← Vorige week
+A pie needs figures that are not negative and add up to more than nothing. Use bars or columns for	Een taartdiagram heeft cijfers nodig die niet negatief zijn en samen meer dan nul zijn. Gebruik balken of kolommen voor
+A pie needs figures that are not negative and add up to more than nothing. Use bars or columns for {}.	Een taartdiagram heeft cijfers nodig die niet negatief zijn en samen meer dan nul zijn. Gebruik balken of kolommen voor {}.
+Bars	Balken
+Day of the month (monthly)	Dag van de maand (maandelijks)
+Draft transmittals	Verzendingen in concept
+Each person gets the report as they themselves would see it, as a table in the email and a CSV file, from about six in the morning. Outgoing email has to be set up first. The first email is the next time the rhythm comes round.	Elke persoon krijgt het rapport zoals die het zelf zou zien, als tabel in de e-mail en als CSV-bestand, vanaf ongeveer zes uur 's ochtends. Uitgaande e-mail moet eerst zijn ingesteld. De eerste e-mail volgt de eerstvolgende keer dat het ritme aan de beurt is.
+Email a report on a schedule by {}	Rapport volgens schema per e-mail verzonden door {}
+Email this report	Dit rapport per e-mail versturen
+Emailed every	Verstuurd elke
+Emailed every day	Elke dag verstuurd
+Emailed every {}	Verstuurd elke {}
+Emailed on day	Verstuurd op dag
+Emailed on day {} of every month	Verstuurd op dag {} van elke maand
+Every day	Elke dag
+Forms in draft	Formulieren in concept
+Friday	Vrijdag
+Kind of chart	Soort grafiek
+Monday	Maandag
+Not emailed	Niet per e-mail verstuurd
+Not emailed. Pick a rhythm and who gets it.	Niet per e-mail verstuurd. Kies het ritme en wie het krijgt.
+Open change events	Open wijzigingsgebeurtenissen
+Open commitments	Open verplichtingen
+Open correspondence	Open correspondentie
+Open incidents	Open incidenten
+Open inspections	Open inspecties
+Open meeting actions	Open vergaderacties
+Open observations	Open waarnemingen
+Open tasks	Open taken
+Pie	Taart
+Record that a report was emailed by {}	Verzending van een rapport per e-mail vastgelegd door {}
+Saturday	Zaterdag
+Sunday	Zondag
+Thursday	Donderdag
+Tuesday	Dinsdag
+Unfinished schedule tasks	Onafgeronde planningstaken
+Wednesday	Woensdag
+Weekday (weekly)	Weekdag (wekelijks)
+Who gets it	Wie het krijgt

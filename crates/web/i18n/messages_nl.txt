@@ -1,0 +1,46 @@
+# Messages from the engine (errors and notices after a save), nl: `English<TAB>translation`. The values in `{}` can be numbered `{1}`, `{2}`. Values that are wording the pages have are translated too.
+invalid parameters for `{}`	ongeldige parameters voor `{}`
+`{}` is required	`{}` is verplicht
+`{}` must not be negative	`{}` mag niet negatief zijn
+`{}` is in the past	`{}` ligt in het verleden
+`{}` is not a valid email address	`{}` is geen geldig e-mailadres
+`{}` must be 64 hex digits	`{}` moet uit 64 hexadecimale cijfers bestaan
+`{}` must be true or false	`{}` moet waar of onwaar zijn
+`{}` must be a whole number	`{}` moet een geheel getal zijn
+`{}` runs past the supported dates	`{}` valt buiten de ondersteunde data
+`{}` is required on every line	`{}` is op elke regel verplicht
+`{}` can hold at most 10 files	`{}` kan hoogstens 10 bestanden bevatten
+`{}` holds more than {} lines	`{1}` bevat meer dan {2} regels
+`{}` type your full name	`{}`: typ uw volledige naam
+`{}` tick the box to say you have read the contract and agree to sign it	`{}`: vink het vakje aan om aan te geven dat u het contract hebt gelezen en akkoord gaat het te ondertekenen
+only admins can see the recycle bin	alleen beheerders kunnen de prullenbak zien
+only an admin can change an approved record	alleen een beheerder kan een goedgekeurd item wijzigen
+you don't have access to {}	u hebt geen toegang tot {}
+{} needs {} access to {} (you have {})	{1} vereist toegang op niveau {2} tot {3} (u hebt {4})
+the totals are too large to add up	de totalen zijn te groot om op te tellen
+the amounts are too large to add up	de bedragen zijn te groot om op te tellen
+{} is not in the recycle bin	{} zit niet in de prullenbak
+{} is already void	{} is al geannuleerd
+{} is void	{} is geannuleerd
+you can't edit {}	u kunt {} niet bewerken
+you can't add files to {}	u kunt geen bestanden toevoegen aan {}
+you can't remove files from {}	u kunt geen bestanden verwijderen uit {}
+you can't send {}	u kunt {} niet versturen
+that file is not attached	dat bestand is niet bijgevoegd
+this link is not valid	deze link is niet geldig
+revision not found	revisie niet gevonden
+project {} not found	project {} niet gevonden
+{} {} not found in this project	{1} {2} niet gevonden in dit project
+add at least one line to {} before approving it	voeg minstens één regel toe aan {} voordat u het goedkeurt
+add at least one line to {} before sending it for signature	voeg minstens één regel toe aan {} voordat u het ter ondertekening verstuurt
+{} has no lines to sign for	{} heeft geen regels om voor te tekenen
+{} is awarded	{} is gegund
+{} is {}; only drafts can be approved	{1} is {2}; alleen concepten kunnen worden goedgekeurd
+the contract was changed after you opened it; read it again before signing	het contract is gewijzigd nadat u het opende; lees het opnieuw voordat u tekent
+you have already signed this contract	u hebt dit contract al ondertekend
+the people before you have to sign first; you will get an email when it is your turn	de mensen voor u moeten eerst tekenen; u krijgt een e-mail wanneer het uw beurt is
+this contract is already signed	dit contract is al ondertekend
+this contract is not out for signature	dit contract staat niet open voor ondertekening
+your account is disabled	uw account is uitgeschakeld
+the change could not be saved	de wijziging kon niet worden opgeslagen
+unknown command `{}`	onbekend commando `{}`

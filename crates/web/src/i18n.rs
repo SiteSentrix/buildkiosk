@@ -71,6 +71,16 @@ impl Lang {
         wanted.first().map_or(Lang::En, |w| w.2)
     }
 
+    /// The messages from the engine and how this language says them (empty for English).
+    fn messages_text(self) -> &'static str {
+        match self {
+            Lang::En => "",
+            Lang::Es => include_str!("../i18n/messages_es.txt"),
+            Lang::Fr => include_str!("../i18n/messages_fr.txt"),
+            Lang::Nl => include_str!("../i18n/messages_nl.txt"),
+        }
+    }
+
     fn catalog_text(self) -> &'static str {
         match self {
             Lang::En => "",
@@ -116,6 +126,9 @@ struct Pattern {
     translation: Vec<Piece>,
     /// How much fixed text there is, to prefer the most specific pattern.
     weight: usize,
+    /// Whether a value that is itself wording the catalog has (a tool's name, a level) is translated too: for messages
+    /// from the engine, where the values are names of things rather than people's own text.
+    translate_values: bool,
 }
 
 /// A piece of a translation: text, or the nth value (from 0) captured from the English.
@@ -162,9 +175,23 @@ fn pieces(translation: &str) -> Vec<Piece> {
 }
 
 impl Catalog {
+    #[cfg(test)]
     fn parse(text: &str) -> Catalog {
+        Catalog::parse_with(text, "")
+    }
+
+    /// The catalog of the pages' wording and, beside it, the messages from the engine.
+    fn parse_with(text: &str, messages: &str) -> Catalog {
         let mut exact = HashMap::new();
         let mut patterns = Vec::new();
+        for (translate_values, text) in [(false, text), (true, messages)] {
+            Catalog::read_lines(text, translate_values, &mut exact, &mut patterns);
+        }
+        patterns.sort_by_key(|p| std::cmp::Reverse(p.weight));
+        Catalog { exact, patterns }
+    }
+
+    fn read_lines(text: &str, translate_values: bool, exact: &mut HashMap<String, String>, patterns: &mut Vec<Pattern>) {
         for line in text.lines() {
             let Some((key, value)) = line.split_once('\t') else { continue };
             if key.starts_with('#') || key.is_empty() || value.trim().is_empty() {
@@ -173,13 +200,11 @@ impl Catalog {
             if key.contains("{}") {
                 let parts: Vec<String> = key.split("{}").map(str::to_string).collect();
                 let weight = parts.iter().map(String::len).sum();
-                patterns.push(Pattern { parts, translation: pieces(value), weight });
+                patterns.push(Pattern { parts, translation: pieces(value), weight, translate_values });
             } else {
                 exact.insert(key.to_string(), value.to_string());
             }
         }
-        patterns.sort_by_key(|p| std::cmp::Reverse(p.weight));
-        Catalog { exact, patterns }
     }
 
     /// The translation of one piece of wording (already trimmed, single spaces).
@@ -193,7 +218,13 @@ impl Catalog {
             for piece in &p.translation {
                 match piece {
                     Piece::Text(t) => out.push_str(t),
-                    Piece::Value(i) => out.push_str(values.get(*i).copied()?),
+                    Piece::Value(i) => {
+                        let value = values.get(*i).copied()?;
+                        match self.exact.get(value).filter(|_| p.translate_values) {
+                            Some(t) => out.push_str(t),
+                            None => out.push_str(value),
+                        }
+                    }
                 }
             }
             Some(out)
@@ -240,7 +271,7 @@ fn catalog(lang: Lang) -> &'static Catalog {
         Lang::Fr => &FR,
         Lang::Nl => &NL,
     };
-    cell.get_or_init(|| Catalog::parse(lang.catalog_text()))
+    cell.get_or_init(|| Catalog::parse_with(lang.catalog_text(), lang.messages_text()))
 }
 
 // ---- text pieces ------------------------------------------------------------------------------
@@ -603,6 +634,11 @@ pub fn catalog_source(lang: Lang) -> &'static str {
     lang.catalog_text()
 }
 
+/// The messages file of a language: engine messages, `English<TAB>translation` (empty for English).
+pub fn messages_source(lang: Lang) -> &'static str {
+    lang.messages_text()
+}
+
 /// The English wording every catalog must cover.
 pub fn required_wording() -> &'static str {
     include_str!("../i18n/en.txt")
@@ -649,6 +685,59 @@ mod tests {
             }
             assert!(same * 5 < lines.len(), "{}: {same} of {} are the same as the English", lang.code(), lines.len());
         }
+    }
+
+    /// The messages from the engine: every language has the same ones, each keeps its values, and each is still said by the engine.
+    #[test]
+    fn engine_messages_are_translated_in_every_language() {
+        let values = |s: &str| s.matches("{}").count();
+        let mut keys: Vec<Vec<&str>> = Vec::new();
+        for lang in [Lang::Es, Lang::Fr, Lang::Nl] {
+            let lines = catalog_lines(messages_source(lang));
+            assert!(lines.len() > 30, "{}: the messages file is missing", lang.code());
+            let mut seen = std::collections::HashSet::new();
+            for (key, value) in &lines {
+                assert!(seen.insert(*key), "{}: `{key}` is translated twice", lang.code());
+                assert!(!value.trim().is_empty(), "{}: `{key}` has no translation", lang.code());
+                let n = values(key);
+                let numbered = (1..=n).filter(|i| value.contains(&format!("{{{i}}}"))).count();
+                let ok = values(value) == n && numbered == 0 || values(value) == 0 && numbered == n;
+                assert!(ok, "{}: `{key}` → `{value}` doesn't keep its {n} value(s)", lang.code());
+            }
+            keys.push(lines.iter().map(|(k, _)| *k).collect());
+        }
+        assert!(keys.windows(2).all(|w| w[0] == w[1]), "the three languages translate different messages");
+        // Each message still exists in the engine (the longest fixed text of it is somewhere in the sources), so a message
+        // that was reworded there doesn't linger here.
+        let mut sources = String::new();
+        let mut stack = vec![std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../engine/src")];
+        while let Some(dir) = stack.pop() {
+            for entry in std::fs::read_dir(&dir).unwrap().flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    stack.push(path);
+                } else if path.extension().is_some_and(|e| e == "rs") {
+                    sources.push_str(&std::fs::read_to_string(&path).unwrap());
+                }
+            }
+        }
+        for key in &keys[0] {
+            let longest = key.replace('`', "").split("{}").map(str::trim).max_by_key(|p| p.len()).unwrap_or("").to_string();
+            assert!(sources.contains(&longest), "no engine message says `{longest}` (from `{key}`)");
+        }
+    }
+
+    #[test]
+    fn engine_messages_come_out_in_the_language() {
+        let es = |s: &str| translate_plain(s, Lang::Es);
+        assert_eq!(es("invalid parameters for `rfi.create`: `subject` is required"), "parámetros no válidos para `rfi.create`: falta `subject`");
+        assert_eq!(es("you don't have access to RFIs"), "no tiene acceso a RFI");
+        assert_eq!(translate_plain("`email` is not a valid email address", Lang::Fr), "`email` n'est pas une adresse e-mail valide");
+        assert_eq!(translate_plain("project 7 not found", Lang::Nl), "project 7 niet gevonden");
+        // Names of things inside a message are translated when the pages have them; people's own text in a page's wording isn't.
+        let denied = translate_plain("Add revision needs Admin access to Drawings (you have Read)", Lang::Es);
+        assert!(denied.contains("requiere acceso de nivel") && !denied.contains("needs"), "{denied}");
+        assert_eq!(es("Project Clara is required"), "Project Clara is required");
     }
 
     #[test]

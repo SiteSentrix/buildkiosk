@@ -34,7 +34,7 @@ everything is a command, additive schema changes).
 ## Languages
 
 The pages are written in English and shown in English, Spanish, French or Dutch (the links at the foot of every page;
-the choice is a cookie, kept with the account too when signed in (`person.set_language`; the saved choice wins and follows the person to other browsers), and the browser's own preference is used until one is made). PDFs are translated the same way when they are rendered (`pdf::with_language`, set by the server around each document). A page is translated on its way out
+the choice is a cookie, kept with the account too when signed in (`person.set_language`; the saved choice wins and follows the person to other browsers), and the browser's own preference is used until one is made). Messages from the engine (the refusals shown after a save) have their own files, `crates/web/i18n/messages_<lang>.txt`, not held to the full list of the pages' wording: add a line for a message you want translated, in all three. PDFs are translated the same way when they are rendered (`pdf::with_language`, set by the server around each document). A page is translated on its way out
 (`crates/web/src/i18n.rs`): each piece of wording is looked up in the language's catalog, and anything the catalog
 doesn't know (names, titles and notes people typed, numbers) is left as it is. Dates are written the local way. Nothing
 stored changes.

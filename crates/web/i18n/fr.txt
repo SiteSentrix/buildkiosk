@@ -1786,6 +1786,7 @@ Record signed contract by {}	Enregistrer le contrat signé par {}
 Record that a prequalification link was emailed by {}	Envoi par e-mail d'un lien de préqualification enregistré par {}
 Record that a report was emailed by {}	Envoi d'un rapport par e-mail enregistré par {}
 Record that a signing link was emailed by {}	Enregistrement de l'envoi d'un lien de signature par e-mail par {}
+Record that a signing reminder was emailed by {}	Enregistrement de l'envoi d'un rappel de signature par e-mail par {}
 Record the signature	Enregistrer la signature
 Record the signed contract	Enregistrer le contrat signé
 Recordable	Enregistrable

@@ -4375,6 +4375,25 @@ async fn the_other_party_signs_a_contract_through_its_link() {
     let (_, out) = sign_portal::pending(&app).unwrap();
     assert_eq!(out.len(), 1);
 
+    // Once the link has been emailed nothing more goes out until it has waited three days; then a reminder, three at most.
+    assert!(out[0].mail.subject.starts_with("For your signature"), "{}", out[0].mail.subject);
+    app.lock()
+        .run(buildkiosk_engine::Actor::System, "contract.link_sent", &json!({"kind": "commitment", "id": 1, "generation": generation}))
+        .unwrap();
+    assert!(sign_portal::pending(&app).unwrap().1.is_empty());
+    let day = 24 * 3600 * 1000;
+    assert!(sign_portal::pending_at(&app, now_ms() + 2 * day).unwrap().1.is_empty());
+    for round in 1..=3 {
+        let (_, due) = sign_portal::pending_at(&app, now_ms() + 3 * day * round + day).unwrap();
+        assert_eq!(due.len(), 1, "reminder {round}");
+        assert!(due[0].mail.subject.starts_with("Reminder, for your signature") && due[0].mail.body.contains("still ready"), "{}", due[0].mail.body);
+        app.lock()
+            .run(buildkiosk_engine::Actor::System, "contract.reminder_sent", &json!({"kind": "commitment", "id": 1, "generation": generation}))
+            .unwrap();
+        assert!(sign_portal::pending(&app).unwrap().1.is_empty(), "just reminded");
+    }
+    assert!(sign_portal::pending_at(&app, now_ms() + 100 * day).unwrap().1.is_empty(), "no fourth reminder");
+
     // Signing needs the form token, the box and a name.
     let form = field(&page, "_csrf");
     let terms = field(&page, "terms");

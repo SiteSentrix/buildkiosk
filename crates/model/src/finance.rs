@@ -187,6 +187,19 @@ pub struct SignatureLink {
     /// When the server emailed the link; none while it still has to be sent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sent: Option<Stamp>,
+    /// How many reminder emails went out after the first (the server sends at most [`MAX_REMINDERS`]).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub reminders: u8,
+    /// When the last reminder went out.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reminded: Option<Stamp>,
+}
+
+/// The most reminders one signing link gets.
+pub const MAX_REMINDERS: u8 = 3;
+
+fn is_zero(n: &u8) -> bool {
+    *n == 0
 }
 
 impl SignatureLink {

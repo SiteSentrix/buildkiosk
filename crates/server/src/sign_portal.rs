@@ -15,7 +15,7 @@ use axum::response::Response;
 use axum::routing::{get, post};
 use buildkiosk_engine::Actor;
 use buildkiosk_engine::cmd::signing::Kind;
-use buildkiosk_engine::model::finance::SignatureStatus;
+use buildkiosk_engine::model::finance::{MAX_REMINDERS, SignatureStatus};
 use serde_json::{Map, Value, json};
 
 use super::{App, Shared, auth, flash_from, get_form, html, mail, now_ms, parse_form, plain, redirect, with_flash};
@@ -207,20 +207,37 @@ pub(crate) struct Outgoing {
     kind: Kind,
     id: u64,
     generation: u32,
-    mail: mail::Mail,
+    /// A reminder for a link already sent, rather than the first email.
+    reminder: bool,
+    pub(crate) mail: mail::Mail,
 }
 
-/// Every contract out for signature whose link hasn't been emailed.
+/// How long a link waits after it was sent (or last reminded) before the next reminder.
+const REMINDER_AFTER_MS: i64 = 3 * 24 * 3600 * 1000;
+
+/// Every contract out for signature whose link hasn't been emailed, and reminders for those that have waited three days.
 pub(crate) fn pending(app: &App) -> Option<(buildkiosk_store::creds::SmtpSettings, Vec<Outgoing>)> {
+    pending_at(app, now_ms())
+}
+
+/// [`pending`] as of a given moment (milliseconds).
+pub(crate) fn pending_at(app: &App, now: i64) -> Option<(buildkiosk_store::creds::SmtpSettings, Vec<Outgoing>)> {
     let inner = app.lock();
     let smtp = inner.creds.smtp.clone().filter(|s| !s.base_url.is_empty())?;
     let t = inner.tenant.as_ref()?;
     let state = t.engine.state();
-    let today = buildkiosk_core::Timestamp::from_millis(now_ms()).date_at(state.utc_offset());
+    let today = buildkiosk_core::Timestamp::from_millis(now).date_at(state.utc_offset());
     let own = state.company().map(|c| c.name.clone()).unwrap_or_default();
     let mut out = Vec::new();
     let mut add = |kind: Kind, id: u64, label: String, title: String, sig: &buildkiosk_engine::model::finance::ContractSignature| {
-        let Some(link) = sig.link.as_ref().filter(|l| l.sent.is_none() && l.active(today) && sig.status == SignatureStatus::Sent) else { return };
+        let Some(link) = sig.link.as_ref().filter(|l| l.active(today) && sig.status == SignatureStatus::Sent) else { return };
+        let reminder = link.sent.is_some();
+        if reminder {
+            let last = link.reminded.or(link.sent).map(|s| s.at.millis()).unwrap_or(now);
+            if link.reminders >= MAX_REMINDERS || now.saturating_sub(last) < REMINDER_AFTER_MS {
+                return;
+            }
+        }
         if out.len() >= 50 {
             return;
         }
@@ -231,13 +248,20 @@ pub(crate) fn pending(app: &App) -> Option<(buildkiosk_store::creds::SmtpSetting
             kind,
             id,
             generation: link.generation,
+            reminder,
             mail: mail::Mail {
-                id: id ^ (u64::from(link.generation) << 20),
+                id: id ^ (u64::from(link.generation) << 20) ^ (u64::from(link.reminders) << 56),
                 to: link.email.clone(),
-                subject: format!("For your signature: {label}").chars().filter(|c| !c.is_control()).take(120).collect(),
+                subject: format!("{}: {label}", if reminder { "Reminder, for your signature" } else { "For your signature" })
+                    .chars()
+                    .filter(|c| !c.is_control())
+                    .take(120)
+                    .collect(),
                 body: format!(
-                    "{label}, \"{title}\"{by} is ready for your signature.{until}\n\nRead it and sign it here:\n{url}\n\n\
-                     This link is meant for you alone. Please don't forward it: anyone who has it can sign for you.\n"
+                    "{}{label}, \"{title}\"{by} is {}ready for your signature.{until}\n\nRead it and sign it here:\n{url}\n\n\
+                     This link is meant for you alone. Please don't forward it: anyone who has it can sign for you.\n",
+                    if reminder { "A reminder: " } else { "" },
+                    if reminder { "still " } else { "" }
                 ),
             },
         });
@@ -264,7 +288,7 @@ pub(crate) fn mail_pass(app: &App) -> usize {
                 sent += 1;
                 let mut inner = app.lock();
                 let done = json!({"kind": o.kind.key(), "id": o.id, "generation": o.generation});
-                if let Err(e) = inner.run(Actor::System, "contract.link_sent", &done) {
+                if let Err(e) = inner.run(Actor::System, if o.reminder { "contract.reminder_sent" } else { "contract.link_sent" }, &done) {
                     log::warn!("could not record a sent signing link: {e}");
                 }
             }

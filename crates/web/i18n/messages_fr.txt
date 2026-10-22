@@ -509,3 +509,185 @@ a default view belongs to a person	une vue par défaut appartient à une personn
 a completed plan takes no more files; reopen it first	un plan terminé n'accepte plus de fichiers ; rouvrez-le d'abord
 a completed plan keeps its files; reopen it first	un plan terminé garde ses fichiers ; rouvrez-le d'abord
 a bid can have at most {} files	une offre peut avoir au plus {} fichiers
+{} is {}; only {} change events can be {}	{} est {} ; seuls les événements de changement {} peuvent être {}
+{} checklist line{} still need an answer	{} ligne{} de la liste de contrôle attendent encore une réponse
+bids are in, and they refer to the scope items, form lines and alternates by place; withdraw them before changing those	des offres sont arrivées et elles renvoient aux éléments du périmètre, lignes du formulaire et variantes par position ; retirez-les avant de les modifier
+an item of this assembly is no longer in the catalogue	un article de cet ensemble n'est plus dans le catalogue
+adding a company to the directory needs directory access; choose an existing company instead	ajouter une entreprise à l'annuaire exige l'accès à l'annuaire ; choisissez plutôt une entreprise existante
+`{}` {}: the answer must be text	`{}` {} : la réponse doit être un texte
+`{}` {}: give a score from 0 to 10	`{}` {} : donnez une note de 0 à 10
+`{}` {} would be billed {} to date against a scheduled value of {}	`{}` {} serait facturé {} à ce jour pour une valeur prévue de {}
+`{}` {} is worked out from the bids, not scored	`{}` {} est calculé à partir des offres, pas noté
+`{}` {} is listed twice	`{}` {} figure deux fois
+`{}` {} has no signing role `{}`	`{}` {} n'a pas de rôle de signature `{}`
+`{}` {} has no revision {}	`{}` {} n'a pas de révision {}
+`{}` would finish the task before it starts	`{}` terminerait la tâche avant son début
+`{}` weights add up to {}, not 100	`{}` les pondérations totalisent {}, pas 100
+`{}` type your own full name to sign	`{}` saisissez votre propre nom complet pour signer
+`{}` there is no task {} in this schedule	`{}` il n'y a pas de tâche {} dans ce planning
+`{}` there is no question `{}`	`{}` il n'y a pas de question `{}`
+`{}` there is no criterion {}	`{}` il n'y a pas de critère {}
+`{}` the totals are too large to add up	`{}` les totaux sont trop grands pour être additionnés
+`{}` the total is too large	`{}` le total est trop grand
+`{}` the stretch must be at least 1% of the page's height long	`{}` le tronçon doit mesurer au moins 1 % de la hauteur de la page
+`{}` the package has no scope item {}	`{}` le lot n'a pas d'élément de périmètre {}
+`{}` the package has no alternate {}	`{}` le lot n'a pas de variante {}
+`{}` the line total is too large	`{}` le total de la ligne est trop grand
+`{}` the id {} is used twice	`{}` l'identifiant {} est utilisé deux fois
+`{}` the bid form has no line {}	`{}` le bordereau d'offre n'a pas de ligne {}
+`{}` tasks nest more than {} deep	`{}` les tâches s'imbriquent sur plus de {} niveaux
+`{}` task {}: predecessor {} would make a loop	`{}` tâche {} : le prédécesseur {} créerait une boucle
+`{}` task {}: predecessor {} is not in the file	`{}` tâche {} : le prédécesseur {} n'est pas dans le fichier
+`{}` task {}: parent {} is not in the file	`{}` tâche {} : le parent {} n'est pas dans le fichier
+`{}` task {}: `{}`: the lag is out of range	`{}` tâche {} : `{}` : le décalage est hors limites
+`{}` task {}: `{}` has a bad lag	`{}` tâche {} : `{}` a un décalage non valide
+`{}` submittal {} not found in this project	`{}` soumission {} introuvable dans ce projet
+`{}` section {}, question {} is not on the questionnaire	`{}` la section {}, question {} n'est pas dans le questionnaire
+`{}` row {} is listed twice	`{}` la ligne {} figure deux fois
+`{}` price every line of the bid form ({} of {} given)	`{}` chiffrez chaque ligne du bordereau d'offre ({} sur {} renseignées)
+`{}` plan template {} not found	`{}` modèle de plan {} introuvable
+`{}` photos must be JPEG, PNG, GIF or WebP pictures	`{}` les photos doivent être des images JPEG, PNG, GIF ou WebP
+`{}` person {} is not an active user with an email address	`{}` la personne {} n'est pas un utilisateur actif avec une adresse e-mail
+`{}` person {} can't run this report: share it first	`{}` la personne {} ne peut pas exécuter ce rapport : partagez-le d'abord
+`{}` only one criterion can be the price	`{}` un seul critère peut être le prix
+`{}` needs at least {} points	`{}` nécessite au moins {} points
+`{}` needs at least one section, and every section at least one question	`{}` nécessite au moins une section, et chaque section au moins une question
+`{}` needs at least one question	`{}` nécessite au moins une question
+`{}` needs 1 to {} parts	`{}` nécessite de 1 à {} parties
+`{}` names more than {} people	`{}` désigne plus de {} personnes
+`{}` names more than five roles	`{}` désigne plus de cinq rôles
+`{}` names more than 200 people	`{}` désigne plus de 200 personnes
+`{}` names more than 20 people	`{}` désigne plus de 20 personnes
+`{}` name between 1 and {} people	`{}` désignez entre 1 et {} personnes
+`{}` name at least one person who should see it	`{}` désignez au moins une personne qui doit le voir
+`{}` name at least one person to send it to	`{}` désignez au moins une personne à qui l'envoyer
+`{}` must not be zero	`{}` ne doit pas être zéro
+`{}` must contain letters or digits	`{}` doit contenir des lettres ou des chiffres
+`{}` must be weekly, biweekly or monthly (and stay inside the supported dates)	`{}` doit être weekly, biweekly ou monthly (et rester dans les dates prises en charge)
+`{}` must be text	`{}` doit être un texte
+`{}` must be pass, fail or na	`{}` doit être pass, fail ou na
+`{}` must be one of the columns	`{}` doit être l'une des colonnes
+`{}` must be on or after from, within a year	`{}` doit être égal ou postérieur à from, dans un délai d'un an
+`{}` must be off, daily, weekly or monthly	`{}` doit être off, daily, weekly ou monthly
+`{}` must be labor, material, equipment, subcontract or other	`{}` doit être labor, material, equipment, subcontract ou other
+`{}` must be en, es, fr or nl (empty follows the browser)	`{}` doit être en, es, fr ou nl (vide : suit le navigateur)
+`{}` must be dim, area, pin or count	`{}` doit être dim, area, pin ou count
+`{}` must be daily, weekly, biweekly, monthly, month_end, quarterly or yearly	`{}` doit être daily, weekly, biweekly, monthly, month_end, quarterly ou yearly
+`{}` must be between {} and {}	`{}` doit être compris entre {} et {}
+`{}` must be between 100% and 500%	`{}` doit être compris entre 100 % et 500 %
+`{}` must be between 0 and 168	`{}` doit être compris entre 0 et 168
+`{}` must be approved or rejected	`{}` doit être approved ou rejected
+`{}` must be approval, insurance or license	`{}` doit être approval, insurance ou license
+`{}` must be an id	`{}` doit être un identifiant
+`{}` must be above zero	`{}` doit être supérieur à zéro
+`{}` must be above 0 and at most 100	`{}` doit être supérieur à 0 et au plus 100
+`{}` must be above 0 and at most 10,000 an hour	`{}` doit être supérieur à 0 et au plus 10 000 de l'heure
+`{}` must be a whole number from 0 to {}	`{}` doit être un nombre entier de 0 à {}
+`{}` must be a weekday such as monday	`{}` doit être un jour de la semaine tel que monday
+`{}` must be a three-letter ISO code such as USD	`{}` doit être un code ISO de trois lettres tel que USD
+`{}` must be a positive id	`{}` doit être un identifiant positif
+`{}` must be a different company	`{}` doit être une autre entreprise
+`{}` meeting {} not found in this project	`{}` réunion {} introuvable dans ce projet
+`{}` meeting template {} not found in this project	`{}` modèle de réunion {} introuvable dans ce projet
+`{}` may hold only letters and digits	`{}` ne peut contenir que des lettres et des chiffres
+`{}` makes the task longer than ten years	`{}` rendrait la tâche plus longue que dix ans
+`{}` lists more than {} submittals	`{}` énumère plus de {} soumissions
+`{}` lists more than {} resources	`{}` énumère plus de {} ressources
+`{}` lists more than {} entries	`{}` énumère plus de {} entrées
+`{}` lists more than {} documents	`{}` énumère plus de {} documents
+`{}` lists more than {} days off	`{}` énumère plus de {} jours de congé
+`{}` lists more than {} companies	`{}` énumère plus de {} entreprises
+`{}` lists more than {} RFIs	`{}` énumère plus de {} DI
+`{}` lists more than 50 predecessors	`{}` énumère plus de 50 prédécesseurs
+`{}` lists more than 10 criteria	`{}` énumère plus de 10 critères
+`{}` is required for `{}`	`{}` est obligatoire pour `{}`
+`{}` is required: included, excluded or unclear	`{}` est obligatoire : included, excluded ou unclear
+`{}` is required: a number above zero (up to three decimals)	`{}` est obligatoire : un nombre supérieur à zéro (jusqu'à trois décimales)
+`{}` is required when no template is used	`{}` est obligatoire quand aucun modèle n'est utilisé
+`{}` is required on every markup	`{}` est obligatoire sur chaque annotation
+`{}` is required for an agenda item	`{}` est obligatoire pour un point de l'ordre du jour
+`{}` is required for a crew	`{}` est obligatoire pour une équipe
+`{}` is required (ft, in, m or mm)	`{}` est obligatoire (ft, in, m ou mm)
+`{}` is not a weekday	`{}` n'est pas un jour de la semaine
+`{}` is needed with a constraint date (this task has none)	`{}` est nécessaire avec une date de contrainte (cette tâche n'en a pas)
+`{}` is more than ten years after the start	`{}` est plus de dix ans après le début
+`{}` is in the assembly twice; give it one line	`{}` est deux fois dans l'ensemble ; donnez-lui une seule ligne
+`{}` is below the {} of the bid this package requires ({})	`{}` est inférieur au {} de l'offre exigé par ce lot ({})
+`{}` is before the start	`{}` est antérieur au début
+`{}` is answered twice	`{}` est renseigné deux fois
+`{}` is already used by another view	`{}` est déjà utilisé par une autre vue
+`{}` is already used by another type	`{}` est déjà utilisé par un autre type
+`{}` is already used by another questionnaire	`{}` est déjà utilisé par un autre questionnaire
+`{}` is already used by another assembly	`{}` est déjà utilisé par un autre ensemble
+`{}` is already the name of a holiday list	`{}` est déjà le nom d'une liste de jours fériés
+`{}` is already the name of a crew	`{}` est déjà le nom d'une équipe
+`{}` is already past	`{}` est déjà passé
+`{}` is already one of your reports	`{}` est déjà l'un de vos rapports
+`{}` is already in the catalogue	`{}` figure déjà dans le catalogue
+`{}` is already a type of this project	`{}` est déjà un type de ce projet
+`{}` holiday list {} not found	`{}` liste de jours fériés {} introuvable
+`{}` holds more than {} questions	`{}` contient plus de {} questions
+`{}` holds more than {} markups	`{}` contient plus de {} annotations
+`{}` holds more than 1,000 lines	`{}` contient plus de 1 000 lignes
+`{}` has no cost code this project uses; choose one	`{}` n'a aucun code de coût utilisé par ce projet ; choisissez-en un
+`{}` has more than {} tasks	`{}` a plus de {} tâches
+`{}` has more than {} sheets	`{}` a plus de {} feuilles
+`{}` has more than {} sections or {} questions in one	`{}` a plus de {} sections ou {} questions dans une
+`{}` has more than {} points	`{}` a plus de {} points
+`{}` has more than {} items	`{}` a plus de {} éléments
+`{}` has more than 5,000 lines	`{}` a plus de 5 000 lignes
+`{}` has more than 20,000 lines	`{}` a plus de 20 000 lignes
+`{}` has more than 20,000 codes	`{}` a plus de 20 000 codes
+`{}` give shift (to move the task) or finish_shift (to change its length), not both	`{}` donnez shift (pour déplacer la tâche) ou finish_shift (pour changer sa durée), pas les deux
+`{}` folders can be at most {} levels deep	`{}` les dossiers peuvent avoir au plus {} niveaux
+`{}` estimate template {} not found	`{}` modèle d'estimation {} introuvable
+`{}` document {} not found in this project	`{}` document {} introuvable dans ce projet
+`{}` crew {} not found in this project	`{}` équipe {} introuvable dans ce projet
+`{}` cost_code, amount and description are required	`{}` cost_code, amount et description sont obligatoires
+`{}` cost code {} not found	`{}` code de coût {} introuvable
+`{}` cost code {} exists on this project	`{}` le code de coût {} existe déjà dans ce projet
+`{}` choose one of the project's types: {}	`{}` choisissez l'un des types du projet : {}
+`{}` choose at least one person or group to tell	`{}` choisissez au moins une personne ou un groupe à prévenir
+`{}` catalogue item {} not found	`{}` article {} du catalogue introuvable
+`{}` can't be one of the task's own children	`{}` ne peut pas être l'une des sous-tâches de la tâche elle-même
+`{}` can't be in the future; record a price on the day it applies	`{}` ne peut pas être dans le futur ; enregistrez un prix le jour où il s'applique
+`{}` can't be before the day the contract was sent	`{}` ne peut pas être antérieur au jour d'envoi du contrat
+`{}` can't be before the day it was sent	`{}` ne peut pas être antérieur au jour d'envoi
+`{}` can only be run by an administrator from the command line	`{}` ne peut être exécuté que par un administrateur en ligne de commande
+`{}` can hold at most 50 categories	`{}` peut contenir au plus 50 catégories
+`{}` answer yes or no	`{}` répondez par oui ou non
+`{}` already has 50 predecessors	`{}` a déjà 50 prédécesseurs
+`{}` a task can't be its own parent	`{}` une tâche ne peut pas être son propre parent
+`{}` a row is not part of the contract (is its change order approved?)	`{}` une ligne ne fait pas partie du contrat (son avenant est-il approuvé ?)
+`{}` a report goes to at most {} people	`{}` un rapport est envoyé à {} personnes au plus
+`{}` a project can take at most 10 holiday lists	`{}` un projet peut avoir au plus 10 listes de jours fériés
+`{}` a milestone has no length; move it instead	`{}` un jalon n'a pas de durée ; déplacez-le plutôt
+`{}` a folder can't be moved into itself or into a folder inside it	`{}` un dossier ne peut pas être déplacé dans lui-même ni dans un de ses sous-dossiers
+`{}` a contract can have at most {} signers	`{}` un contrat peut avoir au plus {} signataires
+`{}` a company admin must be able to sign in (set is_user)	`{}` un administrateur de l'entreprise doit pouvoir se connecter (activez is_user)
+`{}` `{}`: the number is too large	`{}` `{}` : le nombre est trop grand
+`{}` `{}`: start each line with a date as YYYY-MM-DD	`{}` `{}` : commencez chaque ligne par une date au format AAAA-MM-JJ
+`{}` `{}`: a range runs from an earlier weekday to a later one (Monday first)	`{}` `{}` : une plage va d'un jour de la semaine antérieur à un postérieur (lundi d'abord)
+`{}` `{}`: a name and a number from 1 to {}	`{}` `{}` : un nom et un nombre de 1 à {}
+`{}` `{}` needs the answer that shows it	`{}` `{}` a besoin de la réponse qui l'affiche
+`{}` `{}` needs at least two choices	`{}` `{}` nécessite au moins deux choix
+`{}` `{}` is not rfi, observation or punch	`{}` `{}` n'est ni rfi, ni observation, ni punch
+`{}` `{}` is not one of: {}	`{}` `{}` n'est pas l'un de : {}
+`{}` `{}` is not one of the choices of `{}`	`{}` `{}` n'est pas l'un des choix de `{}`
+`{}` `{}` is not approved or all	`{}` `{}` n'est ni approved, ni all
+`{}` `{}` is not an id	`{}` `{}` n'est pas un identifiant
+`{}` `{}` is not a whole number	`{}` `{}` n'est pas un nombre entier
+`{}` `{}` is not a weekday	`{}` `{}` n'est pas un jour de la semaine
+`{}` `{}` is not a valid email address	`{}` `{}` n'est pas une adresse e-mail valide
+`{}` `{}` is not a row key such as c.0 or p.12.0	`{}` `{}` n'est pas une clé de ligne telle que c.0 ou p.12.0
+`{}` `{}` is not a report column	`{}` `{}` n'est pas une colonne de rapport
+`{}` `{}` is not a quantity (up to three decimals)	`{}` `{}` n'est pas une quantité (jusqu'à trois décimales)
+`{}` `{}` is not a point written x,y with each from 0 to {}	`{}` `{}` n'est pas un point écrit x,y avec chaque valeur de 0 à {}
+`{}` `{}` is not a number of hours (above 0 to 24, one decimal)	`{}` `{}` n'est pas un nombre d'heures (supérieur à 0, jusqu'à 24, une décimale)
+`{}` `{}` is not a number of hours	`{}` `{}` n'est pas un nombre d'heures
+`{}` `{}` is not a date (YYYY-MM-DD)	`{}` `{}` n'est pas une date (AAAA-MM-JJ)
+`{}` `{}` is not a criterion number	`{}` `{}` n'est pas un numéro de critère
+`{}` `{}` is not a budget column	`{}` `{}` n'est pas une colonne de budget
+`{}` `{}` has more than {} choices	`{}` `{}` a plus de {} choix
+`{}` `{}` can depend only on a question above it	`{}` `{}` ne peut dépendre que d'une question située au-dessus
+`{}` RFI {} not found in this project	`{}` DI {} introuvable dans ce projet

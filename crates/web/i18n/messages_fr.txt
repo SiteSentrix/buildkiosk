@@ -110,3 +110,143 @@ give your insurance or licence date, or attach a file, before sending your recor
 that address already has a link; send it again instead	cette adresse a déjà un lien ; renvoyez-le plutôt
 there is no questionnaire to answer	il n'y a aucun questionnaire à remplir
 only an admin can send a link for an approved record	seul un administrateur peut envoyer un lien pour un enregistrement approuvé
+{} already has {} files	{} a déjà {} fichiers
+`{}` line {}: {}	`{}` ligne {} : {}
+company {} not found	entreprise {} introuvable
+bid package {} not found in this project	lot d'appel d'offres {} introuvable dans ce projet
+`{}` lists more than {} people	`{}` énumère plus de {} personnes
+report {} not found	rapport {} introuvable
+drawing {} not found in this project	plan {} introuvable dans ce projet
+catalogue item {} not found	article {} du catalogue introuvable
+{} is complete; reopen it to change it	{} est terminé ; rouvrez-le pour le modifier
+there is already a template called {}	il existe déjà un modèle nommé {}
+questionnaire {} not found	questionnaire {} introuvable
+person {} not found	personne {} introuvable
+no link {} on this record	aucun lien {} sur cet enregistrement
+no link {} on this package	aucun lien {} sur ce lot
+meeting {} not found in this project	réunion {} introuvable dans ce projet
+markup {} not found	annotation {} introuvable
+estimate {} not found in this project	estimation {} introuvable dans ce projet
+assembly {} not found	ensemble {} introuvable
+a folder named {} is already there	un dossier nommé {} existe déjà
+`{}` {} was not found in this project	`{}` {} introuvable dans ce projet
+`{}` {} is already in the directory	`{}` {} figure déjà dans l'annuaire
+`{}` there is no line {}	`{}` il n'y a pas de ligne {}
+`{}` holds more than {} items	`{}` contient plus de {} éléments
+{} was issued; reopen it to edit it	{} a été émis ; rouvrez-le pour le modifier
+{} was already sent	{} a déjà été envoyé
+{} not found in this project	{} introuvable dans ce projet
+{} is already {}	{} est déjà {}
+{} has not been sent	{} n'a pas été envoyé
+{} has no such item	{} n'a pas cet élément
+{} has no action {}	{} n'a pas d'action {}
+transmittal {} not found in this project	transmission {} introuvable dans ce projet
+too many links	trop de liens
+the record already has {} files	l'enregistrement a déjà {} fichiers
+template {} not found	modèle {} introuvable
+task {} not found in this project	tâche {} introuvable dans ce projet
+submittal {} not found in this project	soumission {} introuvable dans ce projet
+photo {} not found in this project	photo {} introuvable dans ce projet
+no request {} on this package	aucune demande {} sur ce lot
+inspection {} not found in this project	inspection {} introuvable dans ce projet
+holiday list {} not found	liste de jours fériés {} introuvable
+group {} not found	groupe {} introuvable
+form {} not found in this project	formulaire {} introuvable dans ce projet
+document {} not found in this project	document {} introuvable dans ce projet
+daily log {} not found in this project	journal quotidien {} introuvable dans ce projet
+crew {} not found in this project	équipe {} introuvable dans ce projet
+cost code {} not found in this project	code de coût {} introuvable dans ce projet
+correspondence {} not found in this project	correspondance {} introuvable dans ce projet
+commitment {} not found in this project	engagement {} introuvable dans ce projet
+budget view {} not found in this project	vue budgétaire {} introuvable dans ce projet
+action plan {} not found in this project	plan d'action {} introuvable dans ce projet
+a schedule holds at most {} tasks	un planning contient au plus {} tâches
+a form template named {} already exists	un modèle de formulaire nommé {} existe déjà
+`{}` task {} already depends on this task; that would make a loop	`{}` la tâche {} dépend déjà de cette tâche ; cela créerait une boucle
+`{}` project number {} is in use	`{}` le numéro de projet {} est déjà utilisé
+`{}` people who sign in need an email address	`{}` les personnes qui se connectent ont besoin d'une adresse e-mail
+`{}` needs at least one checklist line	`{}` nécessite au moins une ligne de liste de contrôle
+`{}` must look like rfi:12	`{}` doit ressembler à rfi:12
+`{}` must be a list of text	`{}` doit être une liste de textes
+`{}` must be a list of objects	`{}` doit être une liste d'objets
+`{}` is priced twice	`{}` est chiffré deux fois
+`{}` is out of range	`{}` est hors limites
+`{}` has too many entries	`{}` a trop d'entrées
+`{}` group {} not found	`{}` groupe {} introuvable
+`{}` a task can't follow itself	`{}` une tâche ne peut pas se suivre elle-même
+`{}` `{}` is not a tool	`{}` `{}` n'est pas un outil
+`{}` `{}` is not a quantity above zero	`{}` `{}` n'est pas une quantité supérieure à zéro
+RFI {} not found in this project	DI {} introuvable dans ce projet
+{} is not out for signature	{} n'est pas en attente de signature
+{} is not complete	{} n'est pas terminé
+{} is complete	{} est terminé
+{} is closed; reopen it to comment	{} est clos ; rouvrez-le pour commenter
+{} is already signed	{} est déjà signé
+{} is already recorded as signed	{} est déjà enregistré comme signé
+{} is already on the project	{} est déjà sur le projet
+{} is already closed	{} est déjà clos
+{} is a draft	{} est un brouillon
+{} has too many comments	{} a trop de commentaires
+{} has signed already	{} a déjà signé
+{} has not been sent for review yet	{} n'a pas encore été envoyé en révision
+{} has no revision to mark up yet	{} n'a pas encore de révision à annoter
+{} has no revision to issue yet	{} n'a pas encore de révision à émettre
+{} already has a revision {}	{} a déjà une révision {}
+you have signed this form in another role already	vous avez déjà signé ce formulaire dans un autre rôle
+you have already reviewed this revision	vous avez déjà examiné cette révision
+you can't submit {}	vous ne pouvez pas soumettre {}
+you can't delete yourself	vous ne pouvez pas vous supprimer vous-même
+you can't change {}	vous ne pouvez pas modifier {}
+time entry {} not found in this project	saisie de temps {} introuvable dans ce projet
+this direct cost is not in the recycle bin	ce coût direct n'est pas dans la corbeille
+this daily log is not in the recycle bin	ce journal quotidien n'est pas dans la corbeille
+this daily log is already submitted	ce journal quotidien est déjà soumis
+this daily log is already a draft	ce journal quotidien est déjà un brouillon
+this action is done	cette action est terminée
+this action already has a task	cette action a déjà une tâche
+this RFI has too many responses	cette DI a trop de réponses
+there is already a daily log for {}	il existe déjà un journal quotidien pour {}
+there are no tasks to save a baseline of	il n'y a aucune tâche dont enregistrer une référence
+the transmittal is not in the recycle bin	la transmission n'est pas dans la corbeille
+the task is not in the recycle bin	la tâche n'est pas dans la corbeille
+the task has child tasks; delete or move them first	la tâche a des sous-tâches ; supprimez-les ou déplacez-les d'abord
+the quantity is too large	la quantité est trop grande
+the photo is not in the recycle bin	la photo n'est pas dans la corbeille
+the package is not in the recycle bin	le lot n'est pas dans la corbeille
+the meeting is not in the recycle bin	la réunion n'est pas dans la corbeille
+the minutes were already issued	le compte rendu a déjà été émis
+the minutes are not issued	le compte rendu n'est pas émis
+the line total is too large	le total de la ligne est trop grand
+the form is not submitted	le formulaire n'est pas soumis
+the form is not in the recycle bin	le formulaire n'est pas dans la corbeille
+the estimate is not in the recycle bin	l'estimation n'est pas dans la corbeille
+the drawing is not in the recycle bin	le plan n'est pas dans la corbeille
+the document is not in the recycle bin	le document n'est pas dans la corbeille
+the contract for {} is not out for signature	le contrat de {} n'est pas en attente de signature
+the contract for {} is already signed	le contrat de {} est déjà signé
+the contract for {} has not been sent	le contrat de {} n'a pas été envoyé
+the company has already counter-signed {}	l'entreprise a déjà contresigné {}
+the original budget is locked; unlock it first	le budget initial est verrouillé ; déverrouillez-le d'abord
+that link was cancelled; send a new one with prequal.invite	ce lien a été annulé ; envoyez-en un nouveau avec prequal.invite
+that link was cancelled; send a new one with bid_package.invite	ce lien a été annulé ; envoyez-en un nouveau avec bid_package.invite
+that file is not attached to this {}	ce fichier n'est pas joint à ce {}
+that file is not attached to this transmittal	ce fichier n'est pas joint à cette transmission
+that file is not attached to this submittal	ce fichier n'est pas joint à cette soumission
+that file is not attached to this record	ce fichier n'est pas joint à cet enregistrement
+that file is not attached to this meeting	ce fichier n'est pas joint à cette réunion
+that file is not attached to this line	ce fichier n'est pas joint à cette ligne
+that file is not attached to this inspection	ce fichier n'est pas joint à cette inspection
+that file is not attached to this daily log	ce fichier n'est pas joint à ce journal quotidien
+that file is not attached to this commitment	ce fichier n'est pas joint à cet engagement
+that file is not attached to this action plan	ce fichier n'est pas joint à ce plan d'action
+that file is not attached to this RFI	ce fichier n'est pas joint à cette DI
+that file is already the current version	ce fichier est déjà la version actuelle
+that company was not invited	cette entreprise n'a pas été invitée
+that company has no bid	cette entreprise n'a pas d'offre
+that already has {} files	cela a déjà {} fichiers
+template not found	modèle introuvable
+summary tasks nest at most {} deep	les tâches récapitulatives s'imbriquent sur {} niveaux au plus
+snapshot {} not found in this project	instantané {} introuvable dans ce projet
+sheet {} is already in the log	la feuille {} figure déjà dans le registre
+set the scoring criteria first	définissez d'abord les critères de notation
+set the package's cost code to start a commitment	définissez le code de coût du lot pour démarrer un engagement

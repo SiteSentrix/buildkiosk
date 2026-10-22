@@ -250,3 +250,134 @@ snapshot {} not found in this project	momentopname {} niet gevonden in dit proje
 sheet {} is already in the log	blad {} staat al in het register
 set the scoring criteria first	stel eerst de scorecriteria in
 set the package's cost code to start a commitment	stel de kostencode van het pakket in om een verplichting te starten
+{} is {}; links go out while it is a draft or out for bid	{} is {}; koppelingen gaan uit zolang het een concept is of uitstaat voor bod
+the catalogue is for people who work on estimates	de catalogus is voor mensen die aan ramingen werken
+correspondence type {} not found in this project	correspondentietype {} niet gevonden in dit project
+a package has at most {} addenda	een pakket heeft maximaal {} addenda
+`{}` the amounts are too large to add up	`{}` de bedragen zijn te groot om op te tellen
+`{}` must be commitment, prime_contract or prime_change	`{}` moet commitment, prime_contract of prime_change zijn
+`{}` is required on every alternate	`{}` is verplicht bij elk alternatief
+`{}` holds more than {} rows	`{}` bevat meer dan {} rijen
+`{}` holds more than {} ids	`{}` bevat meer dan {} id's
+`{}` holds more than {} alternates	`{}` bevat meer dan {} alternatieven
+`{}` has more than {} sections	`{}` heeft meer dan {} secties
+`{}` has more than {} rows	`{}` heeft meer dan {} rijen
+`{}` has more than {} lines	`{}` heeft meer dan {} regels
+`{}` a template called {} exists	`{}` er bestaat al een sjabloon met de naam {}
+`{}` `{}` is not a rate such as 0.85 (up to 9.99)	`{}` `{}` is geen tarief zoals 0.85 (tot 9.99)
+`{}` `{}` is not a number of hours (0 to 24, one decimal)	`{}` `{}` is geen aantal uren (0 tot 24, één decimaal)
+`{}` `{}` is not a level for {}	`{}` `{}` is geen niveau voor {}
+{} would have more than {} actions	{} zou meer dan {} acties hebben
+{} was already submitted	{} is al ingediend
+{} was already started	{} is al gestart
+{} was already issued	{} is al uitgegeven
+{} of {} items are still open	{} van {} items staan nog open
+{} now belongs to someone else in the directory	{} hoort nu bij iemand anders in het adresboek
+{} must be signed: type your full name to sign it	{} moet worden ondertekend: typ uw volledige naam om te ondertekenen
+{} must be approved before its change orders can be	{} moet worden goedgekeurd voordat de bijbehorende wijzigingsopdrachten dat kunnen
+{} is {}; void it instead	{} is {}; maak het in plaats daarvan ongeldig
+{} is {}; only submitted invoices can go back to draft	{} is {}; alleen ingediende facturen kunnen terug naar concept
+{} is {}; only submitted invoices can be approved	{} is {}; alleen ingediende facturen kunnen worden goedgekeurd
+{} is {}; only submittals in review take reviews	{} is {}; alleen submittals in beoordeling nemen beoordelingen aan
+{} is {}; only submittals in review can be closed	{} is {}; alleen submittals in beoordeling kunnen worden gesloten
+{} is {}; only open items can be marked done	{} is {}; alleen open items kunnen als klaar worden gemarkeerd
+{} is {}; only open RFIs take responses	{} is {}; alleen open RFI's nemen antwoorden aan
+{} is {}; only open RFIs can be closed	{} is {}; alleen open RFI's kunnen worden gesloten
+{} is {}; only items ready for review can be sent back	{} is {}; alleen items die klaar zijn voor beoordeling kunnen worden teruggestuurd
+{} is {}; only drafts can be edited (by their author or an admin)	{} is {}; alleen concepten kunnen worden bewerkt (door hun auteur of een beheerder)
+{} is {}; only closed items can be reopened	{} is {}; alleen gesloten items kunnen worden heropend
+{} is {}; only closed RFIs can be reopened	{} is {}; alleen gesloten RFI's kunnen worden heropend
+{} is {}; only approved invoices can be paid	{} is {}; alleen goedgekeurde facturen kunnen worden betaald
+{} is {}; only approved commitments can be completed	{} is {}; alleen goedgekeurde verplichtingen kunnen worden voltooid
+{} is {}; its signature can't change	{} is {}; de ondertekening kan niet veranderen
+{} is {}; it can't be voided	{} is {}; het kan niet ongeldig worden gemaakt
+{} is {}; bids can be recorded once it is out for bid	{} is {}; biedingen kunnen worden vastgelegd zodra het uitstaat voor bod
+{} is void; its signature can't change	{} is ongeldig; de ondertekening kan niet veranderen
+{} is void; files can't be added	{} is ongeldig; er kunnen geen bestanden worden toegevoegd
+{} is still in progress	{} is nog bezig
+{} is not waiting for the company to counter-sign	{} wacht niet op medeondertekening door het bedrijf
+{} is already in the directory; choose it from the list	{} staat al in het adresboek; kies het uit de lijst
+{} is already in the budget	{} staat al in het budget
+{} has the most lines it can hold	{} heeft het maximale aantal regels
+{} has no alternate {}	{} heeft geen alternatief {}
+{} has no addendum {}	{} heeft geen addendum {}
+{} can't be signed now	{} kan nu niet worden ondertekend
+{} already has {} replies	{} heeft al {} antwoorden
+you can't issue the minutes of {}	u kunt de notulen van {} niet uitgeven
+too many questions on this package; contact the team directly	te veel vragen over dit pakket; neem rechtstreeks contact op met het team
+those measurements are in different units; set the sheet's scale to one unit	die metingen staan in verschillende eenheden; stel de schaal van het blad in op één eenheid
+this project requires signed contracts, so an approved document keeps its signature	dit project vereist ondertekende contracten, dus een goedgekeurd document behoudt zijn ondertekening
+this project requires signed contracts, so an approved commitment keeps its signature	dit project vereist ondertekende contracten, dus een goedgekeurde verplichting behoudt zijn ondertekening
+this package requires a bid bond; record that the company's bond was received first	dit pakket vereist een biedborg; leg eerst vast dat de borg van het bedrijf is ontvangen
+this package has too many requests waiting; contact the team directly	dit pakket heeft te veel wachtende verzoeken; neem rechtstreeks contact op met het team
+this package has no addendum {}	dit pakket heeft geen addendum {}
+this daily log already has 30 files	dit dagrapport heeft al 30 bestanden
+these hours can't be deleted now	deze uren kunnen nu niet worden verwijderd
+these hours can't be changed now	deze uren kunnen nu niet worden gewijzigd
+there is no standing bid to add	er is geen lopend bod om toe te voegen
+there is no earlier meeting to carry actions from	er is geen eerdere vergadering om acties uit over te nemen
+there are no submitted hours to send back	er zijn geen ingediende uren om terug te sturen
+there are no submitted hours to approve	er zijn geen ingediende uren om goed te keuren
+there are no draft hours in that range to submit	er zijn geen conceptuuren in dat bereik om in te dienen
+the template is in use by {} people; give them another template first	het sjabloon wordt door {} mensen gebruikt; geef hen eerst een ander sjabloon
+the prime contract must be approved before its change orders can be	het hoofdcontract moet worden goedgekeurd voordat de bijbehorende wijzigingsopdrachten dat kunnen
+the plan is not in the recycle bin	het plan zit niet in de prullenbak
+the plan has no items to keep	het plan heeft geen items om te bewaren
+the other project already has a form template named {}	het andere project heeft al een formuliersjabloon met de naam {}
+the original budget is locked; change it with a budget change, or unlock it first	het oorspronkelijke budget is vergrendeld; wijzig het met een budgetwijziging of ontgrendel het eerst
+the measurements add up to nothing	de metingen tellen op tot nul
+the links don't settle; check them for a loop	de koppelingen komen niet tot rust; controleer ze op een lus
+the link was replaced too many times	de koppeling is te vaak vervangen
+the labour cost is too large to post	de arbeidskosten zijn te groot om te boeken
+the item has 200 comments already	het item heeft al 200 opmerkingen
+the invoice's prime contract is missing	het hoofdcontract van de factuur ontbreekt
+the invoice's commitment is missing	de verplichting van de factuur ontbreekt
+the estimate has no lines to keep	de raming heeft geen regels om te bewaren
+the due date for this package has passed; ask the team to reopen it	de uiterste datum van dit pakket is verstreken; vraag het team het te heropenen
+the contract for {} is already recorded as signed	het contract van {} is al als ondertekend geregistreerd
+the company needs at least one active company admin who can sign in	het bedrijf heeft minstens één actieve bedrijfsbeheerder nodig die kan inloggen
+the company keeps at most {} saved reports	het bedrijf bewaart maximaal {} opgeslagen rapporten
+the company keeps at most 500 plan templates	het bedrijf bewaart maximaal 500 plansjablonen
+the company keeps at most 500 estimate templates	het bedrijf bewaart maximaal 500 ramingsjablonen
+the company keeps at most 50 holiday lists	het bedrijf bewaart maximaal 50 feestdagenlijsten
+the company is already set up	het bedrijf is al ingesteld
+the company has no questionnaire to score	het bedrijf heeft geen vragenlijst om te scoren
+the catalogue holds at most {} items	de catalogus bevat maximaal {} items
+the bid package has no cost code; set one first	het biedpakket heeft geen kostencode; stel er eerst een in
+that makes more than 24 hours on one day	dat is meer dan 24 uur op één dag
+that is too large to measure	dat is te groot om te meten
+that file is not one you attached	dat bestand is niet een van de bestanden die u hebt bijgevoegd
+that file is not attached to your bid	dat bestand is niet bijgevoegd bij uw bod
+that company has no prequalification record	dat bedrijf heeft geen prekwalificatiedossier
+that company already acknowledged this addendum	dat bedrijf heeft dit addendum al bevestigd
+that address has already asked to bid on this package	dat adres heeft al gevraagd om op dit pakket te bieden
+that address already has a link for this package; send it again instead	dat adres heeft al een koppeling voor dit pakket; stuur die opnieuw
+task.mine lists a person's tasks; run it as a person	task.mine toont de taken van een persoon; voer het uit als persoon
+some hours have no cost code: pass default_cost_code or give them one	sommige uren hebben geen kostencode: geef default_cost_code mee of geef ze er een
+sheet {} is already in the log; add a revision to it instead	blad {} staat al in het register; voeg er in plaats daarvan een revisie aan toe
+set the scale of page {} first (drawing.scale_set)	stel eerst de schaal van pagina {} in (drawing.scale_set)
+set a pay rate first for {}	stel eerst een uurtarief in voor {}
+send your bid first, then attach files to it	verstuur eerst uw bod en voeg daarna bestanden toe
+section {} is already in this project's list	sectie {} staat al in de lijst van dit project
+sealed bids are waiting; open them before changing this	er wachten verzegelde biedingen; open ze voordat u dit wijzigt
+reviewers answer in order: it is not your turn yet	beoordelaars antwoorden in volgorde: u bent nog niet aan de beurt
+response {} not found on {}	antwoord {} niet gevonden bij {}
+reports are scheduled by a person	rapporten worden door een persoon gepland
+reports are saved by a person	rapporten worden door een persoon opgeslagen
+reports are deleted by a person	rapporten worden door een persoon verwijderd
+report {} is not emailed	rapport {} wordt niet gemaild
+receipt was already acknowledged	de ontvangst is al bevestigd
+receipt is acknowledged by a person	ontvangst wordt door een persoon bevestigd
+plan templates need access to action plans on a project	plansjablonen vereisen toegang tot actieplannen in een project
+plan template {} not found	plansjabloon {} niet gevonden
+person {} is not in the recycle bin	persoon {} zit niet in de prullenbak
+pay rate {} not found in this project	uurtarief {} niet gevonden in dit project
+page {} has no scale	pagina {} heeft geen schaal
+only the reviewers of {} can review it	alleen de beoordelaars van {} kunnen het beoordelen
+only the person who recorded a direct cost, or an admin, can delete it	alleen de persoon die een directe kost heeft vastgelegd, of een beheerder, kan die verwijderen
+only the person who recorded a direct cost, or an admin, can change it	alleen de persoon die een directe kost heeft vastgelegd, of een beheerder, kan die wijzigen
+only the person who added a photo or a Photos admin can tag it	alleen de persoon die een foto heeft toegevoegd of een Foto's-beheerder kan die taggen
+only the person who added a photo or a Photos admin can edit it	alleen de persoon die een foto heeft toegevoegd of een Foto's-beheerder kan die bewerken
+only the person who added a photo or a Photos admin can delete it	alleen de persoon die een foto heeft toegevoegd of een Foto's-beheerder kan die verwijderen
+only the person it is assigned to, the manager or an admin can tick an item	alleen de toegewezen persoon, de beheerder van het item of een beheerder kan een item afvinken
+only the person it is assigned to, the author or an admin can make a task from an action	alleen de toegewezen persoon, de auteur of een beheerder kan van een actie een taak maken

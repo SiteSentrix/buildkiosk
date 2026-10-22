@@ -23,3 +23,4 @@ That is as many points as one path can have; press Enter to finish.	C'est le nom
 Loading…	Chargement…
 Scale set from a stretch of {}. Lengths and areas drawn on this page use it.	Échelle définie à partir d'un tronçon de {}. Les longueurs et surfaces dessinées sur cette page l'utilisent.
 No scale set on this page. Use the Scale tool to set it, then measure lengths and areas.	Aucune échelle n'est définie sur cette page. Utilisez l'outil Échelle pour la définir, puis mesurez longueurs et surfaces.
+{} of {}	{} sur {}

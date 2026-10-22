@@ -652,7 +652,7 @@ fn sync_ui(v: &Viewer) {
     });
     let pages = rev.sheet.as_ref().map_or(1, |s| s.pages());
     if let Some(e) = v.document.get_element_by_id("wasm-page") {
-        e.set_text_content(Some(&format!("{page} of {pages}")));
+        e.set_text_content(Some(&v.words.tf("{} of {}", &[&page.to_string(), &pages.to_string()])));
     }
     each(v.root.get_elements_by_class_name("page-btn"), |b| {
         let step = b.get_attribute("data-page-step").and_then(|s| s.parse::<i32>().ok()).unwrap_or(0);

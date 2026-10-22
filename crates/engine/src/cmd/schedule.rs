@@ -51,6 +51,14 @@ pub const COMMANDS: &[CommandSpec] = &[
         move_task,
     ),
     CommandSpec::mutate(
+        "schedule.link",
+        "Link two tasks",
+        Tool::Schedule,
+        Access::Project(Level::Standard),
+        "project: project id; id: the task that follows; from: the task it follows (not itself, and not one that already follows it); kind?: fs|ss|ff|sf (default fs); lag?: working days after (negative for an overlap; default 0). Linking the same pair again replaces the earlier link.",
+        link,
+    ),
+    CommandSpec::mutate(
         "schedule.progress",
         "Set task progress",
         Tool::Schedule,
@@ -512,6 +520,31 @@ fn move_task(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
     t.updated = ctx.stamp();
     ctx.state.schedule_tasks.put(t);
     Ok(json!({ "id": id, "start": start, "finish": finish }))
+}
+
+fn link(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {
+    let project: Id<Project> = p.id("project")?;
+    let id: Id<ScheduleTask> = p.id("id")?;
+    let from: Id<ScheduleTask> = p.id("from")?;
+    let mut t = live_task(ctx, project, id)?;
+    let before = live_task(ctx, project, from)?;
+    if before.id == id {
+        return Err(p.bad("from", "a task can't follow itself"));
+    }
+    if sched::reaches(ctx.state, before.id, id) {
+        return Err(p.bad("from", format!("task {} already depends on this task; that would make a loop", before.number)));
+    }
+    let kind = p.choice::<LinkKind>("kind")?.unwrap_or_default();
+    let lag = p.int("lag", -1_000..=1_000)?.unwrap_or(0);
+    let lag = i32::try_from(lag).map_err(|_| p.bad("lag", "is out of range"))?;
+    t.predecessors.retain(|l| l.task != from);
+    if t.predecessors.len() >= 50 {
+        return Err(p.bad("id", "already has 50 predecessors"));
+    }
+    t.predecessors.push(Link { task: from, lag, kind });
+    t.updated = ctx.stamp();
+    ctx.state.schedule_tasks.put(t);
+    Ok(json!({ "id": id, "from": from }))
 }
 
 fn progress(ctx: &mut Ctx<'_>, p: &Params<'_>) -> Result<Value> {

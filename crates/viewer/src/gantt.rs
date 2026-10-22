@@ -46,6 +46,8 @@ pub fn describe_in(words: &Words, days: i64, resize: bool) -> String {
 struct Drag {
     id: String,
     resize: bool,
+    /// Dragging a link from this task's dot to another bar, rather than moving or resizing.
+    link: bool,
     from_x: f64,
     svg_width: f64,
     days: i64,
@@ -58,6 +60,12 @@ fn hint(document: &Document, text: &str) {
     if let Some(h) = document.get_element_by_id("gantt-hint") {
         h.set_text_content(Some(text));
     }
+}
+
+/// The task whose bar is under the pointer, if any.
+fn task_at(document: &Document, e: &PointerEvent) -> Option<String> {
+    let el = document.element_from_point(e.client_x() as f32, e.client_y() as f32)?;
+    el.closest("[data-task]").ok().flatten()?.get_attribute("data-task")
 }
 
 fn input(document: &Document, id: &str) -> Option<HtmlInputElement> {
@@ -74,6 +82,15 @@ pub fn start(document: Document, root: Element) {
     let (d, state, w) = (document.clone(), drag.clone(), words.clone());
     listen(&root, "pointerdown", move |e: PointerEvent| {
         let Some(target) = e.target().and_then(|t| t.dyn_into::<Element>().ok()) else { return };
+        if let Ok(Some(dot)) = target.closest("[data-link]") {
+            let Some(id) = dot.get_attribute("data-link") else { return };
+            ok(dot.set_pointer_capture(e.pointer_id()));
+            e.prevent_default();
+            *state.borrow_mut() =
+                Some(Drag { id, resize: false, link: true, from_x: 0.0, svg_width: 0.0, days: 0, parts: Vec::new(), pointer: e.pointer_id() });
+            hint(&d, &w.t("Drop on another bar to make that task follow this one."));
+            return;
+        }
         let Ok(Some(grabbed)) = target.closest("[data-task]") else { return };
         let Ok(Some(svg)) = grabbed.closest("svg") else { return };
         let Some(id) = grabbed.get_attribute("data-task") else { return };
@@ -97,6 +114,7 @@ pub fn start(document: Document, root: Element) {
         *state.borrow_mut() = Some(Drag {
             id,
             resize,
+            link: false,
             from_x: f64::from(e.client_x()),
             svg_width: svg.get_bounding_client_rect().width(),
             days: 0,
@@ -110,6 +128,15 @@ pub fn start(document: Document, root: Element) {
     listen(&root, "pointermove", move |e: PointerEvent| {
         let mut slot = state.borrow_mut();
         let Some(g) = slot.as_mut().filter(|g| g.pointer == e.pointer_id()) else { return };
+        if g.link {
+            let over = task_at(&d, &e);
+            let text = match over {
+                Some(t) if t != g.id => w.t("Let go to link: that task will follow this one."),
+                _ => w.t("Drop on another bar to make that task follow this one."),
+            };
+            hint(&d, &text);
+            return;
+        }
         let dx = f64::from(e.client_x()) - g.from_x;
         g.days = days_moved(dx, g.svg_width, total);
         // The same move in the chart's own units, so it matches what the days will be only roughly until saved.
@@ -130,6 +157,23 @@ pub fn start(document: Document, root: Element) {
         let save = name == "pointerup";
         listen(&root, name, move |e: PointerEvent| {
             let Some(g) = state.borrow_mut().take_if(|g| g.pointer == e.pointer_id()) else { return };
+            if g.link {
+                let target = if save { task_at(&d, &e) } else { None };
+                let form = d
+                    .get_element_by_id("gantt-link")
+                    .and_then(|c| c.query_selector("form").ok().flatten())
+                    .and_then(|f| f.dyn_into::<HtmlFormElement>().ok());
+                match (target, input(&d, "gl-id"), input(&d, "gl-from"), form) {
+                    (Some(next), Some(id), Some(from), Some(form)) if next != g.id => {
+                        id.set_value(&next);
+                        from.set_value(&g.id);
+                        hint(&d, &w.t("Saving…"));
+                        ok(form.submit());
+                    }
+                    _ => hint(&d, &describe_in(&w, 0, false)),
+                }
+                return;
+            }
             // Put the picture back; the page shows the new dates once the server has them.
             for (el, old) in &g.parts {
                 let attr = if g.resize && el.class_list().contains("bar") { "width" } else { "transform" };

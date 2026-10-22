@@ -32,3 +32,5 @@ day	dag
 days	dagen
 Saving…	Opslaan…
 {} of {}	{} van {}
+Drop on another bar to make that task follow this one.	Laat los op een andere balk zodat die taak deze volgt.
+Let go to link: that task will follow this one.	Laat los om te koppelen: die taak volgt deze.

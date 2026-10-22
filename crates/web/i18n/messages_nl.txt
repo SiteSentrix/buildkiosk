@@ -381,3 +381,131 @@ only the person who added a photo or a Photos admin can edit it	alleen de persoo
 only the person who added a photo or a Photos admin can delete it	alleen de persoon die een foto heeft toegevoegd of een Foto's-beheerder kan die verwijderen
 only the person it is assigned to, the manager or an admin can tick an item	alleen de toegewezen persoon, de beheerder van het item of een beheerder kan een item afvinken
 only the person it is assigned to, the author or an admin can make a task from an action	alleen de toegewezen persoon, de auteur of een beheerder kan van een actie een taak maken
+{}'s prequalification has lapsed; renew it first (this company requires a current one)	de prekwalificatie van {} is verlopen; vernieuw die eerst (dit bedrijf vereist een geldige)
+{} is not prequalified (this company requires an approved prequalification)	{} is niet geprekwalificeerd (dit bedrijf vereist een goedgekeurde prekwalificatie)
+{} approver(s) have not approved {} yet	{} goedkeurder(s) hebben {} nog niet goedgekeurd
+your record is {}; it can't be changed now. Leave a message for the reviewers instead	uw record is {}; het kan nu niet meer worden gewijzigd. Laat in plaats daarvan een bericht achter voor de beoordelaars
+there are no approved hours in that range that were not posted already	er zijn geen goedgekeurde uren in dat bereik die nog niet zijn geboekt
+the record is {}	het record is {}
+that version was replaced by questionnaire {}; change that one	die versie is vervangen door vragenlijst {}; wijzig die
+only the submittal's author, its manager or a submittals admin can send it for review	alleen de auteur van de submittal, de beheerder of een submittals-beheerder kan die ter beoordeling versturen
+only the submittal manager or a submittals admin can send a submittal for review	alleen de submittalbeheerder of een submittals-beheerder kan een submittal ter beoordeling versturen
+only the submittal manager or a submittals admin can resubmit a submittal	alleen de submittalbeheerder of een submittals-beheerder kan een submittal opnieuw indienen
+only the submittal manager or a submittals admin can close a submittal	alleen de submittalbeheerder of een submittals-beheerder kan een submittal sluiten
+only the sender or an admin can record receipt for someone else	alleen de afzender of een beheerder kan de ontvangst voor iemand anders vastleggen
+only the person it is assigned to, the author or an admin can change an action	alleen de toegewezen persoon, de auteur of een beheerder kan een actie wijzigen
+only the people it was sent to can acknowledge it	alleen de personen aan wie het is verzonden kunnen de ontvangst bevestigen
+only the people assigned to {} or its manager can mark the work done	alleen de personen die aan {} zijn toegewezen of de beheerder kunnen het werk als klaar markeren
+only the manager or an inspections admin can edit {}	alleen de beheerder of een inspectiebeheerder kan {} bewerken
+only the manager or an admin can start the plan	alleen de beheerder of een beheerder kan het plan starten
+only the manager or an admin can reopen the plan	alleen de beheerder of een beheerder kan het plan heropenen
+only the manager or an admin can name approvers	alleen de beheerder of een beheerder kan goedkeurders aanwijzen
+only the manager or an admin can edit {}	alleen de beheerder of een beheerder kan {} bewerken
+only the manager or an admin can delete the plan	alleen de beheerder of een beheerder kan het plan verwijderen
+only the manager or an admin can complete the plan	alleen de beheerder of een beheerder kan het plan voltooien
+only the manager or an admin can assign items, set dates or add notes	alleen de beheerder of een beheerder kan items toewijzen, data instellen of notities toevoegen
+only the item's owner, the manager or people with Standard access can comment	alleen de eigenaar van het item, de beheerder of mensen met standaardtoegang kunnen reageren
+only the inspector or manager of {} can remove files from its lines	alleen de inspecteur of beheerder van {} kan bestanden van de regels verwijderen
+only the inspector or manager of {} can complete it	alleen de inspecteur of beheerder van {} kan het voltooien
+only the inspector or manager of {} can add files to its lines	alleen de inspecteur of beheerder van {} kan bestanden aan de regels toevoegen
+only the author or an admin can submit {}	alleen de auteur of een beheerder kan {} indienen
+only the author or an admin can close {}	alleen de auteur of een beheerder kan {} sluiten
+only the author or a daily log admin can submit this daily log	alleen de auteur of een dagrapportbeheerder kan dit dagrapport indienen
+only the author of a draft or an admin can delete correspondence	alleen de auteur van een concept of een beheerder kan correspondentie verwijderen
+only the author of a draft or an admin can delete a transmittal	alleen de auteur van een concept of een beheerder kan een transmittal verwijderen
+only the author of a draft or an admin can delete a form	alleen de auteur van een concept of een beheerder kan een formulier verwijderen
+only the author of a draft or a daily log admin can remove files from this daily log	alleen de auteur van een concept of een dagrapportbeheerder kan bestanden uit dit dagrapport verwijderen
+only the author of a draft or a daily log admin can add files to this daily log	alleen de auteur van een concept of een dagrapportbeheerder kan bestanden aan dit dagrapport toevoegen
+only the author before the minutes are issued, or an admin, can delete a meeting	alleen de auteur vóór het uitgeven van de notulen, of een beheerder, kan een vergadering verwijderen
+only the RFI's author, its manager or an RFI admin can open it	alleen de auteur van de RFI, de beheerder of een RFI-beheerder kan die openen
+only the RFI manager or an RFI admin can choose the official response	alleen de RFI-beheerder of een RFI-beheerder kan het officiële antwoord kiezen
+only submittals admins can see the recycle bin	alleen submittals-beheerders kunnen de prullenbak zien
+only submittals admins can delete submittals (authors can delete their own drafts)	alleen submittals-beheerders kunnen submittals verwijderen (auteurs kunnen hun eigen concepten verwijderen)
+only measurements, counts and pins have a cost code	alleen metingen, tellingen en pins hebben een kostencode
+only its owner or a company admin can email a report	alleen de eigenaar of een bedrijfsbeheerder kan een rapport mailen
+only its owner or a company admin can delete a report	alleen de eigenaar of een bedrijfsbeheerder kan een rapport verwijderen
+only its owner or a company admin can change a report	alleen de eigenaar of een bedrijfsbeheerder kan een rapport wijzigen
+only daily log admins can see the recycle bin	alleen dagrapportbeheerders kunnen de prullenbak zien
+only daily log admins can delete daily logs (authors can delete their own drafts)	alleen dagrapportbeheerders kunnen dagrapporten verwijderen (auteurs kunnen hun eigen concepten verwijderen)
+only company admins keep the company's holiday lists	alleen bedrijfsbeheerders beheren de feestdagenlijsten van het bedrijf
+only company admins can make or remove company admins	alleen bedrijfsbeheerders kunnen bedrijfsbeheerders aanmaken of verwijderen
+only commitments admins can remove files once a commitment is approved	alleen verplichtingenbeheerders kunnen bestanden verwijderen zodra een verplichting is goedgekeurd
+only assignees, the RFI manager and RFI admins can respond to {}	alleen toegewezenen, de RFI-beheerder en RFI-beheerders kunnen op {} antwoorden
+only admins can delete a {} (authors can delete their own until it is settled)	alleen beheerders kunnen een {} verwijderen (auteurs kunnen hun eigen verwijderen totdat het is afgehandeld)
+only admins can delete a {} (authors can delete their own open ones)	alleen beheerders kunnen een {} verwijderen (auteurs kunnen hun eigen openstaande verwijderen)
+only admins can clear a recorded signature	alleen beheerders kunnen een vastgelegde ondertekening wissen
+only a signed-in person has a language	alleen een ingelogd persoon heeft een taal
+only a named approver can answer	alleen een aangewezen goedkeurder kan antwoorden
+only Timesheets admins can submit someone else's hours	alleen urenstatenbeheerders kunnen de uren van iemand anders indienen
+only Timesheets admins can see other people's hours	alleen urenstatenbeheerders kunnen de uren van anderen zien
+only Timesheets admins can log hours for someone else	alleen urenstatenbeheerders kunnen uren voor iemand anders vastleggen
+only Timesheets admins can log hours for a crew	alleen urenstatenbeheerders kunnen uren voor een ploeg vastleggen
+only Documents admins can restrict a document to named people	alleen documentenbeheerders kunnen een document beperken tot genoemde personen
+only Documents admins can make a folder private	alleen documentenbeheerders kunnen een map privé maken
+only Documents admins can change who may open a folder	alleen documentenbeheerders kunnen wijzigen wie een map mag openen
+only Directory admins can give or remove sign-in access	alleen adresboekbeheerders kunnen inlogtoegang geven of intrekken
+only Directory admins can deactivate people	alleen adresboekbeheerders kunnen mensen deactiveren
+only Directory admins can change company permissions	alleen adresboekbeheerders kunnen bedrijfsmachtigingen wijzigen
+notifications belong to a person	meldingen horen bij een persoon
+notification {} not found	melding {} niet gevonden
+no sealed bids are waiting	er wachten geen verzegelde biedingen
+no question {} on this package	geen vraag {} bij dit pakket
+no measurements on the sheet match that kind and label	geen enkele meting op het blad komt overeen met dat soort en dat label
+meeting template {} not found in this project	vergadersjabloon {} niet gevonden in dit project
+making a task needs Standard access to Tasks	een taak maken vereist standaardtoegang tot Taken
+list at least one item or attach a file	vermeld minstens één item of voeg een bestand toe
+line {} already has 5 files	regel {} heeft al 5 bestanden
+keeping the catalogue takes Standard access to Estimating on a project	de catalogus bijhouden vereist standaardtoegang tot Calculatie in een project
+issue the estimate before putting it in the budget	geef de raming uit voordat u die in het budget opneemt
+invoices exist for this contract; void them first	er bestaan facturen voor dit contract; maak ze eerst ongeldig
+invoices exist for this contract, so its schedule of values can't change	er bestaan facturen voor dit contract, dus de waardenstaat kan niet veranderen
+invoices exist for this commitment, so its lines can't change (use a change order)	er bestaan facturen voor deze verplichting, dus de regels kunnen niet veranderen (gebruik een wijzigingsopdracht)
+invite at least one company first, or turn on the open bid link	nodig eerst minstens één bedrijf uit of schakel de open biedkoppeling in
+inspection template not found in this project	inspectiesjabloon niet gevonden in dit project
+form template {} not found in this project	formuliersjabloon {} niet gevonden in dit project
+form schedule {} not found in this project	formulierplanning {} niet gevonden in dit project
+folders nest at most {} deep	mappen nesten maximaal {} niveaus diep
+folder {} not found in this project	map {} niet gevonden in dit project
+estimate templates need access to estimating on a project	ramingssjablonen vereisen toegang tot calculatie in een project
+estimate template {} not found	ramingssjabloon {} niet gevonden
+enter some work completed on {} before submitting it	voer enig voltooid werk in op {} voordat u het indient
+direct cost {} not found in this project	directe kost {} niet gevonden in dit project
+cost code {} not found for this project	kostencode {} niet gevonden voor dit project
+companies are answering this questionnaire; change theirs first	bedrijven beantwoorden deze vragenlijst; wijzig eerst die van hen
+choose at least one reviewer before sending the submittal for review	kies minstens één beoordelaar voordat u de submittal ter beoordeling verstuurt
+choose a questionnaire first	kies eerst een vragenlijst
+baseline {} not found in this project	basisplan {} niet gevonden in dit project
+at most {} questionnaires	maximaal {} vragenlijsten
+at most {} assemblies	maximaal {} samenstellingen
+assemblies are for people who work on estimates	samenstellingen zijn voor mensen die aan ramingen werken
+answer these first: {}	beantwoord eerst deze: {}
+an assembly uses this item; take it out of the assembly first	een samenstelling gebruikt dit item; haal het eerst uit de samenstelling
+adding cost codes takes a project admin	kostencodes toevoegen vereist een projectbeheerder
+add at least one line first	voeg eerst minstens één regel toe
+add at least one item first	voeg eerst minstens één item toe
+a summary task follows its tasks; move those instead	een samenvattende taak volgt zijn taken; verplaats die in plaats daarvan
+a signature belongs to a person	een ondertekening hoort bij een persoon
+a sheet keeps at most {} revisions	een blad bewaart maximaal {} revisies
+a revision holds at most {} markups	een revisie bevat maximaal {} markeringen
+a record can have at most {} links	een record kan maximaal {} koppelingen hebben
+a project's log holds at most {} sheets	het register van een project bevat maximaal {} bladen
+a project keeps at most {} snapshots	een project bewaart maximaal {} momentopnamen
+a project keeps at most {} budget views	een project bewaart maximaal {} budgetweergaven
+a project keeps at most 5,000 pay rates	een project bewaart maximaal 5.000 uurtarieven
+a project keeps at most 30 correspondence types	een project bewaart maximaal 30 correspondentietypen
+a project keeps at most 20 baselines; delete one first	een project bewaart maximaal 20 basisplannen; verwijder er eerst een
+a project keeps at most 100 meeting templates	een project bewaart maximaal 100 vergadersjablonen
+a project keeps at most 100 form schedules	een project bewaart maximaal 100 formulierplanningen
+a project keeps at most 100 crews	een project bewaart maximaal 100 ploegen
+a project holds at most {} photos	een project bevat maximaal {} foto's
+a project holds at most {} folders	een project bevat maximaal {} mappen
+a photo can be tagged to at most {} items	een foto kan aan maximaal {} items worden gekoppeld
+a package invites at most {} companies	een pakket nodigt maximaal {} bedrijven uit
+a package can invite at most {} companies	een pakket kan maximaal {} bedrijven uitnodigen
+a package can have at most {} links	een pakket kan maximaal {} koppelingen hebben
+a form is signed once it is submitted	een formulier is ondertekend zodra het is ingediend
+a document keeps at most {} versions	een document bewaart maximaal {} versies
+a default view belongs to a person	een standaardweergave hoort bij een persoon
+a completed plan takes no more files; reopen it first	een voltooid plan neemt geen bestanden meer aan; heropen het eerst
+a completed plan keeps its files; reopen it first	een voltooid plan behoudt zijn bestanden; heropen het eerst
+a bid can have at most {} files	een bod kan maximaal {} bestanden hebben

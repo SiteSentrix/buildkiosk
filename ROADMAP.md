@@ -36,7 +36,7 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 - 2026-10-21: Excel workbooks (.xlsx) can be uploaded wherever a CSV import is offered; the first sheet is read.
 - 2026-10-21: Languages: a signed-in person's language is kept with the account and follows them across browsers.
 - 2026-10-20: Contract signing: commitments, prime contracts and prime change orders can be sent for signature with an emailed link; the other party reads the contract and signs by typing their name, with no account; the team is told and the terms version is recorded (`docs/signing.md`).
-- 2026-10-22: Languages: about 270 more engine messages translated (not found in this project, recycle bin, attached files, contract signing, state refusals, bidding, time entries).
+- 2026-10-22: Languages: about 400 more engine messages translated (not found in this project, recycle bin, attached files, contract signing, state refusals, bidding, time entries, who may do what, limits).
 - 2026-10-22: Schedule: drag from the dot at the end of a bar onto another bar to link the two (`schedule.link`).
 - 2026-10-20: Signed releases: the Windows program is signed with Azure Artifact Signing and the macOS programs with a Developer ID certificate and notarized (jobs in the `release` environment; unsigned with a warning when the secrets are missing), before the archives, checksums and attestations are made (`.github/workflows/release.yml`, `contrib/macos/`, `docs/deployment.md`).
 - 2026-10-20: Financials: the budget can be grouped by section or by cost type as well as by division; cost codes carry a cost type (`cost_code.set_type`, `cost_code.set_types`).

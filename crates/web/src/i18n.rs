@@ -738,6 +738,9 @@ mod tests {
         let denied = translate_plain("Add revision needs Admin access to Drawings (you have Read)", Lang::Es);
         assert!(denied.contains("requiere acceso de nivel") && !denied.contains("needs"), "{denied}");
         assert_eq!(es("Project Clara is required"), "Project Clara is required");
+        assert_eq!(es("RFI 12 not found in this project"), "RFI 12 no encontrada en este proyecto");
+        assert_eq!(translate_plain("the minutes were already issued", Lang::Fr), "le compte rendu a déjà été émis");
+        assert_eq!(translate_plain("there is already a daily log for 2026-10-22", Lang::Nl), "er is al een dagrapport voor 2026-10-22");
     }
 
     #[test]

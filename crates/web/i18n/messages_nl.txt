@@ -110,3 +110,143 @@ give your insurance or licence date, or attach a file, before sending your recor
 that address already has a link; send it again instead	dat adres heeft al een link; verstuur die opnieuw
 there is no questionnaire to answer	er is geen vragenlijst om te beantwoorden
 only an admin can send a link for an approved record	alleen een beheerder kan een link versturen voor een goedgekeurd item
+{} already has {} files	{} heeft al {} bestanden
+`{}` line {}: {}	`{}` regel {}: {}
+company {} not found	bedrijf {} niet gevonden
+bid package {} not found in this project	biedpakket {} niet gevonden in dit project
+`{}` lists more than {} people	`{}` bevat meer dan {} personen
+report {} not found	rapport {} niet gevonden
+drawing {} not found in this project	tekening {} niet gevonden in dit project
+catalogue item {} not found	catalogusitem {} niet gevonden
+{} is complete; reopen it to change it	{} is voltooid; heropen het om het te wijzigen
+there is already a template called {}	er is al een sjabloon met de naam {}
+questionnaire {} not found	vragenlijst {} niet gevonden
+person {} not found	persoon {} niet gevonden
+no link {} on this record	geen koppeling {} bij dit record
+no link {} on this package	geen koppeling {} bij dit pakket
+meeting {} not found in this project	vergadering {} niet gevonden in dit project
+markup {} not found	markering {} niet gevonden
+estimate {} not found in this project	raming {} niet gevonden in dit project
+assembly {} not found	samenstelling {} niet gevonden
+a folder named {} is already there	er is al een map met de naam {}
+`{}` {} was not found in this project	`{}` {} is niet gevonden in dit project
+`{}` {} is already in the directory	`{}` {} staat al in het adresboek
+`{}` there is no line {}	`{}` er is geen regel {}
+`{}` holds more than {} items	`{}` bevat meer dan {} items
+{} was issued; reopen it to edit it	{} is uitgegeven; heropen het om het te bewerken
+{} was already sent	{} is al verzonden
+{} not found in this project	{} niet gevonden in dit project
+{} is already {}	{} is al {}
+{} has not been sent	{} is niet verzonden
+{} has no such item	{} heeft dat item niet
+{} has no action {}	{} heeft geen actie {}
+transmittal {} not found in this project	transmittal {} niet gevonden in dit project
+too many links	te veel koppelingen
+the record already has {} files	het record heeft al {} bestanden
+template {} not found	sjabloon {} niet gevonden
+task {} not found in this project	taak {} niet gevonden in dit project
+submittal {} not found in this project	submittal {} niet gevonden in dit project
+photo {} not found in this project	foto {} niet gevonden in dit project
+no request {} on this package	geen verzoek {} bij dit pakket
+inspection {} not found in this project	inspectie {} niet gevonden in dit project
+holiday list {} not found	feestdagenlijst {} niet gevonden
+group {} not found	groep {} niet gevonden
+form {} not found in this project	formulier {} niet gevonden in dit project
+document {} not found in this project	document {} niet gevonden in dit project
+daily log {} not found in this project	dagrapport {} niet gevonden in dit project
+crew {} not found in this project	ploeg {} niet gevonden in dit project
+cost code {} not found in this project	kostencode {} niet gevonden in dit project
+correspondence {} not found in this project	correspondentie {} niet gevonden in dit project
+commitment {} not found in this project	verplichting {} niet gevonden in dit project
+budget view {} not found in this project	budgetweergave {} niet gevonden in dit project
+action plan {} not found in this project	actieplan {} niet gevonden in dit project
+a schedule holds at most {} tasks	een planning bevat maximaal {} taken
+a form template named {} already exists	er bestaat al een formuliersjabloon met de naam {}
+`{}` task {} already depends on this task; that would make a loop	`{}` taak {} hangt al van deze taak af; dat zou een lus maken
+`{}` project number {} is in use	`{}` projectnummer {} is al in gebruik
+`{}` people who sign in need an email address	`{}` mensen die inloggen hebben een e-mailadres nodig
+`{}` needs at least one checklist line	`{}` heeft minstens één checklistregel nodig
+`{}` must look like rfi:12	`{}` moet eruitzien als rfi:12
+`{}` must be a list of text	`{}` moet een lijst met tekst zijn
+`{}` must be a list of objects	`{}` moet een lijst met objecten zijn
+`{}` is priced twice	`{}` is twee keer geprijsd
+`{}` is out of range	`{}` valt buiten het bereik
+`{}` has too many entries	`{}` heeft te veel items
+`{}` group {} not found	`{}` groep {} niet gevonden
+`{}` a task can't follow itself	`{}` een taak kan zichzelf niet volgen
+`{}` `{}` is not a tool	`{}` `{}` is geen hulpmiddel
+`{}` `{}` is not a quantity above zero	`{}` `{}` is geen hoeveelheid boven nul
+RFI {} not found in this project	RFI {} niet gevonden in dit project
+{} is not out for signature	{} staat niet uit voor ondertekening
+{} is not complete	{} is niet voltooid
+{} is complete	{} is voltooid
+{} is closed; reopen it to comment	{} is gesloten; heropen het om te reageren
+{} is already signed	{} is al ondertekend
+{} is already recorded as signed	{} is al als ondertekend geregistreerd
+{} is already on the project	{} staat al in het project
+{} is already closed	{} is al gesloten
+{} is a draft	{} is een concept
+{} has too many comments	{} heeft te veel opmerkingen
+{} has signed already	{} heeft al ondertekend
+{} has not been sent for review yet	{} is nog niet ter beoordeling verzonden
+{} has no revision to mark up yet	{} heeft nog geen revisie om te markeren
+{} has no revision to issue yet	{} heeft nog geen revisie om uit te geven
+{} already has a revision {}	{} heeft al een revisie {}
+you have signed this form in another role already	u hebt dit formulier al in een andere rol ondertekend
+you have already reviewed this revision	u hebt deze revisie al beoordeeld
+you can't submit {}	u kunt {} niet indienen
+you can't delete yourself	u kunt uzelf niet verwijderen
+you can't change {}	u kunt {} niet wijzigen
+time entry {} not found in this project	tijdregistratie {} niet gevonden in dit project
+this direct cost is not in the recycle bin	deze directe kost zit niet in de prullenbak
+this daily log is not in the recycle bin	dit dagrapport zit niet in de prullenbak
+this daily log is already submitted	dit dagrapport is al ingediend
+this daily log is already a draft	dit dagrapport is al een concept
+this action is done	deze actie is klaar
+this action already has a task	deze actie heeft al een taak
+this RFI has too many responses	deze RFI heeft te veel antwoorden
+there is already a daily log for {}	er is al een dagrapport voor {}
+there are no tasks to save a baseline of	er zijn geen taken om een basisplan van op te slaan
+the transmittal is not in the recycle bin	de transmittal zit niet in de prullenbak
+the task is not in the recycle bin	de taak zit niet in de prullenbak
+the task has child tasks; delete or move them first	de taak heeft subtaken; verwijder of verplaats die eerst
+the quantity is too large	de hoeveelheid is te groot
+the photo is not in the recycle bin	de foto zit niet in de prullenbak
+the package is not in the recycle bin	het pakket zit niet in de prullenbak
+the meeting is not in the recycle bin	de vergadering zit niet in de prullenbak
+the minutes were already issued	de notulen zijn al uitgegeven
+the minutes are not issued	de notulen zijn niet uitgegeven
+the line total is too large	het regeltotaal is te groot
+the form is not submitted	het formulier is niet ingediend
+the form is not in the recycle bin	het formulier zit niet in de prullenbak
+the estimate is not in the recycle bin	de raming zit niet in de prullenbak
+the drawing is not in the recycle bin	de tekening zit niet in de prullenbak
+the document is not in the recycle bin	het document zit niet in de prullenbak
+the contract for {} is not out for signature	het contract van {} staat niet uit voor ondertekening
+the contract for {} is already signed	het contract van {} is al ondertekend
+the contract for {} has not been sent	het contract van {} is niet verzonden
+the company has already counter-signed {}	het bedrijf heeft {} al medeondertekend
+the original budget is locked; unlock it first	het oorspronkelijke budget is vergrendeld; ontgrendel het eerst
+that link was cancelled; send a new one with prequal.invite	die koppeling is geannuleerd; stuur een nieuwe met prequal.invite
+that link was cancelled; send a new one with bid_package.invite	die koppeling is geannuleerd; stuur een nieuwe met bid_package.invite
+that file is not attached to this {}	dat bestand is niet bijgevoegd bij deze {}
+that file is not attached to this transmittal	dat bestand is niet bijgevoegd bij deze transmittal
+that file is not attached to this submittal	dat bestand is niet bijgevoegd bij deze submittal
+that file is not attached to this record	dat bestand is niet bijgevoegd bij dit record
+that file is not attached to this meeting	dat bestand is niet bijgevoegd bij deze vergadering
+that file is not attached to this line	dat bestand is niet bijgevoegd bij deze regel
+that file is not attached to this inspection	dat bestand is niet bijgevoegd bij deze inspectie
+that file is not attached to this daily log	dat bestand is niet bijgevoegd bij dit dagrapport
+that file is not attached to this commitment	dat bestand is niet bijgevoegd bij deze verplichting
+that file is not attached to this action plan	dat bestand is niet bijgevoegd bij dit actieplan
+that file is not attached to this RFI	dat bestand is niet bijgevoegd bij deze RFI
+that file is already the current version	dat bestand is al de huidige versie
+that company was not invited	dat bedrijf is niet uitgenodigd
+that company has no bid	dat bedrijf heeft geen bod
+that already has {} files	dat heeft al {} bestanden
+template not found	sjabloon niet gevonden
+summary tasks nest at most {} deep	samenvattende taken nesten maximaal {} niveaus diep
+snapshot {} not found in this project	momentopname {} niet gevonden in dit project
+sheet {} is already in the log	blad {} staat al in het register
+set the scoring criteria first	stel eerst de scorecriteria in
+set the package's cost code to start a commitment	stel de kostencode van het pakket in om een verplichting te starten

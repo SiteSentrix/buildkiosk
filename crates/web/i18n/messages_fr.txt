@@ -250,3 +250,134 @@ snapshot {} not found in this project	instantané {} introuvable dans ce projet
 sheet {} is already in the log	la feuille {} figure déjà dans le registre
 set the scoring criteria first	définissez d'abord les critères de notation
 set the package's cost code to start a commitment	définissez le code de coût du lot pour démarrer un engagement
+{} is {}; links go out while it is a draft or out for bid	{} est {} ; les liens partent tant qu'il est brouillon ou en appel d'offres
+the catalogue is for people who work on estimates	le catalogue est réservé aux personnes qui travaillent sur les estimations
+correspondence type {} not found in this project	type de correspondance {} introuvable dans ce projet
+a package has at most {} addenda	un lot comporte au plus {} addenda
+`{}` the amounts are too large to add up	`{}` les montants sont trop grands pour être additionnés
+`{}` must be commitment, prime_contract or prime_change	`{}` doit être commitment, prime_contract ou prime_change
+`{}` is required on every alternate	`{}` est obligatoire sur chaque variante
+`{}` holds more than {} rows	`{}` contient plus de {} lignes
+`{}` holds more than {} ids	`{}` contient plus de {} identifiants
+`{}` holds more than {} alternates	`{}` contient plus de {} variantes
+`{}` has more than {} sections	`{}` a plus de {} sections
+`{}` has more than {} rows	`{}` a plus de {} lignes
+`{}` has more than {} lines	`{}` a plus de {} lignes
+`{}` a template called {} exists	`{}` un modèle nommé {} existe déjà
+`{}` `{}` is not a rate such as 0.85 (up to 9.99)	`{}` `{}` n'est pas un taux tel que 0.85 (jusqu'à 9.99)
+`{}` `{}` is not a number of hours (0 to 24, one decimal)	`{}` `{}` n'est pas un nombre d'heures (0 à 24, une décimale)
+`{}` `{}` is not a level for {}	`{}` `{}` n'est pas un niveau pour {}
+{} would have more than {} actions	{} aurait plus de {} actions
+{} was already submitted	{} a déjà été soumis
+{} was already started	{} a déjà été démarré
+{} was already issued	{} a déjà été émis
+{} of {} items are still open	{} éléments sur {} sont encore ouverts
+{} now belongs to someone else in the directory	{} appartient maintenant à quelqu'un d'autre dans l'annuaire
+{} must be signed: type your full name to sign it	{} doit être signé : saisissez votre nom complet pour le signer
+{} must be approved before its change orders can be	{} doit être approuvé avant ses avenants
+{} is {}; void it instead	{} est {} ; annulez-le plutôt
+{} is {}; only submitted invoices can go back to draft	{} est {} ; seules les factures soumises peuvent repasser en brouillon
+{} is {}; only submitted invoices can be approved	{} est {} ; seules les factures soumises peuvent être approuvées
+{} is {}; only submittals in review take reviews	{} est {} ; seules les soumissions en révision reçoivent des avis
+{} is {}; only submittals in review can be closed	{} est {} ; seules les soumissions en révision peuvent être closes
+{} is {}; only open items can be marked done	{} est {} ; seuls les éléments ouverts peuvent être marqués comme faits
+{} is {}; only open RFIs take responses	{} est {} ; seules les DI ouvertes reçoivent des réponses
+{} is {}; only open RFIs can be closed	{} est {} ; seules les DI ouvertes peuvent être closes
+{} is {}; only items ready for review can be sent back	{} est {} ; seuls les éléments prêts pour révision peuvent être renvoyés
+{} is {}; only drafts can be edited (by their author or an admin)	{} est {} ; seuls les brouillons peuvent être modifiés (par leur auteur ou un administrateur)
+{} is {}; only closed items can be reopened	{} est {} ; seuls les éléments clos peuvent être rouverts
+{} is {}; only closed RFIs can be reopened	{} est {} ; seules les DI closes peuvent être rouvertes
+{} is {}; only approved invoices can be paid	{} est {} ; seules les factures approuvées peuvent être payées
+{} is {}; only approved commitments can be completed	{} est {} ; seuls les engagements approuvés peuvent être terminés
+{} is {}; its signature can't change	{} est {} ; sa signature ne peut pas changer
+{} is {}; it can't be voided	{} est {} ; il ne peut pas être annulé
+{} is {}; bids can be recorded once it is out for bid	{} est {} ; les offres peuvent être saisies une fois en appel d'offres
+{} is void; its signature can't change	{} est annulé ; sa signature ne peut pas changer
+{} is void; files can't be added	{} est annulé ; on ne peut pas ajouter de fichiers
+{} is still in progress	{} est toujours en cours
+{} is not waiting for the company to counter-sign	{} n'attend pas la contresignature de l'entreprise
+{} is already in the directory; choose it from the list	{} figure déjà dans l'annuaire ; choisissez-le dans la liste
+{} is already in the budget	{} figure déjà dans le budget
+{} has the most lines it can hold	{} a le maximum de lignes possible
+{} has no alternate {}	{} n'a pas de variante {}
+{} has no addendum {}	{} n'a pas d'addendum {}
+{} can't be signed now	{} ne peut pas être signé maintenant
+{} already has {} replies	{} a déjà {} réponses
+you can't issue the minutes of {}	vous ne pouvez pas émettre le compte rendu de {}
+too many questions on this package; contact the team directly	trop de questions sur ce lot ; contactez directement l'équipe
+those measurements are in different units; set the sheet's scale to one unit	ces mesures sont dans des unités différentes ; réglez l'échelle de la feuille sur une seule unité
+this project requires signed contracts, so an approved document keeps its signature	ce projet exige des contrats signés, donc un document approuvé garde sa signature
+this project requires signed contracts, so an approved commitment keeps its signature	ce projet exige des contrats signés, donc un engagement approuvé garde sa signature
+this package requires a bid bond; record that the company's bond was received first	ce lot exige une garantie de soumission ; enregistrez d'abord la réception de celle de l'entreprise
+this package has too many requests waiting; contact the team directly	ce lot a trop de demandes en attente ; contactez directement l'équipe
+this package has no addendum {}	ce lot n'a pas d'addendum {}
+this daily log already has 30 files	ce journal quotidien a déjà 30 fichiers
+these hours can't be deleted now	ces heures ne peuvent pas être supprimées maintenant
+these hours can't be changed now	ces heures ne peuvent pas être modifiées maintenant
+there is no standing bid to add	il n'y a pas d'offre en cours à ajouter
+there is no earlier meeting to carry actions from	il n'y a pas de réunion antérieure dont reprendre les actions
+there are no submitted hours to send back	il n'y a pas d'heures soumises à renvoyer
+there are no submitted hours to approve	il n'y a pas d'heures soumises à approuver
+there are no draft hours in that range to submit	il n'y a pas d'heures en brouillon dans cette période à soumettre
+the template is in use by {} people; give them another template first	le modèle est utilisé par {} personnes ; donnez-leur d'abord un autre modèle
+the prime contract must be approved before its change orders can be	le contrat principal doit être approuvé avant ses avenants
+the plan is not in the recycle bin	le plan n'est pas dans la corbeille
+the plan has no items to keep	le plan n'a aucun élément à conserver
+the other project already has a form template named {}	l'autre projet a déjà un modèle de formulaire nommé {}
+the original budget is locked; change it with a budget change, or unlock it first	le budget initial est verrouillé ; modifiez-le par une modification budgétaire ou déverrouillez-le d'abord
+the measurements add up to nothing	les mesures totalisent zéro
+the links don't settle; check them for a loop	les liens ne se résolvent pas ; vérifiez s'il y a une boucle
+the link was replaced too many times	le lien a été remplacé trop de fois
+the labour cost is too large to post	le coût de main-d'œuvre est trop grand pour être comptabilisé
+the item has 200 comments already	l'élément a déjà 200 commentaires
+the invoice's prime contract is missing	le contrat principal de la facture est manquant
+the invoice's commitment is missing	l'engagement de la facture est manquant
+the estimate has no lines to keep	l'estimation n'a aucune ligne à conserver
+the due date for this package has passed; ask the team to reopen it	l'échéance de ce lot est passée ; demandez à l'équipe de le rouvrir
+the contract for {} is already recorded as signed	le contrat de {} est déjà enregistré comme signé
+the company needs at least one active company admin who can sign in	l'entreprise a besoin d'au moins un administrateur actif pouvant se connecter
+the company keeps at most {} saved reports	l'entreprise conserve au plus {} rapports enregistrés
+the company keeps at most 500 plan templates	l'entreprise conserve au plus 500 modèles de plan
+the company keeps at most 500 estimate templates	l'entreprise conserve au plus 500 modèles d'estimation
+the company keeps at most 50 holiday lists	l'entreprise conserve au plus 50 listes de jours fériés
+the company is already set up	l'entreprise est déjà configurée
+the company has no questionnaire to score	l'entreprise n'a aucun questionnaire à noter
+the catalogue holds at most {} items	le catalogue contient au plus {} articles
+the bid package has no cost code; set one first	le lot d'appel d'offres n'a pas de code de coût ; définissez-en un d'abord
+that makes more than 24 hours on one day	cela fait plus de 24 heures en une journée
+that is too large to measure	c'est trop grand pour être mesuré
+that file is not one you attached	ce fichier n'est pas l'un de ceux que vous avez joints
+that file is not attached to your bid	ce fichier n'est pas joint à votre offre
+that company has no prequalification record	cette entreprise n'a pas de dossier de préqualification
+that company already acknowledged this addendum	cette entreprise a déjà accusé réception de cet addendum
+that address has already asked to bid on this package	cette adresse a déjà demandé à soumissionner pour ce lot
+that address already has a link for this package; send it again instead	cette adresse a déjà un lien pour ce lot ; renvoyez-le plutôt
+task.mine lists a person's tasks; run it as a person	task.mine liste les tâches d'une personne ; exécutez-le en tant que personne
+some hours have no cost code: pass default_cost_code or give them one	certaines heures n'ont pas de code de coût : passez default_cost_code ou donnez-leur-en un
+sheet {} is already in the log; add a revision to it instead	la feuille {} figure déjà dans le registre ; ajoutez-lui plutôt une révision
+set the scale of page {} first (drawing.scale_set)	définissez d'abord l'échelle de la page {} (drawing.scale_set)
+set a pay rate first for {}	définissez d'abord un taux de rémunération pour {}
+send your bid first, then attach files to it	envoyez d'abord votre offre, puis joignez-y des fichiers
+section {} is already in this project's list	la section {} figure déjà dans la liste de ce projet
+sealed bids are waiting; open them before changing this	des offres sous pli cacheté attendent ; ouvrez-les avant de modifier ceci
+reviewers answer in order: it is not your turn yet	les relecteurs répondent à tour de rôle : ce n'est pas encore votre tour
+response {} not found on {}	réponse {} introuvable sur {}
+reports are scheduled by a person	les rapports sont planifiés par une personne
+reports are saved by a person	les rapports sont enregistrés par une personne
+reports are deleted by a person	les rapports sont supprimés par une personne
+report {} is not emailed	le rapport {} n'est pas envoyé par e-mail
+receipt was already acknowledged	l'accusé de réception a déjà été confirmé
+receipt is acknowledged by a person	l'accusé de réception est confirmé par une personne
+plan templates need access to action plans on a project	les modèles de plan nécessitent l'accès aux plans d'action d'un projet
+plan template {} not found	modèle de plan {} introuvable
+person {} is not in the recycle bin	la personne {} n'est pas dans la corbeille
+pay rate {} not found in this project	taux de rémunération {} introuvable dans ce projet
+page {} has no scale	la page {} n'a pas d'échelle
+only the reviewers of {} can review it	seuls les relecteurs de {} peuvent l'examiner
+only the person who recorded a direct cost, or an admin, can delete it	seule la personne qui a saisi un coût direct, ou un administrateur, peut le supprimer
+only the person who recorded a direct cost, or an admin, can change it	seule la personne qui a saisi un coût direct, ou un administrateur, peut le modifier
+only the person who added a photo or a Photos admin can tag it	seule la personne qui a ajouté une photo ou un administrateur des photos peut l'étiqueter
+only the person who added a photo or a Photos admin can edit it	seule la personne qui a ajouté une photo ou un administrateur des photos peut la modifier
+only the person who added a photo or a Photos admin can delete it	seule la personne qui a ajouté une photo ou un administrateur des photos peut la supprimer
+only the person it is assigned to, the manager or an admin can tick an item	seule la personne assignée, le responsable ou un administrateur peut cocher un élément
+only the person it is assigned to, the author or an admin can make a task from an action	seule la personne assignée, l'auteur ou un administrateur peut créer une tâche à partir d'une action

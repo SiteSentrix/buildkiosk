@@ -381,3 +381,131 @@ only the person who added a photo or a Photos admin can edit it	solo quien añad
 only the person who added a photo or a Photos admin can delete it	solo quien añadió una foto o un administrador de Fotos puede eliminarla
 only the person it is assigned to, the manager or an admin can tick an item	solo la persona asignada, el responsable o un administrador puede marcar un elemento
 only the person it is assigned to, the author or an admin can make a task from an action	solo la persona asignada, el autor o un administrador puede crear una tarea a partir de una acción
+{}'s prequalification has lapsed; renew it first (this company requires a current one)	la precalificación de {} ha caducado; renuévela primero (esta empresa exige una vigente)
+{} is not prequalified (this company requires an approved prequalification)	{} no está precalificado (esta empresa exige una precalificación aprobada)
+{} approver(s) have not approved {} yet	{} aprobador(es) aún no han aprobado {}
+your record is {}; it can't be changed now. Leave a message for the reviewers instead	su registro está {}; ya no puede cambiarse. Deje un mensaje a los revisores
+there are no approved hours in that range that were not posted already	no hay horas aprobadas en ese rango que no se hayan registrado ya
+the record is {}	el registro está {}
+that version was replaced by questionnaire {}; change that one	esa versión fue reemplazada por el cuestionario {}; cambie ese
+only the submittal's author, its manager or a submittals admin can send it for review	solo el autor del submittal, su responsable o un administrador de submittals puede enviarlo a revisión
+only the submittal manager or a submittals admin can send a submittal for review	solo el responsable del submittal o un administrador de submittals puede enviar un submittal a revisión
+only the submittal manager or a submittals admin can resubmit a submittal	solo el responsable del submittal o un administrador de submittals puede reenviar un submittal
+only the submittal manager or a submittals admin can close a submittal	solo el responsable del submittal o un administrador de submittals puede cerrar un submittal
+only the sender or an admin can record receipt for someone else	solo el remitente o un administrador puede registrar el acuse de recibo de otra persona
+only the person it is assigned to, the author or an admin can change an action	solo la persona asignada, el autor o un administrador puede cambiar una acción
+only the people it was sent to can acknowledge it	solo las personas a quienes se envió pueden confirmar su recepción
+only the people assigned to {} or its manager can mark the work done	solo las personas asignadas a {} o su responsable pueden marcar el trabajo como hecho
+only the manager or an inspections admin can edit {}	solo el responsable o un administrador de inspecciones puede editar {}
+only the manager or an admin can start the plan	solo el responsable o un administrador puede iniciar el plan
+only the manager or an admin can reopen the plan	solo el responsable o un administrador puede reabrir el plan
+only the manager or an admin can name approvers	solo el responsable o un administrador puede nombrar aprobadores
+only the manager or an admin can edit {}	solo el responsable o un administrador puede editar {}
+only the manager or an admin can delete the plan	solo el responsable o un administrador puede eliminar el plan
+only the manager or an admin can complete the plan	solo el responsable o un administrador puede completar el plan
+only the manager or an admin can assign items, set dates or add notes	solo el responsable o un administrador puede asignar elementos, fijar fechas o añadir notas
+only the item's owner, the manager or people with Standard access can comment	solo el responsable del elemento, el responsable o quien tenga acceso Estándar puede comentar
+only the inspector or manager of {} can remove files from its lines	solo el inspector o el responsable de {} puede quitar archivos de sus líneas
+only the inspector or manager of {} can complete it	solo el inspector o el responsable de {} puede completarla
+only the inspector or manager of {} can add files to its lines	solo el inspector o el responsable de {} puede añadir archivos a sus líneas
+only the author or an admin can submit {}	solo el autor o un administrador puede enviar {}
+only the author or an admin can close {}	solo el autor o un administrador puede cerrar {}
+only the author or a daily log admin can submit this daily log	solo el autor o un administrador de bitácoras diarias puede enviar esta bitácora
+only the author of a draft or an admin can delete correspondence	solo el autor de un borrador o un administrador puede eliminar correspondencia
+only the author of a draft or an admin can delete a transmittal	solo el autor de un borrador o un administrador puede eliminar una remisión
+only the author of a draft or an admin can delete a form	solo el autor de un borrador o un administrador puede eliminar un formulario
+only the author of a draft or a daily log admin can remove files from this daily log	solo el autor de un borrador o un administrador de bitácoras diarias puede quitar archivos de esta bitácora
+only the author of a draft or a daily log admin can add files to this daily log	solo el autor de un borrador o un administrador de bitácoras diarias puede añadir archivos a esta bitácora
+only the author before the minutes are issued, or an admin, can delete a meeting	solo el autor antes de emitir la minuta, o un administrador, puede eliminar una reunión
+only the RFI's author, its manager or an RFI admin can open it	solo el autor de la RFI, su responsable o un administrador de RFI puede abrirla
+only the RFI manager or an RFI admin can choose the official response	solo el responsable de la RFI o un administrador de RFI puede elegir la respuesta oficial
+only submittals admins can see the recycle bin	solo los administradores de submittals pueden ver la papelera
+only submittals admins can delete submittals (authors can delete their own drafts)	solo los administradores de submittals pueden eliminar submittals (los autores pueden eliminar sus propios borradores)
+only measurements, counts and pins have a cost code	solo las mediciones, los conteos y las chinchetas tienen código de costo
+only its owner or a company admin can email a report	solo su propietario o un administrador de la empresa puede enviar un informe por correo
+only its owner or a company admin can delete a report	solo su propietario o un administrador de la empresa puede eliminar un informe
+only its owner or a company admin can change a report	solo su propietario o un administrador de la empresa puede cambiar un informe
+only daily log admins can see the recycle bin	solo los administradores de bitácoras diarias pueden ver la papelera
+only daily log admins can delete daily logs (authors can delete their own drafts)	solo los administradores de bitácoras diarias pueden eliminar bitácoras (los autores pueden eliminar sus propios borradores)
+only company admins keep the company's holiday lists	solo los administradores de la empresa mantienen las listas de feriados de la empresa
+only company admins can make or remove company admins	solo los administradores de la empresa pueden crear o quitar administradores de la empresa
+only commitments admins can remove files once a commitment is approved	solo los administradores de compromisos pueden quitar archivos una vez aprobado un compromiso
+only assignees, the RFI manager and RFI admins can respond to {}	solo los asignados, el responsable de la RFI y los administradores de RFI pueden responder a {}
+only admins can delete a {} (authors can delete their own until it is settled)	solo los administradores pueden eliminar un {} (los autores pueden eliminar el suyo hasta que se resuelva)
+only admins can delete a {} (authors can delete their own open ones)	solo los administradores pueden eliminar un {} (los autores pueden eliminar los suyos abiertos)
+only admins can clear a recorded signature	solo los administradores pueden borrar una firma registrada
+only a signed-in person has a language	solo una persona con sesión iniciada tiene un idioma
+only a named approver can answer	solo un aprobador designado puede responder
+only Timesheets admins can submit someone else's hours	solo los administradores de Hojas de horas pueden enviar las horas de otra persona
+only Timesheets admins can see other people's hours	solo los administradores de Hojas de horas pueden ver las horas de otras personas
+only Timesheets admins can log hours for someone else	solo los administradores de Hojas de horas pueden registrar horas de otra persona
+only Timesheets admins can log hours for a crew	solo los administradores de Hojas de horas pueden registrar horas de una cuadrilla
+only Documents admins can restrict a document to named people	solo los administradores de Documentos pueden restringir un documento a personas concretas
+only Documents admins can make a folder private	solo los administradores de Documentos pueden hacer privada una carpeta
+only Documents admins can change who may open a folder	solo los administradores de Documentos pueden cambiar quién puede abrir una carpeta
+only Directory admins can give or remove sign-in access	solo los administradores del Directorio pueden dar o quitar el acceso de inicio de sesión
+only Directory admins can deactivate people	solo los administradores del Directorio pueden desactivar personas
+only Directory admins can change company permissions	solo los administradores del Directorio pueden cambiar los permisos de la empresa
+notifications belong to a person	las notificaciones pertenecen a una persona
+notification {} not found	notificación {} no encontrada
+no sealed bids are waiting	no hay ofertas selladas en espera
+no question {} on this package	no hay pregunta {} en este paquete
+no measurements on the sheet match that kind and label	ninguna medición del plano coincide con ese tipo y etiqueta
+meeting template {} not found in this project	plantilla de reunión {} no encontrada en este proyecto
+making a task needs Standard access to Tasks	crear una tarea requiere acceso Estándar a Tareas
+list at least one item or attach a file	indique al menos un elemento o adjunte un archivo
+line {} already has 5 files	la línea {} ya tiene 5 archivos
+keeping the catalogue takes Standard access to Estimating on a project	mantener el catálogo requiere acceso Estándar a Estimación de costos en un proyecto
+issue the estimate before putting it in the budget	emita la estimación antes de ponerla en el presupuesto
+invoices exist for this contract; void them first	existen facturas de este contrato; anúlelas primero
+invoices exist for this contract, so its schedule of values can't change	existen facturas de este contrato, así que su calendario de valores no puede cambiar
+invoices exist for this commitment, so its lines can't change (use a change order)	existen facturas de este compromiso, así que sus líneas no pueden cambiar (use una orden de cambio)
+invite at least one company first, or turn on the open bid link	invite primero al menos a una empresa, o active el enlace de licitación abierto
+inspection template not found in this project	plantilla de inspección no encontrada en este proyecto
+form template {} not found in this project	plantilla de formulario {} no encontrada en este proyecto
+form schedule {} not found in this project	programación de formulario {} no encontrada en este proyecto
+folders nest at most {} deep	las carpetas se anidan como máximo {} niveles
+folder {} not found in this project	carpeta {} no encontrada en este proyecto
+estimate templates need access to estimating on a project	las plantillas de estimación requieren acceso a la estimación de costos de un proyecto
+estimate template {} not found	plantilla de estimación {} no encontrada
+enter some work completed on {} before submitting it	anote algo de trabajo completado en {} antes de enviarlo
+direct cost {} not found in this project	costo directo {} no encontrado en este proyecto
+cost code {} not found for this project	código de costo {} no encontrado para este proyecto
+companies are answering this questionnaire; change theirs first	hay empresas respondiendo este cuestionario; cambie primero las suyas
+choose at least one reviewer before sending the submittal for review	elija al menos un revisor antes de enviar el submittal a revisión
+choose a questionnaire first	elija primero un cuestionario
+baseline {} not found in this project	línea base {} no encontrada en este proyecto
+at most {} questionnaires	como máximo {} cuestionarios
+at most {} assemblies	como máximo {} conjuntos
+assemblies are for people who work on estimates	los conjuntos son para quienes trabajan en estimaciones
+answer these first: {}	responda primero estas: {}
+an assembly uses this item; take it out of the assembly first	un conjunto usa este artículo; quítelo primero del conjunto
+adding cost codes takes a project admin	añadir códigos de costo requiere un administrador del proyecto
+add at least one line first	añada primero al menos una línea
+add at least one item first	añada primero al menos un elemento
+a summary task follows its tasks; move those instead	una tarea resumen sigue a sus tareas; mueva estas en su lugar
+a signature belongs to a person	una firma pertenece a una persona
+a sheet keeps at most {} revisions	una hoja admite como máximo {} revisiones
+a revision holds at most {} markups	una revisión admite como máximo {} anotaciones
+a record can have at most {} links	un registro puede tener como máximo {} enlaces
+a project's log holds at most {} sheets	el registro de un proyecto admite como máximo {} hojas
+a project keeps at most {} snapshots	un proyecto guarda como máximo {} instantáneas
+a project keeps at most {} budget views	un proyecto guarda como máximo {} vistas de presupuesto
+a project keeps at most 5,000 pay rates	un proyecto guarda como máximo 5000 tarifas de pago
+a project keeps at most 30 correspondence types	un proyecto guarda como máximo 30 tipos de correspondencia
+a project keeps at most 20 baselines; delete one first	un proyecto guarda como máximo 20 líneas base; elimine una primero
+a project keeps at most 100 meeting templates	un proyecto guarda como máximo 100 plantillas de reunión
+a project keeps at most 100 form schedules	un proyecto guarda como máximo 100 programaciones de formularios
+a project keeps at most 100 crews	un proyecto guarda como máximo 100 cuadrillas
+a project holds at most {} photos	un proyecto admite como máximo {} fotos
+a project holds at most {} folders	un proyecto admite como máximo {} carpetas
+a photo can be tagged to at most {} items	una foto puede etiquetarse en como máximo {} elementos
+a package invites at most {} companies	un paquete invita como máximo a {} empresas
+a package can invite at most {} companies	un paquete puede invitar como máximo a {} empresas
+a package can have at most {} links	un paquete puede tener como máximo {} enlaces
+a form is signed once it is submitted	un formulario queda firmado al enviarse
+a document keeps at most {} versions	un documento guarda como máximo {} versiones
+a default view belongs to a person	una vista predeterminada pertenece a una persona
+a completed plan takes no more files; reopen it first	un plan completado no admite más archivos; reábralo primero
+a completed plan keeps its files; reopen it first	un plan completado conserva sus archivos; reábralo primero
+a bid can have at most {} files	una oferta puede tener como máximo {} archivos

@@ -98,7 +98,12 @@ mod tests {
             for (k, v) in &rows {
                 assert!(seen.insert(*k), "`{k}` twice");
                 assert!(!v.trim().is_empty(), "`{k}` has no translation");
-                assert_eq!(k.matches("{}").count(), v.matches("{}").count(), "`{k}` → `{v}` doesn't keep its values");
+                let n = k.matches("{}").count();
+                let numbered = (1..=n).filter(|i| v.contains(&format!("{{{i}}}"))).count();
+                assert!(
+                    v.matches("{}").count() == n && numbered == 0 || v.matches("{}").count() == 0 && numbered == n,
+                    "`{k}` → `{v}` doesn't keep its values"
+                );
                 assert!(code.contains(k), "`{k}` is no longer in the viewer");
             }
             keys.push(rows.iter().map(|(k, _)| *k).collect());

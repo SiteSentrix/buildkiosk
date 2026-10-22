@@ -23,4 +23,12 @@ That is as many points as one path can have; press Enter to finish.	Dat is het m
 Loading…	Laden…
 Scale set from a stretch of {}. Lengths and areas drawn on this page use it.	Schaal ingesteld op basis van een stuk van {}. Lengtes en oppervlakten op deze pagina gebruiken die.
 No scale set on this page. Use the Scale tool to set it, then measure lengths and areas.	Deze pagina heeft geen schaal. Gebruik het hulpmiddel Schaal om die in te stellen en meet daarna lengtes en oppervlakten.
+Drag to move the task, or drag its end to change its length.	Sleep om de taak te verplaatsen, of sleep het einde om de duur te wijzigen.
+Move {} {} later. Let go to save.	{1} {2} later verplaatsen. Laat los om op te slaan.
+Move {} {} earlier. Let go to save.	{1} {2} eerder verplaatsen. Laat los om op te slaan.
+Finish {} {} later. Let go to save.	Einde {1} {2} later. Laat los om op te slaan.
+Finish {} {} earlier. Let go to save.	Einde {1} {2} eerder. Laat los om op te slaan.
+day	dag
+days	dagen
+Saving…	Opslaan…
 {} of {}	{} van {}

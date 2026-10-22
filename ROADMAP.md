@@ -25,6 +25,7 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 - 2026-10-20: Schedule: resource levelling (preview and apply on the resources page; `schedule.level_plan`, `schedule.level`), and resources, limits and the working calendar read from Microsoft Project XML files on request.
 - 2026-10-14: Releases: pushing a version tag runs the gate, builds the program for Linux (static), macOS and Windows with the sheet viewer embedded, checksums and attests the archives, and publishes a GitHub release; `install.sh` installs one after checking its checksum (`docs/deployment.md`). `buildkiosk version` added.
 - 2026-10-16: Container image: the release workflow also builds a multi-architecture (Linux x86_64 and aarch64) image from the same static binaries and pushes it to `ghcr.io/sitesentrix/buildkiosk` on a tag (`contrib/docker/Dockerfile`, `docs/deployment.md`).
+- 2026-10-22: Drawings: a PDF of several sheets can be split into one sheet per page on upload.
 - 2026-10-21: Drawings: a Count markup, cost codes on counts and measurements, and a project quantities report (page and CSV) added up by cost code, kind and label.
 - 2026-10-21: Contract signing: unused signing links get up to three reminder emails, three days apart.
 - 2026-10-21: Contract signing: the company can counter-sign on the contract's page.

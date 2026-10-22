@@ -13,6 +13,7 @@
 8'-6" above finished floor. The RCP will be revised.
 9:00 AM
 A Forms admin needs to create a template first.
+A PDF here holds several sheets
 A baseline is the schedule's dates kept under a name, so progress can be measured against them. Save one when the contract is signed and another after a re-plan.
 A bid
 A bid bond of
@@ -2669,6 +2670,7 @@ last six months
 leveled
 lines can't be edited, added or imported.
 low {}
+make one sheet of each page (numbered after the file, then the page; rename them afterwards)
 marcus.lee@example.com
 milestone (yes or no), then a constraint (snet, mso or fnlt) and its date, then the resources the task needs each working day, such as Carpenter 4, Laborer 2.
 name, unit, unit cost, category (optional), cost code (optional, from the company's standard list). An item with the same name has its price changed.

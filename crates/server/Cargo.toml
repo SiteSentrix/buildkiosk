@@ -12,6 +12,7 @@ buildkiosk-core = { workspace = true }
 buildkiosk-engine = { workspace = true }
 buildkiosk-mcp = { workspace = true }
 roxmltree = { workspace = true }
+lopdf = { version = "0.46", default-features = false }
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 futures-util = { version = "0.3", default-features = false }
 hayro = "0.8"
@@ -33,6 +34,7 @@ base64 = { workspace = true }
 
 [build-dependencies]
 roxmltree = { workspace = true }
+lopdf = { version = "0.46", default-features = false }
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 
 [dev-dependencies]

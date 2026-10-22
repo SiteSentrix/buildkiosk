@@ -13,6 +13,7 @@
 8'-6" above finished floor. The RCP will be revised.	8'-6" sobre el piso terminado. Se revisará el RCP.
 9:00 AM	9:00 AM
 A Forms admin needs to create a template first.	Un administrador de formularios debe crear primero una plantilla.
+A PDF here holds several sheets	Un PDF de aquí contiene varios planos
 A baseline is the schedule's dates kept under a name, so progress can be measured against them. Save one when the contract is signed and another after a re-plan.	Una línea base son las fechas del cronograma guardadas con un nombre, para poder medir el avance contra ellas. Guarda una al firmar el contrato y otra después de una replanificación.
 A bid	Una oferta
 A bid bond of	Se requiere una fianza de oferta de
@@ -2669,6 +2670,7 @@ last six months	últimos seis meses
 leveled	nivelado
 lines can't be edited, added or imported.	no se pueden editar, añadir ni importar líneas.
 low {}	bajo {}
+make one sheet of each page (numbered after the file, then the page; rename them afterwards)	haga un plano de cada página (numerado según el archivo y luego la página; cámbieles el nombre después)
 marcus.lee@example.com	marcus.lee@example.com
 milestone (yes or no), then a constraint (snet, mso or fnlt) and its date, then the resources the task needs each working day, such as Carpenter 4, Laborer 2.	hito (sí o no), luego una restricción (snet, mso o fnlt) y su fecha, luego los recursos que la tarea necesita cada día laborable, como Carpenter 4, Laborer 2.
 name, unit, unit cost, category (optional), cost code (optional, from the company's standard list). An item with the same name has its price changed.	nombre, unidad, costo unitario, categoría (opcional), código de costo (opcional, de la lista estándar de la empresa). Un elemento con el mismo nombre cambia su precio.

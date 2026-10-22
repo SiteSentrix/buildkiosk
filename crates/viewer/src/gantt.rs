@@ -9,6 +9,7 @@ use wasm_bindgen::JsCast;
 use web_sys::{Document, Element, HtmlFormElement, HtmlInputElement, PointerEvent};
 
 use crate::dom::{listen, ok};
+use crate::words::Words;
 
 /// The most days one drag may move a task by (the command's limit).
 const MAX_DAYS: i64 = 3_650;
@@ -23,16 +24,22 @@ pub fn days_moved(dx: f64, width_px: f64, days: f64) -> i64 {
     ((dx / (width_px / days)).round() as i64).clamp(-MAX_DAYS, MAX_DAYS)
 }
 
-/// What a drag of `days` would do, for the hint.
+/// What a drag of `days` would do, for the hint (in English).
 pub fn describe(days: i64, resize: bool) -> String {
+    describe_in(&Words::default(), days, resize)
+}
+
+/// What a drag of `days` would do, in the page's language.
+pub fn describe_in(words: &Words, days: i64, resize: bool) -> String {
     let n = days.unsigned_abs();
-    let unit = if n == 1 { "day" } else { "days" };
+    let unit = words.t(if n == 1 { "day" } else { "days" });
+    let n = n.to_string();
     match (days, resize) {
-        (0, _) => "Drag to move the task, or drag its end to change its length.".into(),
-        (d, false) if d > 0 => format!("Move {n} {unit} later. Let go to save."),
-        (_, false) => format!("Move {n} {unit} earlier. Let go to save."),
-        (d, true) if d > 0 => format!("Finish {n} {unit} later. Let go to save."),
-        (_, true) => format!("Finish {n} {unit} earlier. Let go to save."),
+        (0, _) => words.t("Drag to move the task, or drag its end to change its length."),
+        (d, false) if d > 0 => words.tf("Move {} {} later. Let go to save.", &[&n, &unit]),
+        (_, false) => words.tf("Move {} {} earlier. Let go to save.", &[&n, &unit]),
+        (d, true) if d > 0 => words.tf("Finish {} {} later. Let go to save.", &[&n, &unit]),
+        (_, true) => words.tf("Finish {} {} earlier. Let go to save.", &[&n, &unit]),
     }
 }
 
@@ -60,9 +67,11 @@ fn input(document: &Document, id: &str) -> Option<HtmlInputElement> {
 pub fn start(document: Document, root: Element) {
     let total: f64 = root.get_attribute("data-days").and_then(|d| d.parse().ok()).unwrap_or(0.0);
     let drag: Rc<RefCell<Option<Drag>>> = Rc::new(RefCell::new(None));
-    hint(&document, &describe(0, false));
+    let lang = document.document_element().and_then(|e| e.get_attribute("lang")).unwrap_or_default();
+    let words = Rc::new(Words::for_language(&lang));
+    hint(&document, &describe_in(&words, 0, false));
 
-    let (d, state) = (document.clone(), drag.clone());
+    let (d, state, w) = (document.clone(), drag.clone(), words.clone());
     listen(&root, "pointerdown", move |e: PointerEvent| {
         let Some(target) = e.target().and_then(|t| t.dyn_into::<Element>().ok()) else { return };
         let Ok(Some(grabbed)) = target.closest("[data-task]") else { return };
@@ -94,10 +103,10 @@ pub fn start(document: Document, root: Element) {
             parts,
             pointer: e.pointer_id(),
         });
-        hint(&d, &describe(0, resize));
+        hint(&d, &describe_in(&w, 0, resize));
     });
 
-    let (d, state) = (document.clone(), drag.clone());
+    let (d, state, w) = (document.clone(), drag.clone(), words.clone());
     listen(&root, "pointermove", move |e: PointerEvent| {
         let mut slot = state.borrow_mut();
         let Some(g) = slot.as_mut().filter(|g| g.pointer == e.pointer_id()) else { return };
@@ -113,11 +122,11 @@ pub fn start(document: Document, root: Element) {
                 ok(el.set_attribute("transform", &format!("translate({units:.1} 0)")));
             }
         }
-        hint(&d, &describe(g.days, g.resize));
+        hint(&d, &describe_in(&w, g.days, g.resize));
     });
 
     for name in ["pointerup", "pointercancel"] {
-        let (d, state) = (document.clone(), drag.clone());
+        let (d, state, w) = (document.clone(), drag.clone(), words.clone());
         let save = name == "pointerup";
         listen(&root, name, move |e: PointerEvent| {
             let Some(g) = state.borrow_mut().take_if(|g| g.pointer == e.pointer_id()) else { return };
@@ -130,7 +139,7 @@ pub fn start(document: Document, root: Element) {
                 }
             }
             if !save || g.days == 0 {
-                hint(&d, &describe(0, false));
+                hint(&d, &describe_in(&w, 0, false));
                 return;
             }
             let (shift, other) = if g.resize { ("gm-fshift", "gm-shift") } else { ("gm-shift", "gm-fshift") };
@@ -144,7 +153,7 @@ pub fn start(document: Document, root: Element) {
                     .and_then(|c| c.query_selector("form").ok().flatten())
                     .and_then(|f| f.dyn_into::<HtmlFormElement>().ok())
                 {
-                    hint(&d, "Saving…");
+                    hint(&d, &w.t("Saving…"));
                     ok(form.submit());
                 }
             }
@@ -175,5 +184,10 @@ mod tests {
         assert!(describe(-1, false).starts_with("Move 1 day earlier"));
         assert!(describe(2, true).starts_with("Finish 2 days later"));
         assert!(describe(0, true).starts_with("Drag"));
+        // In another language, with the unit's name and the number put where that language wants them.
+        let nl = Words::for_language("nl");
+        assert_eq!(describe_in(&nl, 3, false), "3 dagen later verplaatsen. Laat los om op te slaan.");
+        assert_eq!(describe_in(&nl, -1, true), "Einde 1 dag eerder. Laat los om op te slaan.");
+        assert_eq!(describe_in(&Words::for_language("es"), 2, true), "Terminar 2 días más tarde. Suelte para guardar.");
     }
 }

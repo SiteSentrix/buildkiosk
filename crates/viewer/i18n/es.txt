@@ -23,3 +23,11 @@ That is as many points as one path can have; press Enter to finish.	Es el máxim
 Loading…	Cargando…
 Scale set from a stretch of {}. Lengths and areas drawn on this page use it.	Escala fijada a partir de un tramo de {}. Las longitudes y áreas dibujadas en esta página la usan.
 No scale set on this page. Use the Scale tool to set it, then measure lengths and areas.	Esta página no tiene escala. Use la herramienta Escala para fijarla y luego mida longitudes y áreas.
+Drag to move the task, or drag its end to change its length.	Arrastre para mover la tarea, o arrastre su extremo para cambiar su duración.
+Move {} {} later. Let go to save.	Mover {1} {2} más tarde. Suelte para guardar.
+Move {} {} earlier. Let go to save.	Mover {1} {2} antes. Suelte para guardar.
+Finish {} {} later. Let go to save.	Terminar {1} {2} más tarde. Suelte para guardar.
+Finish {} {} earlier. Let go to save.	Terminar {1} {2} antes. Suelte para guardar.
+day	día
+days	días
+Saving…	Guardando…

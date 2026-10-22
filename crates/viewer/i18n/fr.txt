@@ -23,3 +23,11 @@ That is as many points as one path can have; press Enter to finish.	C'est le nom
 Loading…	Chargement…
 Scale set from a stretch of {}. Lengths and areas drawn on this page use it.	Échelle définie à partir d'un tronçon de {}. Les longueurs et surfaces dessinées sur cette page l'utilisent.
 No scale set on this page. Use the Scale tool to set it, then measure lengths and areas.	Aucune échelle n'est définie sur cette page. Utilisez l'outil Échelle pour la définir, puis mesurez longueurs et surfaces.
+Drag to move the task, or drag its end to change its length.	Faites glisser pour déplacer la tâche, ou glissez son extrémité pour changer sa durée.
+Move {} {} later. Let go to save.	Reporter de {1} {2}. Relâchez pour enregistrer.
+Move {} {} earlier. Let go to save.	Avancer de {1} {2}. Relâchez pour enregistrer.
+Finish {} {} later. Let go to save.	Fin repoussée de {1} {2}. Relâchez pour enregistrer.
+Finish {} {} earlier. Let go to save.	Fin avancée de {1} {2}. Relâchez pour enregistrer.
+day	jour
+days	jours
+Saving…	Enregistrement…

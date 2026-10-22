@@ -509,3 +509,185 @@ a default view belongs to a person	een standaardweergave hoort bij een persoon
 a completed plan takes no more files; reopen it first	een voltooid plan neemt geen bestanden meer aan; heropen het eerst
 a completed plan keeps its files; reopen it first	een voltooid plan behoudt zijn bestanden; heropen het eerst
 a bid can have at most {} files	een bod kan maximaal {} bestanden hebben
+{} is {}; only {} change events can be {}	{} is {}; alleen wijzigingsgebeurtenissen die {} zijn kunnen worden {}
+{} checklist line{} still need an answer	{} checklistregel{} heeft nog een antwoord nodig
+bids are in, and they refer to the scope items, form lines and alternates by place; withdraw them before changing those	er zijn biedingen binnen en die verwijzen op positie naar de scope-items, formulierregels en alternatieven; trek ze in voordat u die wijzigt
+an item of this assembly is no longer in the catalogue	een item van deze samenstelling staat niet meer in de catalogus
+adding a company to the directory needs directory access; choose an existing company instead	een bedrijf aan het adresboek toevoegen vereist adresboektoegang; kies in plaats daarvan een bestaand bedrijf
+`{}` {}: the answer must be text	`{}` {}: het antwoord moet tekst zijn
+`{}` {}: give a score from 0 to 10	`{}` {}: geef een score van 0 tot 10
+`{}` {} would be billed {} to date against a scheduled value of {}	`{}` {} zou tot nu toe {} gefactureerd zijn bij een geplande waarde van {}
+`{}` {} is worked out from the bids, not scored	`{}` {} wordt uit de biedingen berekend, niet gescoord
+`{}` {} is listed twice	`{}` {} staat twee keer in de lijst
+`{}` {} has no signing role `{}`	`{}` {} heeft geen ondertekeningsrol `{}`
+`{}` {} has no revision {}	`{}` {} heeft geen revisie {}
+`{}` would finish the task before it starts	`{}` zou de taak laten eindigen voordat die begint
+`{}` weights add up to {}, not 100	`{}` de gewichten tellen op tot {}, niet 100
+`{}` type your own full name to sign	`{}` typ uw eigen volledige naam om te ondertekenen
+`{}` there is no task {} in this schedule	`{}` er is geen taak {} in deze planning
+`{}` there is no question `{}`	`{}` er is geen vraag `{}`
+`{}` there is no criterion {}	`{}` er is geen criterium {}
+`{}` the totals are too large to add up	`{}` de totalen zijn te groot om op te tellen
+`{}` the total is too large	`{}` het totaal is te groot
+`{}` the stretch must be at least 1% of the page's height long	`{}` het stuk moet minstens 1% van de paginahoogte lang zijn
+`{}` the package has no scope item {}	`{}` het pakket heeft geen scope-item {}
+`{}` the package has no alternate {}	`{}` het pakket heeft geen alternatief {}
+`{}` the line total is too large	`{}` het regeltotaal is te groot
+`{}` the id {} is used twice	`{}` id {} wordt twee keer gebruikt
+`{}` the bid form has no line {}	`{}` het biedformulier heeft geen regel {}
+`{}` tasks nest more than {} deep	`{}` taken nesten meer dan {} niveaus diep
+`{}` task {}: predecessor {} would make a loop	`{}` taak {}: voorganger {} zou een lus maken
+`{}` task {}: predecessor {} is not in the file	`{}` taak {}: voorganger {} staat niet in het bestand
+`{}` task {}: parent {} is not in the file	`{}` taak {}: bovenliggende taak {} staat niet in het bestand
+`{}` task {}: `{}`: the lag is out of range	`{}` taak {}: `{}`: de vertraging valt buiten het bereik
+`{}` task {}: `{}` has a bad lag	`{}` taak {}: `{}` heeft een ongeldige vertraging
+`{}` submittal {} not found in this project	`{}` submittal {} niet gevonden in dit project
+`{}` section {}, question {} is not on the questionnaire	`{}` sectie {}, vraag {} staat niet in de vragenlijst
+`{}` row {} is listed twice	`{}` rij {} staat twee keer in de lijst
+`{}` price every line of the bid form ({} of {} given)	`{}` prijs elke regel van het biedformulier ({} van {} ingevuld)
+`{}` plan template {} not found	`{}` plansjabloon {} niet gevonden
+`{}` photos must be JPEG, PNG, GIF or WebP pictures	`{}` foto's moeten JPEG-, PNG-, GIF- of WebP-afbeeldingen zijn
+`{}` person {} is not an active user with an email address	`{}` persoon {} is geen actieve gebruiker met een e-mailadres
+`{}` person {} can't run this report: share it first	`{}` persoon {} kan dit rapport niet uitvoeren: deel het eerst
+`{}` only one criterion can be the price	`{}` slechts één criterium kan de prijs zijn
+`{}` needs at least {} points	`{}` heeft minstens {} punten nodig
+`{}` needs at least one section, and every section at least one question	`{}` heeft minstens één sectie nodig, en elke sectie minstens één vraag
+`{}` needs at least one question	`{}` heeft minstens één vraag nodig
+`{}` needs 1 to {} parts	`{}` heeft 1 tot {} delen nodig
+`{}` names more than {} people	`{}` noemt meer dan {} personen
+`{}` names more than five roles	`{}` noemt meer dan vijf rollen
+`{}` names more than 200 people	`{}` noemt meer dan 200 personen
+`{}` names more than 20 people	`{}` noemt meer dan 20 personen
+`{}` name between 1 and {} people	`{}` noem tussen 1 en {} personen
+`{}` name at least one person who should see it	`{}` noem minstens één persoon die het moet zien
+`{}` name at least one person to send it to	`{}` noem minstens één persoon naar wie het moet worden gestuurd
+`{}` must not be zero	`{}` mag niet nul zijn
+`{}` must contain letters or digits	`{}` moet letters of cijfers bevatten
+`{}` must be weekly, biweekly or monthly (and stay inside the supported dates)	`{}` moet weekly, biweekly of monthly zijn (en binnen de ondersteunde data blijven)
+`{}` must be text	`{}` moet tekst zijn
+`{}` must be pass, fail or na	`{}` moet pass, fail of na zijn
+`{}` must be one of the columns	`{}` moet een van de kolommen zijn
+`{}` must be on or after from, within a year	`{}` moet op of na from liggen, binnen een jaar
+`{}` must be off, daily, weekly or monthly	`{}` moet off, daily, weekly of monthly zijn
+`{}` must be labor, material, equipment, subcontract or other	`{}` moet labor, material, equipment, subcontract of other zijn
+`{}` must be en, es, fr or nl (empty follows the browser)	`{}` moet en, es, fr of nl zijn (leeg volgt de browser)
+`{}` must be dim, area, pin or count	`{}` moet dim, area, pin of count zijn
+`{}` must be daily, weekly, biweekly, monthly, month_end, quarterly or yearly	`{}` moet daily, weekly, biweekly, monthly, month_end, quarterly of yearly zijn
+`{}` must be between {} and {}	`{}` moet tussen {} en {} liggen
+`{}` must be between 100% and 500%	`{}` moet tussen 100% en 500% liggen
+`{}` must be between 0 and 168	`{}` moet tussen 0 en 168 liggen
+`{}` must be approved or rejected	`{}` moet approved of rejected zijn
+`{}` must be approval, insurance or license	`{}` moet approval, insurance of license zijn
+`{}` must be an id	`{}` moet een id zijn
+`{}` must be above zero	`{}` moet groter dan nul zijn
+`{}` must be above 0 and at most 100	`{}` moet groter dan 0 zijn en hoogstens 100
+`{}` must be above 0 and at most 10,000 an hour	`{}` moet groter dan 0 zijn en hoogstens 10.000 per uur
+`{}` must be a whole number from 0 to {}	`{}` moet een geheel getal van 0 tot {} zijn
+`{}` must be a weekday such as monday	`{}` moet een weekdag zijn zoals monday
+`{}` must be a three-letter ISO code such as USD	`{}` moet een ISO-code van drie letters zijn, zoals USD
+`{}` must be a positive id	`{}` moet een positief id zijn
+`{}` must be a different company	`{}` moet een ander bedrijf zijn
+`{}` meeting {} not found in this project	`{}` vergadering {} niet gevonden in dit project
+`{}` meeting template {} not found in this project	`{}` vergadersjabloon {} niet gevonden in dit project
+`{}` may hold only letters and digits	`{}` mag alleen letters en cijfers bevatten
+`{}` makes the task longer than ten years	`{}` maakt de taak langer dan tien jaar
+`{}` lists more than {} submittals	`{}` bevat meer dan {} submittals
+`{}` lists more than {} resources	`{}` bevat meer dan {} resources
+`{}` lists more than {} entries	`{}` bevat meer dan {} items
+`{}` lists more than {} documents	`{}` bevat meer dan {} documenten
+`{}` lists more than {} days off	`{}` bevat meer dan {} vrije dagen
+`{}` lists more than {} companies	`{}` bevat meer dan {} bedrijven
+`{}` lists more than {} RFIs	`{}` bevat meer dan {} RFI's
+`{}` lists more than 50 predecessors	`{}` bevat meer dan 50 voorgangers
+`{}` lists more than 10 criteria	`{}` bevat meer dan 10 criteria
+`{}` is required for `{}`	`{}` is verplicht voor `{}`
+`{}` is required: included, excluded or unclear	`{}` is verplicht: included, excluded of unclear
+`{}` is required: a number above zero (up to three decimals)	`{}` is verplicht: een getal groter dan nul (tot drie decimalen)
+`{}` is required when no template is used	`{}` is verplicht als er geen sjabloon wordt gebruikt
+`{}` is required on every markup	`{}` is verplicht bij elke markering
+`{}` is required for an agenda item	`{}` is verplicht voor een agendapunt
+`{}` is required for a crew	`{}` is verplicht voor een ploeg
+`{}` is required (ft, in, m or mm)	`{}` is verplicht (ft, in, m of mm)
+`{}` is not a weekday	`{}` is geen weekdag
+`{}` is needed with a constraint date (this task has none)	`{}` is nodig bij een beperkingsdatum (deze taak heeft er geen)
+`{}` is more than ten years after the start	`{}` ligt meer dan tien jaar na de start
+`{}` is in the assembly twice; give it one line	`{}` staat twee keer in de samenstelling; geef het één regel
+`{}` is below the {} of the bid this package requires ({})	`{}` ligt onder het {} van het bod dat dit pakket vereist ({})
+`{}` is before the start	`{}` ligt vóór de start
+`{}` is answered twice	`{}` is twee keer beantwoord
+`{}` is already used by another view	`{}` wordt al door een andere weergave gebruikt
+`{}` is already used by another type	`{}` wordt al door een ander type gebruikt
+`{}` is already used by another questionnaire	`{}` wordt al door een andere vragenlijst gebruikt
+`{}` is already used by another assembly	`{}` wordt al door een andere samenstelling gebruikt
+`{}` is already the name of a holiday list	`{}` is al de naam van een feestdagenlijst
+`{}` is already the name of a crew	`{}` is al de naam van een ploeg
+`{}` is already past	`{}` is al voorbij
+`{}` is already one of your reports	`{}` is al een van uw rapporten
+`{}` is already in the catalogue	`{}` staat al in de catalogus
+`{}` is already a type of this project	`{}` is al een type van dit project
+`{}` holiday list {} not found	`{}` feestdagenlijst {} niet gevonden
+`{}` holds more than {} questions	`{}` bevat meer dan {} vragen
+`{}` holds more than {} markups	`{}` bevat meer dan {} markeringen
+`{}` holds more than 1,000 lines	`{}` bevat meer dan 1.000 regels
+`{}` has no cost code this project uses; choose one	`{}` heeft geen kostencode die dit project gebruikt; kies er een
+`{}` has more than {} tasks	`{}` heeft meer dan {} taken
+`{}` has more than {} sheets	`{}` heeft meer dan {} bladen
+`{}` has more than {} sections or {} questions in one	`{}` heeft meer dan {} secties of {} vragen in één
+`{}` has more than {} points	`{}` heeft meer dan {} punten
+`{}` has more than {} items	`{}` heeft meer dan {} items
+`{}` has more than 5,000 lines	`{}` heeft meer dan 5.000 regels
+`{}` has more than 20,000 lines	`{}` heeft meer dan 20.000 regels
+`{}` has more than 20,000 codes	`{}` heeft meer dan 20.000 codes
+`{}` give shift (to move the task) or finish_shift (to change its length), not both	`{}` geef shift (om de taak te verplaatsen) of finish_shift (om de duur te wijzigen), niet beide
+`{}` folders can be at most {} levels deep	`{}` mappen kunnen maximaal {} niveaus diep zijn
+`{}` estimate template {} not found	`{}` ramingssjabloon {} niet gevonden
+`{}` document {} not found in this project	`{}` document {} niet gevonden in dit project
+`{}` crew {} not found in this project	`{}` ploeg {} niet gevonden in dit project
+`{}` cost_code, amount and description are required	`{}` cost_code, amount en description zijn verplicht
+`{}` cost code {} not found	`{}` kostencode {} niet gevonden
+`{}` cost code {} exists on this project	`{}` kostencode {} bestaat al in dit project
+`{}` choose one of the project's types: {}	`{}` kies een van de typen van het project: {}
+`{}` choose at least one person or group to tell	`{}` kies minstens één persoon of groep om te informeren
+`{}` catalogue item {} not found	`{}` catalogusitem {} niet gevonden
+`{}` can't be one of the task's own children	`{}` kan niet een van de eigen subtaken van de taak zijn
+`{}` can't be in the future; record a price on the day it applies	`{}` kan niet in de toekomst liggen; leg een prijs vast op de dag dat die geldt
+`{}` can't be before the day the contract was sent	`{}` kan niet vóór de dag liggen waarop het contract is verzonden
+`{}` can't be before the day it was sent	`{}` kan niet vóór de dag liggen waarop het is verzonden
+`{}` can only be run by an administrator from the command line	`{}` kan alleen door een beheerder vanaf de opdrachtregel worden uitgevoerd
+`{}` can hold at most 50 categories	`{}` kan maximaal 50 categorieën bevatten
+`{}` answer yes or no	`{}` antwoord ja of nee
+`{}` already has 50 predecessors	`{}` heeft al 50 voorgangers
+`{}` a task can't be its own parent	`{}` een taak kan niet zijn eigen bovenliggende taak zijn
+`{}` a row is not part of the contract (is its change order approved?)	`{}` een rij maakt geen deel uit van het contract (is de wijzigingsopdracht goedgekeurd?)
+`{}` a report goes to at most {} people	`{}` een rapport gaat naar maximaal {} personen
+`{}` a project can take at most 10 holiday lists	`{}` een project kan maximaal 10 feestdagenlijsten hebben
+`{}` a milestone has no length; move it instead	`{}` een mijlpaal heeft geen duur; verplaats die in plaats daarvan
+`{}` a folder can't be moved into itself or into a folder inside it	`{}` een map kan niet in zichzelf of in een map daarbinnen worden verplaatst
+`{}` a contract can have at most {} signers	`{}` een contract kan maximaal {} ondertekenaars hebben
+`{}` a company admin must be able to sign in (set is_user)	`{}` een bedrijfsbeheerder moet kunnen inloggen (stel is_user in)
+`{}` `{}`: the number is too large	`{}` `{}`: het getal is te groot
+`{}` `{}`: start each line with a date as YYYY-MM-DD	`{}` `{}`: begin elke regel met een datum als JJJJ-MM-DD
+`{}` `{}`: a range runs from an earlier weekday to a later one (Monday first)	`{}` `{}`: een bereik loopt van een eerdere naar een latere weekdag (maandag eerst)
+`{}` `{}`: a name and a number from 1 to {}	`{}` `{}`: een naam en een getal van 1 tot {}
+`{}` `{}` needs the answer that shows it	`{}` `{}` heeft het antwoord nodig dat het toont
+`{}` `{}` needs at least two choices	`{}` `{}` heeft minstens twee keuzes nodig
+`{}` `{}` is not rfi, observation or punch	`{}` `{}` is geen rfi, observation of punch
+`{}` `{}` is not one of: {}	`{}` `{}` is niet een van: {}
+`{}` `{}` is not one of the choices of `{}`	`{}` `{}` is geen van de keuzes van `{}`
+`{}` `{}` is not approved or all	`{}` `{}` is niet approved of all
+`{}` `{}` is not an id	`{}` `{}` is geen id
+`{}` `{}` is not a whole number	`{}` `{}` is geen geheel getal
+`{}` `{}` is not a weekday	`{}` `{}` is geen weekdag
+`{}` `{}` is not a valid email address	`{}` `{}` is geen geldig e-mailadres
+`{}` `{}` is not a row key such as c.0 or p.12.0	`{}` `{}` is geen rijsleutel zoals c.0 of p.12.0
+`{}` `{}` is not a report column	`{}` `{}` is geen rapportkolom
+`{}` `{}` is not a quantity (up to three decimals)	`{}` `{}` is geen hoeveelheid (tot drie decimalen)
+`{}` `{}` is not a point written x,y with each from 0 to {}	`{}` `{}` is geen punt geschreven als x,y met elk van 0 tot {}
+`{}` `{}` is not a number of hours (above 0 to 24, one decimal)	`{}` `{}` is geen aantal uren (boven 0 tot 24, één decimaal)
+`{}` `{}` is not a number of hours	`{}` `{}` is geen aantal uren
+`{}` `{}` is not a date (YYYY-MM-DD)	`{}` `{}` is geen datum (JJJJ-MM-DD)
+`{}` `{}` is not a criterion number	`{}` `{}` is geen criteriumnummer
+`{}` `{}` is not a budget column	`{}` `{}` is geen budgetkolom
+`{}` `{}` has more than {} choices	`{}` `{}` heeft meer dan {} keuzes
+`{}` `{}` can depend only on a question above it	`{}` `{}` kan alleen afhangen van een vraag erboven
+`{}` RFI {} not found in this project	`{}` RFI {} niet gevonden in dit project

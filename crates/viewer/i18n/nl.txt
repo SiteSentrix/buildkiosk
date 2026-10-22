@@ -31,3 +31,4 @@ Finish {} {} earlier. Let go to save.	Einde {1} {2} eerder. Laat los om op te sl
 day	dag
 days	dagen
 Saving…	Opslaan…
+{} of {}	{} van {}

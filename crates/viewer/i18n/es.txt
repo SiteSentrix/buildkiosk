@@ -31,3 +31,4 @@ Finish {} {} earlier. Let go to save.	Terminar {1} {2} antes. Suelte para guarda
 day	día
 days	días
 Saving…	Guardando…
+{} of {}	{} de {}

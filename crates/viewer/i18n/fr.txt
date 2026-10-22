@@ -31,3 +31,4 @@ Finish {} {} earlier. Let go to save.	Fin avancée de {1} {2}. Relâchez pour en
 day	jour
 days	jours
 Saving…	Enregistrement…
+{} of {}	{} sur {}

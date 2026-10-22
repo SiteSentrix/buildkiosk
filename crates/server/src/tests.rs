@@ -4132,6 +4132,105 @@ async fn the_company_counter_signs_on_the_team_page() {
 }
 
 #[tokio::test]
+async fn a_pdf_of_several_sheets_becomes_one_sheet_per_page() {
+    let dir = temp("splitset");
+    let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());
+    let (_, h, page) = send(&app, Request::get("/setup").body(Body::empty()).unwrap()).await;
+    let anon = cookies(&h);
+    let body =
+        format!("_csrf={}&name=Acme&first_name=Ada&last_name=Admin&email=ada%40example.com&password=correct-horse-battery", field(&page, "_csrf"));
+    let (_, h, _) = send(&app, post("/setup", &anon, body)).await;
+    let ada = cookies(&h);
+    let get = |uri: &str| Request::get(uri.to_string()).header("cookie", &ada).body(Body::empty()).unwrap();
+    let (_, _, home) = send(&app, get("/")).await;
+    let csrf = field(&home, "_csrf");
+    send(&app, post("/do/project.create", &ada, format!("_csrf={csrf}&name=P"))).await;
+    let (_, _, list) = send(&app, get("/projects/1/drawings")).await;
+    assert!(list.contains("make one sheet of each page"), "{list}");
+
+    // A PDF of several pages, uploaded with and without the box.
+    let blocks =
+        (0..220).map(|i| buildkiosk_web::pdf::Block::Paragraph(format!("Line {i} of the set, with enough words to take room on a page."))).collect();
+    let set = buildkiosk_web::pdf::render(&buildkiosk_web::pdf::Doc {
+        title: "Set".into(),
+        subtitle: "Sheets".into(),
+        running_head: "Acme".into(),
+        blocks,
+    });
+    let pages = crate::pdfsplit::page_count(&set).unwrap();
+    assert!(pages >= 3);
+    let upload = |split: bool, name: &str, bytes: &[u8]| {
+        let mut body = format!("--B\r\nContent-Disposition: form-data; name=\"_csrf\"\r\n\r\n{csrf}\r\n--B\r\nContent-Disposition: form-data; name=\"revision\"\r\n\r\nA\r\n").into_bytes();
+        if split {
+            body.extend_from_slice(b"--B\r\nContent-Disposition: form-data; name=\"split\"\r\n\r\ntrue\r\n");
+        }
+        body.extend_from_slice(
+            format!("--B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{name}\"\r\nContent-Type: application/pdf\r\n\r\n").as_bytes(),
+        );
+        body.extend_from_slice(bytes);
+        body.extend_from_slice(b"\r\n--B--\r\n");
+        Request::post("/projects/1/drawings/upload-set")
+            .header("cookie", &ada)
+            .header("content-type", "multipart/form-data; boundary=B")
+            .body(Body::from(body))
+            .unwrap()
+    };
+    let sheets = || {
+        app.lock()
+            .tenant
+            .as_ref()
+            .unwrap()
+            .engine
+            .state()
+            .drawings
+            .iter()
+            .filter(|d| d.deleted.is_none())
+            .map(|d| (d.number.clone(), d.title.clone()))
+            .collect::<Vec<_>>()
+    };
+
+    // Without the box: one sheet, the whole set.
+    let (_, h, _) = send(&app, upload(false, "Whole.pdf", &set)).await;
+    assert!(h.get(LOCATION).unwrap().to_str().unwrap().contains("ok="), "{h:?}");
+    assert_eq!(sheets().len(), 1);
+
+    // With it: one sheet per page, numbered after the file and the page, each holding a single page.
+    let (_, h, _) = send(&app, upload(true, "Permit Set.pdf", &set)).await;
+    let to = h.get(LOCATION).unwrap().to_str().unwrap().to_string();
+    assert!(to.contains("ok=") && to.contains(&format!("Uploaded%20{pages}%20new%20sheet")), "{to}");
+    let all = sheets();
+    assert_eq!(all.len(), 1 + pages);
+    assert!(all.contains(&("Permit-Set-1".to_string(), format!("Permit Set, page 1 of {pages}"))), "{all:?}");
+    assert!(all.iter().any(|(n, _)| n == &format!("Permit-Set-{pages}")));
+    let file = app
+        .lock()
+        .tenant
+        .as_ref()
+        .unwrap()
+        .engine
+        .state()
+        .drawings
+        .iter()
+        .find(|d| d.number == "Permit-Set-2")
+        .unwrap()
+        .current()
+        .unwrap()
+        .file
+        .clone()
+        .unwrap();
+    let bytes = std::fs::read(app.lock().tenant.as_ref().unwrap().store.blobs.path(&file.sha256).unwrap()).unwrap();
+    assert_eq!(crate::pdfsplit::page_count(&bytes).unwrap(), 1);
+
+    // A file that isn't a PDF, or a PDF that can't be read, stays one sheet and the message says so.
+    let (_, h, _) = send(&app, upload(true, "Broken.pdf", b"%PDF-1.4 not a pdf")).await;
+    let to = h.get(LOCATION).unwrap().to_str().unwrap().to_string();
+    assert!(to.contains("not%20split"), "{to}");
+    assert_eq!(sheets().len(), 2 + pages);
+    drop(app);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
 async fn bidders_use_their_links_without_an_account() {
     let dir = temp("portal");
     let app = Arc::new(App::open(DataDir::open(&dir).unwrap(), None).unwrap());

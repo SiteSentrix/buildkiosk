@@ -8,6 +8,7 @@ mod auth;
 mod exif;
 pub mod harvest;
 mod mail;
+mod pdfsplit;
 mod portal;
 mod prequal_portal;
 mod render;
@@ -3177,20 +3178,33 @@ async fn drawing_upload_set(State(app): State<Shared>, headers: HeaderMap, Path(
             fields.insert(name, String::from_utf8_lossy(&bytes).into_owned());
         }
     }
-    let mut inner = app.lock();
-    let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
-    if !auth::csrf_ok(app.secret(), &s.cookie, fields.get("_csrf").map(String::as_str).unwrap_or_default()) {
-        return plain(StatusCode::FORBIDDEN, "The form expired. Go back, reload the page and try again.");
-    }
+    let person = {
+        let inner = app.lock();
+        let Some(s) = session(&app, &inner, &headers) else { return redirect("/login") };
+        if !auth::csrf_ok(app.secret(), &s.cookie, fields.get("_csrf").map(String::as_str).unwrap_or_default()) {
+            return plain(StatusCode::FORBIDDEN, "The form expired. Go back, reload the page and try again.");
+        }
+        s.person
+    };
     if files.is_empty() {
         return redirect(&with_flash(&back, false, "Choose at least one sheet file."));
     }
+    // A PDF of several sheets can become one sheet per page. This is done after the person is known, and off the lock.
+    let mut names: HashMap<String, (String, String)> = HashMap::new();
+    let mut notes: Vec<String> = Vec::new();
+    if fields.get("split").is_some_and(|v| v == "true") {
+        match tokio::task::spawn_blocking(move || split_pdf_files(files)).await {
+            Ok((split, named, said)) => (files, names, notes) = (split, named, said),
+            Err(_) => return redirect(&with_flash(&back, false, "The set could not be split.")),
+        }
+    }
+    let mut inner = app.lock();
     let get = |k: &str| fields.get(k).map(|v| v.trim().to_string()).unwrap_or_default();
     let revision = Some(get("revision")).filter(|r| !r.is_empty()).unwrap_or_else(|| "1".into());
-    let actor = Actor::Person(s.person);
+    let actor = Actor::Person(person);
     let (mut added, mut revised, mut failed) = (0usize, 0usize, Vec::new());
     for (file, mime, bytes) in &files {
-        let (number, title) = sheet_from_file_name(file);
+        let (number, title) = names.get(file).cloned().unwrap_or_else(|| sheet_from_file_name(file));
         let (sha256, size) = match store_blob(&mut inner, bytes) {
             Ok(x) => x,
             Err(msg) => {
@@ -3239,12 +3253,64 @@ async fn drawing_upload_set(State(app): State<Shared>, headers: HeaderMap, Path(
         }
     }
     let summary = format!("{added} new sheet{} and {revised} new revision{}", if added == 1 { "" } else { "s" }, if revised == 1 { "" } else { "s" });
+    let said = if notes.is_empty() { String::new() } else { format!(" {}.", notes.iter().take(3).cloned().collect::<Vec<_>>().join("; ")) };
     if failed.is_empty() {
-        redirect(&with_flash(&back, true, &format!("Uploaded {summary}.")))
+        redirect(&with_flash(&back, true, &format!("Uploaded {summary}.{said}")))
     } else {
         let first: Vec<String> = failed.iter().take(3).cloned().collect();
         redirect(&with_flash(&back, false, &format!("Uploaded {summary}. Not uploaded: {}", first.join("; "))))
     }
+}
+
+/// The files after splitting, the sheet number and title chosen for each split page, and notes for the person.
+type Split = (Vec<UploadFile>, HashMap<String, (String, String)>, Vec<String>);
+
+/// Turns each PDF of several pages into a file per page, named `<name> p<k>.pdf` and numbered `<name>-<k>` (the title says which page of
+/// how many); everything else, and any PDF that can't be split, is kept as it is (with a note saying why). At most 200 files result.
+fn split_pdf_files(files: Vec<UploadFile>) -> Split {
+    const MOST: usize = 200;
+    let mut out: Vec<UploadFile> = Vec::new();
+    let mut names = HashMap::new();
+    let mut notes = Vec::new();
+    for (file, mime, bytes) in files {
+        let stem: String = file.rsplit_once('.').map_or(file.as_str(), |(s, _)| s).trim().chars().take(60).collect();
+        let pages = if bytes.starts_with(b"%PDF-") { pdfsplit::page_count(&bytes) } else { Ok(1) };
+        match pages {
+            Ok(n) if n > 1 && n <= pdfsplit::MAX_PAGES && out.len() + n <= MOST => {
+                let before = out.len();
+                let mut failed = None;
+                for k in 1..=n {
+                    match pdfsplit::page(&bytes, k) {
+                        Ok(one) => {
+                            let name = format!("{stem} p{k}.pdf");
+                            let number: String = format!("{}-{k}", stem.split_whitespace().collect::<Vec<_>>().join("-"));
+                            names.insert(name.clone(), (number.chars().take(50).collect(), format!("{stem}, page {k} of {n}")));
+                            out.push((name, mime.clone(), Bytes::from(one)));
+                        }
+                        Err(e) => {
+                            failed = Some(e);
+                            break;
+                        }
+                    }
+                }
+                if let Some(e) = failed {
+                    out.truncate(before);
+                    notes.push(format!("{file}: not split, {e}"));
+                    out.push((file, mime, bytes));
+                }
+            }
+            Ok(n) if n > 1 => {
+                notes.push(format!("{file}: not split, it has {n} pages and a set can have at most {} (200 sheets in all)", pdfsplit::MAX_PAGES));
+                out.push((file, mime, bytes));
+            }
+            Ok(_) => out.push((file, mime, bytes)),
+            Err(e) => {
+                notes.push(format!("{file}: not split, {e}"));
+                out.push((file, mime, bytes));
+            }
+        }
+    }
+    (out, names, notes)
 }
 
 /// The file of a sheet's revision (the current one for an empty label) when the person may see it.

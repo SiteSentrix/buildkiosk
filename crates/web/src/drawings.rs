@@ -94,6 +94,7 @@ pub fn page(req: &Req<'_>, id: Id<Project>, q: &HashMap<String, String>) -> Mark
                         (field("Issue date", "set_date", false, false, html! { input type="date" id="set_date" name="date"; }))
                         (field("Sheet files", "set_files", true, false, html! { input type="file" id="set_files" name="file" multiple required; }))
                     }
+                    label class="check" { input type="checkbox" name="split" value="true"; " A PDF here holds several sheets: make one sheet of each page (numbered after the file, then the page; rename them afterwards)" }
                     div class="form-actions" { button type="submit" class="btn primary" { "Upload the set" } }
                 }
                 p class="muted small" { "Up to 50 files, 25 MB each and 100 MB in all." }

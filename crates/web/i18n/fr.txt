@@ -13,6 +13,7 @@
 8'-6" above finished floor. The RCP will be revised.	8'-6" au-dessus du sol fini. Le plan de plafond réfléchi (RCP) sera révisé.
 9:00 AM	9:00
 A Forms admin needs to create a template first.	Un administrateur des formulaires doit d'abord créer un modèle.
+A PDF here holds several sheets	Un PDF ici contient plusieurs feuilles
 A baseline is the schedule's dates kept under a name, so progress can be measured against them. Save one when the contract is signed and another after a re-plan.	Un planning de référence conserve sous un nom les dates du planning, afin de mesurer l'avancement par rapport à elles. Enregistrez-en un à la signature du contrat et un autre après une replanification.
 A bid	Une offre
 A bid bond of	Une garantie de soumission de
@@ -2669,6 +2670,7 @@ last six months	six derniers mois
 leveled	nivelé
 lines can't be edited, added or imported.	les lignes ne peuvent pas être modifiées, ajoutées ou importées.
 low {}	bas {}
+make one sheet of each page (numbered after the file, then the page; rename them afterwards)	faire une feuille de chaque page (numérotée d'après le fichier, puis la page ; renommez-les ensuite)
 marcus.lee@example.com	marcus.lee@example.com
 milestone (yes or no), then a constraint (snet, mso or fnlt) and its date, then the resources the task needs each working day, such as Carpenter 4, Laborer 2.	jalon (oui ou non), puis une contrainte (snet, mso ou fnlt) et sa date, puis les ressources dont la tâche a besoin chaque jour ouvré, comme Carpenter 4, Laborer 2.
 name, unit, unit cost, category (optional), cost code (optional, from the company's standard list). An item with the same name has its price changed.	name, unit, unit cost, category (facultatif), cost code (facultatif, issu de la liste standard de l'entreprise). Un article du même nom voit son prix modifié.

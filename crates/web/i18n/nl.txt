@@ -13,6 +13,7 @@
 8'-6" above finished floor. The RCP will be revised.	8'-6" boven afgewerkte vloer. De RCP wordt herzien.
 9:00 AM	9:00
 A Forms admin needs to create a template first.	Een formulierenbeheerder moet eerst een sjabloon aanmaken.
+A PDF here holds several sheets	Een pdf hier bevat meerdere bladen
 A baseline is the schedule's dates kept under a name, so progress can be measured against them. Save one when the contract is signed and another after a re-plan.	Een basisplanning is de planningsdatums die onder een naam worden bewaard, zodat je de voortgang ertegen kunt afmeten. Sla er een op als het contract is getekend en nog een na een herplanning.
 A bid	Een inschrijving
 A bid bond of	Een biedgarantie van
@@ -2669,6 +2670,7 @@ last six months	laatste zes maanden
 leveled	genivelleerd
 lines can't be edited, added or imported.	regels kunnen niet worden bewerkt, toegevoegd of geïmporteerd.
 low {}	laag {}
+make one sheet of each page (numbered after the file, then the page; rename them afterwards)	maak van elke pagina een blad (genummerd naar het bestand en dan de pagina; hernoem ze daarna)
 marcus.lee@example.com	marcus.lee@example.com
 milestone (yes or no), then a constraint (snet, mso or fnlt) and its date, then the resources the task needs each working day, such as Carpenter 4, Laborer 2.	mijlpaal (ja of nee), dan een beperking (snet, mso of fnlt) en de datum ervan, dan de middelen die de taak elke werkdag nodig heeft, zoals Carpenter 4, Laborer 2.
 name, unit, unit cost, category (optional), cost code (optional, from the company's standard list). An item with the same name has its price changed.	naam, eenheid, eenheidsprijs, categorie (optioneel), kostencode (optioneel, uit de standaardlijst van het bedrijf). Een onderdeel met dezelfde naam krijgt een gewijzigde prijs.

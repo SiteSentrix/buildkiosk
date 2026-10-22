@@ -90,7 +90,7 @@ differs; [`docs/gaps.md`](docs/gaps.md) lists what each one still lacks.
 | **Specifications** | Sections with links from RFIs and submittals |
 | **Documents** | Folders and versions, files restricted to named people, previews, zip downloads, a recycle bin |
 | **Photos** | Albums and tags, thumbnails that respect camera orientation, a slideshow, side-by-side compare |
-| **Schedule** | A Gantt chart with critical path and float; working calendars and company holiday lists; seven kinds of constraint; named baselines; look-ahead; resource loading and levelling against limits; drag bars to move work; import Microsoft Project XML (with resources, limits and the calendar if you want them) and Primavera exchange (.xer) files |
+| **Schedule** | A Gantt chart with critical path and float; working calendars and company holiday lists; seven kinds of constraint; named baselines; look-ahead; resource loading and levelling against limits; drag bars to move work and drag from a bar's end dot to another bar to link them; import Microsoft Project XML (with resources, limits and the calendar if you want them) and Primavera exchange (.xer) files |
 
 ### Financials
 

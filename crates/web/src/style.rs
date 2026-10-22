@@ -257,7 +257,8 @@ a.stat:hover{border-color:var(--primary)}
 td.over{background:var(--danger-soft);color:var(--danger);font-weight:700}
 .gantt .bar[data-task],.gantt .done[data-task],.gantt .diamond[data-task]{cursor:grab}
 .gantt .handle{fill:transparent;cursor:ew-resize}
-.gantt #gantt-move,#gantt-move[hidden]{display:none}
+.gantt .linkdot{fill:var(--accent);opacity:.35;cursor:crosshair}.gantt .linkdot:hover{opacity:1}
+.gantt #gantt-move,#gantt-move[hidden],#gantt-link[hidden]{display:none}
 .gantt .dayoff{fill:var(--surface-2);opacity:.9}
 .gantt .baseline{fill:none;stroke:var(--muted);stroke-width:1.5}
 .gantt .done{fill:var(--primary)}

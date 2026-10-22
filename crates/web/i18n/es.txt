@@ -1162,6 +1162,7 @@ Lines	Líneas
 Link	Enlace
 Link for the company	Enlace para la empresa
 Link not valid	Enlace no válido
+Link two tasks by {}	Enlazar dos tareas por {}
 Link works until	El enlace funciona hasta
 Link works until (optional)	El enlace funciona hasta (opcional)
 Linked RFIs	RFI vinculados

@@ -32,3 +32,5 @@ day	día
 days	días
 Saving…	Guardando…
 {} of {}	{} de {}
+Drop on another bar to make that task follow this one.	Suelte sobre otra barra para que esa tarea siga a esta.
+Let go to link: that task will follow this one.	Suelte para enlazar: esa tarea seguirá a esta.

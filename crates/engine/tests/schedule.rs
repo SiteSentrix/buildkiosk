@@ -452,6 +452,31 @@ fn moving_and_resizing_tasks() {
 }
 
 #[test]
+fn linking_two_tasks() {
+    let mut w = World::new();
+    let p = w.project("Riverside Clinic");
+    let pm = w.member(p, "Paula", "Manager", "Project manager");
+    let reader = w.member(p, "Rae", "Reader", "Read only");
+    for (n, d) in [("Footings", "2026-10-12"), ("Slab", "2026-10-14"), ("Walls", "2026-10-16")] {
+        w.ok(pm, "schedule.add", json!({"project": p, "name": n, "start": d, "days": 2}));
+    }
+    w.err(reader, "schedule.link", json!({"project": p, "id": 2, "from": 1}));
+    w.err(pm, "schedule.link", json!({"project": p, "id": 2, "from": 2}));
+    w.err(pm, "schedule.link", json!({"project": p, "id": 2, "from": 99}));
+    w.err(pm, "schedule.link", json!({"project": p, "id": 2, "from": 1, "kind": "zz"}));
+    w.err(pm, "schedule.link", json!({"project": p, "id": 2, "from": 1, "lag": 99999}));
+    w.ok(pm, "schedule.link", json!({"project": p, "id": 2, "from": 1}));
+    w.ok(pm, "schedule.link", json!({"project": p, "id": 3, "from": 2, "kind": "ss", "lag": 1}));
+    w.err(pm, "schedule.link", json!({"project": p, "id": 1, "from": 3}));
+    // The same pair again replaces the link instead of doubling it.
+    w.ok(pm, "schedule.link", json!({"project": p, "id": 2, "from": 1, "kind": "ff", "lag": -1}));
+    let t = w.ok(pm, "schedule.get", json!({"project": p, "id": 2}));
+    assert_eq!(t["predecessors"].as_array().map(Vec::len), Some(1));
+    assert_eq!((t["predecessors"][0]["kind"].as_str(), t["predecessors"][0]["lag"].as_i64()), (Some("ff"), Some(-1)));
+    w.assert_replay();
+}
+
+#[test]
 fn the_schedule_exports_to_project_xml_and_reads_back() {
     use buildkiosk_engine::cmd::schedule_xml::export_xml;
     let mut w = World::new();

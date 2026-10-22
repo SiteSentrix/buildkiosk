@@ -1162,6 +1162,7 @@ Lines	Regels
 Link	Link
 Link for the company	Link voor het bedrijf
 Link not valid	Link niet geldig
+Link two tasks by {}	Twee taken koppelen door {}
 Link works until	Link werkt tot
 Link works until (optional)	Link werkt tot (optioneel)
 Linked RFIs	Gekoppelde RFI's

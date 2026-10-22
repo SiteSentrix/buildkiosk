@@ -32,3 +32,5 @@ day	jour
 days	jours
 Saving…	Enregistrement…
 {} of {}	{} sur {}
+Drop on another bar to make that task follow this one.	Déposez sur une autre barre pour que cette tâche suive celle-ci.
+Let go to link: that task will follow this one.	Relâchez pour lier : cette tâche suivra celle-ci.

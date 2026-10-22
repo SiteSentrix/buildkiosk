@@ -191,6 +191,7 @@ pub fn page(req: &Req<'_>, id: Id<Project>, filter: &str, drag: bool) -> Markup 
                                             rect class=(cls) data-task=[task.clone()] x=(format!("{x:.1}")) y=(format!("{y}")) width=(format!("{w:.1}")) height=(format!("{h}")) {}
                                             @if r.percent > 0 { rect class=(format!("done{}", if r.critical { " critical" } else { "" })) data-task=[task.clone()] x=(format!("{x:.1}")) y=(format!("{y}")) width=(format!("{:.1}", w * f64::from(r.percent) / 100.0)) height=(format!("{h}")) {} }
                                             @if let Some(t) = &task { rect class="handle" data-task=(t) data-edge="finish" x=(format!("{:.1}", x + w - 5.0)) y=(format!("{y}")) width="5" height=(format!("{h}")) {} }
+                                            @if let Some(t) = &task { circle class="linkdot" data-link=(t) cx=(format!("{:.1}", x + w + 5.0)) cy=(format!("{:.1}", y + h / 2.0)) r="3.5" {} }
                                         }
                                     }
                                 }
@@ -209,6 +210,13 @@ pub fn page(req: &Req<'_>, id: Id<Project>, filter: &str, drag: bool) -> Markup 
                         input type="hidden" id="gm-id" name="id" value="";
                         input type="hidden" id="gm-shift" name="shift" value="0";
                         input type="hidden" id="gm-fshift" name="finish_shift" value="0" disabled;
+                    }))
+                }
+                div id="gantt-link" hidden {
+                    (command_form(req, "schedule.link", &base, &base, html! {
+                        input type="hidden" name="project" value=(id);
+                        input type="hidden" id="gl-id" name="id" value="";
+                        input type="hidden" id="gl-from" name="from" value="";
                     }))
                 }
             }

@@ -136,6 +136,18 @@ long tail of each tool. These are tracked in [`docs/gaps.md`](docs/gaps.md) and 
 
 ## Install or build it
 
+**Downloads** are on the [releases page](https://github.com/SiteSentrix/buildkiosk/releases) once a version is tagged (none is
+published yet). Each release has one archive per platform, plus `SHA256SUMS`:
+
+| Platform | Archive |
+|---|---|
+| Linux, x86_64 | `buildkiosk-<version>-x86_64-unknown-linux-musl.tar.gz` |
+| Linux, ARM64 | `buildkiosk-<version>-aarch64-unknown-linux-musl.tar.gz` |
+| macOS, Intel | `buildkiosk-<version>-x86_64-apple-darwin.tar.gz` |
+| macOS, Apple silicon | `buildkiosk-<version>-aarch64-apple-darwin.tar.gz` |
+| Windows, x86_64 | `buildkiosk-<version>-x86_64-pc-windows-msvc.zip` |
+| Container (Linux, both architectures) | `ghcr.io/sitesentrix/buildkiosk:<version>` |
+
 A released version installs with one command (Linux and macOS; Windows has a .zip on the releases page). It checks the
 download against published checksums first, and `--help` lists the options (see [`docs/deployment.md`](docs/deployment.md)):
 

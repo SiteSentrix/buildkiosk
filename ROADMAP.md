@@ -22,6 +22,7 @@ The ranked work list is [`docs/gaps.md`](docs/gaps.md).
 2. The open parts of the tools already built, in the order of `docs/gaps.md`: inspections (4), drawings (5), schedule (6), financials (7), company reports (10), prequalification (11), languages (12).
 
 ## Progress log
+- 2026-10-31: Release-readiness audit (phase 1 of issue #33), no code changed: `docs/release-readiness.md`.
 - 2026-10-20: Schedule: resource levelling (preview and apply on the resources page; `schedule.level_plan`, `schedule.level`), and resources, limits and the working calendar read from Microsoft Project XML files on request.
 - 2026-10-14: Releases: pushing a version tag runs the gate, builds the program for Linux (static), macOS and Windows with the sheet viewer embedded, checksums and attests the archives, and publishes a GitHub release; `install.sh` installs one after checking its checksum (`docs/deployment.md`). `buildkiosk version` added.
 - 2026-10-16: Container image: the release workflow also builds a multi-architecture (Linux x86_64 and aarch64) image from the same static binaries and pushes it to `ghcr.io/sitesentrix/buildkiosk` on a tag (`contrib/docker/Dockerfile`, `docs/deployment.md`).
